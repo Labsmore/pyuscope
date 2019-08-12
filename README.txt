@@ -1,48 +1,29 @@
 pr0ncnc
-Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
+Copyright 2011-2019 John McMaster <JohnDMcMaster@gmail.com>
 
+This is a framework and GUI to coordinate linear stages and sensors for panoramic scans
+Its primarily used to do large XY scans of microscope samples using linuxcnc + v4l (MU800) camera
+As of 2019 I'm cleaning up the code to allow non-v4l sensors
 
-Purpose
-This generates g-code for my CNC microscope:
-http://uvicrec.blogspot.com/2011/01/metalurgical-microscope-cnc.html
+Why did you make this project?
+Originally, I needed to do some custom stuff and had a burning hated for Java (used by MicroManager)
+I've warmed up to Java slightly, and its possible MicroManager is a better fit for most people
+However, I've been using this workflow for years now, and will probably continue to do so
 
-
-Prerequisites
--EMC2 compatible g-code interpreter
--XY linear stages
--Camera that can be controlled from g-code interpreter
-	-M7: focus
-	-M8: take picture
-	-M9: cancel focus / take picture
--Sample can be scanned as a rectangle
-Of course, if your camera takes pictures immediatly instead of requiring both
-signals, you only need to wire either M7 or M8
-
-
-How to use this program
-
-***Pay attention to z-play value!***
-If you aren't careful, it could cause the objective to hit your sample
-Set it to 0 if it scares you
-
-Find where you'd like the scan to start at X=0, Y=0
-	Zero X and Y
-How does Z change as you move Y?  
-	Zero Z at (0,0,0) after moving Z in the same direction as Y will need to move Z
-	This helps correct backlash
-		If you don't care about this, set "z_backlash" to 0.0
-Find the end corner of the rectangle
-	Using same Z technique, record this in scan config file under "end"
-Find a plane reference point
-	Using same Z technique, record this in scan config file under "other"
-	This should be somewhere off axis as possible from the other two points
-	Another corner of the rectangle is a good choice
-
-
-
-
+How to start?
+cp config/test/microscope.json .
+python pgui/main.py
+build and fix until you get all the requirements installed
 
 python2 vs python3
 tried to convert to python 3, but significant gstreamer changes are required
 See https://pygobject.readthedocs.io/en/latest/guide/porting.html
+
+Some old notes, not sure if these are still relevant
+Originally I used this to generate g-code that ran as a full program instead of MDI
+-M7: focus
+-M8: take picture
+-M9: cancel focus / take picture
+Of course, if your camera takes pictures immediatly instead of requiring both
+signals, you only need to wire either M7 or M8
 

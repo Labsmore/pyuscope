@@ -1,0 +1,22 @@
+{
+    "cnc": {
+        "engine": "mock",
+        "lcnc": {
+            "host": "mk"    
+        }
+    },
+    "imager": {
+        "engine":"gstreamer-testsrc",
+		"width": 3264,
+		"height": 2448,
+		"scalar": 0.5
+    },
+    "objective": [
+		{
+			"name":"My20x",
+			"suffix":"mit20x",
+			"x_view": 1.075
+		}
+    ]
+}
+

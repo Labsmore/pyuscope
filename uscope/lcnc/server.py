@@ -1,6 +1,6 @@
 '''
 WARNING: this file is deployed standalone to remote systems
-Do not add pyuscope dependencies
+Do not add uscope dependencies
 '''
 
 from SimpleXMLRPCServer import SimpleXMLRPCServer

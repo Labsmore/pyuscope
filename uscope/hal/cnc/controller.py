@@ -1,5 +1,5 @@
 '''
-This file is part of pyuscope
+This file is part of uscope
 Licensed under 2 clause BSD license, see COPYING for details
 '''
 

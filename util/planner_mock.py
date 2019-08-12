@@ -3,8 +3,8 @@
 Planner test harness
 '''
 
-from pyuscope import planner
-from pyuscope import planner_hal
+from uscope import planner
+from uscope import planner_hal
 
 import argparse
 import json

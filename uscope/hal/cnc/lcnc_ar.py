@@ -3,8 +3,8 @@ Linux CNC auto RPC
 '''
 
 from lcnc import LcncPyHal
-from pyuscope.lcnc.client import LCNCRPC, PORT
-from pyuscope import paramiko_util
+from uscope.lcnc.client import LCNCRPC, PORT
+from uscope import paramiko_util
 
 import os
 try:

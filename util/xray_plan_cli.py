@@ -3,13 +3,13 @@
 Planner test harness
 '''
 
-import pyuscope.planner
-from pyuscope.cnc_hal import lcnc_ar
+import uscope.planner
+from uscope.cnc_hal import lcnc_ar
 #from config import get_config
-from pyuscope.util import add_bool_arg
-from pyuscope.imager import Imager
-import pyuscope.gxs700_util
-from pyuscope.wps7 import WPS7
+from uscope.util import add_bool_arg
+from uscope.imager import Imager
+import uscope.gxs700_util
+from uscope.wps7 import WPS7
 
 import argparse
 import json
@@ -51,7 +51,7 @@ class XrayImager(Imager):
         self.fil_on = time.time()
         self.fire_last = 0
         
-        self.gxs = pyuscope.gxs700_util.ez_open(verbose=False)
+        self.gxs = uscope.gxs700_util.ez_open(verbose=False)
         
         self.gxs.wait_trig_cb = self.fire
 
@@ -102,7 +102,7 @@ class XrayImager(Imager):
                 return None
             raise
         print 'x-ray: decoding'
-        img_dec = pyuscope.gxs700.GXS700.decode(img_bin)
+        img_dec = uscope.gxs700.GXS700.decode(img_bin)
         # Cheat a little
         img_dec.raw = img_bin
         return img_dec
@@ -170,7 +170,7 @@ if __name__ == "__main__":
         # Wonder if this is exact?
         # should measure broken sensor under microscope
         mm_per_pix = 1 / 55.
-        planner = pyuscope.planner.Planner(json.load(open(args.scan_json)), hal, imager=imager,
+        planner = uscope.planner.Planner(json.load(open(args.scan_json)), hal, imager=imager,
                     img_sz=img_sz, unit_per_pix=mm_per_pix,
                     out_dir=args.out,
                     progress_cb=None,

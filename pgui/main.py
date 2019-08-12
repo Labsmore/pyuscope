@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 
 from config import get_config
-from pyuscope.imager import Imager
-from pyuscope.img_util import get_scaled
-from pyuscope.benchmark import Benchmark
-from pyuscope.imager import MockImager
-from pyuscope.cnc_hal import hal as cnc_hal
-from pyuscope.cnc_hal import lcnc_ar
-from pyuscope.cnc_hal import lcnc as lcnc_hal
-from pyuscope.lcnc.client import LCNCRPC
-from pyuscope import gst_util
-from pyuscope.v4l2_util import ctrl_set
+from uscope.imager import Imager
+from uscope.img_util import get_scaled
+from uscope.benchmark import Benchmark
+from uscope.imager import MockImager
+from uscope.cnc_hal import hal as cnc_hal
+from uscope.cnc_hal import lcnc_ar
+from uscope.cnc_hal import lcnc as lcnc_hal
+from uscope.lcnc.client import LCNCRPC
+from uscope import gst_util
+from uscope.v4l2_util import ctrl_set
 
 from threads import CncThread, PlannerThread
 from cStringIO import StringIO

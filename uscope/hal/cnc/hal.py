@@ -1,5 +1,5 @@
 import time
-from pyuscope.imager import Imager
+from uscope.imager import Imager
 
 class AxisExceeded(ValueError):
     pass
@@ -198,7 +198,7 @@ class MockHal(Hal):
         pass
 
 '''
-Legacy pyuscope.mc adapter
+Legacy uscope.mc adapter
 '''
 class MCHal(Hal):
     def __init__(self, mc, log=None, dry=False):

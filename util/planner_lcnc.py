@@ -3,9 +3,9 @@
 Planner test harness
 '''
 
-from pyuscope import planner
-from pyuscope.cnc_hal import lcnc
-from pyuscope.lcnc.client import LCNCRPC
+from uscope import planner
+from uscope.cnc_hal import lcnc
+from uscope.lcnc.client import LCNCRPC
 
 import argparse        
 

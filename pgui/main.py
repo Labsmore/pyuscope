@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 
 from config import get_config
-from uvscada.imager import Imager
-from uvscada.img_util import get_scaled
-from uvscada.benchmark import Benchmark
-from uvscada.imager import MockImager
-from uvscada.cnc_hal import hal as cnc_hal
-from uvscada.cnc_hal import lcnc_ar
-from uvscada.cnc_hal import lcnc as lcnc_hal
-from uvscada.lcnc.client import LCNCRPC
-from uvscada import gst_util
-from uvscada.v4l2_util import ctrl_set
+from pyuscope.imager import Imager
+from pyuscope.img_util import get_scaled
+from pyuscope.benchmark import Benchmark
+from pyuscope.imager import MockImager
+from pyuscope.cnc_hal import hal as cnc_hal
+from pyuscope.cnc_hal import lcnc_ar
+from pyuscope.cnc_hal import lcnc as lcnc_hal
+from pyuscope.lcnc.client import LCNCRPC
+from pyuscope import gst_util
+from pyuscope.v4l2_util import ctrl_set
 
 from threads import CncThread, PlannerThread
 from cStringIO import StringIO

@@ -1,5 +1,5 @@
 '''
-This file is part of uvscada
+This file is part of pyuscope
 Licensed under 2 clause BSD license, see COPYING for details
 '''
 
@@ -33,7 +33,7 @@ alpha is using UCN5804 but waiting for new drivers in mail
 '''
 
 import time
-from uvscada.usbio import USBIO
+from pyuscope.usbio import USBIO
 import threading
 
 VERSION = 0.0

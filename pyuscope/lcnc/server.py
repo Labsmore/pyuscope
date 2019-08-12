@@ -1,6 +1,6 @@
 '''
 WARNING: this file is deployed standalone to remote systems
-Do not add uvscada dependencies
+Do not add pyuscope dependencies
 '''
 
 from SimpleXMLRPCServer import SimpleXMLRPCServer

@@ -7,7 +7,7 @@ Introduces things like units and concurrency
 import threading
 from controller import Controller
 from axis import Axis
-from uvscada.pr0ndexer import Indexer
+from pyuscope.pr0ndexer import Indexer
 
 class PDC(Controller):
     def __init__(self, debug=False, log=None, config=None):

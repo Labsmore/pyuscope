@@ -1,5 +1,5 @@
 '''
-This file is part of uvscada
+This file is part of pyuscope
 Licensed under 2 clause BSD license, see COPYING for details
 '''
 

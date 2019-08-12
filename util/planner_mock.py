@@ -3,8 +3,8 @@
 Planner test harness
 '''
 
-from uvscada import planner
-from uvscada import planner_hal
+from pyuscope import planner
+from pyuscope import planner_hal
 
 import argparse
 import json

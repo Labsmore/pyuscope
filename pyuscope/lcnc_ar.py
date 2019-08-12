@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from uvscada.cnc_hal import lcnc_ar
+from pyuscope.cnc_hal import lcnc_ar
 
 import argparse
 import time

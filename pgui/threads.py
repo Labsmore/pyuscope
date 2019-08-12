@@ -1,6 +1,6 @@
-from uvscada.planner import Planner
-from uvscada.benchmark import Benchmark
-from uvscada.cnc_hal.hal import AxisExceeded
+from pyuscope.planner import Planner
+from pyuscope.benchmark import Benchmark
+from pyuscope.cnc_hal.hal import AxisExceeded
 import traceback
 
 import Queue

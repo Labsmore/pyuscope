@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from config import get_config
-from uvscada.v4l2_util import ctrl_set
+from pyuscope.v4l2_util import ctrl_set
 
 from PyQt4 import Qt
 from PyQt4.QtGui import *

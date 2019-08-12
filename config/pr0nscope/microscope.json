@@ -1,0 +1,122 @@
+{
+    "live_video": true,
+    "objective_json": "objective.json",
+    "scan_json": "scan.json",
+    "cnc": {
+        "!engine":  "auto",       
+        "!engine": "mock",
+        "engine": "lcnc-arpc",
+        "!dry":true,
+        "mock":0,
+        "out_dir":"out",
+        "overwrite":0,
+        "lcnc": {
+            "host": "mk"    
+        },
+        "axes": {
+            "x": {
+                "backlash": 0.0050
+            },
+            "y": {
+                "backlash": 0.0050
+            },
+            "z": {
+                "backlash": 0.0050
+            }
+        }
+    },
+    "imager": {
+        "!engine":"mock",
+        "!engine":"gstreamer-testsrc",
+        "engine":"gstreamer",
+        "snapshot_dir":"snapshot",
+		"width": 3264,
+		"height": 2448,
+		"scalar": 0.5,
+		"v4l2": {
+		    "vmax_ns20x_pol-n_backside_nd_2017-12-31": {
+                "Red Balance":  90,
+                "Gain":         100,
+                "Blue Balance": 207,
+                "Exposure":     50
+		    },
+		    "vmax_ns20x_pol-n_backside_exp-10_2017-12-31": {
+                "Red Balance":  44,
+                "Gain":         50,
+                "Blue Balance": 103,
+                "Exposure":     10
+		    },
+		    "vmax_ns100x_pol-n_backside_2017-12-31": {
+                "Red Balance":  47,
+                "Gain":         50,
+                "Blue Balance": 95,
+                "Exposure":     10
+		    },
+		    "vmax_ns20x_pol-y_backside_2017-12-31": {
+                "Red Balance":  256,
+                "Gain":         250,
+                "Blue Balance": 958,
+                "Exposure":     800
+		    }
+	    },
+		"v4l2_old": {
+		    "8v_ns20x_pol-no_backside_exp-60_2017-12-31": {
+                "Red Balance":  125,
+                "Gain":         165,
+                "Blue Balance": 387,
+                "Exposure":     60
+		    },
+		    "10v_ns20x_pol-no_backside_exp-60_2017-12-31": {
+                "Red Balance":  138,
+                "Gain":         165,
+                "Blue Balance": 359,
+                "Exposure":     60
+		    },
+		    "10v_ns100x_pol-no_backside_exp-60_2017-12-31": {
+                "Red Balance":  148,
+                "Gain":         165,
+                "Blue Balance": 326,
+                "Exposure":     60
+		    },
+		    "12v_ns100x_pol-no_backside_exp-60_2017-12-31": {
+                "Red Balance":  158,
+                "Gain":         165,
+                "Blue Balance": 304,
+                "Exposure":     60
+		    }
+	    }
+    },
+    "objective": [
+		{
+			"name":"Mitutoyo Apo 20X",
+			"scalar": 0.5,
+			"x_view": 0.544
+		},
+		{
+			"name":"Mitutoyo Apo 2X",
+			"scalar": 0.5,
+			"x_view": 5.44
+		},
+		{
+			"name":"Mitutoyo Apo 5X",
+			"scalar": 0.5,
+			"x_view": 2.176
+		},
+		{
+			"name":"Mitutoyo Apo 10X",
+			"scalar": 0.5,
+			"x_view": 1.088
+		},
+		{
+			"name":"Mitutoyo Apo 50X",
+			"scalar": 0.5,
+			"x_view": 0.2176
+		},
+		{
+			"name":"Mitutoyo Apo 100X",
+			"scalar": 0.5,
+			"x_view": 0.109
+		}
+    ]
+}
+

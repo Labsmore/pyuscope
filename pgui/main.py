@@ -1133,7 +1133,8 @@ if __name__ == '__main__':
     # Exit on ^C instead of ignoring
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    gobject.threads_init()
+    if gobject:
+        gobject.threads_init()
 
     app = QApplication(sys.argv)
     gui = CNCGUI()

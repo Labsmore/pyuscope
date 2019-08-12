@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from uscope.config import get_config
 from uscope.v4l2_util import ctrl_set

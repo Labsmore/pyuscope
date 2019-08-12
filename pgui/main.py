@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-from config import get_config
-from uscope.imager import Imager
+from uscope.config import get_config
+from uscope.hal.img.imager import Imager
 from uscope.img_util import get_scaled
 from uscope.benchmark import Benchmark
-from uscope.imager import MockImager
-from uscope.cnc_hal import hal as cnc_hal
-from uscope.cnc_hal import lcnc_ar
-from uscope.cnc_hal import lcnc as lcnc_hal
+from uscope.hal.img.imager import MockImager
+from uscope.hal.cnc import hal as cnc_hal
+from uscope.hal.cnc import lcnc_ar
+from uscope.hal.cnc import lcnc as lcnc_hal
 from uscope.lcnc.client import LCNCRPC
 from uscope import gst_util
 from uscope.v4l2_util import ctrl_set

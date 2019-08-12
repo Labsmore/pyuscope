@@ -1,6 +1,6 @@
 from uscope.planner import Planner
 from uscope.benchmark import Benchmark
-from uscope.cnc_hal.hal import AxisExceeded
+from uscope.hal.cnc.hal import AxisExceeded
 import traceback
 
 import Queue

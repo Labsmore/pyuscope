@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from config import get_config
+from uscope.config import get_config
 from uscope.v4l2_util import ctrl_set
 
 from PyQt4 import Qt

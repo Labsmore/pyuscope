@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from uscope.cnc_hal import lcnc_ar
+from uscope.hal.cnc import lcnc_ar
 
 import argparse
 import time

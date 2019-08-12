@@ -39,7 +39,10 @@ Find a plane reference point
 	Another corner of the rectangle is a good choice
 
 
-Improvements
-A mesh mode could be nice.  For some chips such as my Intel wafer, there are
-things beyond my control that have lensing effects.  As such, the focal plane
-is not flat.  This might be so rare as to not implement though.
+
+
+
+python2 vs python3
+tried to convert to python 3, but significant gstreamer changes are required
+See https://pygobject.readthedocs.io/en/latest/guide/porting.html
+

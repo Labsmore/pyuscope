@@ -1,5 +1,5 @@
 import time
-from uscope.imager import Imager
+from uscope.hal.img.imager import Imager
 
 class AxisExceeded(ValueError):
     pass

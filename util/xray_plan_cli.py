@@ -4,12 +4,12 @@ Planner test harness
 '''
 
 import uscope.planner
-from uscope.cnc_hal import lcnc_ar
+from uscope.hal.cnc import lcnc_ar
 #from config import get_config
 from uscope.util import add_bool_arg
-from uscope.imager import Imager
-import uscope.gxs700_util
-from uscope.wps7 import WPS7
+from uscope.hal.img.imager import Imager
+import uvscada.gxs700_util
+from uvscada.wps7 import WPS7
 
 import argparse
 import json

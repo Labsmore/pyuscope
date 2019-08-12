@@ -55,6 +55,10 @@ def dbg(*args):
 
 def get_cnc_hal(log):
     print 'get_cnc_hal', log
+    try:
+        lcnc_host = uconfig["cnc"]["lcnc"]["host"]
+    except KeyError:
+        lcnc_host = "mk"
     engine = uconfig['cnc']['engine']
     if engine == 'mock':
         return cnc_hal.MockHal(log=log)
@@ -63,15 +67,13 @@ def get_cnc_hal(log):
 
         return lcnc_hal.LcncPyHal(linuxcnc=linuxcnc, log=log)
     elif engine == 'lcnc-rpc':
-        host = uconfig["cnc"]["lcnc"]["host"]
         try:
-            return lcnc_hal.LcncPyHal(linuxcnc=LCNCRPC(host=host), log=log)
+            return lcnc_hal.LcncPyHal(linuxcnc=LCNCRPC(host=lcnc_host), log=log)
         except socket.error:
             raise
-            raise Exception("Failed to connect to LCNCRPC %s" % host)
+            raise Exception("Failed to connect to LCNCRPC %s" % lcnc_host)
     elif engine == 'lcnc-arpc':
-        host = uconfig["cnc"]["lcnc"]["host"]
-        return lcnc_ar.LcncPyHalAr(host=host, log=log)
+        return lcnc_ar.LcncPyHalAr(host=lcnc_host, log=log)
     elif engine == 'lcnc-rsh':
         return lcnc_hal.LcncRshHal(log=log)
     else:
@@ -203,8 +205,9 @@ class CNCGUI(QMainWindow):
         self.showMaximized()
         self.uconfig = uconfig
 
-        self.jog_run = None
-        self.jog_running = {}
+        # used to calcluate video display width/height
+        # self.vw, self.vh = 800, 600
+        self.vw, self.vh = 3264, 2448
 
         # must be created early to accept early logging
         # not displayed until later though
@@ -390,11 +393,7 @@ class CNCGUI(QMainWindow):
 
             # Raw X-windows canvas
             self.video_container = QWidget()
-            # Allows for convenient keyboard control by clicking on the video
-            self.video_container.setFocusPolicy(Qt.ClickFocus)
-            # TODO: do something more proper once integrating vodeo feed
-            w, h = 800, 600
-            w, h = 3264/8, 2448/8
+            w, h = self.vw/8, self.vh/8
             self.video_container.setMinimumSize(w, h)
             self.video_container.resize(w, h)
             policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -411,9 +410,7 @@ class CNCGUI(QMainWindow):
 
             # Raw X-windows canvas
             self.video_container2 = QWidget()
-            # TODO: do something more proper once integrating vodeo feed
-            w, h = 800, 600
-            w, h = 3264/8, 2448/8
+            w, h = self.vw/8, self.vh/8
             self.video_container2.setMinimumSize(w, h)
             self.video_container2.resize(w, h)
             policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -727,9 +724,6 @@ class CNCGUI(QMainWindow):
     def stop(self):
         '''Stop operations after the next operation'''
         self.cnc_thread.stop()
-        # just in case
-        if self.jog_run:
-            self.jog_run.clear()
 
     def estop(self):
         '''Stop operations immediately.  Position state may become corrupted'''
@@ -1047,78 +1041,10 @@ class CNCGUI(QMainWindow):
         self.show()
 
     def keyPressEvent(self, event):
-        '''
-        Upper left hand coordinate system
-        '''
-        # Only control explicitly, don't move by typing accident in other element
-        if not self.video_container.hasFocus():
-            return
         k = event.key()
-        # Ignore duplicates, want only real presses
-        if event.isAutoRepeat():
-            return
-
-        # Focus is sensitive...should step slower?
-        # worry sonce focus gets re-integrated
-
-        axis = {
-                # Upper left origin
-                Qt.Key_Left:    ('x', -1),
-                Qt.Key_Right:   ('x', 1),
-                Qt.Key_Up:      ('y', -1),
-                Qt.Key_Down:    ('y', 1),
-                Qt.Key_PageUp:  ('z', 1),
-                Qt.Key_PageDown:('z', -1),
-                } .get(k, None)
-        if axis:
-            axis, sign = axis
-            dbg('Key jogging %s%c' % (axis, {1: '+', -1: '-'}[sign]))
-
-            # Cancel running jog (if any)
-            if self.jog_run:
-                self.jog_run.clear()
-                self.jog_run = None
-            # Add the new axis to jog
-            self.jog_running[axis] = sign
-            # Get jog running with new axis
-            self.jog_run = threading.Event()
-            self.jog_run.set()
-            # Note: jog_running may be updated with additional axes
-            # Thread must be careful not to iterate over it directly
-            # and should be aware that it may change
-            self.cnc_thread.cmd('forever', self.jog_running, self.jog_run, lambda pos: self.emit_pos(pos))
-            return
-
         if k == Qt.Key_Escape:
             self.stop()
 
-    def keyReleaseEvent(self, event):
-        # Don't move around with moving around text boxes, etc
-        if not self.video_container.hasFocus():
-            return
-        k = event.key()
-        # Ignore duplicates, want only real presses
-        if event.isAutoRepeat():
-            return
-
-        axis = {
-                Qt.Key_Left:    'x',
-                Qt.Key_Right:   'x',
-                Qt.Key_Up:      'y',
-                Qt.Key_Down:    'y',
-                Qt.Key_PageDown: 'z',
-                Qt.Key_PageUp:  'z',
-                }.get(k, None)
-        if axis:
-            # No longer jogging this axis
-            # Note: if the user pressed both directions could already be cleared
-            # (bad user: stop mashing the keyboard!)
-            if axis in self.jog_running:
-                del self.jog_running[axis]
-                if len(self.jog_running) == 0:
-                    # Cancel running jog
-                    self.jog_run.clear()
-                    self.jog_run = None
 
 def excepthook(excType, excValue, tracebackobj):
     print '%s: %s' % (excType, excValue)

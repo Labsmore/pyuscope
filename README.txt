@@ -1,7 +1,7 @@
 pr0ncnc
 Copyright 2011-2019 John McMaster <JohnDMcMaster@gmail.com>
 
-This is a framework and GUI to coordinate linear stages and sensors for panoramic scans
+This is a framework and python gstreamer GUI to coordinate linear stages and sensors for panoramic scans
 Its primarily used to do large XY scans of microscope samples using linuxcnc + v4l (MU800) camera
 As of 2019 I'm cleaning up the code to allow non-v4l sensors
 

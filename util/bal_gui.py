@@ -24,10 +24,12 @@ import signal
 #pyGst.require('0.10')
 
 import gi
+#gi.require_version('Gtk', '3.0')
 gi.require_version('Gst', '1.0')
 gi.require_version('GstBase', '1.0')
 from gi.repository import Gst
-from gi.repository import GObject, Gst, GstBase, Gtk, GObject
+Gst.init(None)
+from gi.repository import GObject, Gst, GstBase, GObject
 
 
 import io
@@ -39,15 +41,14 @@ uconfig = get_config()
 Do not encode images in gstreamer context or it brings system to halt
 instead, request images and have them encoded in requester's context
 '''
-"""
-class CaptureSink(Gst.Element):
-    __gstdetails__ = ('CaptureSink','Sink', \
+class CaptureSink(GstBase.BaseSink):
+    __gstmetadata__ = ('capturesink','Sink', \
                       'Captures images for the CNC', 'John McMaster')
 
-    _sinkpadtemplate = Gst.PadTemplate ("sinkpadtemplate",
-                                        Gst.PAD_SINK,
-                                        Gst.PAD_ALWAYS,
-                                        Gst.caps_new_any())
+    __gsttemplates__ = Gst.PadTemplate.new("sinkpadtemplate",
+                                        Gst.PadDirection.SINK,
+                                        Gst.PadPresence.ALWAYS,
+                                        Gst.Caps.new_any())
 
     def __init__(self):
         Gst.Element.__init__(self)
@@ -78,8 +79,29 @@ class CaptureSink(Gst.Element):
 
 GObject.type_register(CaptureSink)
 # Register the element into this process' registry.
-Gst.element_register (CaptureSink, 'capturesink', Gst.RANK_MARGINAL)
-"""
+# Gst.element_register (CaptureSink, 'capturesink', Gst.RANK_MARGINAL)
+__gstelementfactory__ = ("capturesink", Gst.Rank.NONE, CaptureSink)
+
+
+
+
+class MySink(GstBase.BaseSink):
+    __gstmetadata__ = ('CustomSink','Sink', \
+                      'Custom test sink element', 'Edward Hervey')
+
+    __gsttemplates__ = Gst.PadTemplate.new("sink",
+                                           Gst.PadDirection.SINK,
+                                           Gst.PadPresence.ALWAYS,
+                                           Gst.Caps.new_any())
+
+    def do_render(self, buffer):
+        Gst.info("timestamp(buffer):%s" % (Gst.TIME_ARGS(buffer.pts)))
+        return Gst.FlowReturn.OK
+
+GObject.type_register(MySink)
+__gstelementfactory__ = ("mysink", Gst.Rank.NONE, MySink)
+
+
 
 class ImageProcessor(QThread):
     n_frames = pyqtSignal(int) # Number of images
@@ -333,22 +355,37 @@ class TestGUI(QMainWindow):
         self.player = Gst.Pipeline("player")
         self.tee = Gst.ElementFactory.make("tee")
         sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_overview')
-        fcs = Gst.ElementFactory.make('ffmpegcolorspace')
-        caps = Gst.Caps.from_string('video/x-raw-yuv')
+        # fcs = Gst.ElementFactory.make('ffmpegcolorspace')
+        fcs = Gst.ElementFactory.make('videoconvert')
+        assert fcs
+        #caps = Gst.Caps.from_string('video/x-raw-yuv')
+        caps = Gst.Caps.from_string('video/x-raw,format=yuv')
         self.capture_enc = Gst.ElementFactory.make("jpegenc")
-        self.capture_sink = Gst.ElementFactory.make("capturesink")
+        self.capture_sink = Gst.ElementFactory.make("mysink")
+        assert self.capture_sink
         self.capture_sink_queue = Gst.ElementFactory.make("queue")
         self.resizer =  Gst.ElementFactory.make("videoscale")
 
         # Video render stream
         self.player.add(      self.source, self.tee)
-        Gst.element_link_many(self.source, self.tee)
+        #Gst.element_link_many(self.source, self.tee)
+        self.source.link(self.tee)
 
+        assert self.resizer
+        assert sinkx
         self.player.add(fcs,                 self.resizer, sinkx)
-        Gst.element_link_many(self.tee, fcs, self.resizer, sinkx)
+        #Gst.element_link_many(self.tee, fcs, self.resizer, sinkx)
+        self.tee.link(fcs)
+        fcs.link(self.resizer)
+        self.resizer.link(sinkx)
 
-        self.player.add(                self.capture_sink_queue, self.capture_enc, self.capture_sink)
-        Gst.element_link_many(self.tee, self.capture_sink_queue, self.capture_enc, self.capture_sink)
+        assert self.capture_sink_queue
+        assert self.capture_enc
+        self.player.add(self.capture_sink_queue, self.capture_enc, self.capture_sink)
+        #Gst.element_link_many(self.tee, self.capture_sink_queue, self.capture_enc, self.capture_sink)
+        self.tee.link(self.capture_sink_queue)
+        self.capture_sink_queue.link(self.capture_enc)
+        self.capture_enc.link(self.capture_sink)
 
         bus = self.player.get_bus()
         bus.add_signal_watch()

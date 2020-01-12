@@ -26,7 +26,6 @@ loadrt [EMCMOT]EMCMOT servo_period_nsec=[EMCMOT]SERVO_PERIOD num_joints=[TRAJ]AX
 # load low-level drivers
 loadrt hal_bb_gpio output_pins=816,822,823,824,825,826,914,923,925 input_pins=807,808,809,810,817,911,913
 loadrt [PRUCONF](DRIVER) prucode=$(HAL_RTMOD_DIR)/[PRUCONF](PRUBIN) [PRUCONF](CONFIG) halname=hpg
-loadrt limit1 count=2
 
 
 # ################################################
@@ -37,8 +36,6 @@ addf hpg.capture-position   servo-thread
 addf bb_gpio.read                         servo-thread
 addf motion-command-handler               servo-thread
 addf motion-controller                    servo-thread
-addf limit1.0                             servo-thread
-addf limit1.1                             servo-thread
 addf hpg.update             servo-thread
 addf bb_gpio.write                        servo-thread
 
@@ -81,10 +78,8 @@ setp hpg.stepgen.00.maxvel          [AXIS_0]STEPGEN_MAX_VEL
 setp hpg.stepgen.00.maxaccel        [AXIS_0]STEPGEN_MAX_ACC
 
 #setp hpg.stepgen.00.step_type       0
-# P8.43 PRU1.out2
-setp hpg.stepgen.00.steppin        813
-# P8.44 PRU1.out4
-setp hpg.stepgen.00.dirpin         812
+setp hpg.stepgen.00.steppin        812
+setp hpg.stepgen.00.dirpin         811
 
 
 # ################
@@ -120,24 +115,18 @@ setp hpg.stepgen.01.maxvel          [AXIS_1]STEPGEN_MAX_VEL
 setp hpg.stepgen.01.maxaccel        [AXIS_1]STEPGEN_MAX_ACC
 
 #setp hpg.stepgen.01.step_type       0
-# P8.42 PRU1.out5
-setp hpg.stepgen.01.steppin        815
-# P8.39 PRU1.out6
-setp hpg.stepgen.01.dirpin         814
+setp hpg.stepgen.01.steppin        816
+setp hpg.stepgen.01.dirpin         815
 
 
 # ##################################################
 # Standard I/O - EStop, Enables, Limit Switches, Etc
 # ##################################################
 
-# Create estop signal chain
-# Drive software estop to hardware
-net estop-out iocontrol.0.user-enable-out => bb_gpio.p8.out-26
-setp bb_gpio.p8.out-26.invert 1
-
 # Monitor estop input from hardware
-net estop-loop bb_gpio.p8.in-17 => iocontrol.0.emc-enable-in
-setp bb_gpio.p8.in-17.invert 1
+net estop-out iocontrol.0.user-enable-out
+net estop-loop iocontrol.0.user-enable-out iocontrol.0.emc-enable-in
+
 
 # create signals for tool loading loopback
 net tool-prep-loop iocontrol.0.tool-prepare => iocontrol.0.tool-prepared
@@ -154,34 +143,4 @@ net emcmot.00.enable => bb_gpio.p9.out-23
 # Tie machine power signal to the CRAMPS LED
 # Feel free to tie any other signal you like to the LED
 net emcmot.00.enable => bb_gpio.p9.out-25
-
-# ################
-# Limit Switches
-# ################
-newsig limit-x-min bit
-newsig limit-x-max bit
-newsig limit-y-min bit
-newsig limit-y-max bit
-
-net limit-x-min <= bb_gpio.p8.in-08
-net limit-x-max <= bb_gpio.p8.in-07
-net limit-y-min <= bb_gpio.p8.in-10
-net limit-y-max <= bb_gpio.p8.in-09
-
-# Adjust as needed for your switch polarity
-setp bb_gpio.p8.in-08.invert 1
-setp bb_gpio.p8.in-07.invert 1
-setp bb_gpio.p8.in-10.invert 1
-setp bb_gpio.p8.in-09.invert 1
-setp bb_gpio.p9.in-11.invert 1
-setp bb_gpio.p9.in-13.invert 1
-
-# Uncomment if you actually have limit switches setup
-# You probably want to setup homing in the INI file, as well
-#net limit-x-min => axis.0.home-sw-in
-#net limit-x-min => axis.0.neg-lim-sw-in
-#net limit-x-max => axis.0.pos-lim-sw-in
-#net limit-y-min => axis.1.home-sw-in
-#net limit-y-min => axis.1.neg-lim-sw-in
-#net limit-y-max => axis.1.pos-lim-sw-in
 

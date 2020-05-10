@@ -85,6 +85,7 @@ setp hpg.stepgen.00.maxaccel        [AXIS_0]STEPGEN_MAX_ACC
 setp hpg.stepgen.00.steppin        813
 # P8.44 PRU1.out4
 setp hpg.stepgen.00.dirpin         812
+#setp bb_gpio.p8.out-13.invert 1
 
 
 # ################
@@ -124,6 +125,7 @@ setp hpg.stepgen.01.maxaccel        [AXIS_1]STEPGEN_MAX_ACC
 setp hpg.stepgen.01.steppin        815
 # P8.39 PRU1.out6
 setp hpg.stepgen.01.dirpin         814
+#setp bb_gpio.p8.out-15.invert 1
 
 
 # ##################################################

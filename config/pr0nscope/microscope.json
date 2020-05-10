@@ -126,32 +126,32 @@
 		{
 			"name":"Mitutoyo Apo 20X",
 			"scalar": 0.5,
-			"x_view": 0.594
+			"x_view": 0.597
 		},
 		{
 			"name":"Mitutoyo Apo 2X",
 			"scalar": 0.5,
-			"x_view": 5.94
+			"x_view": 5.97
 		},
 		{
 			"name":"Mitutoyo Apo 5X",
 			"scalar": 0.5,
-			"x_view": 2.376
+			"x_view": 2.388
 		},
 		{
 			"name":"Mitutoyo Apo 10X",
 			"scalar": 0.5,
-			"x_view": 1.188
+			"x_view": 1.194
 		},
 		{
 			"name":"Mitutoyo Apo 50X",
 			"scalar": 0.5,
-			"x_view": 0.237
+			"x_view": 0.2388
 		},
 		{
 			"name":"Mitutoyo Apo 100X",
 			"scalar": 0.5,
-			"x_view": 0.119
+			"x_view": 0.1194
 		}
     ]
 }

@@ -101,12 +101,19 @@ class PlannerAxis(object):
         '''
         self.comp = 0
 
-        self._meta = {}
-
     def meta(self):
-        self._meta['backlash'] = self.backlash
-        self._meta['overlap']  = self.step_percent()
-        return self._meta
+        ret = {}
+        ret['backlash'] = self.backlash
+        ret['overlap']  = self.step_percent()
+        ret['view_pixels'] = self.view_pixels
+        # FIXME: find a way to verify au is in pixels
+        ret['view_mm'] = self.view_au
+        ret['pixels'] = self.delta_pixels()
+        # all of my systems are set to mm though, even if they are imperial screws
+        ret['pixels_mm'] = self.view_pixels / self.view_au 
+        mm = self.delta_pixels() / ret['pixels_mm']
+        ret['mm'] = mm
+        return ret
 
     def delta(self):
         '''Total distance that will actually be imaged'''
@@ -176,7 +183,8 @@ class Planner(object):
                 out_dir,
                 progress_cb=None,
                 dry=False,
-                log=None, verbosity=2):
+                log=None, verbosity=2,
+                imagerj={}):
         if log is None:
             def log(msg='', verbosity=None):
                 print msg
@@ -195,10 +203,7 @@ class Planner(object):
         self.config = scan_config
         self.progress_cb = progress_cb
         
-        self._meta = {
-            'x':{},
-            'y':{},
-            }
+        self.imagerj = imagerj
         
         ideal_overlap = 0.7
         if 'overlap' in scan_config:
@@ -253,7 +258,6 @@ class Planner(object):
         
         # Try actually generating the points and see if it matches how many we thought we were going to get
         self.pictures_to_take = self.n_xy()
-        self._meta['pictures_to_take'] = self.pictures_to_take
         if self.config.get('exclude', []):
             self.log('Suppressing picture take check on exclusions')
         elif self.pictures_to_take != expected_n_pictures:
@@ -306,9 +310,8 @@ class Planner(object):
         # Copy config for reference
         def dumpj(j, fn):
             open(os.path.join(self.out_dir, fn), 'w').write(json.dumps(j, sort_keys=True, indent=4, separators=(',', ': ')))
-        
-        dumpj(self.config, 'scan.json')
-        dumpj(self.meta(), 'out.json')
+
+        dumpj(self.gen_meta(), 'out.json')
         
         # TODO: write out coordinate map
         
@@ -474,9 +477,7 @@ class Planner(object):
             self.comment('Size: x %f um / %d pix, y %f um / %d pix' % (self.x.delta(), self.x.delta_pixels(), self.y.delta(), self.y.delta_pixels()))
             mp = self.x.delta_pixels() * self.y.delta_pixels() / (10**6)
             imgr_mp = self.img_sz[0] * self.img_sz[0] / 1.e6
-            # uconfig['imager']['scalar']
-            imgr_scalar = 0.5
-            self.comment('Imager size: %0.1f MP (%dw x %dh) raw => %0.1f MP' % (imgr_mp, self.img_sz[0], self.img_sz[1], imgr_mp * imgr_scalar))
+            self.comment('Imager size: %0.1f MP (%dw x %dh) raw => %0.1f MP' % (imgr_mp, self.img_sz[0], self.img_sz[1], imgr_mp))
 
             if mp >= 1000:
                 self.comment('Image size: %0.1f GP' % (mp/1000,))
@@ -533,17 +534,29 @@ class Planner(object):
             print('Planner: restoring old dry %s' % (str(hal_dry_old)))
             self.hal.set_dry(hal_dry_old)
         
-    def meta(self):
+    def gen_meta(self):
         '''Can only be called after run'''
+
+        plannerj = {}
+
+        # plannerj['x'] = ...
         for axisc, axis in self.axes.iteritems():
-            self._meta[axisc] = axis.meta()
+            plannerj[axisc] = axis.meta()
     
         # In seconds
-        self._meta['time'] = self.end_time - self.start_time
-        self._meta['pictures_taken'] = self.xy_imgs
-        
-        return self._meta
-        
+        plannerj['time'] = self.end_time - self.start_time
+        plannerj['pictures_to_take'] = self.pictures_to_take
+        plannerj['pictures_taken'] = self.xy_imgs
+
+        ret = {}
+        # User scan parameters
+        ret['params'] = self.config
+        # Calculated scan parameters
+        ret['planner'] = plannerj
+        # Misc system metadata
+        ret['imager'] = self.imagerj
+        return ret
+
     def backlash_init(self):
         # TODO: rethink this for non-0 start
         if self.x.backlash:

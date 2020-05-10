@@ -19,6 +19,8 @@ from PyQt4 import Qt
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
+
+import datetime
 import os.path
 from PIL import Image
 import re
@@ -691,7 +693,56 @@ class CNCGUI(QMainWindow):
         # TODO: make this not block GUI
         self.cnc_thread.wait_idle()
 
-        self.pt = PlannerThread(self, rconfig)
+        """
+        {
+            //input directly into planner
+            "params": {
+                x0: 123,
+                y0: 356,
+            }
+            //planner generated parameters
+            "planner": {
+                "mm_width": 2.280666667,
+                "mm_height": 2.232333333,
+                "pix_width": 6842,
+                "pix_height": 6697,
+                "pix_nm": 333.000000,
+            },
+            //source specific parameters 
+            "imager": {
+                "microscope.json": {
+                    ...
+                }
+                "objective": "mit20x",
+                "v4l": {
+                    "rbal": 123,
+                    "bbal": 234,
+                    "gain": 345,
+                    "exposure": 456
+            },
+            "sticher": {
+                "type": "xystitch"
+            },
+            "copyright": "&copy; 2020 John McMaster, CC-BY",
+        }
+        """
+        # obj = rconfig['uscope']['objective'][rconfig['obj']]
+        
+        imagerj = {}
+        imagerj["microscope.json"] = uconfig
+
+        # not sure if this is the right place to add this
+        # imagerj['copyright'] = "&copy; %s John McMaster, CC-BY" % datetime.datetime.today().year
+        imagerj['objective'] = rconfig['obj']
+
+        # TODO: instead dump from actual v4l
+        # safer and more comprehensive
+        v4lj = {}
+        for k, v in self.v4ls.iteritems():
+            v4lj[k] = int(str(v.text()))
+        imagerj["v4l"] = v4lj
+
+        self.pt = PlannerThread(self, rconfig, imagerj)
         self.connect(self.pt, SIGNAL('log'), self.log)
         self.pt.plannerDone.connect(self.plannerDone)
         self.setControlsEnabled(False)

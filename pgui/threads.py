@@ -146,9 +146,10 @@ class CncThread(QThread):
 class PlannerThread(QThread):
     plannerDone = pyqtSignal()
 
-    def __init__(self,parent, rconfig):
+    def __init__(self,parent, rconfig, imagerj={}):
         QThread.__init__(self, parent)
         self.rconfig = rconfig
+        self.imagerj = imagerj
         self.planner = None
 
     def log(self, msg):
@@ -168,17 +169,19 @@ class PlannerThread(QThread):
             scan_config = json.load(open('scan.json'))
 
             rconfig = self.rconfig
+            # FIXME: ideally should prioritize objective
+            im_scalar = float(rconfig['uscope']['imager']['scalar'])
             obj = rconfig['uscope']['objective'][rconfig['obj']]
-            im_w_pix = int(rconfig['uscope']['imager']['width'])
-            im_h_pix = int(rconfig['uscope']['imager']['height'])
+            im_w_pix = int(rconfig['uscope']['imager']['width']) * im_scalar
+            im_h_pix = int(rconfig['uscope']['imager']['height']) * im_scalar
             x_um = float(obj['x_view'])
             self.planner = Planner(scan_config=scan_config, hal=rconfig['cnc_hal'], imager=rconfig['imager'],
                     img_sz=(im_w_pix, im_h_pix), unit_per_pix=(x_um / im_w_pix),
                     out_dir=rconfig['out_dir'],
                     progress_cb=rconfig['progress_cb'],
                     dry=rconfig['dry'],
-                    #img_scalar=float(rconfig['uscope']['imager']['scalar']),
-                    log=self.log, verbosity=2)
+                    log=self.log, verbosity=2,
+                    imagerj=self.imagerj)
             self.log('Running planner')
             b = Benchmark()
             self.planner.run()

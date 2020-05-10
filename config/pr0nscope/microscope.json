@@ -34,6 +34,42 @@
 		"height": 2448,
 		"scalar": 0.5,
 		"v4l2": {
+		    "2020-04-03_a-y": {
+                "Red Balance":  237,
+                "Gain":         200,
+                "Blue Balance": 418,
+                "Exposure":     50
+		    },
+		    "irfilt-rnd_2019-06-25": {
+                "Red Balance":  204,
+                "Gain":         200,
+                "Blue Balance": 514,
+                "Exposure":     50
+		    },
+		    "irfilt3_2018-11-21": {
+                "Red Balance":  149,
+                "Gain":         200,
+                "Blue Balance": 520,
+                "Exposure":     50
+		    },
+		    "irfilt2_2018-11-21": {
+                "Red Balance":  21,
+                "Gain":         280,
+                "Blue Balance": 398,
+                "Exposure":     50
+		    },
+		    "vmax_ns20x_pol-y_wafer-back_2018-10-25_3": {
+                "Red Balance":  0,
+                "Gain":         100,
+                "Blue Balance": 420,
+                "Exposure":     50
+		    },
+		    "vmax_ns20x_pol-y_wafer-back_2018-10-25_2": {
+                "Red Balance":  0,
+                "Gain":         100,
+                "Blue Balance": 420,
+                "Exposure":     50
+		    },
 		    "vmax_ns20x_pol-n_backside_nd_2017-12-31": {
                 "Red Balance":  90,
                 "Gain":         100,

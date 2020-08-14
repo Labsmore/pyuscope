@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+"""
+(bal_gui.py:31743): Gtk-ERROR **: GTK+ 2.x symbols detected. Using GTK+ 2.x and GTK+ 3 in the same process is not supported
+"""
+
 from uscope.config import get_config
 from uscope.v4l2_util import ctrl_set
 
@@ -15,9 +19,16 @@ import traceback
 import os
 import signal
 
-import gobject, pygst
-pygst.require('0.10')
-import gst
+# import gobject, pygst
+#import pyGst
+#pyGst.require('0.10')
+
+import gi
+gi.require_version('Gst', '1.0')
+gi.require_version('GstBase', '1.0')
+from gi.repository import Gst
+from gi.repository import GObject, Gst, GstBase, Gtk, GObject
+
 
 import io
 from PIL import Image
@@ -28,18 +39,19 @@ uconfig = get_config()
 Do not encode images in gstreamer context or it brings system to halt
 instead, request images and have them encoded in requester's context
 '''
-class CaptureSink(gst.Element):
+"""
+class CaptureSink(Gst.Element):
     __gstdetails__ = ('CaptureSink','Sink', \
                       'Captures images for the CNC', 'John McMaster')
 
-    _sinkpadtemplate = gst.PadTemplate ("sinkpadtemplate",
-                                        gst.PAD_SINK,
-                                        gst.PAD_ALWAYS,
-                                        gst.caps_new_any())
+    _sinkpadtemplate = Gst.PadTemplate ("sinkpadtemplate",
+                                        Gst.PAD_SINK,
+                                        Gst.PAD_ALWAYS,
+                                        Gst.caps_new_any())
 
     def __init__(self):
-        gst.Element.__init__(self)
-        self.sinkpad = gst.Pad(self._sinkpadtemplate, "sink")
+        Gst.Element.__init__(self)
+        self.sinkpad = Gst.Pad(self._sinkpadtemplate, "sink")
         self.add_pad(self.sinkpad)
 
         self.sinkpad.set_chain_function(self.chainfunc)
@@ -59,14 +71,15 @@ class CaptureSink(gst.Element):
             traceback.print_exc()
             os._exit(1)
 
-        return gst.FLOW_OK
+        return Gst.FLOW_OK
 
     def eventfunc(self, pad, event):
         return True
 
-gobject.type_register(CaptureSink)
+GObject.type_register(CaptureSink)
 # Register the element into this process' registry.
-gst.element_register (CaptureSink, 'capturesink', gst.RANK_MARGINAL)
+Gst.element_register (CaptureSink, 'capturesink', Gst.RANK_MARGINAL)
+"""
 
 class ImageProcessor(QThread):
     n_frames = pyqtSignal(int) # Number of images
@@ -158,13 +171,13 @@ class TestGUI(QMainWindow):
         engine_config = 'gstreamer'
         engine_config = 'gstreamer-testsrc'
         if engine_config == 'gstreamer':
-            self.source = gst.element_factory_make("v4l2src", "vsource")
+            self.source = Gst.ElementFactory.make("v4l2src", "vsource")
             self.source.set_property("device", "/dev/video0")
             self.vid_fd = -1
             self.setupGst()
         elif engine_config == 'gstreamer-testsrc':
             print('WARNING: using test source')
-            self.source = gst.element_factory_make("videotestsrc", "video-source")
+            self.source = Gst.ElementFactory.make("videotestsrc", "video-source")
             self.setupGst()
         else:
             raise Exception('Unknown engine %s' % (engine_config,))
@@ -182,7 +195,7 @@ class TestGUI(QMainWindow):
 
         if self.gstWindowId:
             print("Starting gstreamer pipeline")
-            self.player.set_state(gst.STATE_PLAYING)
+            self.player.set_state(Gst.State.PLAYING)
 
     def awb(self):
         # makes one step for now
@@ -317,25 +330,25 @@ class TestGUI(QMainWindow):
         print("Setting up gstreamer pipeline")
         self.gstWindowId = self.video_container.winId()
 
-        self.player = gst.Pipeline("player")
-        self.tee = gst.element_factory_make("tee")
-        sinkx = gst.element_factory_make("ximagesink", 'sinkx_overview')
-        fcs = gst.element_factory_make('ffmpegcolorspace')
-        caps = gst.caps_from_string('video/x-raw-yuv')
-        self.capture_enc = gst.element_factory_make("jpegenc")
-        self.capture_sink = gst.element_factory_make("capturesink")
-        self.capture_sink_queue = gst.element_factory_make("queue")
-        self.resizer =  gst.element_factory_make("videoscale")
+        self.player = Gst.Pipeline("player")
+        self.tee = Gst.ElementFactory.make("tee")
+        sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_overview')
+        fcs = Gst.ElementFactory.make('ffmpegcolorspace')
+        caps = Gst.Caps.from_string('video/x-raw-yuv')
+        self.capture_enc = Gst.ElementFactory.make("jpegenc")
+        self.capture_sink = Gst.ElementFactory.make("capturesink")
+        self.capture_sink_queue = Gst.ElementFactory.make("queue")
+        self.resizer =  Gst.ElementFactory.make("videoscale")
 
         # Video render stream
         self.player.add(      self.source, self.tee)
-        gst.element_link_many(self.source, self.tee)
+        Gst.element_link_many(self.source, self.tee)
 
         self.player.add(fcs,                 self.resizer, sinkx)
-        gst.element_link_many(self.tee, fcs, self.resizer, sinkx)
+        Gst.element_link_many(self.tee, fcs, self.resizer, sinkx)
 
         self.player.add(                self.capture_sink_queue, self.capture_enc, self.capture_sink)
-        gst.element_link_many(self.tee, self.capture_sink_queue, self.capture_enc, self.capture_sink)
+        Gst.element_link_many(self.tee, self.capture_sink_queue, self.capture_enc, self.capture_sink)
 
         bus = self.player.get_bus()
         bus.add_signal_watch()
@@ -352,13 +365,13 @@ class TestGUI(QMainWindow):
                 print('Initializing V4L controls')
                 self.v4l_load()
 
-        if t == gst.MESSAGE_EOS:
-            self.player.set_state(gst.STATE_NULL)
+        if t == Gst.MessageType.EOS:
+            self.player.set_state(Gst.State.NULL)
             print("End of stream")
-        elif t == gst.MESSAGE_ERROR:
+        elif t == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
             print("Error: %s" % err, debug)
-            self.player.set_state(gst.STATE_NULL)
+            self.player.set_state(Gst.State.NULL)
             ''
 
     def v4l_load(self):
@@ -421,7 +434,7 @@ if __name__ == '__main__':
     # Exit on ^C instead of ignoring
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    gobject.threads_init()
+    GObject.threads_init()
 
     app = QApplication(sys.argv)
     _gui = TestGUI()

@@ -32,18 +32,21 @@ class TestGUI(QMainWindow):
 
         self.initUI()
 
-        self.vid_fd = None
-
         # Must not be initialized until after layout is set
         self.gstWindowId = None
-        engine_config = 'gstreamer'
-        engine_config = 'gstreamer-testsrc'
-        if engine_config == 'gstreamer':
+        engine_config = 'gst-v4l2src'
+        engine_config = 'gst-videotestsrc'
+        engine_config = 'gst-toupcamsrc'
+        if engine_config == 'gst-v4l2src':
             self.source = Gst.ElementFactory.make('v4l2src', None)
+            assert self.source is not None
             self.source.set_property("device", "/dev/video0")
-            self.vid_fd = -1
             self.setupGst()
-        elif engine_config == 'gstreamer-testsrc':
+        elif engine_config == 'gst-toupcamsrc':
+            self.source = Gst.ElementFactory.make('toupcamsrc', None)
+            assert self.source is not None
+            self.setupGst()
+        elif engine_config == 'gst-videotestsrc':
             print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)
             self.setupGst()
@@ -64,7 +67,7 @@ class TestGUI(QMainWindow):
             self.video_container = QWidget()
             # Allows for convenient keyboard control by clicking on the video
             self.video_container.setFocusPolicy(Qt.ClickFocus)
-            w, h = 3264/4, 2448/4
+            w, h = 5440/4, 3648/4
             self.video_container.setMinimumSize(w, h)
             self.video_container.resize(w, h)
             policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -99,24 +102,26 @@ class TestGUI(QMainWindow):
         self.gstWindowId = self.video_container.winId()
 
         self.player = Gst.Pipeline("player")
-        self.tee = Gst.ElementFactory.make("tee")
-        sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_overview')
-        assert sinkx is not None
-        videoconvert = Gst.ElementFactory.make('videoconvert')
-        assert videoconvert is not None
-        caps = Gst.caps_from_string('video/x-raw,format=yuv')
+        self.sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_overview')
+        assert self.sinkx is not None
+        self.videoconvert = Gst.ElementFactory.make('videoconvert')
+        assert self.videoconvert is not None
+        # caps = Gst.caps_from_string('video/x-raw,format=yuv')
+        # caps = Gst.caps_from_string('video/x-raw,format=RGB')
+        # caps = Gst.caps_from_string('video/x-raw,format=ARGB64')
+        caps = Gst.caps_from_string('video/x-raw-rgb')
+        assert caps is not None
         self.capture_enc = Gst.ElementFactory.make("jpegenc")
         self.resizer =  Gst.ElementFactory.make("videoscale")
         assert self.resizer is not None
 
         # Video render stream
-        self.player.add(      self.source, self.tee)
-        self.source.link(self.tee)
+        self.player.add(self.source)
 
-        self.player.add(videoconvert,                 self.resizer, sinkx)
-        self.tee.link(videoconvert)
-        videoconvert.link(self.resizer)
-        self.resizer.link(sinkx)
+        self.player.add(self.videoconvert, self.resizer, self.sinkx)
+        self.source.link(self.videoconvert)
+        self.videoconvert.link(self.resizer)
+        self.resizer.link(self.sinkx)
 
 
         bus = self.player.get_bus()
@@ -127,11 +132,6 @@ class TestGUI(QMainWindow):
 
     def on_message(self, bus, message):
         t = message.type
-
-        if self.vid_fd is not None and self.vid_fd < 0:
-            self.vid_fd = self.source.get_property("device-fd")
-            if self.vid_fd >= 0:
-                print('Initializing V4L controls')
 
         if t == Gst.MessageType.EOS:
             self.player.set_state(Gst.State.NULL)

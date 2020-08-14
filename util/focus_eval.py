@@ -25,7 +25,7 @@ import shutil
 import time
 
 import gobject, pygst
-pygst.require('0.10')
+pygst.require('1.0')
 import gst
 
 import StringIO

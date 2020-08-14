@@ -10,8 +10,9 @@ gobject = None
 pygst = None
 gst = None
 try:
+    from gi.repository import GObject
     import gobject, pygst
-    pygst.require('0.10')
+    pygst.require('1.0')
     import gst
 except ImportError:
     # XXX: why is this a warning and not an error?

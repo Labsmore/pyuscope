@@ -17,3 +17,9 @@ build and fix until you get all the requirements installed
 
 See some high level usage notes here: https://microwiki.org/wiki/index.php/McScope
 
+```
+sudo apt-get install -y python3-gst-1.0
+sudo apt-get install -y python3-gi
+sudo pip3 install v4l2
+```
+

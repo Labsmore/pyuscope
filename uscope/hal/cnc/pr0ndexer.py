@@ -134,7 +134,7 @@ class Indexer:
     def __init__(self, device=None, debug=False, log=None):
         if log is None:
             def log(s):
-                print s
+                print(s)
         self._log = log
         self.serial = None
         self.debug = debug
@@ -148,10 +148,10 @@ class Indexer:
             for s in ("/dev/ttyUSB0",):
                 try:
                     self.try_open(s)
-                    print 'Opened %s okay' % s
+                    print('Opened %s okay' % s)
                     break
                 except IOError:
-                    print 'Failed to open %s' % s
+                    print('Failed to open %s' % s)
                     continue
             if self.serial is None:
                 raise IOError("Failed to find a suitable device")
@@ -240,7 +240,7 @@ class Indexer:
     # causing lots of checksum errors on rx side
     def reg_read(self, reg, retries=10):
         '''Return 32 bit register value'''
-        for i in xrange(retries):
+        for i in range(retries):
             try:
                 self.serial.flushInput()
                 self.packet_write(reg, 0)
@@ -272,7 +272,7 @@ class Indexer:
             self._log('pr0ndexer DEBUG: packet: %s, sending: %s' % (binascii.hexlify(packet), binascii.hexlify(out)))
             #if self.serial.inWaiting():
             #    raise Exception('At send %d chars waiting' % self.serial.inWaiting())
-        for retry in xrange(retries):
+        for retry in range(retries):
             try:
                 self.serial.flushInput()
                 self.serial.write(out)
@@ -406,7 +406,7 @@ if __name__ == "__main__":
     
     # default: 7.4e5
     hstep_c = 7.4e7
-    print 'Delay %d' % hstep_c
+    print('Delay %d' % hstep_c)
     indexer.reg_write(0x20 + XYZ_HSTEP_C, hstep_c)
     indexer.step('X', 200)
 

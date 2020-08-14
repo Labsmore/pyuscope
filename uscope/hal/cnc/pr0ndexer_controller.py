@@ -5,8 +5,8 @@ Introduces things like units and concurrency
 '''
 
 import threading
-from controller import Controller
-from axis import Axis
+from .controller import Controller
+from .axis import Axis
 from uscope.pr0ndexer import Indexer
 
 class PDC(Controller):

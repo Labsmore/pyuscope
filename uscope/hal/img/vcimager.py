@@ -5,7 +5,7 @@ import time
 class VCImager(Imager):
     def __init__(self):
         if camera_in_use():
-            print 'WARNING: camera in use, not loading imager'
+            print('WARNING: camera in use, not loading imager')
             raise Exception('Camera in use')
         if not VC:
             raise Exception('Failed to import VC')

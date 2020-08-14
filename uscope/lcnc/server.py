@@ -3,7 +3,7 @@ WARNING: this file is deployed standalone to remote systems
 Do not add uscope dependencies
 '''
 
-from SimpleXMLRPCServer import SimpleXMLRPCServer
+from xmlrpc.server import SimpleXMLRPCServer
 import linuxcnc
 
 class Server(object):
@@ -37,7 +37,7 @@ class Server(object):
 
     def constants(self):
         ret = {}
-        for k, v in linuxcnc.__dict__.iteritems():
+        for k, v in linuxcnc.__dict__.items():
             if k.startswith('_'):
                 continue
             if not type(v) in [int, str]:
@@ -46,13 +46,13 @@ class Server(object):
         return ret
     
     def c_mdi(self, *args, **kwargs):
-        print 'mdi'
-        print args, kwargs
+        print('mdi')
+        print(args, kwargs)
         ret = self.c.mdi(*args, **kwargs)
-        print ret
+        print(ret)
     
     def run(self):
-        print 'Starting server'
+        print('Starting server')
         self.server = SimpleXMLRPCServer((self.bind, self.port), logRequests=self.verbose, allow_none=True)
         self.server.register_introspection_functions()
         self.server.register_multicall_functions()
@@ -64,7 +64,7 @@ class Server(object):
         self.server.register_function(self.s.state,         "s_state")
         self.server.register_function(self.c.state,         "c_state")
         self.server.register_function(self.c.home,          "c_home")
-        print 'Running'
+        print('Running')
         self.server.serve_forever()
 
 if __name__ == '__main__':

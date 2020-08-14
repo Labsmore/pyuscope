@@ -8,7 +8,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from PyQt4.QtGui import QWidget, QLabel
 
-import Queue
+import queue
 import threading
 import sys
 import traceback
@@ -19,7 +19,7 @@ import gobject, pygst
 pygst.require('0.10')
 import gst
 
-import StringIO
+import io
 from PIL import Image
 
 uconfig = get_config()
@@ -84,7 +84,7 @@ class ImageProcessor(QThread):
         self.running = threading.Event()
 
         self.image_requested = threading.Event()
-        self.q = Queue.Queue()
+        self.q = queue.Queue()
         self._n_frames = 0
 
     def run(self):
@@ -93,17 +93,17 @@ class ImageProcessor(QThread):
         while self.running.is_set():
             try:
                 img = self.q.get(True, 0.1)
-            except Queue.Empty:
+            except queue.Empty:
                 continue
-            img = Image.open(StringIO.StringIO(img))
+            img = Image.open(io.StringIO(img))
 
             rval = 0
             gval = 0
             bval = 0
             xs = 5
             ys = 5
-            for y in xrange(0, img.size[1], ys):
-                for x in xrange(0, img.size[0], xs):
+            for y in range(0, img.size[1], ys):
+                for x in range(0, img.size[0], xs):
                     (r, g, b) = img.getpixel((x, y))
                     rval += r
                     gval += g
@@ -163,7 +163,7 @@ class TestGUI(QMainWindow):
             self.vid_fd = -1
             self.setupGst()
         elif engine_config == 'gstreamer-testsrc':
-            print 'WARNING: using test source'
+            print('WARNING: using test source')
             self.source = gst.element_factory_make("videotestsrc", "video-source")
             self.setupGst()
         else:
@@ -181,7 +181,7 @@ class TestGUI(QMainWindow):
         self.processor.start()
 
         if self.gstWindowId:
-            print "Starting gstreamer pipeline"
+            print("Starting gstreamer pipeline")
             self.player.set_state(gst.STATE_PLAYING)
 
     def awb(self):
@@ -210,9 +210,9 @@ class TestGUI(QMainWindow):
         sf = 0.2
         rb_new = limit(setr - rb * sf)
         bb_new = limit(setb - bb * sf)
-        print 'Step'
-        print '  R: %d w/ %d => %d' % (setr, rb, rb_new)
-        print '  B: %d w/ %d => %d' % (setb, bb, bb_new)
+        print('Step')
+        print('  R: %d w/ %d => %d' % (setr, rb, rb_new))
+        print('  B: %d w/ %d => %d' % (setb, bb, bb_new))
 
         #ctrl_set(self.vid_fd, "Red Balance", rb_new)
         self.ctrls["Red Balance"].setText(str(rb_new))
@@ -263,7 +263,7 @@ class TestGUI(QMainWindow):
                         except ValueError:
                             pass
                         else:
-                            print '%s changed => %d' % (name, val)
+                            print('%s changed => %d' % (name, val))
                             ctrl_set(self.vid_fd, name, val)
                 return f
 
@@ -314,7 +314,7 @@ class TestGUI(QMainWindow):
         return layout
 
     def setupGst(self):
-        print "Setting up gstreamer pipeline"
+        print("Setting up gstreamer pipeline")
         self.gstWindowId = self.video_container.winId()
 
         self.player = gst.Pipeline("player")
@@ -349,15 +349,15 @@ class TestGUI(QMainWindow):
         if self.vid_fd is not None and self.vid_fd < 0:
             self.vid_fd = self.source.get_property("device-fd")
             if self.vid_fd >= 0:
-                print 'Initializing V4L controls'
+                print('Initializing V4L controls')
                 self.v4l_load()
 
         if t == gst.MESSAGE_EOS:
             self.player.set_state(gst.STATE_NULL)
-            print "End of stream"
+            print("End of stream")
         elif t == gst.MESSAGE_ERROR:
             err, debug = message.parse_error()
-            print "Error: %s" % err, debug
+            print("Error: %s" % err, debug)
             self.player.set_state(gst.STATE_NULL)
             ''
 
@@ -365,13 +365,13 @@ class TestGUI(QMainWindow):
         vconfig = uconfig["imager"].get("v4l2", None)
         if not vconfig:
             return
-        for configk, configv in vconfig.iteritems():
+        for configk, configv in vconfig.items():
             break
         #if type(configv) != dict or '"Gain"' not in configv:
         #    raise Exception("Bad v4l default config (old style?)")
 
-        print 'Selected config %s' % configk
-        for k, v in configv.iteritems():
+        print('Selected config %s' % configk)
+        for k, v in configv.items():
             if k in self.ctrls:
                 self.ctrls[k].setText(str(v))
             else:
@@ -383,7 +383,7 @@ class TestGUI(QMainWindow):
         message_name = message.structure.get_name()
         if message_name == "prepare-xwindow-id":
             if message.src.get_name() == 'sinkx_overview':
-                print 'sinkx_overview win_id'
+                print('sinkx_overview win_id')
                 win_id = self.gstWindowId
             else:
                 raise Exception('oh noes')
@@ -409,7 +409,7 @@ class TestGUI(QMainWindow):
         self.show()
 
 def excepthook(excType, excValue, tracebackobj):
-    print '%s: %s' % (excType, excValue)
+    print('%s: %s' % (excType, excValue))
     traceback.print_tb(tracebackobj)
     os._exit(1)
 

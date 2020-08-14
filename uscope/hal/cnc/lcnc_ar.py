@@ -2,7 +2,7 @@
 Linux CNC auto RPC
 '''
 
-from lcnc import LcncPyHal
+from .lcnc import LcncPyHal
 from uscope.lcnc.client import LCNCRPC, PORT
 from uscope import paramiko_util
 
@@ -29,25 +29,25 @@ class LcncPyHalAr(LcncPyHal):
         try:
             self._init(*args, **kwargs)
         except:
-            print 'Shutting down on init failure'
+            print('Shutting down on init failure')
             self.ar_stop()
             raise
 
     def update_server(self):
-        print 'Remote agent: updating'
+        print('Remote agent: updating')
         self.sftp = self.ssh.open_sftp()
         #sftp.rmdir(remote_tmp)
         # TODO: will probably throw exception if it exists
         try:
             self.sftp.mkdir(self.remote_tmp)
         except IOError:
-            print "Temp directory already exists"
+            print("Temp directory already exists")
         # Copy over remote agent
         src = os.path.join(os.path.dirname(__file__), '..', 'lcnc', 'server.py')
         self.sftp.put(src, self.remote_server_py)
 
     def lcnc_launch(self, local_ini=None):
-        print 'linuxcnc: launching'
+        print('linuxcnc: launching')
 
         if local_ini:
             remote_ini = os.path.join(self.remote_tmp, 'config', os.path.basename(self.local_ini))
@@ -76,7 +76,7 @@ class LcncPyHalAr(LcncPyHal):
         self.wait_remote_port(RSH_PORT)
 
     def server_launch(self):
-        print 'Remote agent: launching '
+        print('Remote agent: launching ')
         transport = self.ssh.get_transport()
         self.server_channel = transport.open_session()
         # http://stackoverflow.com/questions/7734679/paramiko-and-exec-command-killing-remote-process
@@ -99,7 +99,7 @@ class LcncPyHalAr(LcncPyHal):
         self.tunnel = None
         self.verbose = 0
 
-        print 'Creating SSH connection'
+        print('Creating SSH connection')
         self.ssh = paramiko.SSHClient()
         self.ssh.load_system_host_keys()
         self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -116,9 +116,9 @@ class LcncPyHalAr(LcncPyHal):
         port_up = self.remote_port_up(PORT)
 
         if port_up:
-            print 'linuxcnc: assuming running since RPC agent running '
+            print('linuxcnc: assuming running since RPC agent running ')
         elif self.remote_port_up(RSH_PORT):
-            print 'linuxcnc: already running'
+            print('linuxcnc: already running')
         else:
             # In practice I never want this anymore
             # Complain loudly if I trigger this code path
@@ -127,7 +127,7 @@ class LcncPyHalAr(LcncPyHal):
             self.lcnc_launch(local_ini)
 
         if port_up:
-            print 'Remote agent: appears to be already running'
+            print('Remote agent: appears to be already running')
         else:
             # In practice I never want this anymore
             # Complain loudly if I trigger this code path
@@ -136,9 +136,9 @@ class LcncPyHalAr(LcncPyHal):
             self.server_launch()
 
         if self.local_port_up(PORT):
-            print 'SSH tunnel: alrady running'
+            print('SSH tunnel: alrady running')
         else:
-            print 'SSH tunnel: creating'
+            print('SSH tunnel: creating')
             self.thread_tunnel = threading.Thread(target=self.run_tunnel)
             self.thread_tunnel.start()
         self.wait_local_port(PORT)
@@ -151,10 +151,10 @@ class LcncPyHalAr(LcncPyHal):
         return rc == 0
 
     def wait_local_port(self, port):
-        print 'Checking local port %d' % port
+        print('Checking local port %d' % port)
         while not self.local_port_up(port):
             time.sleep(0.1)
-        print 'port open'
+        print('port open')
 
     def remote_port_up(self, port):
         channel = self.ssh.get_transport().open_session()
@@ -164,16 +164,16 @@ class LcncPyHalAr(LcncPyHal):
         return rc == 0
     
     def wait_remote_port(self, port):
-        print 'Checking remote port %d' % port
+        print('Checking remote port %d' % port)
         while not self.remote_port_up(port):
             time.sleep(0.1)
-        print 'port is open'
+        print('port is open')
     
     def __del__(self):
         self.ar_stop()
     
     def ar_stop(self):
-        print 'shutting down'
+        print('shutting down')
         self.running = False
         if self.tunnel:
             # ForwardServer
@@ -195,7 +195,7 @@ class LcncPyHalAr(LcncPyHal):
                 sys.stdout.write(self.linuxcnc_channel.recv(1024))
                 sys.stdout.flush()
         
-        print 'linuxcnc thread exiting'
+        print('linuxcnc thread exiting')
     
     def run_server(self):
         '''
@@ -231,7 +231,7 @@ class LcncPyHalAr(LcncPyHal):
                 time.sleep(0.1)
         '''
         
-        print 'Server thread exiting'
+        print('Server thread exiting')
 
     def run_tunnel(self):
         '''
@@ -244,8 +244,8 @@ class LcncPyHalAr(LcncPyHal):
         Is this socket deluge okay or should I look into something more connection oriented?
         '''
         
-        print 'Preparing tunnel'
+        print('Preparing tunnel')
         self.tunnel = paramiko_util.forward_tunnel(local_port=PORT, remote_host='127.0.0.1', remote_port=PORT, transport=self.ssh.get_transport())
-        print 'Serving tunnel'
+        print('Serving tunnel')
         self.tunnel.serve_forever()
-        print 'Tunnel thread exiting'
+        print('Tunnel thread exiting')

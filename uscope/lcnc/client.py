@@ -1,4 +1,4 @@
-import xmlrpclib
+import xmlrpc.client
 import time
 
 # X-58 Y-59 => 22617
@@ -10,7 +10,7 @@ class LCNCRPCStat:
         self.poll()
 
     def poll(self):
-        for k, v in self.server.s_poll().iteritems():
+        for k, v in self.server.s_poll().items():
             setattr(self, k, v)
 
 class LCNCRPCCommand:
@@ -26,9 +26,9 @@ class LCNCRPCCommand:
 class LCNCRPC:
     def __init__(self, host='localhost', port=PORT):
         url = 'http://%s:%d' % (host, port)
-        print url
-        self.server = xmlrpclib.ServerProxy(url, allow_none=True)
-        for k, v in self.server.constants().iteritems():
+        print(url)
+        self.server = xmlrpc.client.ServerProxy(url, allow_none=True)
+        for k, v in self.server.constants().items():
             setattr(self, k, v)
 
     def stat(self):

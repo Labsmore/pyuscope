@@ -8,7 +8,7 @@ class Controller:
     def __init__(self, debug=False, log=None):
         if log is None:
             def log(s):
-                print s
+                print(s)
         self.log = log
         
         self.debug = debug
@@ -22,15 +22,15 @@ class Controller:
 
     def ret0(self):
         '''Return all axes to 0'''
-        for axis in self.axes.values():
+        for axis in list(self.axes.values()):
             axis.set_pos(0)
         
     def stop(self):
         '''Gracefully stop the system at next interrupt point'''
-        for axis in self.axes.values():
+        for axis in list(self.axes.values()):
             axis.stop()
 
     def estop(self):
         '''Halt the system ASAP, possibly losing precision/position'''
-        for axis in self.axes.values():
+        for axis in list(self.axes.values()):
             axis.estop()

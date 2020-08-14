@@ -1,8 +1,8 @@
-from img_util import get_scaled
+from .img_util import get_scaled
 
 import os
 from PIL import Image
-import StringIO
+import io
 import threading
 import traceback
 
@@ -49,25 +49,25 @@ class ResizeSink(gst.Element):
     
     def chainfunc(self, pad, buffer):
         try:
-            print 'Got resize buffer'
+            print('Got resize buffer')
             # Simplest: just propagate the data
             # self.srcpad.push(buffer)
             
             # Import into PIL and downsize it
             # Raw jpeg to pr0n PIL wrapper object
-            print 'resize chain', len(buffer.data), len(buffer.data) / 3264.0
+            print('resize chain', len(buffer.data), len(buffer.data) / 3264.0)
             #open('temp.jpg', 'w').write(buffer.data)
             #io = StringIO.StringIO(buffer.data)
-            io = StringIO.StringIO(str(buffer))
+            io = io.StringIO(str(buffer))
             try:
                 image = Image.open(io)
             except:
-                print 'failed to create image'
+                print('failed to create image')
                 return gst.FLOW_OK
             # Use a fast filter since this is realtime
             image = get_scaled(image, 0.5, Image.NEAREST)
 
-            output = StringIO.StringIO()
+            output = io.StringIO()
             image.save(output, 'jpeg')
             self.srcpad.push(gst.Buffer(output.getvalue()))
         except:
@@ -127,7 +127,7 @@ class CaptureSink(gst.Element):
         del self.images[image_id]
         # Arbitrarily convert to PIL here
         # TODO: should pass rawer/lossless image to PIL instead of jpg?
-        return Image.open(StringIO.StringIO(ret))
+        return Image.open(io.StringIO(ret))
     
     '''
     gstreamer plugin core methods

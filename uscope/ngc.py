@@ -62,7 +62,7 @@ def line(s='', verbose=None):
         verbose = cnc.verbose
     cnc.f.write(s + '\n')
     if verbose:
-        print s
+        print(s)
 
 def comment(s):
     if s.find('(') >= 0:

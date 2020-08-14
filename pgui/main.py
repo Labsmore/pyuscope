@@ -13,7 +13,7 @@ from uscope import gst_util
 from uscope.v4l2_util import ctrl_set
 
 from threads import CncThread, PlannerThread
-from cStringIO import StringIO
+from io import StringIO
 
 from PyQt4 import Qt
 from PyQt4.QtGui import *
@@ -41,7 +41,7 @@ try:
     gst_util.register()
 except ImportError:
     if uconfig['imager']['engine'] == 'gstreamer' or uconfig['imager']['engine'] == 'gstreamer-testrc':
-        print 'Failed to import a gstreamer package when gstreamer is required'
+        print('Failed to import a gstreamer package when gstreamer is required')
         raise
 
 debug = 1
@@ -49,14 +49,14 @@ def dbg(*args):
     if not debug:
         return
     if len(args) == 0:
-        print
+        print()
     elif len(args) == 1:
-        print 'main: %s' % (args[0], )
+        print('main: %s' % (args[0], ))
     else:
-        print 'main: ' + (args[0] % args[1:])
+        print('main: ' + (args[0] % args[1:]))
 
 def get_cnc_hal(log):
-    print 'get_cnc_hal', log
+    print('get_cnc_hal', log)
     try:
         lcnc_host = uconfig["cnc"]["lcnc"]["host"]
     except KeyError:
@@ -293,7 +293,7 @@ class CNCGUI(QMainWindow):
         self.emit(SIGNAL('log'), s)
 
     def update_pos(self, pos):
-        for axis, axis_pos in pos.iteritems():
+        for axis, axis_pos in pos.items():
             self.axes[axis].pos_value.setText('%0.3f' % axis_pos)
 
     def hal_progress(self, pos):
@@ -336,7 +336,7 @@ class CNCGUI(QMainWindow):
         pass
 
     def v4l_updated(self):
-        for k, v in self.v4ls.iteritems():
+        for k, v in self.v4ls.items():
             try:
                 val = int(str(v.text()))
             except ValueError:
@@ -506,24 +506,24 @@ class CNCGUI(QMainWindow):
         if self.vid_fd is not None and self.vid_fd < 0:
             self.vid_fd = self.source.get_property("device-fd")
             if self.vid_fd >= 0:
-                print 'Initializing V4L controls'
+                print('Initializing V4L controls')
                 vconfig = uconfig["imager"].get("v4l2", None)
                 if vconfig:
-                    for configk, configv in vconfig.iteritems():
+                    for configk, configv in vconfig.items():
                         break
-                    print 'Selected config %s' % configk
+                    print('Selected config %s' % configk)
 
-                    for k, v in configv.iteritems():
+                    for k, v in configv.items():
                         #ctrl_set(self.vid_fd, k, v)
                         if k in self.v4ls:
                             self.v4ls[k].setText(str(v))
 
         if t == gst.MESSAGE_EOS:
             self.player.set_state(gst.STATE_NULL)
-            print "End of stream"
+            print("End of stream")
         elif t == gst.MESSAGE_ERROR:
             err, debug = message.parse_error()
-            print "Error: %s" % err, debug
+            print("Error: %s" % err, debug)
             self.player.set_state(gst.STATE_NULL)
 
     def on_sync_message(self, bus, message):
@@ -552,11 +552,11 @@ class CNCGUI(QMainWindow):
         self.cnc_thread.cmd('home', [k for k in self.axes])
 
     def mv_rel(self):
-        pos = dict([(k, float(str(axis.rel_pos_le.text()))) for k, axis in self.axes.iteritems()])
+        pos = dict([(k, float(str(axis.rel_pos_le.text()))) for k, axis in self.axes.items()])
         self.cnc_thread.cmd('mv_rel', pos)
 
     def mv_abs(self):
-        pos = dict([(k, float(str(axis.abs_pos_le.text()))) for k, axis in self.axes.iteritems()])
+        pos = dict([(k, float(str(axis.abs_pos_le.text()))) for k, axis in self.axes.items()])
         self.cnc_thread.cmd('mv_abs', pos)
 
     def processCncProgress(self, pictures_to_take, pictures_taken, image, first):
@@ -767,7 +767,7 @@ class CNCGUI(QMainWindow):
         self.cnc_thread.hal.dry = False
         self.setControlsEnabled(True)
         if self.uconfig['cnc']['startup_run_exit']:
-            print 'Planner debug break on completion'
+            print('Planner debug break on completion')
             os._exit(1)
         # Prevent accidental start after done
         self.dry_cb.setChecked(True)
@@ -955,17 +955,17 @@ class CNCGUI(QMainWindow):
         layout.addWidget(self.snapshot_pb, 2, 0)
 
         gb.setLayout(layout)
-        print 'snap serial'
+        print('snap serial')
         self.snapshot_next_serial()
         return gb
 
     def snapshot_next_serial(self):
         if not self.auto_number_cb.isChecked():
-            print 'snap serial not checked'
+            print('snap serial not checked')
             return
         prefix = self.snapshot_fn_le.text().split('.')[0]
         if prefix == '':
-            print 'no base'
+            print('no base')
             self.snapshot_serial = 0
             prefix = 'snapshot_'
         else:
@@ -1098,7 +1098,7 @@ class CNCGUI(QMainWindow):
 
 
 def excepthook(excType, excValue, tracebackobj):
-    print '%s: %s' % (excType, excValue)
+    print('%s: %s' % (excType, excValue))
     traceback.print_tb(tracebackobj)
     os._exit(1)
 

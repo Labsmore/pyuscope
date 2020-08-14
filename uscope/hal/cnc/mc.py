@@ -38,8 +38,8 @@ import threading
 
 VERSION = 0.0
 
-from axis import Axis
-from controller import Controller
+from .axis import Axis
+from .controller import Controller
 
 # Klinger / Micro-controle driver
 class MC(Controller):
@@ -156,7 +156,7 @@ class MCAxis(Axis):
         for i in range(abs(int(final_pos - self.net))):
             # Loop runs quick enough that should detect reasonably quickly
             if self._estop.is_set():
-                print 'MC axis %s: emergency stop detected!' % (self.name,)
+                print('MC axis %s: emergency stop detected!' % (self.name,))
                 # Record what we finished since its little work
                 self.net += i
                 return
@@ -195,21 +195,21 @@ if __name__ == "__main__":
         def s():
             time.sleep(0.5)
         d = 100
-        print 'Jogging X'
+        print('Jogging X')
         mc.axes['x'].jog(d)
         s()
-        print 'Jogging Y'
+        print('Jogging Y')
         mc.axes['y'].jog(d)
         s()
-        print 'Jogging -X'
+        print('Jogging -X')
         mc.axes['x'].jog(-d)
         s()
-        print 'Jogging -Y'
+        print('Jogging -Y')
         mc.axes['y'].jog(-d)
         s()
         
     while True:
-        for axis in mc.axes.values():
-            print 'Jogging %s' % axis.name
+        for axis in list(mc.axes.values()):
+            print('Jogging %s' % axis.name)
             axis.jog(100)
 

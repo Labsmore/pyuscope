@@ -6,7 +6,7 @@ import sys
 
 def print_debug(s = None):
     if False:
-        print 'DEBUG: %s' % s
+        print('DEBUG: %s' % s)
 
 def add_bool_arg(parser, yes_arg, default=False, **kwargs):
     dashed = yes_arg.replace('--', '')
@@ -19,7 +19,7 @@ def hexdump(data, label=None, indent='', address_width=8, f=sys.stdout):
         return c >= ' ' and c <= '~'
 
     if label:
-        print label
+        print(label)
     
     bytes_per_half_row = 8
     bytes_per_row = 16
@@ -65,7 +65,7 @@ def str2hex(buff, prefix='', terse=True):
     ret = ''
     if terse and len(buff) > 16:
         ret += '\n'
-    for i in xrange(len(buff)):
+    for i in range(len(buff)):
         if i % 16 == 0:
             if i != 0:
                 ret += '" \\\n'
@@ -83,7 +83,7 @@ def where(pos=1):
     callerframerecord = inspect.stack()[pos]
     frame = callerframerecord[0]
     info = inspect.getframeinfo(frame)
-    print '%s.%s():%d' % (info.filename, info.function, info.lineno)
+    print('%s.%s():%d' % (info.filename, info.function, info.lineno))
 
 # Print timestamps in front of all output messages
 class IOTimestamp(object):

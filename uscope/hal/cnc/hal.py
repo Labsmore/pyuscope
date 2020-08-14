@@ -24,7 +24,7 @@ class Hal(object):
     def __init__(self, log, dry):
         if log is None:
             def log(msg='', lvl=2):
-                print msg
+                print(msg)
         self.log = log
         # seconds to wait before snapping picture
         self.t_settle = 4.0
@@ -149,7 +149,7 @@ class MockHal(Hal):
             self._pos[axis] = 0.0
 
     def _log(self, msg):
-        print '_log'
+        print('_log')
         if self.dry:
             self.log('Mock-dry: ' + msg)
         else:
@@ -166,14 +166,14 @@ class MockHal(Hal):
         self._log('taking picture to %s' % file_name)
 
     def mv_abs(self, pos):
-        for axis, apos in pos.iteritems():
+        for axis, apos in pos.items():
             self._pos[axis] = apos
-        self._log('absolute move to ' + ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.iteritems()]))
+        self._log('absolute move to ' + ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
     def mv_rel(self, delta):
-        for axis, adelta in delta.iteritems():
+        for axis, adelta in delta.items():
             self._pos[axis] += adelta
-        self._log('relative move to ' + ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in delta.iteritems()]))
+        self._log('relative move to ' + ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
 
     def pos(self):
         return self._pos
@@ -187,7 +187,7 @@ class MockHal(Hal):
         while run.is_set():
             # Axes may be updated
             # Copy it so that don't crash if its updated during an iteration
-            for axis, sign in dict(axes).iteritems():
+            for axis, sign in dict(axes).items():
                 self._pos[axis] += sign * 1
                 # most of the time is just one axis
                 # quicker gui updates by only updating it
@@ -217,7 +217,7 @@ class MCHal(Hal):
 
     def mv_abs(self, pos):
         # Only one axis can be moved at a time
-        for axis, apos in pos.iteritems():
+        for axis, apos in pos.items():
             if self.dry:
                 self._pos[axis] = apos
             else:
@@ -226,7 +226,7 @@ class MCHal(Hal):
         
     def mv_rel(self, delta):
         # Only one axis can be moved at a time
-        for axis, adelta in delta.iteritems():
+        for axis, adelta in delta.items():
             if self.dry:
                 self._pos[axis] += adelta
             else:
@@ -300,14 +300,14 @@ class GCodeHal(Hal):
         return GCodeHalImager(self)
     
     def mv_abs(self, pos):
-        for axis, apos in pos.iteritems():
+        for axis, apos in pos.items():
             self._pos[axis] = apos
-        self._line('G90 G0' + ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.iteritems()]))
+        self._line('G90 G0' + ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
     def mv_rel(self, pos):
-        for axis, delta in pos.iteritems():
+        for axis, delta in pos.items():
             self._pos[axis] += delta
-        self._line('G91 G0' + ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.iteritems()]))
+        self._line('G91 G0' + ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
     def comment(self, s=''):
         if len(s) == 0:

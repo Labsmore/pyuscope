@@ -14,7 +14,7 @@ class Axis(object):
     def __init__(self, name, log=None, spu=None):
         if log is None:
             def log(s):
-                print s
+                print(s)
         self._log = log
         self._name = name
         # Steps per unit

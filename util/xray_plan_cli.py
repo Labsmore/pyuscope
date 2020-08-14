@@ -40,11 +40,11 @@ class XrayImager(Imager):
         # need some way to more accurately measure thermals
         # in the meantime hack this in half
         watt = 60 * 8
-        print 'WARNING: set for %dW duty cycle.  Running at higher power may damage head' % watt
+        print('WARNING: set for %dW duty cycle.  Running at higher power may damage head' % watt)
         self.shot_off = self.shot_on * watt / 100 - self.shot_on
-        print 'Shot off time: %0.1f' % self.shot_off
+        print('Shot off time: %0.1f' % self.shot_off)
 
-        print 'Warming filament...'
+        print('Warming filament...')
         # Should dry do this?
         # Tests WPS connectivity and shouldn't fire the x-ray
         wps.on(SW_FIL)
@@ -56,35 +56,35 @@ class XrayImager(Imager):
         self.gxs.wait_trig_cb = self.fire
 
     def fire(self):
-        print 'Checking filament'
+        print('Checking filament')
         wait = 5 - time.time() - self.fil_on
         if wait > 0:
-            print 'Waiting %0.1f sec for filament to warm...' % wait
+            print('Waiting %0.1f sec for filament to warm...' % wait)
             if self.dry:
-                print 'DRY: skip wait'
+                print('DRY: skip wait')
             else:
                 time.sleep(wait)
         
-        print 'Checking head temp'
+        print('Checking head temp')
         wait = self.shot_off - (time.time() - self.fire_last)
-        print 'Waiting %0.1f sec for head to cool...' % wait
+        print('Waiting %0.1f sec for head to cool...' % wait)
         if wait > 0:
             if self.dry:
-                print 'DRY: skip wait'
+                print('DRY: skip wait')
             else:
                 time.sleep(wait)
-        print 'Head ready'
+        print('Head ready')
         
         try:
             if self.dry:
-                print 'DRY: not firing'
+                print('DRY: not firing')
             else:
-                print 'X-RAY: BEAM ON %0.1f sec' % self.shot_on
+                print('X-RAY: BEAM ON %0.1f sec' % self.shot_on)
                 wps.on(SW_HV)
                 time.sleep(self.shot_on)
                 self.fire_last = time.time()
         finally:
-            print 'X-RAY: BEAM OFF'
+            print('X-RAY: BEAM OFF')
             wps.off(SW_HV)
         
         if self.dry:
@@ -98,10 +98,10 @@ class XrayImager(Imager):
             img_bin = self.gxs.cap_bin()
         except DryCheckpoint:
             if self.dry:
-                print 'DRY: skipping image'
+                print('DRY: skipping image')
                 return None
             raise
-        print 'x-ray: decoding'
+        print('x-ray: decoding')
         img_dec = uscope.gxs700.GXS700.decode(img_bin)
         # Cheat a little
         img_dec.raw = img_bin
@@ -179,7 +179,7 @@ if __name__ == "__main__":
         planner.take_picture = take_picture
         planner.run()
     finally:
-        print 'Forcing x-ray off at exit'
+        print('Forcing x-ray off at exit')
         wps.off(SW_HV)
         time.sleep(0.2)
         wps.off(SW_FIL)

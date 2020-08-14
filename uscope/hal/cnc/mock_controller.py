@@ -1,5 +1,5 @@
-from controller import Controller
-from axis import Axis
+from .controller import Controller
+from .axis import Axis
 
 class MockController(Controller):
     def __init__(self, debug=False, log=None):

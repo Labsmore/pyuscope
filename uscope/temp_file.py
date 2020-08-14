@@ -7,7 +7,7 @@ Licensed under the terms of the LGPL V3 or later, see COPYING for details
 import random
 import os
 import shutil
-from util import print_debug
+from .util import print_debug
 
 g_default_prefix_dir = None
 g_default_prefix = None
@@ -22,7 +22,7 @@ class TempFile:
 		if g_default_prefix is None:
 			g_default_prefix_dir = ManagedTempDir.get(TempFile.get(PREFIX_BASE))
 			g_default_prefix = os.path.join(g_default_prefix_dir.file_name, '')
-			print 'TEMP DIR: %s' % g_default_prefix
+			print('TEMP DIR: %s' % g_default_prefix)
 		return g_default_prefix
 
 	@staticmethod
@@ -74,7 +74,7 @@ class ManagedTempFile:
 				print_debug("Didn't delete inexistant temp file %s" % self.file_name)
 		# Ignore if it was never created
 		except:
-			print 'WARNING: failed to delete temp file: %s' % self.file_name
+			print('WARNING: failed to delete temp file: %s' % self.file_name)
 
 class ManagedTempDir(ManagedTempFile):
 	def __init__(self, temp_dir):
@@ -99,7 +99,7 @@ class ManagedTempDir(ManagedTempFile):
 				print_debug("Didn't delete inexistant temp dir %s" % self.file_name)
 		# Ignore if it was never created
 		except:
-			print 'WARNING: failed to delete temp dir: %s' % self.file_name
+			print('WARNING: failed to delete temp dir: %s' % self.file_name)
 
 class TempFileSet:
 	prefix = None

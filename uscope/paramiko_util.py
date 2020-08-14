@@ -3,20 +3,20 @@
 # maybe should look at paramiko harder
 
 try:
-    import SocketServer
+    import socketserver
 except ImportError:
     import socketserver as SocketServer
 import select
 import os
 
-class ForwardServer (SocketServer.ThreadingTCPServer):
+class ForwardServer (socketserver.ThreadingTCPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-class Handler (SocketServer.BaseRequestHandler):
+class Handler (socketserver.BaseRequestHandler):
     def __init__(self, *args, **kwargs):
         self.verbose = False
-        SocketServer.BaseRequestHandler.__init__(self, *args, **kwargs)
+        socketserver.BaseRequestHandler.__init__(self, *args, **kwargs)
     
     def _verbose(self, s):
         if self.verbose:
@@ -73,12 +73,12 @@ def normalize_dirpath(dirpath):
         dirpath = dirpath[:-1]
     return dirpath
 
-def sftp_mkdir(sftp, remotepath, mode=0777, intermediate=False):
+def sftp_mkdir(sftp, remotepath, mode=0o777, intermediate=False):
     remotepath = normalize_dirpath(remotepath)
     if intermediate:
         try:
             sftp.mkdir(remotepath, mode=mode)
-        except IOError, e:
+        except IOError as e:
             sftp_mkdir(sftp, remotepath.rsplit("/", 1)[0], mode=mode,
                        intermediate=True)
             return sftp.mkdir(remotepath, mode=mode)
@@ -99,7 +99,7 @@ def sftp_putdir(sftp, localpath, remotepath, preserve_perm=True):
         remotesuffix = remotepath.rsplit("/", 1)[1]
         if localsuffix != remotesuffix:
             remotepath = os.path.join(remotepath, localsuffix)
-    except IOError, e:
+    except IOError as e:
         pass
 
     for root, dirs, fls in os.walk(localpath):
@@ -112,11 +112,11 @@ def sftp_putdir(sftp, localpath, remotepath, preserve_perm=True):
 
         try:
             sftp.chdir(remroot)
-        except IOError, e:
+        except IOError as e:
             if preserve_perm:
-                mode = os.stat(root).st_mode & 0777
+                mode = os.stat(root).st_mode & 0o777
             else:
-                mode = 0777
+                mode = 0o777
             sftp_mkdir(sftp, remroot, mode=mode, intermediate=True)
             sftp.chdir(remroot)
         for f in fls:
@@ -124,4 +124,4 @@ def sftp_putdir(sftp, localpath, remotepath, preserve_perm=True):
             localfile = os.path.join(root, f)
             sftp.put(localfile, remfile)
             if preserve_perm:
-                sftp.chmod(remfile, os.stat(localfile).st_mode & 0777)
+                sftp.chmod(remfile, os.stat(localfile).st_mode & 0o777)

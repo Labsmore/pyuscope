@@ -62,7 +62,7 @@ class PlannerAxis(object):
                 log=None):
         if log is None:
             def log(s=''):
-                print s
+                print(s)
         self.log = log
         # How many the pixels the imager sees after scaling
         # XXX: is this global scalar playing correctly with the objective scalar?
@@ -171,7 +171,7 @@ class PlannerAxis(object):
         
     def points(self):
         step = self.step()
-        for i in xrange(self.images()):
+        for i in range(self.images()):
             yield self.start + i * step
     
 class Planner(object):
@@ -187,7 +187,7 @@ class Planner(object):
                 imagerj={}):
         if log is None:
             def log(msg='', verbosity=None):
-                print msg
+                print(msg)
         self._log = log
         self.v = verbosity
         self.hal = hal
@@ -238,7 +238,7 @@ class Planner(object):
         
         self.stack_init()
         
-        for axisc, axis in self.axes.iteritems():
+        for axisc, axis in self.axes.items():
             self.log('Axis %s' % axisc)
             self.log('  %f to %f' % (axis.start, axis.end), 2)
             self.log('  Ideal overlap: %f, actual %g' % (ideal_overlap, axis.step_percent()), 2)
@@ -531,7 +531,7 @@ class Planner(object):
             if not self.dry:
                 self.write_meta()
         finally:
-            print('Planner: restoring old dry %s' % (str(hal_dry_old)))
+            print(('Planner: restoring old dry %s' % (str(hal_dry_old))))
             self.hal.set_dry(hal_dry_old)
         
     def gen_meta(self):
@@ -576,7 +576,7 @@ class Planner(object):
         self.comment('mv_abs_backlash: %s, %s' % (fmt_axis('x'), fmt_axis('y')))
         pos = self.hal.pos()
         blsh_mv = {}
-        for axisc in move_to.keys():
+        for axisc in list(move_to.keys()):
             axis = self.axes[axisc]
             if not axis.backlash:
                 continue

@@ -3,7 +3,7 @@ from uscope.benchmark import Benchmark
 from uscope.hal.cnc.hal import AxisExceeded
 import traceback
 
-import Queue
+import queue
 import threading
 from PyQt4.QtCore import *
 import time
@@ -12,11 +12,11 @@ import json
 
 def dbg(*args):
     if len(args) == 0:
-        print
+        print()
     elif len(args) == 1:
-        print 'threading: %s' % (args[0], )
+        print('threading: %s' % (args[0], ))
     else:
-        print 'threading: ' + (args[0] % args[1:])
+        print('threading: ' + (args[0] % args[1:]))
 
 '''
 Try to seperate imaging and movement
@@ -24,7 +24,7 @@ For now keep unified in planner thread
 '''
 class ImagingThread(QThread):
     def __init__(self):
-        self.queue = Queue.Queue()
+        self.queue = queue.Queue()
         self.running = threading.Event()
 
     def run(self):
@@ -46,7 +46,7 @@ TODO: should block?
 class CncThread(QThread):
     def __init__(self, hal, cmd_done):
         QThread.__init__(self)
-        self.queue = Queue.Queue()
+        self.queue = queue.Queue()
         self.hal = hal
         self.running = threading.Event()
         self.idle = threading.Event()
@@ -93,7 +93,7 @@ class CncThread(QThread):
             try:
                 self.lock.clear()
                 (cmd, args) = self.queue.get(True, 0.1)
-            except Queue.Empty:
+            except queue.Empty:
                 self.idle.set()
                 continue
             finally:

@@ -30,7 +30,7 @@ def get_device_controls(fd):
     while queryctrl.id < v4l2.V4L2_CID_LASTP1:
         try:
             fcntl.ioctl(fd, v4l2.VIDIOC_QUERYCTRL, queryctrl)
-        except IOError, e:
+        except IOError as e:
             # this predefined control is not supported by this device
             assert e.errno == errno.EINVAL
             queryctrl.id += 1
@@ -42,7 +42,7 @@ def get_device_controls(fd):
     while True:
         try:
             fcntl.ioctl(fd, v4l2.VIDIOC_QUERYCTRL, queryctrl)
-        except IOError, e:
+        except IOError as e:
             # no more custom controls available on this device
             assert e.errno == errno.EINVAL
             break

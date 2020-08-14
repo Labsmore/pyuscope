@@ -19,69 +19,19 @@ import traceback
 import os
 import signal
 
-# import gobject, pygst
-#import pyGst
-#pyGst.require('0.10')
 
 import gi
-#gi.require_version('Gtk', '3.0')
 gi.require_version('Gst', '1.0')
 gi.require_version('GstBase', '1.0')
 from gi.repository import Gst
 Gst.init(None)
-from gi.repository import GObject, Gst, GstBase, GObject
+from gi.repository import GstBase, GObject
 
 
 import io
 from PIL import Image
 
 uconfig = get_config()
-
-'''
-Do not encode images in gstreamer context or it brings system to halt
-instead, request images and have them encoded in requester's context
-'''
-class CaptureSink(GstBase.BaseSink):
-    __gstmetadata__ = ('capturesink','Sink', \
-                      'Captures images for the CNC', 'John McMaster')
-
-    __gsttemplates__ = Gst.PadTemplate.new("sinkpadtemplate",
-                                        Gst.PadDirection.SINK,
-                                        Gst.PadPresence.ALWAYS,
-                                        Gst.Caps.new_any())
-
-    def __init__(self):
-        Gst.Element.__init__(self)
-        self.sinkpad = Gst.Pad(self._sinkpadtemplate, "sink")
-        self.add_pad(self.sinkpad)
-
-        self.sinkpad.set_chain_function(self.chainfunc)
-        self.sinkpad.set_event_function(self.eventfunc)
-
-        self.img_cb = lambda buffer: None
-
-    '''
-    gstreamer plugin core methods
-    '''
-
-    def chainfunc(self, pad, buffer):
-        #print 'Capture sink buffer in'
-        try:
-            self.img_cb(buffer)
-        except:
-            traceback.print_exc()
-            os._exit(1)
-
-        return Gst.FLOW_OK
-
-    def eventfunc(self, pad, event):
-        return True
-
-GObject.type_register(CaptureSink)
-# Register the element into this process' registry.
-# Gst.element_register (CaptureSink, 'capturesink', Gst.RANK_MARGINAL)
-__gstelementfactory__ = ("capturesink", Gst.Rank.NONE, CaptureSink)
-
 
 
 
@@ -145,7 +95,7 @@ class ImageProcessor(QThread):
                     bval += b
             sz = img.size[0] * img.size[1] / xs / ys * 256
             rbal = 1.0 * rval / gval
-            gbal = 1.0 * gval / gval
+            # gbal = 1.0 * gval / gval
             bbal = 1.0 * bval / gval
 
             self.r_val.emit(int(rval * 1000.0 / sz))

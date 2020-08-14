@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from uscope.config import get_config
 
@@ -7,20 +7,17 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from PyQt4.QtGui import QWidget, QLabel
 
-import queue
-import threading
 import sys
 import traceback
 import os
 import signal
 
 import gi
-#gi.require_version('Gtk', '3.0')
 gi.require_version('Gst', '1.0')
 gi.require_version('GstBase', '1.0')
 from gi.repository import Gst
 Gst.init(None)
-from gi.repository import GObject, Gst, GstBase, GObject
+from gi.repository import GObject
 
 uconfig = get_config()
 
@@ -106,9 +103,6 @@ class TestGUI(QMainWindow):
         assert self.sinkx is not None
         self.videoconvert = Gst.ElementFactory.make('videoconvert')
         assert self.videoconvert is not None
-        # caps = Gst.caps_from_string('video/x-raw,format=yuv')
-        # caps = Gst.caps_from_string('video/x-raw,format=RGB')
-        # caps = Gst.caps_from_string('video/x-raw,format=ARGB64')
         caps = Gst.caps_from_string('video/x-raw-rgb')
         assert caps is not None
         self.capture_enc = Gst.ElementFactory.make("jpegenc")

@@ -8,8 +8,13 @@ http://nullege.com/codes/show/src%40v%404%40v4l2-0.2%40tests.py/276/v4l2.VIDIOC_
 http://linuxtv.org/downloads/v4l-dvb-apis/control.html
 linux/videodev2.h
 '''
+# python3 issues
+# sudo pip3 install pyv4l2
+try:
+    import v4l2
+except:
+    v4l2 = None
 
-import v4l2
 import fcntl
 import errno
 

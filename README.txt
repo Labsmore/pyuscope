@@ -21,5 +21,28 @@ See some high level usage notes here: https://microwiki.org/wiki/index.php/McSco
 sudo apt-get install -y python3-gst-1.0
 sudo apt-get install -y python3-gi
 sudo pip3 install v4l2
+
+git clone https://github.com/GStreamer/gst-python.git
+pushd gst-python
+sudo apt-get install -y python-gi-dev
+PYTHON=python3 ./configure
+sudo make install
+popd
+```
+
+
+```
+mcmaster@necropolis:~/doc/ext/pyuscope$ ls -lah /usr/local/lib/gstreamer-1.0
+total 72K
+drwxr-xr-x 2 root root 4.0K Aug 14 00:30 .
+drwxr-xr-x 6 root root 4.0K Jul  5 23:40 ..
+-rwxr-xr-x 1 root root  57K Aug 14 00:30 libgstpythonplugin.cpython-35m-x86_64-linux-gnu.so
+-rwxr-xr-x 1 root root 1.3K Aug 14 00:30 libgstpythonplugin.la
+```
+
+
+```
+python/sinkelement.py
+GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0:$PWD gst-inspect-1.0 mysink
 ```
 

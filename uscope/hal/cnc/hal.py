@@ -1,14 +1,17 @@
 import time
 from uscope.hal.img.imager import Imager
 
+
 class AxisExceeded(ValueError):
     pass
+
 
 def format_t(dt):
     s = dt % 60
     m = int(dt / 60 % 60)
     hr = int(dt / 60 / 60)
     return '%02d:%02d:%02d' % (hr, m, s)
+
 
 '''
 Planner hardware abstraction layer (HAL)
@@ -20,20 +23,24 @@ Hal is not thread safe with exception of the following:
 -estop
 (since it needs to be able to interrupt an active operation)
 '''
+
+
 class Hal(object):
     def __init__(self, log, dry):
         if log is None:
+
             def log(msg='', lvl=2):
                 print(msg)
+
         self.log = log
         # seconds to wait before snapping picture
         self.t_settle = 4.0
         self.rt_sleep = 0.0
-        
+
         # Overwrite to get updates while moving
         # (if supported)
         self.progress = lambda pos: None
-        
+
         self.mv_lastt = time.time()
         self.dry = None
         self.set_dry(dry)
@@ -46,7 +53,7 @@ class Hal(object):
         else:
             self._dry_pos = None
         self.dry = dry
-    
+
     def axes(self):
         '''Return supported axes'''
         raise Exception("Required")
@@ -54,7 +61,7 @@ class Hal(object):
     def home(self, axes):
         '''Set current position to 0.0'''
         raise Exception("Required")
-        
+
     def ret0(self):
         '''Return to origin'''
         self.mv_abs(dict([(k, 0.0) for k in self.axes()]))
@@ -66,14 +73,16 @@ class Hal(object):
     def mv_rel(self, delta):
         '''Relative move to positions specified by delta dict'''
         raise Exception("Required")
-    
+
     '''
     In modern systems the first is almost always used
     The second is supported for now while porting legacy code
     '''
+
     def img_get(self):
         '''Take a picture and return a PIL image'''
         raise Exception("Required")
+
     def img_take(self):
         '''Take a picture and save it to internal.  File name is generated automatically'''
         raise Exception("Unsupported")
@@ -93,7 +102,7 @@ class Hal(object):
     def begin(self):
         '''Call at start of active planer use (not dry)'''
         pass
-    
+
     def end(self):
         '''Called after machine is no longer in planer use.  Motors must maintain position for MDI'''
         pass
@@ -135,9 +144,13 @@ class Hal(object):
         if axes is None:
             axes = self.axes()
         return dict([(axis, (-1000, 1000)) for axis in axes])
+
+
 '''
 Has no actual hardware associated with it
 '''
+
+
 class MockHal(Hal):
     def __init__(self, axes='xy', log=None, dry=False):
         Hal.__init__(self, log, dry)
@@ -157,27 +170,31 @@ class MockHal(Hal):
 
     def axes(self):
         return self._axes
-        
+
     def home(self, axes):
         for axis in axes:
             self._pos[axis] = 0.0
-        
+
     def take_picture(self, file_name):
         self._log('taking picture to %s' % file_name)
 
     def mv_abs(self, pos):
         for axis, apos in pos.items():
             self._pos[axis] = apos
-        self._log('absolute move to ' + ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
+        self._log(
+            'absolute move to ' +
+            ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
     def mv_rel(self, delta):
         for axis, adelta in delta.items():
             self._pos[axis] += adelta
-        self._log('relative move to ' + ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
+        self._log(
+            'relative move to ' +
+            ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
 
     def pos(self):
         return self._pos
-    
+
     def settle(self):
         # No hardware to let settle
         pass
@@ -193,13 +210,16 @@ class MockHal(Hal):
                 # quicker gui updates by only updating it
                 progress({axis: self._pos[axis]})
             time.sleep(0.1)
-    
+
     def ar_stop(self):
         pass
+
 
 '''
 Legacy uscope.mc adapter
 '''
+
+
 class MCHal(Hal):
     def __init__(self, mc, log=None, dry=False):
         Hal.__init__(self, log, dry)
@@ -223,7 +243,7 @@ class MCHal(Hal):
             else:
                 self.mc.axes[axis].mv_abs(apos)
                 self.mv_lastt = time.time()
-        
+
     def mv_rel(self, delta):
         # Only one axis can be moved at a time
         for axis, adelta in delta.items():
@@ -258,21 +278,23 @@ class MCHal(Hal):
         return ret
         '''
 
+
 class GCodeHalImager(Imager):
     def __init__(self, hal):
         self.hal = hal
-        
+
     def take(self):
         # Focus (coolant mist)
         self.hal._line('M7')
         self.hal._dwell(2)
-        
+
         # Snap picture (coolant flood)
         self.hal._line('M8')
         self.hal._dwell(3)
-        
+
         # Release shutter (coolant off)
         self.hal._line('M9')
+
 
 '''
 http://linuxcnc.org/docs/html/gcode/gcode.html
@@ -285,11 +307,13 @@ M8 (coolant flood): tied to snap picture
     M7 must be depressed first
 M9 (coolant off): release focus / picture
 '''
+
+
 class GCodeHal(Hal):
     def __init__(self, axes='xy', log=None, dry=False):
         Hal.__init__(self, log, dry)
         self._axes = list(axes)
-        
+
         self._pos = {}
         # Assume starting at 0.0 until causes problems
         for axis in self._axes:
@@ -298,16 +322,20 @@ class GCodeHal(Hal):
 
     def imager(self):
         return GCodeHalImager(self)
-    
+
     def mv_abs(self, pos):
         for axis, apos in pos.items():
             self._pos[axis] = apos
-        self._line('G90 G0' + ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
+        self._line(
+            'G90 G0' +
+            ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
     def mv_rel(self, pos):
         for axis, delta in pos.items():
             self._pos[axis] += delta
-        self._line('G91 G0' + ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
+        self._line(
+            'G91 G0' +
+            ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
     def comment(self, s=''):
         if len(s) == 0:
@@ -321,15 +349,14 @@ class GCodeHal(Hal):
 
     def begin(self):
         pass
-    
+
     def end(self):
         self._line()
         self._line('(Done!)')
         self._line('M2')
 
     def _dwell(self, seconds):
-        self._line('G4 P%0.3f' % (seconds,))
+        self._line('G4 P%0.3f' % (seconds, ))
 
     def get(self):
         return str(self._buff)
-

@@ -23,8 +23,10 @@ SW_FIL = 2
 store_bin = False
 store_png = True
 
+
 class DryCheckpoint(Exception):
     pass
+
 
 class XrayImager(Imager):
     def __init__(self, dry):
@@ -40,7 +42,9 @@ class XrayImager(Imager):
         # need some way to more accurately measure thermals
         # in the meantime hack this in half
         watt = 60 * 8
-        print('WARNING: set for %dW duty cycle.  Running at higher power may damage head' % watt)
+        print(
+            'WARNING: set for %dW duty cycle.  Running at higher power may damage head'
+            % watt)
         self.shot_off = self.shot_on * watt / 100 - self.shot_on
         print('Shot off time: %0.1f' % self.shot_off)
 
@@ -50,9 +54,9 @@ class XrayImager(Imager):
         wps.on(SW_FIL)
         self.fil_on = time.time()
         self.fire_last = 0
-        
+
         self.gxs = uscope.gxs700_util.ez_open(verbose=False)
-        
+
         self.gxs.wait_trig_cb = self.fire
 
     def fire(self):
@@ -64,7 +68,7 @@ class XrayImager(Imager):
                 print('DRY: skip wait')
             else:
                 time.sleep(wait)
-        
+
         print('Checking head temp')
         wait = self.shot_off - (time.time() - self.fire_last)
         print('Waiting %0.1f sec for head to cool...' % wait)
@@ -74,7 +78,7 @@ class XrayImager(Imager):
             else:
                 time.sleep(wait)
         print('Head ready')
-        
+
         try:
             if self.dry:
                 print('DRY: not firing')
@@ -86,7 +90,7 @@ class XrayImager(Imager):
         finally:
             print('X-RAY: BEAM OFF')
             wps.off(SW_HV)
-        
+
         if self.dry:
             # Takes a while to download and want this to be quick
             #self.gxs.sw_trig()
@@ -107,6 +111,7 @@ class XrayImager(Imager):
         img_dec.raw = img_bin
         return img_dec
 
+
 def take_picture(fn_base):
     planner.hal.settle()
     img_dec = planner.imager.get()
@@ -117,16 +122,28 @@ def take_picture(fn_base):
             img_dec.save(fn_base + '.png')
     planner.all_imgs += 1
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Planner module command line')
-    parser.add_argument('--host', default='mk', help='Host.  Activates remote mode')
+    parser.add_argument('--host',
+                        default='mk',
+                        help='Host.  Activates remote mode')
     parser.add_argument('--port', default=22617, type=int, help='Host port')
     parser.add_argument('--overwrite', action='store_true')
-    add_bool_arg(parser, '--dry', default=True, help='Due to health hazard, default is True')
+    add_bool_arg(parser,
+                 '--dry',
+                 default=True,
+                 help='Due to health hazard, default is True')
     add_bool_arg(parser, '--bin', default=False, help='Store raw .bin')
     add_bool_arg(parser, '--png', default=True, help='Store 16 bit .png')
-    parser.add_argument('scan_json', nargs='?', default='scan.json', help='Scan parameters JSON')
-    parser.add_argument('out', nargs='?', default='out/default', help='Output directory')
+    parser.add_argument('scan_json',
+                        nargs='?',
+                        default='scan.json',
+                        help='Scan parameters JSON')
+    parser.add_argument('out',
+                        nargs='?',
+                        default='out/default',
+                        help='Output directory')
     args = parser.parse_args()
 
     store_bin = args.bin
@@ -142,10 +159,11 @@ if __name__ == "__main__":
     wps = WPS7()
     imager = XrayImager(dry=args.dry)
     #imager = MockImager()
-    hal = lcnc_ar.LcncPyHalAr(host=args.host, local_ini='config/xray/rsh.ini', dry=args.dry)
+    hal = lcnc_ar.LcncPyHalAr(host=args.host,
+                              local_ini='config/xray/rsh.ini',
+                              dry=args.dry)
     try:
         #config = get_config()
-    
         '''
         2015-10-03 improved calibration
         p4/x-ray/04_l_65kvp_75map/png/c000_r000.png
@@ -170,12 +188,16 @@ if __name__ == "__main__":
         # Wonder if this is exact?
         # should measure broken sensor under microscope
         mm_per_pix = 1 / 55.
-        planner = uscope.planner.Planner(json.load(open(args.scan_json)), hal, imager=imager,
-                    img_sz=img_sz, unit_per_pix=mm_per_pix,
-                    out_dir=args.out,
-                    progress_cb=None,
-                    dry=args.dry,
-                    log=None, verbosity=2)
+        planner = uscope.planner.Planner(json.load(open(args.scan_json)),
+                                         hal,
+                                         imager=imager,
+                                         img_sz=img_sz,
+                                         unit_per_pix=mm_per_pix,
+                                         out_dir=args.out,
+                                         progress_cb=None,
+                                         dry=args.dry,
+                                         log=None,
+                                         verbosity=2)
         planner.take_picture = take_picture
         planner.run()
     finally:
@@ -184,4 +206,3 @@ if __name__ == "__main__":
         time.sleep(0.2)
         wps.off(SW_FIL)
         hal.ar_stop()
-

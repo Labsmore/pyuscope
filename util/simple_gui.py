@@ -3,6 +3,7 @@
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
 from PyQt4.QtGui import QMainWindow
 
+
 class TestGUI(QMainWindow):
     def __init__(self):
         QMainWindow.__init__(self)
@@ -19,6 +20,7 @@ class TestGUI(QMainWindow):
         self.vidpip.setupWidgets()
         self.setCentralWidget(self.vidpip.widget)
         self.show()
+
 
 if __name__ == '__main__':
     gstwidget_main(TestGUI)

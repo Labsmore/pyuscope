@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
-import argparse        
+import argparse
 from PIL import Image
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='spaghetti code')
     parser.add_argument('fn', help='to process')
     args = parser.parse_args()
-    
+
     img = Image.open(args.fn)
     i = 0
     rval = 0
@@ -19,11 +19,11 @@ if __name__ == "__main__":
         for x in range(0, img.size[0], xs):
             (r, g, b) = img.getpixel((x, y))
             if i < 10:
-                    print((x, y, ':', r, g, b))
+                print((x, y, ':', r, g, b))
             i += 1
             rval += r
             gval += g
-            bval +=b
+            bval += b
     sz = img.size[0] * img.size[1] / xs / ys
     rbal = 1.0 * rval / gval
     gbal = 1.0 * gval / gval

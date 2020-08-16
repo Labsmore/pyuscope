@@ -20,6 +20,7 @@ from gi.repository import Gst
 Gst.init(None)
 from gi.repository import GstBase, GObject
 
+
 class GstVideoPipeline:
     def __init__(self):
         self.gstWindowId = None
@@ -31,7 +32,7 @@ class GstVideoPipeline:
         self.widget = QWidget(parent=parent)
         # Allows for convenient keyboard control by clicking on the video
         self.widget.setFocusPolicy(Qt.ClickFocus)
-        w, h = 5440/4, 3648/4
+        w, h = 5440 / 4, 3648 / 4
         self.widget.setMinimumSize(w, h)
         self.widget.resize(w, h)
         policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -55,7 +56,7 @@ class GstVideoPipeline:
             print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)
         else:
-            raise Exception('Unknown source %s' % (source,))
+            raise Exception('Unknown source %s' % (source, ))
 
     def setupGst(self, source=None, tee=None):
 
@@ -70,7 +71,7 @@ class GstVideoPipeline:
         caps = Gst.caps_from_string('video/x-raw,format=rgb')
         assert caps is not None
         self.capture_enc = Gst.ElementFactory.make("jpegenc")
-        self.resizer =  Gst.ElementFactory.make("videoscale")
+        self.resizer = Gst.ElementFactory.make("videoscale")
         assert self.resizer is not None
 
         # Video render stream
@@ -81,12 +82,12 @@ class GstVideoPipeline:
             self.tee = Gst.ElementFactory.make("tee")
             self.player.add(self.tee)
             self.source.link(self.tee)
-    
+
             self.queue_us = Gst.ElementFactory.make("queue")
             self.player.add(self.queue_us)
             self.tee.link(self.queue_us)
             self.queue_us.link(self.videoconvert)
-    
+
             self.queue_them = Gst.ElementFactory.make("queue")
             self.player.add(self.queue_them)
             self.tee.link(self.queue_them)
@@ -137,10 +138,12 @@ class GstVideoPipeline:
             assert self.gstWindowId, "Need gstWindowId by sync"
             imagesink.set_window_handle(self.gstWindowId)
 
+
 def excepthook(excType, excValue, tracebackobj):
     print('%s: %s' % (excType, excValue))
     traceback.print_tb(tracebackobj)
     os._exit(1)
+
 
 def gstwidget_main(AQMainWindow):
     '''
@@ -164,8 +167,7 @@ class CbSink(GstBase.BaseSink):
     __gstmetadata__ = ('CustomSink','Sink', \
                       'Custom test sink element', 'John McMaster')
 
-    __gsttemplates__ = Gst.PadTemplate.new("sink",
-                                           Gst.PadDirection.SINK,
+    __gsttemplates__ = Gst.PadTemplate.new("sink", Gst.PadDirection.SINK,
                                            Gst.PadPresence.ALWAYS,
                                            Gst.Caps.new_any())
 
@@ -178,6 +180,7 @@ class CbSink(GstBase.BaseSink):
         if self.cb:
             self.cb(buffer)
         return Gst.FlowReturn.OK
+
 
 # XXX: these aren't properly registering anymore, but good enough
 GObject.type_register(CbSink)

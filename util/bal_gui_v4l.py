@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from uscope import gstwidget 
+from uscope import gstwidget
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main, CbSink
 from PyQt4.QtGui import QMainWindow
@@ -9,7 +9,8 @@ from PyQt4.QtGui import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, 
 properties = {
     "hue": None,
     "brightness": None,
-    }
+}
+
 
 class TestGUI(QMainWindow):
     def __init__(self):
@@ -20,11 +21,12 @@ class TestGUI(QMainWindow):
         # Initialize this early so we can get control default values
         self.vidpip.setupGst(tee=self.mysink)
         self.initUI()
-    
+
         # self.mysink = Gst.ElementFactory.make("mysink")
         # self.mysink = MySink()
         def cb(buffer):
             print("got buffer")
+
         self.mysink.cb = cb
         assert self.mysink
         # print(self.vidpip.source.list_properties())
@@ -47,6 +49,7 @@ class TestGUI(QMainWindow):
                 if default is None:
                     default = self.vidpip.source.get_property(name)
                     print("%s, default %s" % (name, default))
+
                 def textChanged(name):
                     def f():
                         try:
@@ -56,7 +59,9 @@ class TestGUI(QMainWindow):
                         else:
                             self.vidpip.source.set_property(name, val)
                             print('%s changed => %d' % (name, val))
+
                     return f
+
                 layout.addWidget(QLabel(name), row, 0)
                 ctrl = QLineEdit(str(default))
                 ctrl.textChanged.connect(textChanged(name))
@@ -74,6 +79,7 @@ class TestGUI(QMainWindow):
         centralWidget.setLayout(layout)
         self.setCentralWidget(centralWidget)
         self.show()
+
 
 if __name__ == '__main__':
     gstwidget_main(TestGUI)

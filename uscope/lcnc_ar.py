@@ -6,7 +6,8 @@ import argparse
 import time
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='LinuxCNC automatic remote client test')
+    parser = argparse.ArgumentParser(
+        description='LinuxCNC automatic remote client test')
     parser.add_argument('host', help='Host')
     args = parser.parse_args()
 

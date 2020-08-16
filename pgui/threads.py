@@ -10,6 +10,7 @@ import time
 import os
 import json
 
+
 def dbg(*args):
     if len(args) == 0:
         print()
@@ -18,10 +19,13 @@ def dbg(*args):
     else:
         print('threading: ' + (args[0] % args[1:]))
 
+
 '''
 Try to seperate imaging and movement
 For now keep unified in planner thread
 '''
+
+
 class ImagingThread(QThread):
     def __init__(self):
         self.queue = queue.Queue()
@@ -35,6 +39,7 @@ class ImagingThread(QThread):
     def stop(self):
         self.running.clear()
 
+
 '''
 Offloads controller processing to another thread (or potentially even process)
 Makes it easier to keep RT deadlines and such
@@ -42,6 +47,7 @@ However, it doesn't provide feedback completion so use with care
 (other blocks until done)
 TODO: should block?
 '''
+
 
 class CncThread(QThread):
     def __init__(self, hal, cmd_done):
@@ -102,7 +108,7 @@ class CncThread(QThread):
             self.idle.clear()
 
             def default(*args):
-                raise Exception("Bad command %s" % (cmd,))
+                raise Exception("Bad command %s" % (cmd, ))
 
             def mv_abs(pos):
                 try:
@@ -129,24 +135,25 @@ class CncThread(QThread):
             #print 'cnc thread: dispatch %s' % cmd
             # Maybe I should just always emit the pos
             ret = {
-                'mv_abs':   mv_abs,
-                'mv_rel':   mv_rel,
-                'forever':  forever,
-                'home':     home,
-                'stop':     self.hal.stop,
-                'estop':    self.hal.estop,
-                'unestop':  self.hal.unestop,
+                'mv_abs': mv_abs,
+                'mv_rel': mv_rel,
+                'forever': forever,
+                'home': home,
+                'stop': self.hal.stop,
+                'estop': self.hal.estop,
+                'unestop': self.hal.unestop,
             }.get(cmd, default)(*args)
             self.cmd_done(cmd, args, ret)
 
     def stop(self):
         self.running.clear()
 
+
 # Sends events to the imaging and movement threads
 class PlannerThread(QThread):
     plannerDone = pyqtSignal()
 
-    def __init__(self,parent, rconfig, imagerj={}):
+    def __init__(self, parent, rconfig, imagerj={}):
         QThread.__init__(self, parent)
         self.rconfig = rconfig
         self.imagerj = imagerj
@@ -175,13 +182,17 @@ class PlannerThread(QThread):
             im_w_pix = int(rconfig['uscope']['imager']['width']) * im_scalar
             im_h_pix = int(rconfig['uscope']['imager']['height']) * im_scalar
             x_um = float(obj['x_view'])
-            self.planner = Planner(scan_config=scan_config, hal=rconfig['cnc_hal'], imager=rconfig['imager'],
-                    img_sz=(im_w_pix, im_h_pix), unit_per_pix=(x_um / im_w_pix),
-                    out_dir=rconfig['out_dir'],
-                    progress_cb=rconfig['progress_cb'],
-                    dry=rconfig['dry'],
-                    log=self.log, verbosity=2,
-                    imagerj=self.imagerj)
+            self.planner = Planner(scan_config=scan_config,
+                                   hal=rconfig['cnc_hal'],
+                                   imager=rconfig['imager'],
+                                   img_sz=(im_w_pix, im_h_pix),
+                                   unit_per_pix=(x_um / im_w_pix),
+                                   out_dir=rconfig['out_dir'],
+                                   progress_cb=rconfig['progress_cb'],
+                                   dry=rconfig['dry'],
+                                   log=self.log,
+                                   verbosity=2,
+                                   imagerj=self.imagerj)
             self.log('Running planner')
             b = Benchmark()
             self.planner.run()

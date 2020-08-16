@@ -2,6 +2,7 @@ from .hal import Hal, format_t, AxisExceeded
 
 import time
 
+
 # Camera always local
 class LcncHal(Hal):
     def __init__(self, log=None, dry=False):
@@ -24,10 +25,10 @@ class LcncHal(Hal):
         else:
             self._cmd(cmd)
             self.mv_lastt = time.time()
-            
+
     def _cmd(self, cmd):
         raise Exception("Required")
-   
+
     def mv_abs(self, pos, limit=True):
         if len(pos) == 0:
             return
@@ -35,36 +36,44 @@ class LcncHal(Hal):
             limit = self.limit()
             for k, v in pos.items():
                 if v < limit[k][0] or v > limit[k][1]:
-                    raise AxisExceeded("Axis %c to %s exceeds liimt (%s, %s)" % (k, v, limit[k][0], limit[k][1]))
-        
+                    raise AxisExceeded("Axis %c to %s exceeds liimt (%s, %s)" %
+                                       (k, v, limit[k][0], limit[k][1]))
+
         if self.dry:
             for k, v in pos.items():
-                self._dry_pos[k] = v 
-        self.cmd('G90 ' + self.g_feed() + ''.join([' %c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
-        
+                self._dry_pos[k] = v
+        self.cmd('G90 ' + self.g_feed() +
+                 ''.join([' %c%0.3f' % (k.upper(), v)
+                          for k, v in pos.items()]))
+
     def mv_rel(self, delta):
         if len(delta) == 0:
             return
-        
+
         limit = self.limit()
         pos = self.pos()
         for k, v in delta.items():
             dst = pos[k] + v
             if dst < limit[k][0] or dst > limit[k][1]:
-                raise AxisExceeded("Axis %c to %s (%s + %s) exceeds liimt (%s, %s)" % (k, dst, pos[k], v, limit[k][0], limit[k][1]))
-        
+                raise AxisExceeded(
+                    "Axis %c to %s (%s + %s) exceeds liimt (%s, %s)" %
+                    (k, dst, pos[k], v, limit[k][0], limit[k][1]))
+
         if self.dry:
             for k, v in delta.items():
-                self._dry_pos[k] += v 
+                self._dry_pos[k] += v
         # Unlike DIY controllers, all axes can be moved concurrently
         # Don't waste time moving them individually
-        self.cmd('G91 ' + self.g_feed() + ''.join([' %c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
+        self.cmd(
+            'G91 ' + self.g_feed() +
+            ''.join([' %c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
 
     def g_feed(self):
         if self.feedrate is None:
             return 'G0'
         else:
             return 'G1 F%0.3f' % self.feedrate
+
 
 # http://linuxcnc.org/docs/html/common/python-interface.html
 # LinuxCNC python connection
@@ -74,11 +83,10 @@ class LcncPyHal(LcncHal):
     def __init__(self, linuxcnc, log=None, dry=False):
         self.ax_c2i = {'x': 0, 'y': 1}
         self.ax_i2c = {0: 'x', 1: 'y'}
-        
+
         self.linuxcnc = linuxcnc
         self.stat = self.linuxcnc.stat()
         self.command = self.linuxcnc.command()
-
         '''
         breaks homing?
         if not dry:
@@ -87,7 +95,7 @@ class LcncPyHal(LcncHal):
         self.stat.poll()
         if self.verbose:
             print('Enabled: %s' % self.stat.enabled)
-        
+
         # Do this explicitly: in many setups I'm already homed
         # prevent "can't do that (EMC_AXIS_HOME:123) in MDI mode"
         # You must home all axes, not just those used
@@ -98,7 +106,7 @@ class LcncPyHal(LcncHal):
                 self._home(axisi=axisi, lazy=True)
             self.command.mode(self.linuxcnc.MODE_MDI)
         '''
-        
+
         self.stat.poll()
         if self.verbose:
             print('Enabled: %s' % self.stat.enabled)
@@ -106,10 +114,11 @@ class LcncPyHal(LcncHal):
         self._limit = {}
         for axisc in self.axes():
             axis = self.stat.axis[self.ax_c2i[axisc]]
-            self._limit[axisc] = (axis['min_position_limit'], axis['max_position_limit'])
+            self._limit[axisc] = (axis['min_position_limit'],
+                                  axis['max_position_limit'])
 
         LcncHal.__init__(self, log=log, dry=dry)
-    
+
     def home(self, axes=None):
         if axes is None:
             axes = self.axes()
@@ -117,11 +126,11 @@ class LcncPyHal(LcncHal):
         for axis in axes:
             self._home(axis)
         self.command.mode(self.linuxcnc.MODE_MDI)
-    
+
     def _home(self, axisc=None, axisi=None, lazy=False):
         if axisi is None:
             axisi = self.ax_c2i[axisc]
-        
+
         if self.verbose:
             print('Home: check axis %d' % axisi)
         self.stat.poll()
@@ -143,12 +152,12 @@ class LcncPyHal(LcncHal):
             self.stat.poll()
             time.sleep(0.1)
         if self.verbose:
-            print('  homed after %0.1f' % (time.time() - tstart,))
-    
+            print('  homed after %0.1f' % (time.time() - tstart, ))
+
     def ok_for_mdi(self):
         self.stat.poll()
         return not self.stat.estop and self.stat.enabled and self.stat.homed and self.stat.interp_state == self.linuxcnc.INTERP_IDLE
-        
+
     def wait_mdi_idle(self):
         if self.dry:
             return
@@ -156,9 +165,11 @@ class LcncPyHal(LcncHal):
             # TODO: notify self.progress
             #print self.stat.estop, self.stat.enabled, self.stat.homed, self.stat.interp_state, self.linuxcnc.INTERP_IDLE
             if self.verbose:
-                print('Pos: commanded %d actual %s' % (self.stat.axis[0]['input'], self.stat.axis[0]['output']))
+                print(
+                    'Pos: commanded %d actual %s' %
+                    (self.stat.axis[0]['input'], self.stat.axis[0]['output']))
             time.sleep(0.1)
-        
+
     def _cmd(self, cmd):
         if self.verbose:
             print()
@@ -170,7 +181,7 @@ class LcncPyHal(LcncHal):
             print('executing command')
         # Doesn't seem to hurt perf notably and reduces a lot of errors
         self.command.mode(self.linuxcnc.MODE_MDI)
-        self.command.mdi(cmd)            
+        self.command.mdi(cmd)
         if self.verbose:
             print('waiting mdi idle (exit)')
         self.wait_mdi_idle()
@@ -212,12 +223,13 @@ class LcncPyHal(LcncHal):
         self.command.mode(self.linuxcnc.MODE_MDI)
         LcncHal.begin(self)
 
+
 # LinuxCNC remote connection
 class LcncRshHal(LcncHal):
     def __init__(self, rsh, log=None, dry=False):
         LcncHal.__init__(self, log=log, dry=dry)
         self.rsh = rsh
-        
+
     def _cmd(self, cmd):
         # Waits for completion before returning
-        self.rsh.mdi(cmd, timeout=0)            
+        self.rsh.mdi(cmd, timeout=0)

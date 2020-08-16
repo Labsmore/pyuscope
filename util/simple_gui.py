@@ -24,14 +24,22 @@ Gst.init(None)
 from gi.repository import GObject
 
 
+class GstVideoPipeline:
+    def __init__(self, parent=None):
+        self.setupWidgets(parent)
 
-class TestGUI(QMainWindow):
-    def __init__(self):
-        QMainWindow.__init__(self)
-        self.showMaximized()
+    def setupWidgets(self, parent):
+        # Raw X-windows canvas
+        self.widget = QWidget(parent=parent)
+        # Allows for convenient keyboard control by clicking on the video
+        self.widget.setFocusPolicy(Qt.ClickFocus)
+        w, h = 5440/4, 3648/4
+        self.widget.setMinimumSize(w, h)
+        self.widget.resize(w, h)
+        policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.widget.setSizePolicy(policy)
 
-        self.initUI()
-
+    def prepareSource(self):
         # Must not be initialized until after layout is set
         self.gstWindowId = None
         engine_config = 'gst-v4l2src'
@@ -41,72 +49,26 @@ class TestGUI(QMainWindow):
             self.source = Gst.ElementFactory.make('v4l2src', None)
             assert self.source is not None
             self.source.set_property("device", "/dev/video0")
-            self.setupGst()
         elif engine_config == 'gst-toupcamsrc':
             self.source = Gst.ElementFactory.make('toupcamsrc', None)
             assert self.source is not None
-            self.setupGst()
         elif engine_config == 'gst-videotestsrc':
             print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)
-            self.setupGst()
         else:
             raise Exception('Unknown engine %s' % (engine_config,))
 
-        if self.gstWindowId:
-            print("Starting gstreamer pipeline")
-            self.player.set_state(Gst.State.PLAYING)
-
-
-    def get_video_layout(self):
-        # Overview
-        def low_res_layout():
-            layout = QVBoxLayout()
- 
-            # Raw X-windows canvas
-            self.video_container = QWidget()
-            # Allows for convenient keyboard control by clicking on the video
-            self.video_container.setFocusPolicy(Qt.ClickFocus)
-            w, h = 5440/4, 3648/4
-            self.video_container.setMinimumSize(w, h)
-            self.video_container.resize(w, h)
-            policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            self.video_container.setSizePolicy(policy)
-
-            layout.addWidget(self.video_container)
-
-            return layout
-
-        layout = QHBoxLayout()
-        layout.addLayout(low_res_layout())
-        return layout
-
-    def get_ctrl_layout(self):
-
-        layout = QGridLayout()
-        row = 0
-    
-        self.ctrls = {}
-        for name in ("Exposure",):
-
-            layout.addWidget(QLabel(name), row, 0)
-            ctrl = QLineEdit('0')
-            self.ctrls[name] = ctrl
-            layout.addWidget(ctrl, row, 1)
-            row += 1
-
-        return layout
-
     def setupGst(self):
+        self.prepareSource()
         print("Setting up gstreamer pipeline")
-        self.gstWindowId = self.video_container.winId()
+        self.gstWindowId = self.widget.winId()
 
         self.player = Gst.Pipeline("player")
         self.sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_overview')
         assert self.sinkx is not None
         self.videoconvert = Gst.ElementFactory.make('videoconvert')
         assert self.videoconvert is not None
-        caps = Gst.caps_from_string('video/x-raw-rgb')
+        caps = Gst.caps_from_string('video/x-raw,format=rgb')
         assert caps is not None
         self.capture_enc = Gst.ElementFactory.make("jpegenc")
         self.resizer =  Gst.ElementFactory.make("videoscale")
@@ -126,6 +88,10 @@ class TestGUI(QMainWindow):
         bus.enable_sync_message_emission()
         bus.connect("message", self.on_message)
         bus.connect("sync-message::element", self.on_sync_message)
+
+        if self.gstWindowId:
+            print("Starting gstreamer pipeline")
+            self.player.set_state(Gst.State.PLAYING)
 
     def on_message(self, bus, message):
         t = message.type
@@ -150,18 +116,21 @@ class TestGUI(QMainWindow):
             imagesink.set_property("force-aspect-ratio", True)
             imagesink.set_window_handle(self.gstWindowId)
 
+
+
+class TestGUI(QMainWindow):
+    def __init__(self):
+        QMainWindow.__init__(self)
+        self.showMaximized()
+        self.initUI()
+        self.vidpip.setupGst()
+
     def initUI(self):
         self.setGeometry(300, 300, 250, 150)
         self.setWindowTitle('pyv4l test')
 
-        # top layout
-        layout = QHBoxLayout()
-
-        layout.addLayout(self.get_video_layout())
-
-        w = QWidget()
-        w.setLayout(layout)
-        self.setCentralWidget(w)
+        self.vidpip = GstVideoPipeline()
+        self.setCentralWidget(self.vidpip.widget)
         self.show()
 
 def excepthook(excType, excValue, tracebackobj):

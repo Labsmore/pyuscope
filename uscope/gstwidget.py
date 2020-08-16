@@ -18,7 +18,7 @@ from gi.repository import GstVideo
 
 from gi.repository import Gst
 Gst.init(None)
-from gi.repository import GObject
+from gi.repository import GstBase, GObject
 
 class GstVideoPipeline:
     def __init__(self, parent=None):
@@ -148,3 +148,27 @@ def gstwidget_main(AQMainWindow):
     # Is it simply not running?
     # must be what pygst is doing
     sys.exit(app.exec_())
+
+
+class CbSink(GstBase.BaseSink):
+    __gstmetadata__ = ('CustomSink','Sink', \
+                      'Custom test sink element', 'John McMaster')
+
+    __gsttemplates__ = Gst.PadTemplate.new("sink",
+                                           Gst.PadDirection.SINK,
+                                           Gst.PadPresence.ALWAYS,
+                                           Gst.Caps.new_any())
+
+    def __init__(self, *args, **kwargs):
+        GstBase.BaseSink.__init__(self, *args, **kwargs)
+        self.cb = None
+
+    def do_render(self, buffer):
+        print("do_render()")
+        if self.cb:
+            self.cb(buffer)
+        return Gst.FlowReturn.OK
+
+# XXX: these aren't properly registering anymore, but good enough
+GObject.type_register(CbSink)
+__gstelementfactory__ = ("cbsink", Gst.Rank.NONE, CbSink)

@@ -54,7 +54,7 @@ class GstVideoPipeline:
         else:
             raise Exception('Unknown engine %s' % (engine_config,))
 
-    def setupGst(self):
+    def setupGst(self, tee=None):
         self.prepareSource()
         print("Setting up gstreamer pipeline")
         self.gstWindowId = self.widget.winId()
@@ -74,10 +74,25 @@ class GstVideoPipeline:
         self.player.add(self.source)
 
         self.player.add(self.videoconvert, self.resizer, self.sinkx)
-        self.source.link(self.videoconvert)
+        if tee:
+            self.tee = Gst.ElementFactory.make("tee")
+            self.player.add(self.tee)
+            self.source.link(self.tee)
+    
+            self.queue_us = Gst.ElementFactory.make("queue")
+            self.player.add(self.queue_us)
+            self.tee.link(self.queue_us)
+            self.queue_us.link(self.videoconvert)
+    
+            self.queue_them = Gst.ElementFactory.make("queue")
+            self.player.add(self.queue_them)
+            self.tee.link(self.queue_them)
+            self.player.add(tee)
+            self.queue_them.link(tee)
+        else:
+            self.source.link(self.videoconvert)
         self.videoconvert.link(self.resizer)
         self.resizer.link(self.sinkx)
-
 
         bus = self.player.get_bus()
         bus.add_signal_watch()

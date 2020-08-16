@@ -7,14 +7,16 @@ class TestGUI(QMainWindow):
     def __init__(self):
         QMainWindow.__init__(self)
         self.showMaximized()
+        self.vidpip = GstVideoPipeline()
         self.initUI()
         self.vidpip.setupGst()
+        self.vidpip.run()
 
     def initUI(self):
         self.setGeometry(300, 300, 250, 150)
         self.setWindowTitle('pyv4l test')
 
-        self.vidpip = GstVideoPipeline()
+        self.vidpip.setupWidgets()
         self.setCentralWidget(self.vidpip.widget)
         self.show()
 

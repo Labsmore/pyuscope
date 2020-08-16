@@ -21,10 +21,12 @@ Gst.init(None)
 from gi.repository import GstBase, GObject
 
 class GstVideoPipeline:
-    def __init__(self, parent=None):
-        self.setupWidgets(parent)
+    def __init__(self):
+        self.gstWindowId = None
+        self.source = None
+        self.widget = None
 
-    def setupWidgets(self, parent):
+    def setupWidgets(self, parent=None):
         # Raw X-windows canvas
         self.widget = QWidget(parent=parent)
         # Allows for convenient keyboard control by clicking on the video
@@ -35,29 +37,30 @@ class GstVideoPipeline:
         policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.widget.setSizePolicy(policy)
 
-    def prepareSource(self):
+    def prepareSource(self, source=None):
         # Must not be initialized until after layout is set
-        self.gstWindowId = None
-        engine_config = 'gst-v4l2src'
-        #engine_config = 'gst-videotestsrc'
-        #engine_config = 'gst-toupcamsrc'
-        if engine_config == 'gst-v4l2src':
+        if source is None:
+            source = 'gst-v4l2src'
+            #source = 'gst-videotestsrc'
+            #source = 'gst-toupcamsrc'
+        self.source_name = source
+        if source == 'gst-v4l2src':
             self.source = Gst.ElementFactory.make('v4l2src', None)
             assert self.source is not None
             self.source.set_property("device", "/dev/video0")
-        elif engine_config == 'gst-toupcamsrc':
+        elif source == 'gst-toupcamsrc':
             self.source = Gst.ElementFactory.make('toupcamsrc', None)
             assert self.source is not None
-        elif engine_config == 'gst-videotestsrc':
+        elif source == 'gst-videotestsrc':
             print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)
         else:
-            raise Exception('Unknown engine %s' % (engine_config,))
+            raise Exception('Unknown source %s' % (source,))
 
-    def setupGst(self, tee=None):
-        self.prepareSource()
+    def setupGst(self, source=None, tee=None):
+
+        self.prepareSource(source=source)
         print("Setting up gstreamer pipeline")
-        self.gstWindowId = self.widget.winId()
 
         self.player = Gst.Pipeline("player")
         self.sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_overview')
@@ -100,6 +103,12 @@ class GstVideoPipeline:
         bus.connect("message", self.on_message)
         bus.connect("sync-message::element", self.on_sync_message)
 
+    def run(self):
+        """
+        You must have placed widget by now or it will invalidate winid
+        """
+        self.gstWindowId = self.widget.winId()
+        assert self.gstWindowId, "Need gstWindowId by run"
         if self.gstWindowId:
             print("Starting gstreamer pipeline")
             self.player.set_state(Gst.State.PLAYING)
@@ -120,11 +129,12 @@ class GstVideoPipeline:
         if message.get_structure() is None:
             return
         message_name = message.get_structure().get_name()
-        print("sync2", message_name)
+        print("sync2", message_name, self.gstWindowId)
         if message_name == "prepare-window-handle":
             assert message.src.get_name() == 'sinkx_overview'
             imagesink = message.src
             imagesink.set_property("force-aspect-ratio", True)
+            assert self.gstWindowId, "Need gstWindowId by sync"
             imagesink.set_window_handle(self.gstWindowId)
 
 def excepthook(excType, excValue, tracebackobj):

@@ -1,31 +1,7 @@
 #!/usr/bin/env python3
 
-from PyQt4 import Qt
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-from PyQt4.QtGui import QWidget, QLabel
-
-import sys
-import traceback
-import os
-import signal
-
-import gi
-gi.require_version('Gst', '1.0')
-gi.require_version('GstBase', '1.0')
-gi.require_version('GstVideo', '1.0')
-
-# Needed for window.get_xid(), xvimagesink.set_window_handle(), respectively:
-# from gi.repository import GdkX11, GstVideo
-from gi.repository import GstVideo
-
-from gi.repository import Gst
-Gst.init(None)
-from gi.repository import GObject
-
-
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
-
+from PyQt4.QtGui import QMainWindow
 
 class TestGUI(QMainWindow):
     def __init__(self):

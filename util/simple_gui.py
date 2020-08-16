@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-from uscope.config import get_config
-
 from PyQt4 import Qt
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -15,11 +13,16 @@ import signal
 import gi
 gi.require_version('Gst', '1.0')
 gi.require_version('GstBase', '1.0')
+gi.require_version('GstVideo', '1.0')
+
+# Needed for window.get_xid(), xvimagesink.set_window_handle(), respectively:
+# from gi.repository import GdkX11, GstVideo
+from gi.repository import GstVideo
+
 from gi.repository import Gst
 Gst.init(None)
 from gi.repository import GObject
 
-uconfig = get_config()
 
 
 class TestGUI(QMainWindow):
@@ -32,8 +35,8 @@ class TestGUI(QMainWindow):
         # Must not be initialized until after layout is set
         self.gstWindowId = None
         engine_config = 'gst-v4l2src'
-        engine_config = 'gst-videotestsrc'
-        engine_config = 'gst-toupcamsrc'
+        #engine_config = 'gst-videotestsrc'
+        #engine_config = 'gst-toupcamsrc'
         if engine_config == 'gst-v4l2src':
             self.source = Gst.ElementFactory.make('v4l2src', None)
             assert self.source is not None
@@ -136,19 +139,16 @@ class TestGUI(QMainWindow):
             self.player.set_state(Gst.State.NULL)
 
     def on_sync_message(self, bus, message):
+        print("sync1", message.src.get_name())
         if message.get_structure() is None:
             return
         message_name = message.get_structure().get_name()
-        if message_name == "prepare-xwindow-id":
-            if message.src.get_name() == 'sinkx_overview':
-                print('sinkx_overview win_id')
-                win_id = self.gstWindowId
-            else:
-                raise Exception('oh noes')
-
-            assert win_id
+        print("sync2", message_name)
+        if message_name == "prepare-window-handle":
+            assert message.src.get_name() == 'sinkx_overview'
             imagesink = message.src
-            imagesink.set_xwindow_id(win_id)
+            imagesink.set_property("force-aspect-ratio", True)
+            imagesink.set_window_handle(self.gstWindowId)
 
     def initUI(self):
         self.setGeometry(300, 300, 250, 150)

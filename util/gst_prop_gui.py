@@ -15,8 +15,8 @@ class TestGUI(QMainWindow):
         self.vidpip = GstVideoPipeline()
         self.mysink = CbSink()
         # Initialize this early so we can get control default values
-        self.vidpip.setupGst(tee=self.mysink, source="gst-v4l2src")
-        # self.vidpip.setupGst(tee=self.mysink, source="gst-toupcamsrc")
+        # self.vidpip.setupGst(tee=self.mysink, source="gst-v4l2src")
+        self.vidpip.setupGst(tee=self.mysink, source="gst-toupcamsrc")
         self.initUI()
 
         # self.mysink = Gst.ElementFactory.make("mysink")
@@ -52,6 +52,8 @@ class TestGUI(QMainWindow):
             self.ctrls = {}
             if self.vidpip.source_name == "gst-v4l2src":
                 self.properties = ("hue", "brightness", "saturation", "contrast")
+            elif self.vidpip.source_name == "gst-toupcamsrc":
+                self.properties = ("hue", "brightness", "saturation", "contrast", "gamma")
             else:
                 assert 0
             for name in self.properties:

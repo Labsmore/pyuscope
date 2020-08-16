@@ -41,9 +41,7 @@ class GstVideoPipeline:
     def prepareSource(self, source=None):
         # Must not be initialized until after layout is set
         if source is None:
-            source = 'gst-v4l2src'
-            #source = 'gst-videotestsrc'
-            #source = 'gst-toupcamsrc'
+            source = 'gst-videotestsrc'
         self.source_name = source
         if source == 'gst-v4l2src':
             self.source = Gst.ElementFactory.make('v4l2src', None)
@@ -145,7 +143,7 @@ def excepthook(excType, excValue, tracebackobj):
     os._exit(1)
 
 
-def gstwidget_main(AQMainWindow):
+def gstwidget_main(AQMainWindow, parse_args=None):
     '''
     We are controlling a robot
     '''
@@ -156,7 +154,10 @@ def gstwidget_main(AQMainWindow):
     GObject.threads_init()
 
     app = QApplication(sys.argv)
-    _gui = AQMainWindow()
+    kwargs = {}
+    if parse_args:
+        kwargs = parse_args()
+    _mainwin = AQMainWindow(**kwargs)
     # XXX: what about the gstreamer message bus?
     # Is it simply not running?
     # must be what pygst is doing

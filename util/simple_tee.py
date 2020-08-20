@@ -12,13 +12,13 @@ from gi.repository import GstBase, GObject
 
 
 class TestGUI(QMainWindow):
-    def __init__(self):
+    def __init__(self, source=None):
         QMainWindow.__init__(self)
         self.vidpip = GstVideoPipeline()
         self.showMaximized()
         self.initUI()
         self.fakesink = Gst.ElementFactory.make("fakesink")
-        self.vidpip.setupGst(tee=self.fakesink)
+        self.vidpip.setupGst(tee=self.fakesink, source=source)
         self.vidpip.run()
 
     def initUI(self):

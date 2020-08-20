@@ -13,6 +13,8 @@ gi.require_version('GstBase', '1.0')
 gi.require_version('GstVideo', '1.0')
 
 # Needed for window.get_xid(), xvimagesink.set_window_handle(), respectively:
+# WARNING: importing GdkX11 will cause hard crash (related to Qt)
+# fortunately its not needed
 # from gi.repository import GdkX11, GstVideo
 from gi.repository import GstVideo
 
@@ -66,8 +68,8 @@ class GstVideoPipeline:
         assert self.sinkx is not None
         self.videoconvert = Gst.ElementFactory.make('videoconvert')
         assert self.videoconvert is not None
-        caps = Gst.caps_from_string('video/x-raw,format=rgb')
-        assert caps is not None
+        #caps = Gst.caps_from_string('video/x-raw,format=rgb')
+        #assert caps is not None
         self.capture_enc = Gst.ElementFactory.make("jpegenc")
         self.resizer = Gst.ElementFactory.make("videoscale")
         assert self.resizer is not None
@@ -79,22 +81,22 @@ class GstVideoPipeline:
         if tee:
             self.tee = Gst.ElementFactory.make("tee")
             self.player.add(self.tee)
-            self.source.link(self.tee)
+            assert self.source.link(self.tee)
 
             self.queue_us = Gst.ElementFactory.make("queue")
             self.player.add(self.queue_us)
-            self.tee.link(self.queue_us)
+            assert self.tee.link(self.queue_us)
             self.queue_us.link(self.videoconvert)
 
             self.queue_them = Gst.ElementFactory.make("queue")
             self.player.add(self.queue_them)
-            self.tee.link(self.queue_them)
+            assert self.tee.link(self.queue_them)
             self.player.add(tee)
-            self.queue_them.link(tee)
+            assert self.queue_them.link(tee)
         else:
-            self.source.link(self.videoconvert)
+            assert self.source.link(self.videoconvert)
         self.videoconvert.link(self.resizer)
-        self.resizer.link(self.sinkx)
+        assert self.resizer.link(self.sinkx)
 
         bus = self.player.get_bus()
         bus.add_signal_watch()
@@ -111,10 +113,13 @@ class GstVideoPipeline:
         if self.gstWindowId:
             print("Starting gstreamer pipeline")
             self.player.set_state(Gst.State.PLAYING)
+            if self.source_name == 'gst-toupcamsrc':
+                assert self.source.get_property("devicepresent"), "camera not found"
 
     def on_message(self, bus, message):
         t = message.type
 
+        # print("on_message", message, t)
         if t == Gst.MessageType.EOS:
             self.player.set_state(Gst.State.NULL)
             print("End of stream")
@@ -122,6 +127,12 @@ class GstVideoPipeline:
             err, debug = message.parse_error()
             print("Error: %s" % err, debug)
             self.player.set_state(Gst.State.NULL)
+        elif t == Gst.MessageType.STATE_CHANGED:
+            pass
+            # assert self.vidpip.source.get_property("devicepresent")
+            # self.player.get_state()
+            #print("present", self.source.get_property("devicepresent"))
+
 
     def on_sync_message(self, bus, message):
         print("sync1", message.src.get_name())
@@ -136,14 +147,22 @@ class GstVideoPipeline:
             assert self.gstWindowId, "Need gstWindowId by sync"
             imagesink.set_window_handle(self.gstWindowId)
 
-
 def excepthook(excType, excValue, tracebackobj):
     print('%s: %s' % (excType, excValue))
     traceback.print_tb(tracebackobj)
     os._exit(1)
 
 
-def gstwidget_main(AQMainWindow, parse_args=None):
+def default_parse_args():
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Apply image correction')
+    parser.add_argument('source', nargs="?", default=None)
+    args = parser.parse_args()
+
+    return vars(args)
+
+def gstwidget_main(AQMainWindow, parse_args=default_parse_args):
     '''
     We are controlling a robot
     '''

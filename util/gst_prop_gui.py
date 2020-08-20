@@ -50,12 +50,14 @@ class TestGUI(QMainWindow):
             layout = QGridLayout()
             row = 0
             self.ctrls = {}
+
             if self.vidpip.source_name == "gst-v4l2src":
                 self.properties = ("hue", "brightness", "saturation", "contrast")
             elif self.vidpip.source_name == "gst-toupcamsrc":
                 self.properties = ("hue", "brightness", "saturation", "contrast", "gamma")
             else:
                 assert 0
+
             for name in self.properties:
                 default = self.vidpip.source.get_property(name)
                 print("%s, default %s" % (name, default))

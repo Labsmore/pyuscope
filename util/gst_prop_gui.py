@@ -9,20 +9,21 @@ from PyQt4.QtCore import QTimer
 
 
 class TestGUI(QMainWindow):
-    def __init__(self):
+    def __init__(self, source=None):
         QMainWindow.__init__(self)
         self.showMaximized()
         self.vidpip = GstVideoPipeline()
         self.mysink = CbSink()
         # Initialize this early so we can get control default values
         # self.vidpip.setupGst(tee=self.mysink, source="gst-v4l2src")
-        self.vidpip.setupGst(tee=self.mysink, source="gst-toupcamsrc")
+        self.vidpip.setupGst(tee=self.mysink, source=source)
         self.initUI()
 
         # self.mysink = Gst.ElementFactory.make("mysink")
         # self.mysink = MySink()
         def cb(buffer):
-            print("got buffer")
+            #print("got buffer")
+            pass
 
         self.mysink.cb = cb
         assert self.mysink
@@ -54,9 +55,10 @@ class TestGUI(QMainWindow):
             if self.vidpip.source_name == "gst-v4l2src":
                 self.properties = ("hue", "brightness", "saturation", "contrast")
             elif self.vidpip.source_name == "gst-toupcamsrc":
-                self.properties = ("hue", "brightness", "saturation", "contrast", "gamma")
+                # self.properties = ("hue", "brightness", "saturation", "contrast", "gamma")
+                self.properties = ("bb_r", "bb_g", "bb_b")
             else:
-                assert 0
+                assert 0, "bad source %s" % self.vidpip.source_name
 
             for name in self.properties:
                 default = self.vidpip.source.get_property(name)
@@ -93,5 +95,14 @@ class TestGUI(QMainWindow):
         self.show()
 
 
+def parse_args():
+    import argparse
+
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument('source', nargs="?", default="gst-toupcamsrc")
+    args = parser.parse_args()
+
+    return vars(args)
+
 if __name__ == '__main__':
-    gstwidget_main(TestGUI)
+    gstwidget_main(TestGUI, parse_args=parse_args)

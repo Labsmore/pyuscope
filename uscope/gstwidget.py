@@ -156,7 +156,7 @@ def excepthook(excType, excValue, tracebackobj):
 def default_parse_args():
     import argparse
 
-    parser = argparse.ArgumentParser(description='Apply image correction')
+    parser = argparse.ArgumentParser(description='')
     parser.add_argument('source', nargs="?", default=None)
     args = parser.parse_args()
 
@@ -196,7 +196,7 @@ class CbSink(GstBase.BaseSink):
         self.cb = None
 
     def do_render(self, buffer):
-        print("do_render()")
+        # print("do_render()")
         if self.cb:
             self.cb(buffer)
         return Gst.FlowReturn.OK

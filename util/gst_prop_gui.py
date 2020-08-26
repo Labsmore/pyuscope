@@ -7,26 +7,27 @@ from PyQt4.QtGui import QMainWindow
 from PyQt4.QtGui import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit
 from PyQt4.QtCore import QTimer
 
+import gi
+gi.require_version('Gst', '1.0')
+gi.require_version('GstBase', '1.0')
+gi.require_version('GstVideo', '1.0')
+
+from gi.repository import GstVideo
+
+from gi.repository import Gst
+Gst.init(None)
+from gi.repository import GstBase, GObject
 
 class TestGUI(QMainWindow):
     def __init__(self, source=None):
         QMainWindow.__init__(self)
         self.showMaximized()
         self.vidpip = GstVideoPipeline()
-        self.mysink = CbSink()
         # Initialize this early so we can get control default values
         # self.vidpip.setupGst(tee=self.mysink, source="gst-v4l2src")
-        self.vidpip.setupGst(tee=self.mysink, source=source)
+        self.vidpip.setupGst(tee=None, source=source)
         self.initUI()
 
-        # self.mysink = Gst.ElementFactory.make("mysink")
-        # self.mysink = MySink()
-        def cb(buffer):
-            #print("got buffer")
-            pass
-
-        self.mysink.cb = cb
-        assert self.mysink
         # print(self.vidpip.source.list_properties())
         print(self.vidpip.source.get_property("hue"))
         print(self.vidpip.source.get_property("saturation"))

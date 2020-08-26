@@ -28,6 +28,9 @@ sudo apt-get install -y python-gi-dev
 PYTHON=python3 ./configure
 sudo make install
 popd
+
+# install for v4l2
+# https://github.com/antmicro/python3-v4l2
 ```
 
 

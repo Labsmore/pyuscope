@@ -42,8 +42,11 @@ class GstVideoPipeline:
 
     def prepareSource(self, source=None):
         # Must not be initialized until after layout is set
+        # print(source)
+        # assert 0
         if source is None:
-            source = 'gst-videotestsrc'
+            # XXX: is there a way to see if a camera is attached?
+            source = 'gst-toupcamsrc'
         self.source_name = source
         if source == 'gst-v4l2src':
             self.source = Gst.ElementFactory.make('v4l2src', None)
@@ -59,7 +62,6 @@ class GstVideoPipeline:
             raise Exception('Unknown source %s' % (source, ))
 
     def setupGst(self, source=None, tee=None):
-
         self.prepareSource(source=source)
         print("Setting up gstreamer pipeline")
 
@@ -70,7 +72,6 @@ class GstVideoPipeline:
         assert self.videoconvert is not None
         #caps = Gst.caps_from_string('video/x-raw,format=rgb')
         #assert caps is not None
-        self.capture_enc = Gst.ElementFactory.make("jpegenc")
         self.resizer = Gst.ElementFactory.make("videoscale")
         assert self.resizer is not None
 
@@ -195,10 +196,30 @@ class CbSink(GstBase.BaseSink):
         GstBase.BaseSink.__init__(self, *args, **kwargs)
         self.cb = None
 
+        # self.sinkpad.set_chain_function(self.chainfunc)
+        # self.sinkpad.set_event_function(self.eventfunc)
+
+    def chainfunc(self, pad, buffer):
+        # print("got buffer, size %u" % len(buffer))
+        print("chaiunfun %s" % (buffer,))
+        return Gst.FlowReturn.OK
+
+    def eventfunc(self, pad, event):
+        return True
+
     def do_render(self, buffer):
-        # print("do_render()")
-        if self.cb:
-            self.cb(buffer)
+        print("do_render(), %s" % (buffer,))
+
+        (result, mapinfo) = buffer.map(Gst.MapFlags.READ)
+        assert result
+        
+        try:
+            # type: bytes
+            if self.cb:
+                self.cb(mapinfo.data)
+        finally:
+            buffer.unmap(mapinfo)
+            
         return Gst.FlowReturn.OK
 
 

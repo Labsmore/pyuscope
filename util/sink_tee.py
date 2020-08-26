@@ -35,7 +35,7 @@ class TestGUI(QMainWindow):
                 open("raw.jpg", "wb").write(buffer)
 
         # Initialize this early so we can get control default values
-        self.vidpip.setupGst(tee=totee, source=source)
+        self.vidpip.setupGst(tees=[totee], source=source)
         if not self.raw:
             print("raw add")
             self.vidpip.player.add(self.mysink)

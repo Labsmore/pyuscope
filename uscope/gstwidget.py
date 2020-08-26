@@ -24,21 +24,102 @@ from gi.repository import GstBase, GObject
 
 
 class GstVideoPipeline:
-    def __init__(self):
-        self.gstWindowId = None
-        self.source = None
-        self.widget = None
+    """
+    Integrates Qt widgets + gstreamer pipelines for easy setup
+    Allows teeing off the pipeline for custom post processing
 
-    def setupWidgets(self, parent=None):
+    vidpip = GstVideoPipeline()
+    vidpip.setupWidgets()
+    vidpip.setupGst()
+    vidpip.run()
+    """
+    def __init__(self):
+        self.source = None
+        # x buffer target
+        self.widget = None
+        self.widget_winid = None
+        # ROI view, if any
+        self.widget_roi = None
+        self.widget_roi_winid = None
+        self.roi = False
+
+        # TODO: auto calc these or something better
+        self.camw = 5440
+        self.camh = 3648
+        # Usable area, not total area
+        self.screenw = 1920
+        self.screenh = 900
+
+    def fit_pix(self, w, h):
+        ratio = 1
+        while w > self.screenw and h > self.screenh:
+            w = w / 2
+            h = h / 2
+            ratio *= 2
+        return w, h, ratio
+
+    def set_crop(self):
+        """
+        Zoom 2x or something?
+
+        TODO: make this more automagic
+        w, h = 3264/8, 2448/8 => 408, 306
+        Want 3264/2, 2448,2 type resolution
+        Image is coming in raw at this point which menas we need to end up with
+        408*2, 306*2 => 816, 612
+        since its centered crop the same amount off the top and bottom:
+        (3264 - 816)/2, (2448 - 612)/2 => 1224, 918
+
+        self.videocrop_roi.set_property("top", 918)
+        self.videocrop_roi.set_property("bottom", 918)
+        self.videocrop_roi.set_property("left", 1224)
+        self.videocrop_roi.set_property("right", 1224)
+        """
+        ratio = self.widget_ratio * 1
+        keepw = self.camw // ratio
+        keeph = self.camh // ratio
+        print("crop ratio %u => %u, %uw x %uh" %
+              (self.widget_ratio, ratio, keepw, keeph))
+
+        # Divide remaining pixels between left and right
+        left = right = (self.camw - keepw) // 2
+        top = bottom = (self.camh - keeph) // 2
+        self.videocrop_roi.set_property("top", top)
+        self.videocrop_roi.set_property("bottom", bottom)
+        self.videocrop_roi.set_property("left", left)
+        self.videocrop_roi.set_property("right", right)
+
+        print("cam %uw x %uh => crop (x2) %uw x %uh" %
+              (self.camw, self.camh, left, top))
+
+    def setupWidgets(self, parent=None, roi=False):
         # Raw X-windows canvas
         self.widget = QWidget(parent=parent)
-        # Allows for convenient keyboard control by clicking on the video
-        self.widget.setFocusPolicy(Qt.ClickFocus)
-        w, h = 5440 / 4, 3648 / 4
+        if roi:
+            # probably horizontal layout...
+            w, h, ratio = self.fit_pix(self.camw * 2, self.camh)
+        else:
+            w, h, ratio = self.fit_pix(self.camw, self.camh)
+        print("cam %uw x %uh => xwidget %uw x %uh" %
+              (self.camw, self.camh, w, h))
+        self.widget_w = w
+        self.widget_h = h
+        self.widget_ratio = ratio
         self.widget.setMinimumSize(w, h)
         self.widget.resize(w, h)
         policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.widget.setSizePolicy(policy)
+
+        # Hack: allows for convenient keyboard control by clicking on the video
+        # TODO: review if this is a good idea
+        self.widget.setFocusPolicy(Qt.ClickFocus)
+
+        if roi:
+            self.widget_roi = QWidget(parent=parent)
+            self.widget_roi.setMinimumSize(w, h)
+            self.widget_roi.resize(w, h)
+            policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            self.widget_roi.setSizePolicy(policy)
 
     def prepareSource(self, source=None):
         # Must not be initialized until after layout is set
@@ -61,43 +142,75 @@ class GstVideoPipeline:
         else:
             raise Exception('Unknown source %s' % (source, ))
 
-    def setupGst(self, source=None, tee=None):
+    def setupGst(self, source=None, tees=None):
         self.prepareSource(source=source)
         print("Setting up gstreamer pipeline")
 
         self.player = Gst.Pipeline("player")
         self.sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_overview')
+
         assert self.sinkx is not None
         self.videoconvert = Gst.ElementFactory.make('videoconvert')
         assert self.videoconvert is not None
         #caps = Gst.caps_from_string('video/x-raw,format=rgb')
         #assert caps is not None
-        self.resizer = Gst.ElementFactory.make("videoscale")
-        assert self.resizer is not None
+        self.scale = Gst.ElementFactory.make("videoscale")
+        assert self.scale is not None
 
         # Video render stream
         self.player.add(self.source)
 
-        self.player.add(self.videoconvert, self.resizer, self.sinkx)
-        if tee:
+        self.sinkx_roi = None
+        if self.widget_roi:
+            self.videoconvert_roi = Gst.ElementFactory.make('videoconvert')
+            assert self.videoconvert_roi
+
+            self.videocrop_roi = Gst.ElementFactory.make("videocrop")
+            assert self.videocrop_roi
+            self.set_crop()
+            self.player.add(self.videocrop_roi)
+
+            self.scale_roi = Gst.ElementFactory.make("videoscale")
+            assert self.scale_roi
+            self.player.add(self.scale_roi)
+
+            self.sinkx_roi = Gst.ElementFactory.make("ximagesink", 'sinkx_roi')
+            assert self.sinkx_roi
+            self.player.add(self.sinkx_roi)
+
+            if tees is None:
+                tees = []
+            tees.append(self.videoconvert_roi)
+
+        self.player.add(self.scale, self.sinkx)
+        if tees is not None:
+            print("Linking tees")
             self.tee = Gst.ElementFactory.make("tee")
             self.player.add(self.tee)
             assert self.source.link(self.tee)
 
-            self.queue_us = Gst.ElementFactory.make("queue")
-            self.player.add(self.queue_us)
-            assert self.tee.link(self.queue_us)
-            self.queue_us.link(self.videoconvert)
+            # Link ours first
+            tees = [self.videoconvert] + tees
 
-            self.queue_them = Gst.ElementFactory.make("queue")
-            self.player.add(self.queue_them)
-            assert self.tee.link(self.queue_them)
-            self.player.add(tee)
-            assert self.queue_them.link(tee)
+            # self.queues = []
+            for tee in tees:
+                queue = Gst.ElementFactory.make("queue")
+                # self.queues.append(queue)
+                self.player.add(queue)
+                assert self.tee.link(queue)
+                self.player.add(tee)
+                assert queue.link(tee)
         else:
+            self.player.add(self.videoconvert)
             assert self.source.link(self.videoconvert)
-        self.videoconvert.link(self.resizer)
-        assert self.resizer.link(self.sinkx)
+
+        self.videoconvert.link(self.scale)
+        assert self.scale.link(self.sinkx)
+
+        if self.widget_roi:
+            self.videoconvert_roi.link(self.videocrop_roi)
+            self.videocrop_roi.link(self.scale_roi)
+            self.scale_roi.link(self.sinkx_roi)
 
         bus = self.player.get_bus()
         bus.add_signal_watch()
@@ -109,9 +222,12 @@ class GstVideoPipeline:
         """
         You must have placed widget by now or it will invalidate winid
         """
-        self.gstWindowId = self.widget.winId()
-        assert self.gstWindowId, "Need gstWindowId by run"
-        if self.gstWindowId:
+        self.widget_winid = self.widget.winId()
+        assert self.widget_winid, "Need widget_winid by run"
+        if self.widget_roi:
+            self.widget_roi_winid = self.widget_roi.winId()
+            assert self.widget_roi_winid, "Need widget_winid by run"
+        if self.widget_winid:
             print("Starting gstreamer pipeline")
             self.player.set_state(Gst.State.PLAYING)
             if self.source_name == 'gst-toupcamsrc':
@@ -140,13 +256,17 @@ class GstVideoPipeline:
         if message.get_structure() is None:
             return
         message_name = message.get_structure().get_name()
-        print("sync2", message_name, self.gstWindowId)
+        print("sync2", message_name, self.widget_winid)
         if message_name == "prepare-window-handle":
-            assert message.src.get_name() == 'sinkx_overview'
             imagesink = message.src
             imagesink.set_property("force-aspect-ratio", True)
-            assert self.gstWindowId, "Need gstWindowId by sync"
-            imagesink.set_window_handle(self.gstWindowId)
+            assert self.widget_winid, "Need widget_winid by sync"
+            if message.src.get_name() == 'sinkx_overview':
+                imagesink.set_window_handle(self.widget_winid)
+            elif message.src.get_name() == 'sinkx_roi':
+                imagesink.set_window_handle(self.widget_roi_winid)
+            else:
+                assert 0, message.src.get_name()
 
 
 def excepthook(excType, excValue, tracebackobj):

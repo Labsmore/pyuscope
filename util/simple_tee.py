@@ -18,7 +18,7 @@ class TestGUI(QMainWindow):
         self.showMaximized()
         self.initUI()
         self.fakesink = Gst.ElementFactory.make("fakesink")
-        self.vidpip.setupGst(tee=self.fakesink, source=source)
+        self.vidpip.setupGst(tees=[self.fakesink], source=source)
         self.vidpip.run()
 
     def initUI(self):

@@ -12,7 +12,6 @@ from PyQt4.QtGui import QMainWindow
 class TestGUI(QMainWindow):
     def __init__(self, source=None):
         QMainWindow.__init__(self)
-        self.showMaximized()
         self.vidpip = GstVideoPipeline()
         self.initUI()
         # self.mysink = Gst.ElementFactory.make("mysink")
@@ -46,10 +45,10 @@ class TestGUI(QMainWindow):
         self.vidpip.run()
 
     def initUI(self):
-        self.setGeometry(300, 300, 250, 150)
         self.setWindowTitle('Test')
         self.vidpip.setupWidgets()
         self.setCentralWidget(self.vidpip.widget)
+        self.showMaximized()
         self.show()
 
 

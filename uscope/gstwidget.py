@@ -76,6 +76,7 @@ class GstVideoPipeline:
         self.videocrop_roi.set_property("right", 1224)
         """
         ratio = self.widget_ratio * 1
+        # ratio = 1
         keepw = self.camw // ratio
         keeph = self.camh // ratio
         print("crop ratio %u => %u, %uw x %uh" %
@@ -89,8 +90,10 @@ class GstVideoPipeline:
         self.videocrop_roi.set_property("left", left)
         self.videocrop_roi.set_property("right", right)
 
-        print("cam %uw x %uh => crop (x2) %uw x %uh" %
-              (self.camw, self.camh, left, top))
+        finalw = self.camw - left - right
+        finalh = self.camh - top - bottom
+        print("cam %uw x %uh %0.1fr => crop (x2) %uw x %uh => %uw x %uh %0.1fr" %
+              (self.camw, self.camh, self.camw / self.camh, left, top, finalw, finalh, finalw / finalh))
 
     def setupWidgets(self, parent=None, roi=False):
         # Raw X-windows canvas
@@ -98,10 +101,11 @@ class GstVideoPipeline:
         if roi:
             # probably horizontal layout...
             w, h, ratio = self.fit_pix(self.camw * 2, self.camh)
+            w = w / 2
         else:
             w, h, ratio = self.fit_pix(self.camw, self.camh)
-        print("cam %uw x %uh => xwidget %uw x %uh" %
-              (self.camw, self.camh, w, h))
+        print("cam %uw x %uh => xwidget %uw x %uh %ur" %
+              (self.camw, self.camh, w, h, ratio))
         self.widget_w = w
         self.widget_h = h
         self.widget_ratio = ratio
@@ -143,25 +147,27 @@ class GstVideoPipeline:
             raise Exception('Unknown source %s' % (source, ))
 
     def setupGst(self, source=None, tees=None):
-        self.prepareSource(source=source)
+        """
+        TODO: clean up queue architecture
+        Probably need to add a seperate (optional) tee before and after videoconvert
+        This will allow raw imaging but also share encoding for main + ROI
+        """
+
         print("Setting up gstreamer pipeline")
 
         self.player = Gst.Pipeline("player")
-        self.sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_overview')
-
-        assert self.sinkx is not None
-        self.videoconvert = Gst.ElementFactory.make('videoconvert')
-        assert self.videoconvert is not None
-        #caps = Gst.caps_from_string('video/x-raw,format=rgb')
-        #assert caps is not None
-        self.scale = Gst.ElementFactory.make("videoscale")
-        assert self.scale is not None
-
-        # Video render stream
+        self.prepareSource(source=source)
         self.player.add(self.source)
 
+        # This either will be directly forwarded or put into a queue
+        self.videoconvert = Gst.ElementFactory.make('videoconvert')
+        assert self.videoconvert is not None
+
+        #caps = Gst.caps_from_string('video/x-raw,format=rgb')
+        #assert caps is not None
+
         self.sinkx_roi = None
-        if self.widget_roi:
+        if 0 and self.widget_roi:
             self.videoconvert_roi = Gst.ElementFactory.make('videoconvert')
             assert self.videoconvert_roi
 
@@ -182,7 +188,6 @@ class GstVideoPipeline:
                 tees = []
             tees.append(self.videoconvert_roi)
 
-        self.player.add(self.scale, self.sinkx)
         if tees is not None:
             print("Linking tees")
             self.tee = Gst.ElementFactory.make("tee")
@@ -204,13 +209,20 @@ class GstVideoPipeline:
             self.player.add(self.videoconvert)
             assert self.source.link(self.videoconvert)
 
-        self.videoconvert.link(self.scale)
-        assert self.scale.link(self.sinkx)
-
         if self.widget_roi:
             self.videoconvert_roi.link(self.videocrop_roi)
             self.videocrop_roi.link(self.scale_roi)
             self.scale_roi.link(self.sinkx_roi)
+
+        self.scale = Gst.ElementFactory.make("videoscale")
+        assert self.scale is not None
+        self.player.add(self.scale)
+        self.videoconvert.link(self.scale)
+
+        self.sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_overview')
+        assert self.sinkx is not None
+        self.player.add(self.sinkx)
+        assert self.scale.link(self.sinkx)
 
         bus = self.player.get_bus()
         bus.add_signal_watch()

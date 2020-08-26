@@ -21,5 +21,6 @@ class TestGUI(QMainWindow):
         self.setCentralWidget(self.vidpip.widget)
         self.show()
 
+
 if __name__ == '__main__':
     gstwidget_main(TestGUI)

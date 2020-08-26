@@ -115,7 +115,8 @@ class GstVideoPipeline:
             print("Starting gstreamer pipeline")
             self.player.set_state(Gst.State.PLAYING)
             if self.source_name == 'gst-toupcamsrc':
-                assert self.source.get_property("devicepresent"), "camera not found"
+                assert self.source.get_property(
+                    "devicepresent"), "camera not found"
 
     def on_message(self, bus, message):
         t = message.type
@@ -134,7 +135,6 @@ class GstVideoPipeline:
             # self.player.get_state()
             #print("present", self.source.get_property("devicepresent"))
 
-
     def on_sync_message(self, bus, message):
         print("sync1", message.src.get_name())
         if message.get_structure() is None:
@@ -147,6 +147,7 @@ class GstVideoPipeline:
             imagesink.set_property("force-aspect-ratio", True)
             assert self.gstWindowId, "Need gstWindowId by sync"
             imagesink.set_window_handle(self.gstWindowId)
+
 
 def excepthook(excType, excValue, tracebackobj):
     print('%s: %s' % (excType, excValue))
@@ -162,6 +163,7 @@ def default_parse_args():
     args = parser.parse_args()
 
     return vars(args)
+
 
 def gstwidget_main(AQMainWindow, parse_args=default_parse_args):
     '''
@@ -201,25 +203,25 @@ class CbSink(GstBase.BaseSink):
 
     def chainfunc(self, pad, buffer):
         # print("got buffer, size %u" % len(buffer))
-        print("chaiunfun %s" % (buffer,))
+        print("chaiunfun %s" % (buffer, ))
         return Gst.FlowReturn.OK
 
     def eventfunc(self, pad, event):
         return True
 
     def do_render(self, buffer):
-        print("do_render(), %s" % (buffer,))
+        print("do_render(), %s" % (buffer, ))
 
         (result, mapinfo) = buffer.map(Gst.MapFlags.READ)
         assert result
-        
+
         try:
             # type: bytes
             if self.cb:
                 self.cb(mapinfo.data)
         finally:
             buffer.unmap(mapinfo)
-            
+
         return Gst.FlowReturn.OK
 
 

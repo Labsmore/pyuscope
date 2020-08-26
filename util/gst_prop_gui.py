@@ -18,6 +18,7 @@ from gi.repository import Gst
 Gst.init(None)
 from gi.repository import GstBase, GObject
 
+
 class TestGUI(QMainWindow):
     def __init__(self, source=None):
         QMainWindow.__init__(self)
@@ -54,7 +55,8 @@ class TestGUI(QMainWindow):
             self.ctrls = {}
 
             if self.vidpip.source_name == "gst-v4l2src":
-                self.properties = ("hue", "brightness", "saturation", "contrast")
+                self.properties = ("hue", "brightness", "saturation",
+                                   "contrast")
             elif self.vidpip.source_name == "gst-toupcamsrc":
                 # self.properties = ("hue", "brightness", "saturation", "contrast", "gamma")
                 self.properties = ("bb_r", "bb_g", "bb_b")
@@ -104,6 +106,7 @@ def parse_args():
     args = parser.parse_args()
 
     return vars(args)
+
 
 if __name__ == '__main__':
     gstwidget_main(TestGUI, parse_args=parse_args)

@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
-from PyQt4.QtGui import QMainWindow
-
-import gi
-gi.require_version('Gst', '1.0')
-gi.require_version('GstBase', '1.0')
-from gi.repository import Gst
-Gst.init(None)
-from gi.repository import GstBase, GObject
+from PyQt4.QtGui import QMainWindow, QHBoxLayout, QWidget
 
 
 class TestGUI(QMainWindow):
@@ -16,15 +9,27 @@ class TestGUI(QMainWindow):
         QMainWindow.__init__(self)
         self.vidpip = GstVideoPipeline(source=source)
         self.initUI()
-        self.fakesink = Gst.ElementFactory.make("fakesink")
-        self.vidpip.player.add(self.fakesink)
-        self.vidpip.setupGst(vc_tees=[self.fakesink])
+        self.vidpip.setupGst()
         self.vidpip.run()
 
     def initUI(self):
         self.setWindowTitle('pyv4l test')
         self.vidpip.setupWidgets()
-        self.setCentralWidget(self.vidpip.full_widget)
+
+        # ok
+        # full widget only
+        if 0:
+            self.setCentralWidget(self.vidpip.full_widget)
+        # bad
+        # full widget only
+        else:
+            layout = QHBoxLayout()
+            layout.addWidget(self.vidpip.full_widget)
+
+            widget = QWidget()
+            widget.setLayout(layout)
+            self.setCentralWidget(widget)
+
         self.showMaximized()
         self.show()
 

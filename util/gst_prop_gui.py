@@ -17,16 +17,20 @@ from gi.repository import GstVideo
 from gi.repository import Gst
 Gst.init(None)
 from gi.repository import GstBase, GObject
+"""
+Initialization constraints:
+-Gst initialization needs
+"""
 
 
 class TestGUI(QMainWindow):
     def __init__(self, source=None):
         QMainWindow.__init__(self)
         self.showMaximized()
-        self.vidpip = GstVideoPipeline()
+        self.vidpip = GstVideoPipeline(source=source)
         # Initialize this early so we can get control default values
         # self.vidpip.setupGst(tee=self.mysink, source="gst-v4l2src")
-        self.vidpip.setupGst(tee=None, source=source)
+        self.vidpip.setupGst()
         self.initUI()
 
         # print(self.vidpip.source.list_properties())
@@ -45,7 +49,6 @@ class TestGUI(QMainWindow):
             self.ctrls[name].setText(str(default))
 
     def initUI(self):
-        self.setGeometry(300, 300, 250, 150)
         self.setWindowTitle('Test')
         self.vidpip.setupWidgets()
 
@@ -90,7 +93,7 @@ class TestGUI(QMainWindow):
 
         layout = QHBoxLayout()
 
-        layout.addWidget(self.vidpip.widget)
+        layout.addWidget(self.vidpip.full_widget)
         layout.addLayout(controlLayout())
         centralWidget = QWidget()
         centralWidget.setLayout(layout)

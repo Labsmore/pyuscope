@@ -33,15 +33,30 @@ class GstVideoPipeline:
     vidpip.setupGst()
     vidpip.run()
     """
-    def __init__(self):
+    def __init__(self, source=None, full=True, roi=False):
         self.source = None
+        self.source_name = None
+
         # x buffer target
-        self.widget = None
-        self.widget_winid = None
-        # ROI view, if any
-        self.widget_roi = None
-        self.widget_roi_winid = None
-        self.roi = False
+        self.full = full
+        self.full_widget = None
+        self.full_widget_winid = None
+
+        # ROI view
+        self.roi = roi
+        self.roi_widget = None
+        self.roi_widget_winid = None
+
+        # Must have at least one widget
+        assert self.full or self.roi
+
+        # Must not be initialized until after layout is set
+        # print(source)
+        # assert 0
+        if source is None:
+            # XXX: is there a way to see if a camera is attached?
+            source = 'gst-toupcamsrc'
+        self.source_name = source
 
         # TODO: auto calc these or something better
         self.camw = 5440
@@ -49,6 +64,9 @@ class GstVideoPipeline:
         # Usable area, not total area
         self.screenw = 1920
         self.screenh = 900
+
+        # Needs to be done early so elements can be added before main setup
+        self.player = Gst.Pipeline("player")
 
     def fit_pix(self, w, h):
         ratio = 1
@@ -70,35 +88,36 @@ class GstVideoPipeline:
         since its centered crop the same amount off the top and bottom:
         (3264 - 816)/2, (2448 - 612)/2 => 1224, 918
 
-        self.videocrop_roi.set_property("top", 918)
-        self.videocrop_roi.set_property("bottom", 918)
-        self.videocrop_roi.set_property("left", 1224)
-        self.videocrop_roi.set_property("right", 1224)
+        self.roi_videocrop.set_property("top", 918)
+        self.roi_videocrop.set_property("bottom", 918)
+        self.roi_videocrop.set_property("left", 1224)
+        self.roi_videocrop.set_property("right", 1224)
         """
-        ratio = self.widget_ratio * 1
+        ratio = self.full_widget_ratio * 1
         # ratio = 1
         keepw = self.camw // ratio
         keeph = self.camh // ratio
         print("crop ratio %u => %u, %uw x %uh" %
-              (self.widget_ratio, ratio, keepw, keeph))
+              (self.full_widget_ratio, ratio, keepw, keeph))
 
         # Divide remaining pixels between left and right
         left = right = (self.camw - keepw) // 2
         top = bottom = (self.camh - keeph) // 2
-        self.videocrop_roi.set_property("top", top)
-        self.videocrop_roi.set_property("bottom", bottom)
-        self.videocrop_roi.set_property("left", left)
-        self.videocrop_roi.set_property("right", right)
+        self.roi_videocrop.set_property("top", top)
+        self.roi_videocrop.set_property("bottom", bottom)
+        self.roi_videocrop.set_property("left", left)
+        self.roi_videocrop.set_property("right", right)
 
         finalw = self.camw - left - right
         finalh = self.camh - top - bottom
-        print("cam %uw x %uh %0.1fr => crop (x2) %uw x %uh => %uw x %uh %0.1fr" %
-              (self.camw, self.camh, self.camw / self.camh, left, top, finalw, finalh, finalw / finalh))
+        print(
+            "cam %uw x %uh %0.1fr => crop (x2) %uw x %uh => %uw x %uh %0.1fr" %
+            (self.camw, self.camh, self.camw / self.camh, left, top, finalw,
+             finalh, finalw / finalh))
 
-    def setupWidgets(self, parent=None, roi=False):
-        # Raw X-windows canvas
-        self.widget = QWidget(parent=parent)
-        if roi:
+    def setupWidgets(self, parent=None):
+
+        if self.full and self.roi:
             # probably horizontal layout...
             w, h, ratio = self.fit_pix(self.camw * 2, self.camh)
             w = w / 2
@@ -106,123 +125,170 @@ class GstVideoPipeline:
             w, h, ratio = self.fit_pix(self.camw, self.camh)
         print("cam %uw x %uh => xwidget %uw x %uh %ur" %
               (self.camw, self.camh, w, h, ratio))
-        self.widget_w = w
-        self.widget_h = h
-        self.widget_ratio = ratio
-        self.widget.setMinimumSize(w, h)
-        self.widget.resize(w, h)
-        policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.widget.setSizePolicy(policy)
+        self.full_widget_w = w
+        self.full_widget_h = h
+        self.full_widget_ratio = ratio
 
-        # Hack: allows for convenient keyboard control by clicking on the video
-        # TODO: review if this is a good idea
-        self.widget.setFocusPolicy(Qt.ClickFocus)
-
-        if roi:
-            self.widget_roi = QWidget(parent=parent)
-            self.widget_roi.setMinimumSize(w, h)
-            self.widget_roi.resize(w, h)
+        if self.full:
+            # Raw X-windows canvas
+            self.full_widget = QWidget(parent=parent)
+            self.full_widget.setMinimumSize(w, h)
+            self.full_widget.resize(w, h)
             policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            self.widget_roi.setSizePolicy(policy)
+            self.full_widget.setSizePolicy(policy)
 
-    def prepareSource(self, source=None):
+            # Hack: allows for convenient keyboard control by clicking on the video
+            # TODO: review if this is a good idea, or at least move to main.py
+            # self.full_widget.setFocusPolicy(Qt.ClickFocus)
+
+        if self.roi:
+            self.roi_widget = QWidget(parent=parent)
+            self.roi_widget.setMinimumSize(w, h)
+            self.roi_widget.resize(w, h)
+            policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            self.roi_widget.setSizePolicy(policy)
+
+    def prepareSource(self):
         # Must not be initialized until after layout is set
         # print(source)
         # assert 0
-        if source is None:
-            # XXX: is there a way to see if a camera is attached?
-            source = 'gst-toupcamsrc'
-        self.source_name = source
-        if source == 'gst-v4l2src':
+        if self.source_name == 'gst-v4l2src':
             self.source = Gst.ElementFactory.make('v4l2src', None)
             assert self.source is not None
             self.source.set_property("device", "/dev/video0")
-        elif source == 'gst-toupcamsrc':
+        elif self.source_name == 'gst-toupcamsrc':
             self.source = Gst.ElementFactory.make('toupcamsrc', None)
             assert self.source is not None
-        elif source == 'gst-videotestsrc':
+        elif self.source_name == 'gst-videotestsrc':
             print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)
         else:
-            raise Exception('Unknown source %s' % (source, ))
+            raise Exception('Unknown source %s' % (self.source_name, ))
 
-    def setupGst(self, source=None, tees=None):
+    def link_tee(self, src, dsts, add=0):
+        """
+        Link src to one or more dsts
+        If required, add tee + queues
+
+        dsts will be added to player?
+        This makes it easier to link things together dynamically
+        """
+
+        assert len(dsts) > 0, "Can't create tee with no sink elements"
+        print(dsts)
+
+        if len(dsts) == 1:
+            dst = dsts[0]
+            if add:
+                try:
+                    self.player.add(dst)
+                except gi.overrides.Gst.AddError:
+                    pass
+            src.link(dst)
+            print("tee simple link %s => %s" % (src, dst))
+        else:
+            tee = Gst.ElementFactory.make("tee")
+            self.player.add(tee)
+            assert src.link(tee)
+
+            for dst in dsts:
+                queue = Gst.ElementFactory.make("queue")
+                # self.queues.append(queue)
+                self.player.add(queue)
+                assert tee.link(queue)
+                if add:
+                    try:
+                        self.player.add(dst)
+                    except gi.overrides.Gst.AddError:
+                        pass
+                assert queue.link(dst)
+                print("tee queue link %s => %s" % (src, dst))
+
+    def setupGst(self, source=None, raw_tees=None, vc_tees=None):
         """
         TODO: clean up queue architecture
         Probably need to add a seperate (optional) tee before and after videoconvert
         This will allow raw imaging but also share encoding for main + ROI
+        
+        
+        toupcamsource ! 
         """
 
-        print("Setting up gstreamer pipeline")
+        if raw_tees is None:
+            raw_tees = []
+        if vc_tees is None:
+            vc_tees = []
 
-        self.player = Gst.Pipeline("player")
-        self.prepareSource(source=source)
+        print(
+            "Setting up gstreamer pipeline w/ full=%u, roi=%u, tees-r %u, tees-vc %u"
+            % (self.full, self.roi, len(raw_tees), len(vc_tees)))
+
+        self.prepareSource()
         self.player.add(self.source)
 
         # This either will be directly forwarded or put into a queue
         self.videoconvert = Gst.ElementFactory.make('videoconvert')
         assert self.videoconvert is not None
+        self.player.add(self.videoconvert)
 
         #caps = Gst.caps_from_string('video/x-raw,format=rgb')
         #assert caps is not None
 
-        self.sinkx_roi = None
-        if 0 and self.widget_roi:
-            self.videoconvert_roi = Gst.ElementFactory.make('videoconvert')
-            assert self.videoconvert_roi
+        our_vc_tees = []
+        self.full_sinkx = None
+        if self.full:
+            self.full_scale = Gst.ElementFactory.make("videoscale")
+            assert self.full_scale is not None
+            self.player.add(self.full_scale)
+            our_vc_tees.append(self.full_scale)
 
-            self.videocrop_roi = Gst.ElementFactory.make("videocrop")
-            assert self.videocrop_roi
-            self.set_crop()
-            self.player.add(self.videocrop_roi)
+            self.full_sinkx = Gst.ElementFactory.make("ximagesink",
+                                                      'sinkx_overview')
+            assert self.full_sinkx is not None
+            self.player.add(self.full_sinkx)
 
-            self.scale_roi = Gst.ElementFactory.make("videoscale")
-            assert self.scale_roi
-            self.player.add(self.scale_roi)
+        self.roi_sinkx = None
+        usecrop = 1
+        if self.roi:
+            if usecrop:
+                self.roi_videocrop = Gst.ElementFactory.make("videocrop")
+                assert self.roi_videocrop
+                self.set_crop()
+                self.player.add(self.roi_videocrop)
 
-            self.sinkx_roi = Gst.ElementFactory.make("ximagesink", 'sinkx_roi')
-            assert self.sinkx_roi
-            self.player.add(self.sinkx_roi)
+            self.roi_scale = Gst.ElementFactory.make("videoscale")
+            assert self.roi_scale
+            self.player.add(self.roi_scale)
 
-            if tees is None:
-                tees = []
-            tees.append(self.videoconvert_roi)
+            self.roi_sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_roi')
+            assert self.roi_sinkx
+            self.player.add(self.roi_sinkx)
 
-        if tees is not None:
-            print("Linking tees")
-            self.tee = Gst.ElementFactory.make("tee")
-            self.player.add(self.tee)
-            assert self.source.link(self.tee)
+            if usecrop:
+                our_vc_tees.append(self.roi_videocrop)
+            else:
+                our_vc_tees.append(self.roi_scale)
 
-            # Link ours first
-            tees = [self.videoconvert] + tees
+        # Note at least one vc tee is garaunteed (either full or roi)
+        print("Link raw...")
+        raw_tees = [self.videoconvert] + raw_tees
+        self.link_tee(self.source, raw_tees)
 
-            # self.queues = []
-            for tee in tees:
-                queue = Gst.ElementFactory.make("queue")
-                # self.queues.append(queue)
-                self.player.add(queue)
-                assert self.tee.link(queue)
-                self.player.add(tee)
-                assert queue.link(tee)
-        else:
-            self.player.add(self.videoconvert)
-            assert self.source.link(self.videoconvert)
+        print("Link vc...")
+        print("our", our_vc_tees)
+        print("their", vc_tees)
+        vc_tees = our_vc_tees + vc_tees
+        self.link_tee(self.videoconvert, vc_tees)
 
-        if self.widget_roi:
-            self.videoconvert_roi.link(self.videocrop_roi)
-            self.videocrop_roi.link(self.scale_roi)
-            self.scale_roi.link(self.sinkx_roi)
+        # Finish linking post vc_tee
 
-        self.scale = Gst.ElementFactory.make("videoscale")
-        assert self.scale is not None
-        self.player.add(self.scale)
-        self.videoconvert.link(self.scale)
+        if self.full:
+            assert self.full_scale.link(self.full_sinkx)
 
-        self.sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_overview')
-        assert self.sinkx is not None
-        self.player.add(self.sinkx)
-        assert self.scale.link(self.sinkx)
+        if self.roi:
+            if usecrop:
+                assert self.roi_videocrop.link(self.roi_scale)
+            assert self.roi_scale.link(self.roi_sinkx)
 
         bus = self.player.get_bus()
         bus.add_signal_watch()
@@ -234,17 +300,17 @@ class GstVideoPipeline:
         """
         You must have placed widget by now or it will invalidate winid
         """
-        self.widget_winid = self.widget.winId()
-        assert self.widget_winid, "Need widget_winid by run"
-        if self.widget_roi:
-            self.widget_roi_winid = self.widget_roi.winId()
-            assert self.widget_roi_winid, "Need widget_winid by run"
-        if self.widget_winid:
-            print("Starting gstreamer pipeline")
-            self.player.set_state(Gst.State.PLAYING)
-            if self.source_name == 'gst-toupcamsrc':
-                assert self.source.get_property(
-                    "devicepresent"), "camera not found"
+        if self.full:
+            self.full_widget_winid = self.full_widget.winId()
+            assert self.full_widget_winid, "Need widget_winid by run"
+        if self.roi:
+            self.roi_widget_winid = self.roi_widget.winId()
+            assert self.roi_widget_winid, "Need widget_winid by run"
+        print("Starting gstreamer pipeline")
+        self.player.set_state(Gst.State.PLAYING)
+        if self.source_name == 'gst-toupcamsrc':
+            assert self.source.get_property(
+                "devicepresent"), "camera not found"
 
     def on_message(self, bus, message):
         t = message.type
@@ -264,19 +330,18 @@ class GstVideoPipeline:
             #print("present", self.source.get_property("devicepresent"))
 
     def on_sync_message(self, bus, message):
-        print("sync1", message.src.get_name())
         if message.get_structure() is None:
             return
         message_name = message.get_structure().get_name()
-        print("sync2", message_name, self.widget_winid)
         if message_name == "prepare-window-handle":
+            print("prepare-window-handle", message.src.get_name(),
+                  self.full_widget_winid, self.roi_widget_winid)
             imagesink = message.src
             imagesink.set_property("force-aspect-ratio", True)
-            assert self.widget_winid, "Need widget_winid by sync"
             if message.src.get_name() == 'sinkx_overview':
-                imagesink.set_window_handle(self.widget_winid)
+                1 and imagesink.set_window_handle(self.full_widget_winid)
             elif message.src.get_name() == 'sinkx_roi':
-                imagesink.set_window_handle(self.widget_roi_winid)
+                1 and imagesink.set_window_handle(self.roi_widget_winid)
             else:
                 assert 0, message.src.get_name()
 

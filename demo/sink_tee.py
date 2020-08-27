@@ -12,11 +12,12 @@ from PyQt4.QtGui import QMainWindow
 class TestGUI(QMainWindow):
     def __init__(self, source=None):
         QMainWindow.__init__(self)
-        self.vidpip = GstVideoPipeline()
+        self.vidpip = GstVideoPipeline(source=source)
         self.initUI()
         # self.mysink = Gst.ElementFactory.make("mysink")
         # self.mysink = MySink()
         self.mysink = CbSink()
+        self.vidpip.player.add(self.mysink)
 
         self.raw = 0
         if self.raw:
@@ -24,6 +25,7 @@ class TestGUI(QMainWindow):
         else:
             print("Create jpegnec")
             self.jpegenc = Gst.ElementFactory.make("jpegenc")
+            self.vidpip.player.add(self.jpegenc)
             totee = self.jpegenc
 
         def cb(buffer):
@@ -34,10 +36,9 @@ class TestGUI(QMainWindow):
                 open("raw.jpg", "wb").write(buffer)
 
         # Initialize this early so we can get control default values
-        self.vidpip.setupGst(tees=[totee], source=source)
+        self.vidpip.setupGst(raw_tees=[totee])
         if not self.raw:
             print("raw add")
-            self.vidpip.player.add(self.mysink)
             assert self.jpegenc.link(self.mysink)
 
         self.mysink.cb = cb
@@ -47,7 +48,7 @@ class TestGUI(QMainWindow):
     def initUI(self):
         self.setWindowTitle('Test')
         self.vidpip.setupWidgets()
-        self.setCentralWidget(self.vidpip.widget)
+        self.setCentralWidget(self.vidpip.full_widget)
         self.showMaximized()
         self.show()
 

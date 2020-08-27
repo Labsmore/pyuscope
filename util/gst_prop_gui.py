@@ -101,15 +101,5 @@ class TestGUI(QMainWindow):
         self.show()
 
 
-def parse_args():
-    import argparse
-
-    parser = argparse.ArgumentParser(description='')
-    parser.add_argument('source', nargs="?", default="gst-toupcamsrc")
-    args = parser.parse_args()
-
-    return vars(args)
-
-
 if __name__ == '__main__':
-    gstwidget_main(TestGUI, parse_args=parse_args)
+    gstwidget_main(TestGUI)

@@ -139,6 +139,13 @@ class TestGUI(QMainWindow):
                     "wb-g",
                     "wb-b",
                 }),
+                ("HSV+", {
+                    "hue",
+                    "saturation",
+                    "brightness",
+                    "contrast",
+                    "gamma",
+                }),
                 ("Flip", {
                     "hflip",
                     "vflip",

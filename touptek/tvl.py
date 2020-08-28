@@ -50,9 +50,14 @@ class TestGUI(QMainWindow):
 
     def defaultControls(self):
         print("default controls")
-        for name in self.properties:
-            default = self.vidpip.source.get_property(name)
-            self.ctrls[name].setText(str(default))
+        for name, widget in self.ctrls.items():
+            ps = self.vidpip.source.find_property(name)
+            if type(widget) == QSlider:
+                widget.setValue(ps.default_value)
+            elif type(widget) == QCheckBox:
+                widget.setChecked(ps.default_value)
+            else:
+                assert 0, type(widget)
 
     def assemble_group(self, name, layoutg, row):
         self.properties.append(name)
@@ -166,7 +171,11 @@ class TestGUI(QMainWindow):
 
         def buttonBarLayout():
             layout = QHBoxLayout()
-            layout.addWidget(QPushButton("X"))
+
+            btn = QPushButton("Default")
+            btn.clicked.connect(self.defaultControls)
+            layout.addWidget(btn)
+
             layout.addWidget(QPushButton("Y"))
             layout.addWidget(QPushButton("Z"))
             return layout

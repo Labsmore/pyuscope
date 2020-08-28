@@ -57,22 +57,45 @@ class TestGUI(QMainWindow):
         self.setWindowTitle('Test')
         self.vidpip.setupWidgets()
 
+
+        #print(dir(self.vidpip.source))
+        #assert 0
+
         def controlWidget():
-            layout = QGridLayout()
+            layout = QVBoxLayout()
             row = 0
             self.ctrls = {}
 
-            self.properties = ("bb_r", "bb_g", "bb_b", "wb_r", "wb_g",
-                               "wb_b")
+            self.properties = (
+                "bb_r",
+                "bb_g",
+                "bb_b",
+                "wb_r",
+                "wb_g",
+                "wb_b"
+                )
 
             for name in self.properties:
-                default = self.vidpip.source.get_property(name)
-                print("%s, default %s" % (name, default))
+                """
+                # need GParamSpec
+                print("")
+                print("prop spec")
+                ps = self.vidpip.source.find_property(name)
+                print(type(ps))
+                # ['__doc__', '__gtype__', 'blurb', 'default_value', 'flags', 'maximum', 'minimum', 'name', 'nick', 'owner_type', 'value_type']
+                print(dir(ps))
+                print("")
+                assert 0
+                """
+                ps = self.vidpip.source.find_property(name)
+                # default = self.vidpip.source.get_property(name)
+                print("%s, default %s, range %s to %s" % (name, ps.default_value, ps.minimum, ps.maximum))
 
-                def textChanged(name):
+                def changed(name):
                     def f():
+                        slider = self.ctrls[name]
                         try:
-                            val = int(self.ctrls[name].text())
+                            val = int(slider.value())
                         except ValueError:
                             pass
                         else:
@@ -81,11 +104,14 @@ class TestGUI(QMainWindow):
 
                     return f
 
-                layout.addWidget(QLabel(name), row, 0)
-                ctrl = QLineEdit(str(default))
-                ctrl.textChanged.connect(textChanged(name))
-                self.ctrls[name] = ctrl
-                layout.addWidget(ctrl, row, 1)
+                layout.addWidget(QLabel(name))
+                slider = QSlider(Qt.Horizontal)
+                slider.setMinimum(ps.minimum)
+                slider.setMaximum(ps.maximum)
+                slider.setValue(ps.default_value)
+                slider.valueChanged.connect(changed(name))
+                self.ctrls[name] = slider
+                layout.addWidget(slider)
                 row += 1
 
 

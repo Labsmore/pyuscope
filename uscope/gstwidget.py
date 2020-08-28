@@ -97,7 +97,16 @@ class GstVideoPipeline:
 
         self.size_widgets()
 
-    def size_widgets(self):
+    def size_widgets(self, w=None, h=None, frac=None):
+        if frac:
+            sw, sh = screen_wh()
+            w = int(sw * frac)
+            h = int(sh * frac)
+        if w:
+            self.screenw = w
+        if h:
+            self.screenh = h
+
         assert self.full or self.roi
         if self.full and self.roi:
             # probably horizontal layout...
@@ -107,6 +116,7 @@ class GstVideoPipeline:
             w, h, ratio = self.fit_pix(self.camw, self.camh)
         print("cam %uw x %uh => xwidget %uw x %uh %ur" %
               (self.camw, self.camh, w, h, ratio))
+
         self.full_widget_ratio = ratio
 
         if self.full:

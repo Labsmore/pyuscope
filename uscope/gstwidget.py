@@ -192,7 +192,7 @@ class GstVideoPipeline:
             policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             self.roi_widget.setSizePolicy(policy)
 
-    def prepareSource(self):
+    def prepareSource(self, esize=None):
         # Must not be initialized until after layout is set
         # print(source)
         # assert 0
@@ -203,6 +203,8 @@ class GstVideoPipeline:
         elif self.source_name == 'gst-toupcamsrc':
             self.source = Gst.ElementFactory.make('toupcamsrc', None)
             assert self.source is not None, "Failed to load toupcamsrc. Is it in the path?"
+            if esize is not None:
+                self.source.set_property("esize", esize)
         elif self.source_name == 'gst-videotestsrc':
             print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)
@@ -248,7 +250,7 @@ class GstVideoPipeline:
                 assert queue.link(dst)
                 print("tee queue link %s => %s" % (src, dst))
 
-    def setupGst(self, source=None, raw_tees=None, vc_tees=None):
+    def setupGst(self, source=None, raw_tees=None, vc_tees=None, esize=None):
         """
         TODO: clean up queue architecture
         Probably need to add a seperate (optional) tee before and after videoconvert
@@ -267,7 +269,7 @@ class GstVideoPipeline:
             "Setting up gstreamer pipeline w/ full=%u, roi=%u, tees-r %u, tees-vc %u"
             % (self.full, self.roi, len(raw_tees), len(vc_tees)))
 
-        self.prepareSource()
+        self.prepareSource(esize=esize)
         self.player.add(self.source)
 
         # This either will be directly forwarded or put into a queue

@@ -55,11 +55,19 @@ prop_layout = OrderedDict([
         "hflip",
         "vflip",
     }),
+    ("Misc", {
+        #"name": "esize", "ro": True,
+    }),
 ])
 
+def unpack_groupv(groupv):
+    if type(groupv) is dict:
+        return groupv.get("name"), groupv.get("ro", True)
+    else:
+        return groupv, False
 
 class TestGUI(QMainWindow):
-    def __init__(self, source=None):
+    def __init__(self, source=None, esize=None):
         QMainWindow.__init__(self)
         self.showMaximized()
         self.vidpip = GstVideoPipeline(source=source)
@@ -80,7 +88,7 @@ class TestGUI(QMainWindow):
             self.vidpip.player.add(self.jpegenc)
             totee = self.jpegenc
 
-        self.vidpip.setupGst(raw_tees=[totee])
+        self.vidpip.setupGst(raw_tees=[totee], esize=esize)
         if not self.raw:
             print("raw add")
             assert self.jpegenc.link(self.mysink)
@@ -186,7 +194,8 @@ class TestGUI(QMainWindow):
         row += 1
         return row
 
-    def assemble_group(self, name, layoutg, row):
+    def assemble_group(self, groupv, layoutg, row):
+        name, is_const = unpack_groupv(groupv)
         self.properties.append(name)
         ps = self.vidpip.source.find_property(name)
         # default = self.vidpip.source.get_property(name)
@@ -203,7 +212,7 @@ class TestGUI(QMainWindow):
         elif ps.value_type.name == "gboolean":
             row = self.assemble_gboolean(name, layoutg, row, ps)
         else:
-            assert 0, ps.value_type.name
+            assert 0, (name, ps.value_type.name)
         return row
 
     def initUI(self):
@@ -228,8 +237,8 @@ class TestGUI(QMainWindow):
                 layoutg = QGridLayout()
                 groupbox.setLayout(layoutg)
 
-                for name in group:
-                    row = self.assemble_group(name, layoutg, row)
+                for groupv in group:
+                    row = self.assemble_group(groupv, layoutg, row)
 
             widget = QWidget()
             widget.setLayout(layout)
@@ -293,6 +302,7 @@ def parse_args():
     import argparse
 
     parser = argparse.ArgumentParser(description='')
+    parser.add_argument('--esize', type=int, default=0)
     args = parser.parse_args()
 
     return vars(args)

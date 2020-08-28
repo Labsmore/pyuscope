@@ -146,6 +146,10 @@ class TestGUI(QMainWindow):
                     "contrast",
                     "gamma",
                 }),
+                ("Exposure", {
+                    "auto-exposure",
+                    "expotime",
+                }),
                 ("Flip", {
                     "hflip",
                     "vflip",

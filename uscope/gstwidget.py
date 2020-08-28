@@ -95,6 +95,28 @@ class GstVideoPipeline:
         # Needs to be done early so elements can be added before main setup
         self.player = Gst.Pipeline("player")
 
+        self.size_widgets()
+
+    def size_widgets(self):
+        assert self.full or self.roi
+        if self.full and self.roi:
+            # probably horizontal layout...
+            w, h, ratio = self.fit_pix(self.camw * 2, self.camh)
+            w = w / 2
+        else:
+            w, h, ratio = self.fit_pix(self.camw, self.camh)
+        print("cam %uw x %uh => xwidget %uw x %uh %ur" %
+              (self.camw, self.camh, w, h, ratio))
+        self.full_widget_ratio = ratio
+
+        if self.full:
+            self.full_widget_w = w
+            self.full_widget_h = h
+
+        if self.roi:
+            self.roi_widget_w = w
+            self.roi_widget_h = h
+
     def fit_pix(self, w, h):
         ratio = 1
         while w > self.screenw and h > self.screenh:
@@ -143,35 +165,20 @@ class GstVideoPipeline:
              finalh, finalw / finalh))
 
     def setupWidgets(self, parent=None):
-
-        if self.full and self.roi:
-            # probably horizontal layout...
-            w, h, ratio = self.fit_pix(self.camw * 2, self.camh)
-            w = w / 2
-        else:
-            w, h, ratio = self.fit_pix(self.camw, self.camh)
-        print("cam %uw x %uh => xwidget %uw x %uh %ur" %
-              (self.camw, self.camh, w, h, ratio))
-        self.full_widget_ratio = ratio
-
         if self.full:
-            self.full_widget_w = w
-            self.full_widget_h = h
-
             # Raw X-windows canvas
             self.full_widget = QWidget(parent=parent)
-            self.full_widget.setMinimumSize(w, h)
-            self.full_widget.resize(w, h)
+            self.full_widget.setMinimumSize(self.full_widget_w,
+                                            self.full_widget_h)
+            self.full_widget.resize(self.full_widget_w, self.full_widget_h)
             policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             self.full_widget.setSizePolicy(policy)
 
         if self.roi:
-            self.roi_widget_w = w
-            self.roi_widget_h = h
-
             self.roi_widget = QWidget(parent=parent)
-            self.roi_widget.setMinimumSize(w, h)
-            self.roi_widget.resize(w, h)
+            self.roi_widget.setMinimumSize(self.roi_widget_w,
+                                           self.roi_widget_h)
+            self.roi_widget.resize(self.roi_widget_w, self.roi_widget_h)
             policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             self.roi_widget.setSizePolicy(policy)
 

@@ -16,11 +16,9 @@ gi.require_version('GstVideo', '1.0')
 # WARNING: importing GdkX11 will cause hard crash (related to Qt)
 # fortunately its not needed
 # from gi.repository import GdkX11, GstVideo
-from gi.repository import GstVideo
-
 from gi.repository import Gst
 Gst.init(None)
-from gi.repository import GstBase, GObject
+from gi.repository import GstBase, GObject, GstVideo
 
 import platform
 """
@@ -437,46 +435,3 @@ def gstwidget_main(AQMainWindow, parse_args=default_parse_args):
     # must be what pygst is doing
     sys.exit(app.exec_())
 
-
-class CbSink(GstBase.BaseSink):
-    __gstmetadata__ = ('CustomSink','Sink', \
-                      'Custom test sink element', 'John McMaster')
-
-    __gsttemplates__ = Gst.PadTemplate.new("sink", Gst.PadDirection.SINK,
-                                           Gst.PadPresence.ALWAYS,
-                                           Gst.Caps.new_any())
-
-    def __init__(self, *args, **kwargs):
-        GstBase.BaseSink.__init__(self, *args, **kwargs)
-        self.cb = None
-
-        # self.sinkpad.set_chain_function(self.chainfunc)
-        # self.sinkpad.set_event_function(self.eventfunc)
-
-    def chainfunc(self, pad, buffer):
-        # print("got buffer, size %u" % len(buffer))
-        print("chaiunfun %s" % (buffer, ))
-        return Gst.FlowReturn.OK
-
-    def eventfunc(self, pad, event):
-        return True
-
-    def do_render(self, buffer):
-        print("do_render(), %s" % (buffer, ))
-
-        (result, mapinfo) = buffer.map(Gst.MapFlags.READ)
-        assert result
-
-        try:
-            # type: bytes
-            if self.cb:
-                self.cb(mapinfo.data)
-        finally:
-            buffer.unmap(mapinfo)
-
-        return Gst.FlowReturn.OK
-
-
-# XXX: these aren't properly registering anymore, but good enough
-GObject.type_register(CbSink)
-__gstelementfactory__ = ("cbsink", Gst.Rank.NONE, CbSink)

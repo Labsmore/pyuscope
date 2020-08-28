@@ -6,107 +6,86 @@ import io
 import threading
 import traceback
 
-gobject = None
-pygst = None
-gst = None
-try:
-    from gi.repository import GObject
-    import gobject, pygst
-    pygst.require('1.0')
-    import gst
-except ImportError:
-    # XXX: why is this a warning and not an error?
-    # think it was hack for CLI x-ray system?
-    print("WARNING: gst import failed")
-    pass
+import gi
+gi.require_version('Gst', '1.0')
+gi.require_version('GstBase', '1.0')
+gi.require_version('GstVideo', '1.0')
 
+# Needed for window.get_xid(), xvimagesink.set_window_handle(), respectively:
+# WARNING: importing GdkX11 will cause hard crash (related to Qt)
+# fortunately its not needed
+# from gi.repository import GdkX11, GstVideo
+from gi.repository import Gst
+Gst.init(None)
+from gi.repository import GstBase, GObject
 
-# Example sink code at
-# https://coherence.beebits.net/svn/branches/xbox-branch-2/coherence/transcoder.py
-class ResizeSink(gst.Element):
-    # Above didn't have this but seems its not optional
-    __gstdetails__ = ('ResizeSink','Sink', \
-                      'Resize source to get around X11 memory limitations', 'John McMaster')
+class CbSink(GstBase.BaseSink):
+    """
+    Simple capture sink providing callback
+    """
 
-    _sinkpadtemplate = gst.PadTemplate("sinkpadtemplate", gst.PAD_SINK,
-                                       gst.PAD_ALWAYS, gst.caps_new_any())
+    __gstmetadata__ = ('CustomSink','Sink', \
+                      'Custom test sink element', 'John McMaster')
 
-    _srcpadtemplate = gst.PadTemplate("srcpadtemplate", gst.PAD_SRC,
-                                      gst.PAD_ALWAYS, gst.caps_new_any())
+    __gsttemplates__ = Gst.PadTemplate.new("sink", Gst.PadDirection.SINK,
+                                           Gst.PadPresence.ALWAYS,
+                                           Gst.Caps.new_any())
 
-    def __init__(self):
-        gst.Element.__init__(self)
-        self.sinkpad = gst.Pad(self._sinkpadtemplate, "sink")
-        self.srcpad = gst.Pad(self._srcpadtemplate, "src")
-        self.add_pad(self.sinkpad)
-        self.add_pad(self.srcpad)
+    def __init__(self, *args, **kwargs):
+        GstBase.BaseSink.__init__(self, *args, **kwargs)
+        self.cb = None
 
-        self.sinkpad.set_chain_function(self.chainfunc)
-        self.sinkpad.set_event_function(self.eventfunc)
+    def set_cb(self, cb):
+        self.cb = cb
+
+    """
+        # self.sinkpad.set_chain_function(self.chainfunc)
+        # self.sinkpad.set_event_function(self.eventfunc)
 
     def chainfunc(self, pad, buffer):
-        try:
-            print('Got resize buffer')
-            # Simplest: just propagate the data
-            # self.srcpad.push(buffer)
-
-            # Import into PIL and downsize it
-            # Raw jpeg to pr0n PIL wrapper object
-            print('resize chain', len(buffer.data), len(buffer.data) / 3264.0)
-            #open('temp.jpg', 'w').write(buffer.data)
-            #io = StringIO.StringIO(buffer.data)
-            io = io.StringIO(str(buffer))
-            try:
-                image = Image.open(io)
-            except:
-                print('failed to create image')
-                return gst.FLOW_OK
-            # Use a fast filter since this is realtime
-            image = get_scaled(image, 0.5, Image.NEAREST)
-
-            output = io.StringIO()
-            image.save(output, 'jpeg')
-            self.srcpad.push(gst.Buffer(output.getvalue()))
-        except:
-            traceback.print_exc()
-            os._exit(1)
-
-        return gst.FLOW_OK
+        # print("got buffer, size %u" % len(buffer))
+        print("chaiunfun %s" % (buffer, ))
+        return Gst.FlowReturn.OK
 
     def eventfunc(self, pad, event):
         return True
+    """
 
+    def do_render(self, buffer):
+        print("do_render(), %s" % (buffer, ))
 
-# nope...
-# metaclass conflict: the metaclass of a derived class must be a (non-strict) subclass of the metaclasses of all its bases
-# ...and one stack overflow post later I know more about python classes than I ever wanted to
-# basically magic + magic = fizzle
-#class CaptureSink(gst.Element, QObject):
-class CaptureSink(gst.Element):
-    __gstdetails__ = ('CaptureSink','Sink', \
-                      'Captures images for the CNC', 'John McMaster')
+        (result, mapinfo) = buffer.map(Gst.MapFlags.READ)
+        assert result
 
-    _sinkpadtemplate = gst.PadTemplate("sinkpadtemplate", gst.PAD_SINK,
-                                       gst.PAD_ALWAYS, gst.caps_new_any())
+        try:
+            # type: bytes
+            if self.cb:
+                self.cb(mapinfo.data)
+        finally:
+            buffer.unmap(mapinfo)
 
+        return Gst.FlowReturn.OK
+
+class CaptureSink(CbSink):
+    """
+    Multi-threaded capture sink
+    Queues images on request
+    """
     def __init__(self):
-        gst.Element.__init__(self)
-        self.sinkpad = gst.Pad(self._sinkpadtemplate, "sink")
-        self.add_pad(self.sinkpad)
-
-        self.sinkpad.set_chain_function(self.chainfunc)
-        self.sinkpad.set_event_function(self.eventfunc)
+        CbSink.__init__(self)
 
         self.image_requested = threading.Event()
         self.next_image_id = 0
         self.images = {}
+        self.cb = self.render_cb
+        self.user_cb = None
 
     def request_image(self, cb):
         '''Request that the next image be saved'''
         # Later we might make this multi-image
         if self.image_requested.is_set():
             raise Exception('Image already requested')
-        self.cb = cb
+        self.user_cb = cb
         self.image_requested.set()
 
     def get_image(self, image_id):
@@ -129,7 +108,7 @@ class CaptureSink(gst.Element):
     gstreamer plugin core methods
     '''
 
-    def chainfunc(self, pad, buffer):
+    def render_cb(self, buffer):
         #print 'Capture sink buffer in'
         try:
             '''
@@ -155,16 +134,11 @@ class CaptureSink(gst.Element):
             traceback.print_exc()
             os._exit(1)
 
-        return gst.FLOW_OK
 
-    def eventfunc(self, pad, event):
-        return True
-
-
-def register():
-    gobject.type_register(ResizeSink)
-    gst.element_register(ResizeSink, 'myresize', gst.RANK_MARGINAL)
-
-    gobject.type_register(CaptureSink)
-    # Register the element into this process' registry.
-    gst.element_register(CaptureSink, 'capturesink', gst.RANK_MARGINAL)
+# XXX: these aren't properly registering anymore, but good enough
+GObject.type_register(CbSink)
+GObject.type_register(CaptureSink)
+__gstelementfactory__ = (
+                        ("cbsink", Gst.Rank.NONE, CbSink),
+                        ("capturesink", Gst.Rank.NONE, CaptureSink),
+                        )

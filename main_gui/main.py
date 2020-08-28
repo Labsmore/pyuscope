@@ -840,12 +840,6 @@ class MainWindow(QMainWindow):
         self.snapshot_pb = QPushButton("Snapshot")
         self.snapshot_pb.clicked.connect(self.take_snapshot)
 
-        self.time_lapse_timer = None
-        self.time_lapse_pb = QPushButton("Time lapse")
-        self.time_lapse_pb.clicked.connect(self.time_lapse)
-        layout.addWidget(self.time_lapse_pb, 2, 1)
-        layout.addWidget(self.snapshot_pb, 2, 0)
-
         gb.setLayout(layout)
         print('snap serial')
         self.snapshot_next_serial()
@@ -893,23 +887,6 @@ class MainWindow(QMainWindow):
             self.snapshotCaptured.emit(image_id)
 
         self.capture_sink.request_image(emitSnapshotCaptured)
-
-    def time_lapse(self):
-        if self.time_lapse_pb.text() == 'Stop':
-            self.time_lapse_timer.stop()
-            self.time_lapse_pb.setText('Time lapse')
-        else:
-            self.time_lapse_pb.setText('Stop')
-            self.time_lapse_timer = QTimer()
-
-            def f():
-                self.take_snapshot()
-
-            self.time_lapse_timer.timeout.connect(f)
-            # 5 seconds
-            # Rather be more aggressive for now
-            self.time_lapse_timer.start(5000)
-            self.take_snapshot()
 
     def captureSnapshot(self, image_id):
         self.log('RX image for saving')

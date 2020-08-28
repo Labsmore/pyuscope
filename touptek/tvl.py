@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 Comprehensive image acquisition test GUI
 No motion control
@@ -55,6 +54,7 @@ prop_layout = OrderedDict([
         "vflip",
     }),
 ])
+
 
 class TestGUI(QMainWindow):
     def __init__(self, source=None):
@@ -137,9 +137,12 @@ class TestGUI(QMainWindow):
         ps = self.vidpip.source.find_property(name)
         # default = self.vidpip.source.get_property(name)
         if ps.value_type.name == "gint":
-            print("%s, %s, default %s, range %s to %s" % (name, ps.value_type.name, ps.default_value, ps.minimum, ps.maximum))
+            print("%s, %s, default %s, range %s to %s" %
+                  (name, ps.value_type.name, ps.default_value, ps.minimum,
+                   ps.maximum))
         else:
-            print("%s, %s, default %s" % (name, ps.value_type.name, ps.default_value))
+            print("%s, %s, default %s" %
+                  (name, ps.value_type.name, ps.default_value))
 
         if ps.value_type.name == "gint":
             row = self.assemble_gint(name, layoutg, row, ps)
@@ -149,11 +152,9 @@ class TestGUI(QMainWindow):
             assert 0, ps.value_type.name
         return row
 
-
     def initUI(self):
         self.setWindowTitle('Test')
         self.vidpip.setupWidgets()
-
 
         #print(dir(self.vidpip.source))
         #assert 0
@@ -176,10 +177,9 @@ class TestGUI(QMainWindow):
                 for name in group:
                     row = self.assemble_group(name, layoutg, row)
 
-
             widget = QWidget()
             widget.setLayout(layout)
-            
+
             scroll = QScrollArea()
             scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -187,7 +187,6 @@ class TestGUI(QMainWindow):
             scroll.setWidget(widget)
 
             return scroll
-
 
         def buttonBarLayout():
             layout = QHBoxLayout()
@@ -200,21 +199,25 @@ class TestGUI(QMainWindow):
             layout.addWidget(QPushButton("Z"))
             return layout
 
-        def imageLayout():
-            """
-            Suggestion is to have a tab widget here to save snapshots
-            For now just have a simple overview widget
-            """
+        def liveTabWidget():
             layout = QVBoxLayout()
             layout.addWidget(self.vidpip.full_widget)
-            return layout
+
+            widget = QWidget()
+            widget.setLayout(layout)
+            return widget
+
+        def imageTabs():
+            tb = QTabWidget()
+            tb.addTab(liveTabWidget(), "Live")
+            return tb
 
         def lowerlLayout():
             layout = QHBoxLayout()
             layout.addWidget(controlWidget())
-            layout.addLayout(imageLayout())
+            layout.addWidget(imageTabs())
             return layout
-    
+
         layout = QVBoxLayout()
         layout.addLayout(buttonBarLayout())
         layout.addLayout(lowerlLayout())
@@ -224,6 +227,7 @@ class TestGUI(QMainWindow):
         self.setCentralWidget(centralWidget)
         self.show()
 
+
 def parse_args():
     import argparse
 
@@ -231,6 +235,7 @@ def parse_args():
     args = parser.parse_args()
 
     return vars(args)
+
 
 if __name__ == '__main__':
     gstwidget_main(TestGUI, parse_args=parse_args)

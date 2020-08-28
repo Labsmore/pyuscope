@@ -53,6 +53,44 @@ class TestGUI(QMainWindow):
             default = self.vidpip.source.get_property(name)
             self.ctrls[name].setText(str(default))
 
+    def assemble_group(self, name, layoutg, row):
+        self.properties.append(name)
+        ps = self.vidpip.source.find_property(name)
+        # default = self.vidpip.source.get_property(name)
+        print("%s, %s, default %s, range %s to %s" % (name, ps.value_type.name, ps.default_value, ps.minimum, ps.maximum))
+
+        if ps.value_type.name == "gint":
+            def changed(name, value_label):
+                def f():
+                    slider = self.ctrls[name]
+                    try:
+                        val = int(slider.value())
+                    except ValueError:
+                        pass
+                    else:
+                        self.vidpip.source.set_property(name, val)
+                        value_label.setText(str(val))
+                        print('%s changed => %d' % (name, val))
+
+                return f
+
+            value_label = QLabel(str(ps.default_value))
+            layoutg.addWidget(QLabel(name), row, 0)
+            layoutg.addWidget(value_label, row, 1)
+            row += 1
+            slider = QSlider(Qt.Horizontal)
+            slider.setMinimum(ps.minimum)
+            slider.setMaximum(ps.maximum)
+            slider.setValue(ps.default_value)
+            slider.valueChanged.connect(changed(name, value_label))
+            self.ctrls[name] = slider
+            layoutg.addWidget(slider, row, 0, 1, 2)
+            row += 1
+        else:
+            assert 0, ps.value_type.name
+        return row
+
+
     def initUI(self):
         self.setWindowTitle('Test')
         self.vidpip.setupWidgets()
@@ -66,53 +104,30 @@ class TestGUI(QMainWindow):
             row = 0
             self.ctrls = {}
 
-            self.properties = (
-                "bb_r",
-                "bb_g",
-                "bb_b",
-                "wb_r",
-                "wb_g",
-                "wb_b"
-                )
+            self.properties = []
+            prop_layout = {
+                "Black balance": {
+                    "bb_r",
+                    "bb_g",
+                    "bb_b",
+                },
+                "White balance": {
+                    "wb_r",
+                    "wb_g",
+                    "wb_b"
+                }
+            }
 
-            for name in self.properties:
-                """
-                # need GParamSpec
-                print("")
-                print("prop spec")
-                ps = self.vidpip.source.find_property(name)
-                print(type(ps))
-                # ['__doc__', '__gtype__', 'blurb', 'default_value', 'flags', 'maximum', 'minimum', 'name', 'nick', 'owner_type', 'value_type']
-                print(dir(ps))
-                print("")
-                assert 0
-                """
-                ps = self.vidpip.source.find_property(name)
-                # default = self.vidpip.source.get_property(name)
-                print("%s, default %s, range %s to %s" % (name, ps.default_value, ps.minimum, ps.maximum))
+            for group_name, group in prop_layout.items():
+                groupbox = QGroupBox(group_name)
+                groupbox.setCheckable(False)
+                layout.addWidget(groupbox)
 
-                def changed(name):
-                    def f():
-                        slider = self.ctrls[name]
-                        try:
-                            val = int(slider.value())
-                        except ValueError:
-                            pass
-                        else:
-                            self.vidpip.source.set_property(name, val)
-                            print('%s changed => %d' % (name, val))
+                layoutg = QGridLayout()
+                groupbox.setLayout(layoutg)
 
-                    return f
-
-                layout.addWidget(QLabel(name))
-                slider = QSlider(Qt.Horizontal)
-                slider.setMinimum(ps.minimum)
-                slider.setMaximum(ps.maximum)
-                slider.setValue(ps.default_value)
-                slider.valueChanged.connect(changed(name))
-                self.ctrls[name] = slider
-                layout.addWidget(slider)
-                row += 1
+                for name in group:
+                    row = self.assemble_group(name, layoutg, row)
 
 
             widget = QWidget()

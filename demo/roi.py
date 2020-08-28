@@ -17,7 +17,7 @@ from PyQt4.QtGui import QWidget
 class TestGUI(QMainWindow):
     def __init__(self, source=None):
         QMainWindow.__init__(self)
-        self.vidpip = GstVideoPipeline(full=False, roi=True)
+        self.vidpip = GstVideoPipeline(full=True, roi=True)
         self.initUI()
         self.mysink = CbSink()
 
@@ -25,9 +25,16 @@ class TestGUI(QMainWindow):
         self.vidpip.run()
 
     def initUI(self):
-        self.setWindowTitle('Test')
+        self.setWindowTitle('Demo')
         self.vidpip.setupWidgets()
-        self.setCentralWidget(self.vidpip.roi_widget)
+
+        layout = QHBoxLayout()
+        layout.addWidget(self.vidpip.roi_widget)
+
+        widget = QWidget()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
+
         self.showMaximized()
         self.show()
 

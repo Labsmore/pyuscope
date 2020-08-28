@@ -28,31 +28,16 @@ class TestGUI(QMainWindow):
         self.vidpip.run()
 
     def initUI(self):
-        self.setWindowTitle('Test')
+        self.setWindowTitle('Demo')
         self.vidpip.setupWidgets()
 
-        # weird results
-        if 0:
-            layout = QHBoxLayout()
-            layout.addWidget(self.vidpip.full_widget)
-            layout.addWidget(self.vidpip.roi_widget)
+        layout = QHBoxLayout()
+        layout.addWidget(self.vidpip.full_widget)
+        layout.addWidget(self.vidpip.roi_widget)
 
-            widget = QWidget()
-            widget.setLayout(layout)
-            self.setCentralWidget(widget)
-        # ok
-        # full widget only
-        elif 0:
-            self.setCentralWidget(self.vidpip.full_widget)
-        # bad
-        # full widget only
-        else:
-            layout = QHBoxLayout()
-            layout.addWidget(self.vidpip.full_widget)
-
-            widget = QWidget()
-            widget.setLayout(layout)
-            self.setCentralWidget(widget)
+        widget = QWidget()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
 
         self.showMaximized()
         self.show()

@@ -22,6 +22,32 @@ from gi.repository import Gst
 Gst.init(None)
 from gi.repository import GstBase, GObject
 
+import platform
+"""
+def screen_wh():
+    return width, height
+"""
+if platform.system() == 'Windows':
+    import ctypes
+
+    def screen_wh():
+        user32 = ctypes.windll.user32
+        return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+else:
+    import subprocess
+
+    def screen_wh():
+        cmd = ['xrandr']
+        cmd2 = ['grep', '*']
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        p2 = subprocess.Popen(cmd2, stdin=p.stdout, stdout=subprocess.PIPE)
+        p.stdout.close()
+
+        resolution_string, _junk = p2.communicate()
+        resolution = resolution_string.split()[0]
+        width, height = resolution.split(b'x')
+        return int(width), int(height)
+
 
 class GstVideoPipeline:
     """
@@ -62,6 +88,7 @@ class GstVideoPipeline:
         self.camw = 5440
         self.camh = 3648
         # Usable area, not total area
+        # XXX: probably should maximize window and take window size
         self.screenw = 1920
         self.screenh = 900
 
@@ -125,11 +152,12 @@ class GstVideoPipeline:
             w, h, ratio = self.fit_pix(self.camw, self.camh)
         print("cam %uw x %uh => xwidget %uw x %uh %ur" %
               (self.camw, self.camh, w, h, ratio))
-        self.full_widget_w = w
-        self.full_widget_h = h
         self.full_widget_ratio = ratio
 
         if self.full:
+            self.full_widget_w = w
+            self.full_widget_h = h
+
             # Raw X-windows canvas
             self.full_widget = QWidget(parent=parent)
             self.full_widget.setMinimumSize(w, h)
@@ -137,11 +165,10 @@ class GstVideoPipeline:
             policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             self.full_widget.setSizePolicy(policy)
 
-            # Hack: allows for convenient keyboard control by clicking on the video
-            # TODO: review if this is a good idea, or at least move to main.py
-            # self.full_widget.setFocusPolicy(Qt.ClickFocus)
-
         if self.roi:
+            self.roi_widget_w = w
+            self.roi_widget_h = h
+
             self.roi_widget = QWidget(parent=parent)
             self.roi_widget.setMinimumSize(w, h)
             self.roi_widget.resize(w, h)
@@ -158,7 +185,7 @@ class GstVideoPipeline:
             self.source.set_property("device", "/dev/video0")
         elif self.source_name == 'gst-toupcamsrc':
             self.source = Gst.ElementFactory.make('toupcamsrc', None)
-            assert self.source is not None
+            assert self.source is not None, "Failed to load toupcamsrc. Is it in the path?"
         elif self.source_name == 'gst-videotestsrc':
             print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)
@@ -242,32 +269,40 @@ class GstVideoPipeline:
             self.player.add(self.full_scale)
             our_vc_tees.append(self.full_scale)
 
+            # Unreliable without this => set widget size explicitly
+            full_capsfilter = Gst.ElementFactory.make("capsfilter")
+            full_capsfilter.props.caps = Gst.Caps(
+                "video/x-raw,width=%u,height=%u" %
+                (self.full_widget_w, self.full_widget_h))
+            self.player.add(full_capsfilter)
+
             self.full_sinkx = Gst.ElementFactory.make("ximagesink",
                                                       'sinkx_overview')
             assert self.full_sinkx is not None
             self.player.add(self.full_sinkx)
 
         self.roi_sinkx = None
-        usecrop = 1
         if self.roi:
-            if usecrop:
-                self.roi_videocrop = Gst.ElementFactory.make("videocrop")
-                assert self.roi_videocrop
-                self.set_crop()
-                self.player.add(self.roi_videocrop)
+            self.roi_videocrop = Gst.ElementFactory.make("videocrop")
+            assert self.roi_videocrop
+            self.set_crop()
+            self.player.add(self.roi_videocrop)
 
             self.roi_scale = Gst.ElementFactory.make("videoscale")
             assert self.roi_scale
             self.player.add(self.roi_scale)
 
+            roi_capsfilter = Gst.ElementFactory.make("capsfilter")
+            roi_capsfilter.props.caps = Gst.Caps(
+                "video/x-raw,width=%u,height=%u" %
+                (self.roi_widget_w, self.roi_widget_h))
+            self.player.add(roi_capsfilter)
+
             self.roi_sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_roi')
             assert self.roi_sinkx
             self.player.add(self.roi_sinkx)
 
-            if usecrop:
-                our_vc_tees.append(self.roi_videocrop)
-            else:
-                our_vc_tees.append(self.roi_scale)
+            our_vc_tees.append(self.roi_videocrop)
 
         # Note at least one vc tee is garaunteed (either full or roi)
         print("Link raw...")
@@ -283,12 +318,13 @@ class GstVideoPipeline:
         # Finish linking post vc_tee
 
         if self.full:
-            assert self.full_scale.link(self.full_sinkx)
+            assert self.full_scale.link(full_capsfilter)
+            assert full_capsfilter.link(self.full_sinkx)
 
         if self.roi:
-            if usecrop:
-                assert self.roi_videocrop.link(self.roi_scale)
-            assert self.roi_scale.link(self.roi_sinkx)
+            assert self.roi_videocrop.link(self.roi_scale)
+            assert self.roi_scale.link(roi_capsfilter)
+            assert roi_capsfilter.link(self.roi_sinkx)
 
         bus = self.player.get_bus()
         bus.add_signal_watch()

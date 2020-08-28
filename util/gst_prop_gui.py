@@ -62,7 +62,8 @@ class TestGUI(QMainWindow):
                                    "contrast")
             elif self.vidpip.source_name == "gst-toupcamsrc":
                 # self.properties = ("hue", "brightness", "saturation", "contrast", "gamma")
-                self.properties = ("bb_r", "bb_g", "bb_b", "wb_r", "wb_g", "wb_b")
+                self.properties = ("bb_r", "bb_g", "bb_b", "wb_r", "wb_g",
+                                   "wb_b")
             else:
                 assert 0, "bad source %s" % self.vidpip.source_name
 

@@ -13,22 +13,15 @@ class TestGUI(QMainWindow):
         self.vidpip.run()
 
     def initUI(self):
-        self.setWindowTitle('pyv4l test')
+        self.setWindowTitle('Demo')
         self.vidpip.setupWidgets()
 
-        # ok
-        # full widget only
-        if 0:
-            self.setCentralWidget(self.vidpip.full_widget)
-        # bad
-        # full widget only
-        else:
-            layout = QHBoxLayout()
-            layout.addWidget(self.vidpip.full_widget)
+        layout = QHBoxLayout()
+        layout.addWidget(self.vidpip.full_widget)
 
-            widget = QWidget()
-            widget.setLayout(layout)
-            self.setCentralWidget(widget)
+        widget = QWidget()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
 
         self.showMaximized()
         self.show()

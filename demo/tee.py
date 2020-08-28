@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
-from PyQt4.QtGui import QMainWindow
+from PyQt4.QtGui import QMainWindow, QHBoxLayout, QWidget
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -22,9 +22,16 @@ class TestGUI(QMainWindow):
         self.vidpip.run()
 
     def initUI(self):
-        self.setWindowTitle('pyv4l test')
+        self.setWindowTitle('Demo')
         self.vidpip.setupWidgets()
-        self.setCentralWidget(self.vidpip.full_widget)
+
+        layout = QHBoxLayout()
+        layout.addWidget(self.vidpip.full_widget)
+
+        widget = QWidget()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
+
         self.showMaximized()
         self.show()
 

@@ -6,7 +6,7 @@ Demonstrates splitting the pipeline into:
 """
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main, CbSink, Gst
-from PyQt4.QtGui import QMainWindow
+from PyQt4.QtGui import QMainWindow, QHBoxLayout, QWidget
 
 
 class TestGUI(QMainWindow):
@@ -46,9 +46,16 @@ class TestGUI(QMainWindow):
         self.vidpip.run()
 
     def initUI(self):
-        self.setWindowTitle('Test')
+        self.setWindowTitle('Demo')
         self.vidpip.setupWidgets()
-        self.setCentralWidget(self.vidpip.full_widget)
+
+        layout = QHBoxLayout()
+        layout.addWidget(self.vidpip.full_widget)
+
+        widget = QWidget()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
+
         self.showMaximized()
         self.show()
 

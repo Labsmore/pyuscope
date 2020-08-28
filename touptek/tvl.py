@@ -26,6 +26,7 @@ Initialization constraints:
 -Gst initialization needs
 """
 
+from collections import OrderedDict
 
 class TestGUI(QMainWindow):
     def __init__(self, source=None):
@@ -57,7 +58,10 @@ class TestGUI(QMainWindow):
         self.properties.append(name)
         ps = self.vidpip.source.find_property(name)
         # default = self.vidpip.source.get_property(name)
-        print("%s, %s, default %s, range %s to %s" % (name, ps.value_type.name, ps.default_value, ps.minimum, ps.maximum))
+        if ps.value_type.name == "gint":
+            print("%s, %s, default %s, range %s to %s" % (name, ps.value_type.name, ps.default_value, ps.minimum, ps.maximum))
+        else:
+            print("%s, %s, default %s" % (name, ps.value_type.name, ps.default_value))
 
         if ps.value_type.name == "gint":
             def changed(name, value_label):
@@ -86,6 +90,20 @@ class TestGUI(QMainWindow):
             self.ctrls[name] = slider
             layoutg.addWidget(slider, row, 0, 1, 2)
             row += 1
+        elif ps.value_type.name == "gboolean":
+            def changed(name, cb):
+                def f(val):
+                    self.vidpip.source.set_property(name, val)
+                    print('%s changed => %d' % (name, val))
+
+                return f
+
+            cb = QCheckBox(name)
+            cb.setChecked(ps.default_value)
+            cb.stateChanged.connect(changed(name, cb))
+            self.ctrls[name] = cb
+            layoutg.addWidget(cb, row, 0, 1, 2)
+            row += 1
         else:
             assert 0, ps.value_type.name
         return row
@@ -105,18 +123,22 @@ class TestGUI(QMainWindow):
             self.ctrls = {}
 
             self.properties = []
-            prop_layout = {
-                "Black balance": {
-                    "bb_r",
-                    "bb_g",
-                    "bb_b",
-                },
-                "White balance": {
-                    "wb_r",
-                    "wb_g",
-                    "wb_b"
-                }
-            }
+            prop_layout = OrderedDict([
+                ("Black balance", {
+                    "bb-r",
+                    "bb-g",
+                    "bb-b",
+                }),
+                ("White balance", {
+                    "wb-r",
+                    "wb-g",
+                    "wb-b",
+                }),
+                ("Flip", {
+                    "hflip",
+                    "vflip",
+                }),
+            ])
 
             for group_name, group in prop_layout.items():
                 groupbox = QGroupBox(group_name)

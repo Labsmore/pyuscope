@@ -26,6 +26,8 @@ Initialization constraints:
 """
 
 from collections import OrderedDict
+import datetime
+import os
 
 prop_layout = OrderedDict([
     ("Black balance", {
@@ -62,19 +64,71 @@ class TestGUI(QMainWindow):
         self.showMaximized()
         self.vidpip = GstVideoPipeline(source=source)
         self.vidpip.size_widgets(frac=0.5)
-        # Initialize this early so we can get control default values
-        # self.vidpip.setupGst(tee=self.mysink, source="gst-v4l2src")
-        self.vidpip.setupGst()
-        self.initUI()
 
-        # print(self.vidpip.source.list_properties())
-        print(self.vidpip.source.get_property("hue"))
-        print(self.vidpip.source.get_property("saturation"))
-        # self.vidpip.source.set_property("hue", 0)
-        # self.vidpip.source.set_property("saturation", 0)
+        # self.mysink = Gst.ElementFactory.make("mysink")
+        # self.mysink = MySink()
+        self.mysink = CbSink()
+        self.vidpip.player.add(self.mysink)
+
+        self.snapshot_requested = False
+        self.raw = 0
+        if self.raw:
+            totee = self.mysink
+        else:
+            print("Create jpegnec")
+            self.jpegenc = Gst.ElementFactory.make("jpegenc")
+            self.vidpip.player.add(self.jpegenc)
+            totee = self.jpegenc
+
+        self.vidpip.setupGst(raw_tees=[totee])
+        if not self.raw:
+            print("raw add")
+            assert self.jpegenc.link(self.mysink)
+        self.mysink.cb = self.snapshot_cb
+
+        self.initUI()
         self.vidpip.run()
 
-        # QTimer.singleShot(100, self.defaultControls)
+    def snapshot_fn(self):
+        prefix_date = True
+        snapshot_dir = "snapshot"
+        if self.raw:
+            extension = ".bin"
+        else:
+            extension = ".jpg"
+        user = ""
+
+        if not os.path.exists(snapshot_dir):
+            os.mkdir(snapshot_dir)
+
+        prefix = ''
+        if prefix_date:
+            # 2020-08-12_06-46-21
+            prefix = datetime.datetime.utcnow().isoformat().replace(
+                'T', '_').replace(':', '-').split('.')[0] + "_"
+
+        mod = None
+        while True:
+            mod_str = ''
+            if mod:
+                mod_str = '_%u' % mod
+            fn_full = os.path.join(snapshot_dir,
+                                   prefix + user + mod_str + extension)
+            if os.path.exists(fn_full):
+                if mod is None:
+                    mod = 1
+                else:
+                    mod += 1
+                continue
+            return fn_full
+
+    def snapshot_cb(self, buffer):
+        if not self.snapshot_requested:
+            return
+        fn = self.snapshot_fn()
+        print("got buffer, size %u, save %s" % (len(buffer), fn))
+        open(fn, "wb").write(buffer)
+        self.snapshot_requested = False
 
     def defaultControls(self):
         print("default controls")
@@ -195,7 +249,14 @@ class TestGUI(QMainWindow):
             btn.clicked.connect(self.defaultControls)
             layout.addWidget(btn)
 
-            layout.addWidget(QPushButton("Y"))
+            btn = QPushButton("Snapshot")
+
+            def requestSnapshot():
+                self.snapshot_requested = True
+
+            btn.clicked.connect(requestSnapshot)
+            layout.addWidget(btn)
+
             layout.addWidget(QPushButton("Z"))
             return layout
 

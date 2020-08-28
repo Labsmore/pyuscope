@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from uscope.gstwidget import GstVideoPipeline, gstwidget_main
+
 from uscope.config import get_config
 from uscope.hal.img.imager import Imager
 from uscope.img_util import get_scaled
@@ -12,7 +14,7 @@ from uscope.lcnc.client import LCNCRPC
 from uscope import gst_util
 from uscope.v4l2_util import ctrl_set
 
-from threads import CncThread, PlannerThread
+from main_gui.threads import CncThread, PlannerThread
 from io import StringIO
 
 from PyQt4 import Qt
@@ -32,6 +34,7 @@ import json
 
 uconfig = get_config()
 
+"""
 gobject = None
 gst = None
 try:
@@ -44,6 +47,7 @@ except ImportError:
         print(
             'Failed to import a gstreamer package when gstreamer is required')
         raise
+"""
 
 debug = 1
 
@@ -206,18 +210,30 @@ class GstImager(Imager):
         return scaled
 
 
-class CNCGUI(QMainWindow):
+"""
+Placeholder class
+These are disabled right now and movement must be done from X GUI
+"""
+class LCNCMovement:
+    pass
+
+class MainWindow(QMainWindow):
     cncProgress = pyqtSignal(int, int, str, int)
     snapshotCaptured = pyqtSignal(int)
 
-    def __init__(self):
+    def __init__(self, source=None):
         QMainWindow.__init__(self)
         self.showMaximized()
-        self.uconfig = uconfig
 
-        # used to calcluate video display width/height
-        # self.vw, self.vh = 800, 600
-        self.vw, self.vh = 3264, 2448
+        # FIXME: pull from config file etc
+        if source is None:
+            pass
+        self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)
+        # FIXME: review sizing
+        self.vidpip.size_widgets(frac=0.2)
+        self.vidpip.setupGst(raw_tees=[])
+
+        self.uconfig = uconfig
 
         # must be created early to accept early logging
         # not displayed until later though
@@ -239,35 +255,13 @@ class CNCGUI(QMainWindow):
         # Must not be initialized until after layout is set
         self.gstWindowId = None
         engine_config = self.uconfig['imager']['engine']
-        if engine_config == 'auto':
-            if os.path.exists("/dev/video0"):
-                engine_config = 'gstreamer'
-            else:
-                engine_config = 'gstreamer-testsrc'
-            self.log('Auto image engine: selected %s' % engine_config)
-        if engine_config == 'gstreamer':
-            self.source = gst.element_factory_make("v4l2src", "vsource")
-            self.source.set_property("device", "/dev/video0")
-            self.vid_fd = -1
-            self.setupGst()
-        elif engine_config == 'gstreamer-testsrc':
-            self.source = gst.element_factory_make("videotestsrc",
-                                                   "video-source")
-            self.setupGst()
-        elif engine_config == 'mock':
-            pass
-        else:
-            raise Exception('Unknown engine %s' % (engine_config, ))
 
         self.cnc_thread.start()
 
         # Offload callback to GUI thread so it can do GUI ops
         self.cncProgress.connect(self.processCncProgress)
 
-        if self.gstWindowId:
-            dbg("Starting gstreamer pipeline")
-            self.player.set_state(gst.STATE_PLAYING)
-
+        self.vidpip.run()
         if self.uconfig['cnc']['startup_run']:
             self.run()
 
@@ -312,14 +306,7 @@ class CNCGUI(QMainWindow):
         self.emit(SIGNAL('pos'), pos)
 
     def cmd_done(self, cmd, args, ret):
-        def default(*args):
-            pass
-
-        {
-            'mv_abs': self.emit_pos,
-            'mv_rel': self.emit_pos,
-            'home': self.emit_pos,
-        }.get(cmd, default)(ret)
+        print("FIXME: poll position instead of manually querying")
 
     def reload_obj_cb(self):
         '''Re-populate the objective combo box'''
@@ -356,6 +343,23 @@ class CNCGUI(QMainWindow):
                 val = min(val, 1023)
             ctrl_set(self.vid_fd, k, val)
 
+    def add_v4l_controls(self, cl, row):
+        self.v4ls = {}
+        # hacked driver to directly drive values
+        for ki, (label, v4l_name) in enumerate(
+            (("Red", "Red Balance"), ("Green", "Gain"),
+             ("Blue", "Blue Balance"), ("Exp", "Exposure"))):
+            cols = 4
+            rowoff = ki / cols
+            coloff = cols * (ki % cols)
+
+            cl.addWidget(QLabel(label), row + rowoff, coloff)
+            le = QLineEdit('')
+            self.v4ls[v4l_name] = le
+            cl.addWidget(le, row + rowoff, coloff + 1)
+            le.textChanged.connect(self.v4l_updated)
+            row += 2
+
     def get_config_layout(self):
         cl = QGridLayout()
 
@@ -380,21 +384,8 @@ class CNCGUI(QMainWindow):
             self.v4l_cb.currentIndexChanged.connect(self.update_v4l_config)
             row += 1
 
-        self.v4ls = {}
-        # hacked driver to directly drive values
-        for ki, (label, v4l_name) in enumerate(
-            (("Red", "Red Balance"), ("Green", "Gain"),
-             ("Blue", "Blue Balance"), ("Exp", "Exposure"))):
-            cols = 4
-            rowoff = ki / cols
-            coloff = cols * (ki % cols)
-
-            cl.addWidget(QLabel(label), row + rowoff, coloff)
-            le = QLineEdit('')
-            self.v4ls[v4l_name] = le
-            cl.addWidget(le, row + rowoff, coloff + 1)
-            le.textChanged.connect(self.v4l_updated)
-        row += 2
+        # FIXME: integrate gst controls instead
+        # row = self.add_v4l_controls(cl, row)
 
         return cl
 
@@ -403,16 +394,7 @@ class CNCGUI(QMainWindow):
         def low_res_layout():
             layout = QVBoxLayout()
             layout.addWidget(QLabel("Overview"))
-
-            # Raw X-windows canvas
-            self.video_container = QWidget()
-            w, h = self.vw / 8, self.vh / 8
-            self.video_container.setMinimumSize(w, h)
-            self.video_container.resize(w, h)
-            policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            self.video_container.setSizePolicy(policy)
-
-            layout.addWidget(self.video_container)
+            layout.addWidget(self.vidpip.full_widget)
 
             return layout
 
@@ -420,16 +402,7 @@ class CNCGUI(QMainWindow):
         def high_res_layout():
             layout = QVBoxLayout()
             layout.addWidget(QLabel("Focus"))
-
-            # Raw X-windows canvas
-            self.video_container2 = QWidget()
-            w, h = self.vw / 8, self.vh / 8
-            self.video_container2.setMinimumSize(w, h)
-            self.video_container2.resize(w, h)
-            policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            self.video_container2.setSizePolicy(policy)
-
-            layout.addWidget(self.video_container2)
+            layout.addWidget(self.vidpip.roi_widget)
 
             return layout
 
@@ -439,125 +412,25 @@ class CNCGUI(QMainWindow):
         return layout
 
     def setupGst(self):
-        dbg("Setting up gstreamer pipeline")
-        self.gstWindowId = self.video_container.winId()
-        self.gstWindowId2 = self.video_container2.winId()
+        pass
 
-        self.player = gst.Pipeline("player")
-        sinkx = gst.element_factory_make("ximagesink", 'sinkx_overview')
-        sinkx_focus = gst.element_factory_make("ximagesink", 'sinkx_focus')
-        fcs = gst.element_factory_make('ffmpegcolorspace')
-        #caps = gst.caps_from_string('video/x-raw-yuv')
+    def init_v4l_ctrl(self):
+        """
+        Was being called on
+        self.source.get_property("device-fd")
+        v4l is lower priority right now. Revisit later
+        """
+        print('Initializing V4L controls')
+        vconfig = uconfig["imager"].get("v4l2", None)
+        if vconfig:
+            for configk, configv in vconfig.items():
+                break
+            print('Selected config %s' % configk)
 
-        self.tee = gst.element_factory_make("tee")
-
-        self.capture_enc = gst.element_factory_make("jpegenc")
-        self.capture_sink = gst.element_factory_make("capturesink")
-        self.resizer = gst.element_factory_make("videoscale")
-        self.snapshotCaptured.connect(self.captureSnapshot)
-        self.capture_sink_queue = gst.element_factory_make("queue")
-        '''
-        Per #gstreamer question evidently v4l2src ! ffmpegcolorspace ! ximagesink
-            gst-launch v4l2src ! ffmpegcolorspace ! ximagesink
-        allocates memory different than v4l2src ! videoscale ! xvimagesink
-            gst-launch v4l2src ! videoscale ! xvimagesink
-        Problem is that the former doesn't resize the window but allows taking full res pictures
-        The later resizes the window but doesn't allow taking full res pictures
-        However, we don't want full res in the view window
-        '''
-        # Video render stream
-        self.player.add(self.source, self.tee)
-        gst.element_link_many(self.source, self.tee)
-
-        self.size_tee = gst.element_factory_make("tee")
-        self.size_queue_overview = gst.element_factory_make("queue")
-        self.size_queue_focus = gst.element_factory_make("queue")
-        # First lets make this identical to keep things simpler
-        self.videocrop = gst.element_factory_make("videocrop")
-        '''
-        TODO: make this more automagic
-        w, h = 3264/8, 2448/8 => 408, 306
-        Want 3264/2, 2448,2 type resolution
-        Image is coming in raw at this point which menas we need to end up with
-        408*2, 306*2 => 816, 612
-        since its centered crop the same amount off the top and bottom:
-        (3264 - 816)/2, (2448 - 612)/2 => 1224, 918
-        '''
-        self.videocrop.set_property("top", 918)
-        self.videocrop.set_property("bottom", 918)
-        self.videocrop.set_property("left", 1224)
-        self.videocrop.set_property("right", 1224)
-        self.scale2 = gst.element_factory_make("videoscale")
-
-        self.player.add(fcs, self.size_tee)
-        gst.element_link_many(self.tee, fcs, self.size_tee)
-        self.player.add(self.size_queue_overview, self.resizer, sinkx)
-        gst.element_link_many(self.size_tee, self.size_queue_overview,
-                              self.resizer, sinkx)
-        # gah
-        # libv4l2: error converting / decoding frame data: v4l-convert: error destination buffer too small (16777216 < 23970816)
-        # aha: the culprit is that I'm running the full driver which is defaulting to lower res
-        self.player.add(self.size_queue_focus, self.videocrop, self.scale2,
-                        sinkx_focus)
-        gst.element_link_many(self.size_tee, self.size_queue_focus,
-                              self.videocrop, self.scale2, sinkx_focus)
-
-        # Frame grabber stream
-        # compromise
-        self.player.add(self.capture_sink_queue, self.capture_enc,
-                        self.capture_sink)
-        gst.element_link_many(self.tee, self.capture_sink_queue,
-                              self.capture_enc, self.capture_sink)
-
-        bus = self.player.get_bus()
-        bus.add_signal_watch()
-        bus.enable_sync_message_emission()
-        bus.connect("message", self.on_message)
-        bus.connect("sync-message::element", self.on_sync_message)
-
-    def on_message(self, bus, message):
-        t = message.type
-
-        if self.vid_fd is not None and self.vid_fd < 0:
-            self.vid_fd = self.source.get_property("device-fd")
-            if self.vid_fd >= 0:
-                print('Initializing V4L controls')
-                vconfig = uconfig["imager"].get("v4l2", None)
-                if vconfig:
-                    for configk, configv in vconfig.items():
-                        break
-                    print('Selected config %s' % configk)
-
-                    for k, v in configv.items():
-                        #ctrl_set(self.vid_fd, k, v)
-                        if k in self.v4ls:
-                            self.v4ls[k].setText(str(v))
-
-        if t == gst.MESSAGE_EOS:
-            self.player.set_state(gst.STATE_NULL)
-            print("End of stream")
-        elif t == gst.MESSAGE_ERROR:
-            err, debug = message.parse_error()
-            print("Error: %s" % err, debug)
-            self.player.set_state(gst.STATE_NULL)
-
-    def on_sync_message(self, bus, message):
-        if message.structure is None:
-            return
-        message_name = message.structure.get_name()
-        if message_name == "prepare-xwindow-id":
-            if message.src.get_name() == 'sinkx_overview':
-                #print 'sinkx_overview win_id'
-                win_id = self.gstWindowId
-            elif message.src.get_name() == 'sinkx_focus':
-                win_id = self.gstWindowId2
-                #print 'sinkx_focus win_id'
-            else:
-                raise Exception('oh noes')
-
-            assert win_id
-            imagesink = message.src
-            imagesink.set_xwindow_id(win_id)
+            for k, v in configv.items():
+                #ctrl_set(self.vid_fd, k, v)
+                if k in self.v4ls:
+                    self.v4ls[k].setText(str(v))
 
     def ret0(self):
         pos = dict([(k, 0.0) for k in self.axes])
@@ -1104,7 +977,7 @@ class CNCGUI(QMainWindow):
         return layout
 
     def initUI(self):
-        self.setGeometry(300, 300, 250, 150)
+        self.vidpip.setupWidgets()
         self.setWindowTitle('pr0ncnc')
 
         # top layout
@@ -1127,29 +1000,5 @@ class CNCGUI(QMainWindow):
             self.stop()
 
 
-def excepthook(excType, excValue, tracebackobj):
-    print('%s: %s' % (excType, excValue))
-    traceback.print_tb(tracebackobj)
-    os._exit(1)
-
-
 if __name__ == '__main__':
-    '''
-    We are controlling a robot
-    '''
-    sys.excepthook = excepthook
-    # Exit on ^C instead of ignoring
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-
-    if gobject:
-        gobject.threads_init()
-
-    app = QApplication(sys.argv)
-    gui = CNCGUI()
-    # XXX: what about the gstreamer message bus?
-    # Is it simply not running?
-    # must be what pygst is doing
-    try:
-        sys.exit(app.exec_())
-    finally:
-        gui.shutdown()
+    gstwidget_main(MainWindow)

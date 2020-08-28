@@ -41,6 +41,10 @@ def unpack_groupv(groupv):
         return groupv, False
 
 class TTControlScroll(QScrollArea):
+    """
+    Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
+    """
+
     def __init__(self, vidpip, parent=None):
         QScrollArea.__init__(self, parent=parent)
 

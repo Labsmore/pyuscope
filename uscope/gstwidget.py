@@ -90,12 +90,22 @@ class GstVideoPipeline:
         self.screenw = 1920
         self.screenh = 900
 
+        self.full_capsfilter = None
+        self.roi_capsfilter = None
+        self.size_widgets()
+
         # Needs to be done early so elements can be added before main setup
         self.player = Gst.Pipeline("player")
 
-        self.size_widgets()
 
     def size_widgets(self, w=None, h=None, frac=None):
+        """
+        For now this needs to be called early
+        But with some tweaks it can be made dynamic
+        
+        w/h: total canvas area available for all widgets we need to create
+        """
+
         if frac:
             sw, sh = screen_wh()
             w = int(sw * frac)
@@ -118,12 +128,32 @@ class GstVideoPipeline:
         self.full_widget_ratio = ratio
 
         if self.full:
-            self.full_widget_w = w
-            self.full_widget_h = h
+            self.set_full_widget_wh(w, h)
 
         if self.roi:
-            self.roi_widget_w = w
-            self.roi_widget_h = h
+            self.set_roi_widget_wh(w, h)
+
+    def set_full_widget_wh(self, w, h):
+        assert self.full_capsfilter is None, "FIXME: handle gst initialized"
+
+        self.full_widget_w = w
+        self.full_widget_h = h
+        
+        if self.full_widget:
+            self.full_widget.setMinimumSize(self.full_widget_w,
+                                            self.full_widget_h)
+            self.full_widget.resize(self.full_widget_w, self.full_widget_h)
+
+    def set_roi_widget_wh(self, w, h):
+        assert self.roi_capsfilter is None, "FIXME: handle gst initialized"
+
+        self.roi_widget_w = w
+        self.roi_widget_h = h
+
+        if self.roi_widget:
+            self.roi_widget.setMinimumSize(self.roi_widget_w,
+                                            self.roi_widget_h)
+            self.roi_widget.resize(self.roi_widget_w, self.roi_widget_h)
 
     def fit_pix(self, w, h):
         ratio = 1
@@ -275,9 +305,6 @@ class GstVideoPipeline:
         assert self.videoconvert is not None
         self.player.add(self.videoconvert)
 
-        #caps = Gst.caps_from_string('video/x-raw,format=rgb')
-        #assert caps is not None
-
         our_vc_tees = []
         self.full_sinkx = None
         if self.full:
@@ -287,11 +314,11 @@ class GstVideoPipeline:
             our_vc_tees.append(self.full_scale)
 
             # Unreliable without this => set widget size explicitly
-            full_capsfilter = Gst.ElementFactory.make("capsfilter")
-            full_capsfilter.props.caps = Gst.Caps(
+            self.full_capsfilter = Gst.ElementFactory.make("capsfilter")
+            self.full_capsfilter.props.caps = Gst.Caps(
                 "video/x-raw,width=%u,height=%u" %
                 (self.full_widget_w, self.full_widget_h))
-            self.player.add(full_capsfilter)
+            self.player.add(self.full_capsfilter)
 
             self.full_sinkx = Gst.ElementFactory.make("ximagesink",
                                                       'sinkx_overview')
@@ -309,11 +336,11 @@ class GstVideoPipeline:
             assert self.roi_scale
             self.player.add(self.roi_scale)
 
-            roi_capsfilter = Gst.ElementFactory.make("capsfilter")
-            roi_capsfilter.props.caps = Gst.Caps(
+            self.roi_capsfilter = Gst.ElementFactory.make("capsfilter")
+            self.roi_capsfilter.props.caps = Gst.Caps(
                 "video/x-raw,width=%u,height=%u" %
                 (self.roi_widget_w, self.roi_widget_h))
-            self.player.add(roi_capsfilter)
+            self.player.add(self.roi_capsfilter)
 
             self.roi_sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_roi')
             assert self.roi_sinkx
@@ -335,13 +362,13 @@ class GstVideoPipeline:
         # Finish linking post vc_tee
 
         if self.full:
-            assert self.full_scale.link(full_capsfilter)
-            assert full_capsfilter.link(self.full_sinkx)
+            assert self.full_scale.link(self.full_capsfilter)
+            assert self.full_capsfilter.link(self.full_sinkx)
 
         if self.roi:
             assert self.roi_videocrop.link(self.roi_scale)
-            assert self.roi_scale.link(roi_capsfilter)
-            assert roi_capsfilter.link(self.roi_sinkx)
+            assert self.roi_scale.link(self.roi_capsfilter)
+            assert self.roi_capsfilter.link(self.roi_sinkx)
 
         bus = self.player.get_bus()
         bus.add_signal_watch()

@@ -156,7 +156,7 @@ class MainWindow(QMainWindow):
             pass
         self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)
         # FIXME: review sizing
-        self.vidpip.size_widgets(frac=0.4)
+        self.vidpip.size_widgets(frac=0.5)
         self.vidpip.setupGst(raw_tees=[])
 
         self.uconfig = uconfig
@@ -706,57 +706,19 @@ class MainWindow(QMainWindow):
 
         self.snapshot_serial = -1
         layout.addWidget(QLabel('File name'), 0, 0)
-        self.snapshot_fn_le = QLineEdit('')
+        self.snapshot_fn_le = QLineEdit('snapshot')
         self.snapshot_suffix_le = QLineEdit('.jpg')
+        self.snapshot_suffix_le.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
         hl = QHBoxLayout()
         hl.addWidget(self.snapshot_fn_le)
         hl.addWidget(self.snapshot_suffix_le)
         layout.addLayout(hl, 0, 1)
 
-        layout.addWidget(QLabel('Auto-number?'), 1, 0)
-        self.auto_number_cb = QCheckBox()
-        self.auto_number_cb.setChecked(True)
-        layout.addWidget(self.auto_number_cb, 1, 1)
-
         self.snapshot_pb = QPushButton("Snapshot")
         self.snapshot_pb.clicked.connect(self.take_snapshot)
 
         gb.setLayout(layout)
-        print('snap serial')
-        self.snapshot_next_serial()
         return gb
-
-    def snapshot_next_serial(self):
-        if not self.auto_number_cb.isChecked():
-            print('snap serial not checked')
-            return
-        prefix = self.snapshot_fn_le.text().split('.')[0]
-        if prefix == '':
-            print('no base')
-            self.snapshot_serial = 0
-            prefix = 'snapshot_'
-        else:
-            dbg('Image prefix: %s' % prefix)
-            m = re.search('([a-zA-z0-9_\-]*_)([0-9]+)', prefix)
-            if m:
-                dbg('snapshot Group 1: ' + m.group(1))
-                dbg('snapshot Group 2: ' + m.group(2))
-                prefix = m.group(1)
-                self.snapshot_serial = int(m.group(2))
-
-        while True:
-            self.snapshot_serial += 1
-            fn_base = '%s%03u' % (prefix, self.snapshot_serial)
-            fn_full = os.path.join(
-                self.uconfig['imager']['snapshot_dir'],
-                fn_base + str(self.snapshot_suffix_le.text()))
-            #print 'check %s' % fn_full
-            if os.path.exists(fn_full):
-                #dbg('Snapshot %s already exists, skipping' % fn_full)
-                continue
-            # Omit base to make GUI easier to read
-            self.snapshot_fn_le.setText(fn_base)
-            break
 
     def take_snapshot(self):
         self.log('Requesting snapshot')
@@ -769,18 +731,36 @@ class MainWindow(QMainWindow):
 
         self.capture_sink.request_image(emitSnapshotCaptured)
 
+    def snapshot_fn(self):
+        user = str(self.snapshot_fn_le.text())
+
+        prefix = ''
+        if self.prefix_date_cb.isChecked():
+            # 2020-08-12_06-46-21
+            prefix = datetime.datetime.utcnow().isoformat().replace('T', '_').replace(':', '-').split('.')[0] + "_"
+
+        extension = str(self.snapshot_suffix_le.text())
+
+        mod = None
+        while True:
+            mod_str = ''
+            if mod:
+                mod_str = '_%u' % mod
+            fn_full = os.path.join(self.uconfig['imager']['snapshot_dir'], prefix + user + mod_str + extension)
+            if os.path.exists(fn_full):
+                if mod is None:
+                    mod = 1
+                else:
+                    mod += 1
+                continue
+            return fn_full
+
     def captureSnapshot(self, image_id):
         self.log('RX image for saving')
-
         def try_save():
             image = self.capture_sink.pop_image(image_id)
-            txt = str(self.snapshot_fn_le.text()) + str(
-                self.snapshot_suffix_le.text())
-
-            fn_full = os.path.join(self.uconfig['imager']['snapshot_dir'], txt)
-            if os.path.exists(fn_full):
-                self.log('WARNING: refusing to overwrite %s' % fn_full)
-                return
+            fn_full = self.snapshot_fn()
+            self.log('Capturing %s...' % fn_full)            
             factor = float(self.uconfig['imager']['scalar'])
             # Use a reasonably high quality filter
             try:
@@ -788,11 +768,8 @@ class MainWindow(QMainWindow):
             # FIXME: refine
             except Exception:
                 self.log('WARNING: failed to save %s' % fn_full)
-
         try_save()
 
-        # That image is done, get read for the next
-        self.snapshot_next_serial()
         self.snapshot_pb.setEnabled(True)
 
     def get_scan_layout(self):

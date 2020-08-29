@@ -7,7 +7,9 @@ Demonstrates splitting the pipeline into:
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main, Gst
 from uscope.gst_util import CbSink
-from PyQt4.QtGui import QMainWindow, QHBoxLayout, QWidget
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
 
 class TestGUI(QMainWindow):

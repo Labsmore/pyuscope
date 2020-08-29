@@ -5,13 +5,13 @@ from uscope.imagers.gst_v4l2src_mu800.widgets import V4L2MU800ControlScroll
 
 from collections import OrderedDict
 
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
 
 prop_layout = OrderedDict([
-    ("Unknown", {
-    }),
+    ("Unknown", {}),
 ])
+
 
 class DummyGstControlScroll(GstControlScroll):
     def __init__(self, vidpip, parent=None):
@@ -19,6 +19,7 @@ class DummyGstControlScroll(GstControlScroll):
                                   vidpip=vidpip,
                                   prop_layout=prop_layout,
                                   parent=parent)
+
 
 def get_control_scroll(vidpip):
     # Need to hide this when not needed

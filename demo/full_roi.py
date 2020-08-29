@@ -13,9 +13,9 @@ gst-launch-1.0 toupcamsrc ! tee name=t \
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main, Gst
 from uscope.gst_util import CbSink
-from PyQt4.QtGui import QMainWindow
-from PyQt4.QtGui import QHBoxLayout
-from PyQt4.QtGui import QWidget
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
 
 class TestGUI(QMainWindow):

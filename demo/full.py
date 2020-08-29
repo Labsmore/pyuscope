@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
-from PyQt4.QtGui import QMainWindow, QHBoxLayout, QWidget
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
 
 class TestGUI(QMainWindow):

@@ -6,10 +6,10 @@ just
 
 from uvscada.v4l2_util import ctrl_set
 
-from PyQt4 import Qt
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-from PyQt4.QtGui import QWidget, QLabel
+from PyQt5 import Qt
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import QWidget, QLabel
 
 import cv2
 import numpy as np

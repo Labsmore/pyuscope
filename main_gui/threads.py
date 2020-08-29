@@ -5,7 +5,7 @@ import traceback
 
 import queue
 import threading
-from PyQt4.QtCore import *
+from PyQt5.QtCore import *
 import time
 import os
 import json
@@ -50,6 +50,8 @@ TODO: should block?
 
 
 class CncThread(QThread):
+    log_msg = pyqtSignal(str)
+
     def __init__(self, hal, cmd_done):
         QThread.__init__(self)
         self.queue = queue.Queue()
@@ -63,7 +65,7 @@ class CncThread(QThread):
         self.lock = threading.Event()
 
     def log(self, msg):
-        self.emit(SIGNAL('log'), msg)
+        self.log_msg.emit(msg)
 
     def setRunning(self, running):
         if running:
@@ -152,6 +154,7 @@ class CncThread(QThread):
 # Sends events to the imaging and movement threads
 class PlannerThread(QThread):
     plannerDone = pyqtSignal()
+    log_msg = pyqtSignal(str)
 
     def __init__(self, parent, rconfig, imagerj={}):
         QThread.__init__(self, parent)
@@ -162,7 +165,7 @@ class PlannerThread(QThread):
     def log(self, msg):
         #print 'emitting log %s' % msg
         #self.log_buff += str(msg) + '\n'
-        self.emit(SIGNAL('log'), msg)
+        self.log_msg.emit(msg)
 
     def setRunning(self, running):
         planner = self.planner

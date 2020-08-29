@@ -3,9 +3,9 @@
 from uscope import gstwidget
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main, CbSink
-from PyQt4.QtGui import QMainWindow
-from PyQt4.QtGui import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit
-from PyQt4.QtCore import QTimer
+from PyQt5.QtGui import QMainWindow
+from PyQt5.QtGui import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit
+from PyQt5.QtCore import QTimer
 
 import gi
 gi.require_version('Gst', '1.0')

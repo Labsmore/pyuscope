@@ -9,8 +9,9 @@ from uscope.imagers.gst_toupcamsrc.widgets import TTControlScroll
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gst_util import CbSink
 
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
 import gi
 gi.require_version('Gst', '1.0')

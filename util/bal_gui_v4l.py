@@ -3,8 +3,8 @@
 from uscope import gstwidget
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main, CbSink
-from PyQt4.QtGui import QMainWindow
-from PyQt4.QtGui import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit
+from PyQt5.QtGui import QMainWindow
+from PyQt5.QtGui import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit
 
 properties = {
     "hue": None,

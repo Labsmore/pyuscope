@@ -20,9 +20,10 @@ from uscope.v4l2_util import ctrl_set
 from main_gui.threads import CncThread, PlannerThread
 from io import StringIO
 
-from PyQt4 import Qt
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PyQt5 import Qt
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
 import datetime
 import os.path
@@ -168,6 +169,8 @@ class PropertiesWindow(QMainWindow):
 class MainWindow(QMainWindow):
     cncProgress = pyqtSignal(int, int, str, int)
     snapshotCaptured = pyqtSignal(int)
+    log_msg = pyqtSignal(str)
+    pos = pyqtSignal(int)
 
     def __init__(self, source=None, controls=False):
         QMainWindow.__init__(self)
@@ -199,8 +202,8 @@ class MainWindow(QMainWindow):
         # not displayed until later though
         self.log_widget = QTextEdit()
         # Special case for logging that might occur out of thread
-        self.connect(self, SIGNAL('log'), self.log)
-        self.connect(self, SIGNAL('pos'), self.update_pos)
+        self.log_msg.connect(self.log)
+        # self.pos.connect(self.update_pos)
         self.snapshotCaptured.connect(self.captureSnapshot)
 
         self.pt = None
@@ -208,7 +211,7 @@ class MainWindow(QMainWindow):
         hal = get_cnc_hal(log=self.emit_log)
         hal.progress = self.hal_progress
         self.cnc_thread = CncThread(hal=hal, cmd_done=self.cmd_done)
-        self.connect(self.cnc_thread, SIGNAL('log'), self.log)
+        self.cnc_thread.log_msg.connect(self.log)
         self.initUI()
 
         self.propwin = None
@@ -265,17 +268,19 @@ class MainWindow(QMainWindow):
     def emit_log(self, s='', newline=True):
         # event must be omitted from the correct thread
         # however, if it hasn't been created yet assume we should log from this thread
-        self.emit(SIGNAL('log'), s)
+        self.log.emit(s)
 
     def update_pos(self, pos):
         for axis, axis_pos in pos.items():
             self.axis_pos_label[axis].pos_value.setText('%0.3f' % axis_pos)
 
     def hal_progress(self, pos):
-        self.emit(SIGNAL('pos'), pos)
+        # self.pos.emit(pos)
+        pass
 
     def emit_pos(self, pos):
-        self.emit(SIGNAL('pos'), pos)
+        # self.pos.emit(pos)
+        pass
 
     def cmd_done(self, cmd, args, ret):
         print("FIXME: poll position instead of manually querying")
@@ -600,7 +605,7 @@ class MainWindow(QMainWindow):
         self.imager.add_planner_metadata(imagerj)
 
         self.pt = PlannerThread(self, rconfig, imagerj)
-        self.connect(self.pt, SIGNAL('log'), self.log)
+        self.log_msg.connect(self.log)
         self.pt.plannerDone.connect(self.plannerDone)
         self.setControlsEnabled(False)
         if dry:

@@ -1,6 +1,7 @@
-from PyQt4.Qt import Qt
-from PyQt4.QtGui import QSizePolicy, QApplication
-from PyQt4.QtGui import QWidget, QLabel
+from PyQt5.Qt import Qt
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
 import sys
 import traceback

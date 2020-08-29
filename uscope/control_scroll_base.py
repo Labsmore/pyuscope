@@ -1,5 +1,7 @@
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PyQt5 import Qt
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
 import os
 
@@ -13,6 +15,7 @@ def unpack_groupv(groupv):
         return groupv.get("name"), groupv.get("ro", True)
     else:
         return groupv, False
+
 
 class ImagerControlScroll(QScrollArea):
     def buttonLayout(self):
@@ -32,7 +35,6 @@ class ImagerControlScroll(QScrollArea):
 
         return layout
 
-
     def cal_load(self):
         j = config.cal_load(source=self.vidpip.source_name)
         if not j:
@@ -40,7 +42,8 @@ class ImagerControlScroll(QScrollArea):
         self.set_properties(j)
 
     def cal_save(self):
-        config.cal_save(source=self.vidpip.source_name, j=self.get_properties())
+        config.cal_save(source=self.vidpip.source_name,
+                        j=self.get_properties())
 
     def run(self):
         if self.update_timer:
@@ -66,6 +69,7 @@ class ImagerControlScroll(QScrollArea):
         Query all gstreamer properties and update sliders to reflect current state
         """
         self.set_properties(self.get_properties())
+
 
 class GstControlScroll(ImagerControlScroll):
     """
@@ -105,7 +109,6 @@ class GstControlScroll(ImagerControlScroll):
 
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.updateControls)
-
 
     def assemble_gint(self, name, layoutg, row, ps):
         def changed(name, value_label):

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
-from uscope.touptek_util import TTControlScroll
+from uscope.control_scroll import get_control_scroll
+from uscope.util import add_bool_arg
 
 from uscope.config import get_config
 from uscope.hal.img.imager import Imager
@@ -148,14 +149,7 @@ class PropertiesWindow(QMainWindow):
         self.default_pb = QPushButton("Default")
         layout.addWidget(self.default_pb)
 
-        # Need to hide this when not needed
-        if self.vidpip.source_name == "gst-toupcamsrc":
-            self.control_scroll = TTControlScroll(vidpip)
-        # elif self.vidpip.source_name == "gst-v4l2src":
-        #     self.control_scroll = V4L2ControlScroll(vidpip)
-        else:
-            self.control_scroll = None
-            print("WARNING: no control layout for source %s" % (self.vidpip.source_name,)) 
+        self.control_scroll = get_control_scroll(vidpip)
         layout.addWidget(self.control_scroll)
 
         w = QWidget()
@@ -172,14 +166,14 @@ class MainWindow(QMainWindow):
     cncProgress = pyqtSignal(int, int, str, int)
     snapshotCaptured = pyqtSignal(int)
 
-    def __init__(self, source=None):
+    def __init__(self, source=None, controls=False, roi=True):
         QMainWindow.__init__(self)
         self.showMaximized()
 
         # FIXME: pull from config file etc
         if source is None:
             pass
-        self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)
+        self.vidpip = GstVideoPipeline(source=source, full=True, roi=roi)
         # FIXME: review sizing
         self.vidpip.size_widgets(frac=0.5)
         # self.capture_sink = Gst.ElementFactory.make("capturesink")
@@ -212,7 +206,7 @@ class MainWindow(QMainWindow):
         self.initUI()
 
         self.propwin = None
-        if 0:
+        if controls:
             self.propwin = PropertiesWindow(self.vidpip, parent=self)
             self.activateWindow()
 
@@ -906,5 +900,16 @@ class MainWindow(QMainWindow):
             self.stop()
 
 
+def parse_args():
+    import argparse
+
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument('--controls', action="store_true")
+    add_bool_arg(parser, '--roi', default=True)
+    parser.add_argument('source', nargs="?", default=None)
+    args = parser.parse_args()
+
+    return vars(args)
+
 if __name__ == '__main__':
-    gstwidget_main(MainWindow)
+    gstwidget_main(MainWindow, parse_args=parse_args)

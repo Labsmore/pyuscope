@@ -2,50 +2,18 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 from collections import OrderedDict
-
-prop_layout = OrderedDict([
-    ("Black balance", {
-        "bb-r",
-        "bb-g",
-        "bb-b",
-    }),
-    ("White balance", {
-        "wb-r",
-        "wb-g",
-        "wb-b",
-    }),
-    ("HSV+", {
-        "hue",
-        "saturation",
-        "brightness",
-        "contrast",
-        "gamma",
-    }),
-    ("Exposure", {
-        "auto-exposure",
-        "expotime",
-    }),
-    ("Flip", {
-        "hflip",
-        "vflip",
-    }),
-    ("Misc", {
-        #"name": "esize", "ro": True,
-    }),
-])
-
 def unpack_groupv(groupv):
     if type(groupv) is dict:
         return groupv.get("name"), groupv.get("ro", True)
     else:
         return groupv, False
 
-class TTControlScroll(QScrollArea):
+class GstControlScroll(QScrollArea):
     """
     Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
     """
 
-    def __init__(self, vidpip, parent=None):
+    def __init__(self, vidpip, prop_layout, parent=None):
         QScrollArea.__init__(self, parent=parent)
 
         self.vidpip = vidpip

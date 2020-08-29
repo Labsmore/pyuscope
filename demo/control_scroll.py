@@ -5,7 +5,7 @@ No motion control
 """
 
 from uscope import gstwidget
-from uscope.touptek_util import TTControlScroll
+from uscope.control_scroll import get_control_scroll
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gst_util import CbSink
@@ -46,8 +46,9 @@ class TestGUI(QMainWindow):
         self.vidpip.setupWidgets()
 
         layout = QHBoxLayout()
-        self.control_scroll = TTControlScroll(self.vidpip)
-        layout.addWidget(self.control_scroll)
+        self.control_scroll = get_control_scroll(self.vidpip)
+        if self.control_scroll:
+            layout.addWidget(self.control_scroll)
         layout.addWidget(self.vidpip.full_widget)
 
         centralWidget = QWidget()

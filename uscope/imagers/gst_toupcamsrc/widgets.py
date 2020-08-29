@@ -23,6 +23,10 @@ prop_layout = OrderedDict([
         "contrast",
         "gamma",
     }),
+    ("AWB", {
+        "awb_rgb",
+        "awb_tt",
+    }),
     ("Exposure", {
         "auto-exposure",
         "expotime",

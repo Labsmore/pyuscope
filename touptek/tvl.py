@@ -6,7 +6,6 @@ No motion control
 
 from uscope import gstwidget
 from uscope.touptek_widget import TTControlScroll
-from uscope.control_scroll_base import cal_load, cal_save
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gst_util import CbSink

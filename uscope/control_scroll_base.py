@@ -2,9 +2,10 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 import os
-from uscope.util import writej, readj
 
 from collections import OrderedDict
+
+from uscope import config
 
 
 def unpack_groupv(groupv):
@@ -13,36 +14,71 @@ def unpack_groupv(groupv):
     else:
         return groupv, False
 
+class ImagerControlScroll(QScrollArea):
+    def buttonLayout(self):
+        layout = QHBoxLayout()
 
-class GstControlScroll(QScrollArea):
+        self.default_pb = QPushButton("Default")
+        layout.addWidget(self.default_pb)
+        self.default_pb.clicked.connect(self.defaultControls)
+
+        self.cal_save_pb = QPushButton("Cal save")
+        layout.addWidget(self.cal_save_pb)
+        self.cal_save_pb.clicked.connect(self.cal_save)
+
+        self.cal_load_pb = QPushButton("Cal load")
+        layout.addWidget(self.cal_load_pb)
+        self.cal_load_pb.clicked.connect(self.cal_load)
+
+        return layout
+
+
+    def cal_load(self):
+        j = config.cal_load(source=self.vidpip.source_name)
+        if not j:
+            return
+        self.set_properties(j)
+
+    def cal_save(self):
+        config.cal_save(source=self.vidpip.source_name, j=self.get_properties())
+
+    def run(self):
+        if self.update_timer:
+            self.update_timer.start(200)
+
+    def defaultControls(self):
+        """
+        Set all controls to their default values
+        """
+
+        print("default controls")
+        for name, widget in self.ctrls.items():
+            ps = self.vidpip.source.find_property(name)
+            if type(widget) == QSlider:
+                widget.setValue(ps.default_value)
+            elif type(widget) == QCheckBox:
+                widget.setChecked(ps.default_value)
+            else:
+                assert 0, type(widget)
+
+    def updateControls(self):
+        """
+        Query all gstreamer properties and update sliders to reflect current state
+        """
+        self.set_properties(self.get_properties())
+
+class GstControlScroll(ImagerControlScroll):
     """
     Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
     """
     def __init__(self, vidpip, prop_layout, parent=None):
-        QScrollArea.__init__(self, parent=parent)
+        ImagerControlScroll.__init__(self, parent=parent)
 
         self.vidpip = vidpip
 
         layout = QVBoxLayout()
 
-        def buttonLayout():
-            layout = QHBoxLayout()
-
-            self.default_pb = QPushButton("Default")
-            layout.addWidget(self.default_pb)
-            self.default_pb.clicked.connect(self.defaultControls)
-
-            self.cal_save_pb = QPushButton("Cal save")
-            layout.addWidget(self.cal_save_pb)
-            self.cal_save_pb.clicked.connect(self.cal_save)
-
-            self.cal_load_pb = QPushButton("Cal load")
-            layout.addWidget(self.cal_load_pb)
-            self.cal_load_pb.clicked.connect(self.cal_load)
-
-            return layout
-
-        layout.addLayout(buttonLayout())
+        layout.addLayout(self.buttonLayout())
 
         self.ctrls = {}
         self.properties = []
@@ -70,36 +106,6 @@ class GstControlScroll(QScrollArea):
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.updateControls)
 
-    def cal_load(self, lazy=False):
-        cal_load(self, lazy=lazy)
-
-    def cal_save(self):
-        cal_save(self)
-
-    def run(self):
-        if self.update_timer:
-            self.update_timer.start(200)
-
-    def defaultControls(self):
-        """
-        Set all controls to their default values
-        """
-
-        print("default controls")
-        for name, widget in self.ctrls.items():
-            ps = self.vidpip.source.find_property(name)
-            if type(widget) == QSlider:
-                widget.setValue(ps.default_value)
-            elif type(widget) == QCheckBox:
-                widget.setChecked(ps.default_value)
-            else:
-                assert 0, type(widget)
-
-    def updateControls(self):
-        """
-        Query all gstreamer properties and update sliders to reflect current state
-        """
-        self.set_properties(self.get_properties())
 
     def assemble_gint(self, name, layoutg, row, ps):
         def changed(name, value_label):
@@ -186,20 +192,3 @@ class GstControlScroll(QScrollArea):
                 widget.setChecked(val)
             else:
                 assert 0, type(widget)
-
-
-def cal_load(control_scroll, lazy=False):
-    config_dir = "config"
-    fn = os.path.join(config_dir, "imager_calibration.json")
-    if lazy and not os.path.exists(fn):
-        return
-    control_scroll.set_properties(readj(fn))
-
-
-def cal_save(control_scroll):
-    config_dir = "config"
-    if not os.path.exists(config_dir):
-        os.mkdir(config_dir)
-    fn = os.path.join(config_dir, "imager_calibration.json")
-    print("Saving cal to %s" % fn)
-    writej(fn, control_scroll.get_properties())

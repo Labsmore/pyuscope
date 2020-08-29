@@ -77,7 +77,7 @@ class GstVideoPipeline:
         # Must not be initialized until after layout is set
         # print(source)
         # assert 0
-        if source is None:
+        if source is None or source == "auto":
             # XXX: is there a way to see if a camera is attached?
             source = 'gst-toupcamsrc'
         self.source_name = source

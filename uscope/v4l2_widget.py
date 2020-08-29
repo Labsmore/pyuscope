@@ -29,8 +29,8 @@ class V4L2GstControlScroll(GstControlScroll):
 """
 acts on file descriptor directly via v4l2 API
 (like on old GUI)
+"""
 
 class V4L2ApiControlScroll(QScrollArea):
     def __init__(self, vidpip, parent=None):
         QScrollArea.__init__(self, parent=parent)
-"""

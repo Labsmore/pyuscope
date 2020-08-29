@@ -160,7 +160,7 @@ class PropertiesWindow(QMainWindow):
         if show and self.control_scroll:
             self.show()
         self.control_scroll.run()
-        self.control_scroll.cal_load(lazy=True)
+        self.control_scroll.cal_load()
 
         dbg("initUI done")
 
@@ -169,13 +169,16 @@ class MainWindow(QMainWindow):
     cncProgress = pyqtSignal(int, int, str, int)
     snapshotCaptured = pyqtSignal(int)
 
-    def __init__(self, source=None, controls=False, roi=True):
+    def __init__(self, source=None, controls=False):
         QMainWindow.__init__(self)
         self.showMaximized()
 
         # FIXME: pull from config file etc
         if source is None:
-            pass
+            source = uconfig["imager"]["source"]
+        # FIXME: hack
+        # https://github.com/JohnDMcMaster/pyuscope/issues/17
+        roi = source != "gst-v4l2src"
         self.vidpip = GstVideoPipeline(source=source, full=True, roi=roi)
         # FIXME: review sizing
         self.vidpip.size_widgets(frac=0.5)
@@ -915,7 +918,6 @@ def parse_args():
 
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--controls', action="store_true")
-    add_bool_arg(parser, '--roi', default=True)
     parser.add_argument('source', nargs="?", default=None)
     args = parser.parse_args()
 

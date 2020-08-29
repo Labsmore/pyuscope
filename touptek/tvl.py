@@ -5,10 +5,10 @@ No motion control
 """
 
 from uscope import gstwidget
-from uscope.touptek_widget import TTControlScroll
-
+from uscope.imagers.gst_toupcamsrc.widgets import TTControlScroll
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gst_util import CbSink
+
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 

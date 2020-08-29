@@ -3,7 +3,7 @@ from PyQt4.QtCore import *
 
 from collections import OrderedDict
 
-from .control_scroll_base import GstControlScroll
+from uscope.control_scroll_base import GstControlScroll
 
 prop_layout = OrderedDict([
     ("Black balance", {

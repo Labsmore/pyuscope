@@ -1,12 +1,12 @@
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-
-from .control_scroll_base import GstControlScroll
+from uscope.control_scroll_base import GstControlScroll
+from uscope.imagers.gst_toupcamsrc.widgets import TTControlScroll
+from uscope.imagers.gst_v4l2src.widgets import V4L2GstControlScroll
+from uscope.imagers.gst_v4l2src_mu800.widgets import V4L2MU800ControlScroll
 
 from collections import OrderedDict
 
-from uscope.touptek_widget import TTControlScroll
-from uscope.v4l2_widget import V4L2GstControlScroll, V4L2ApiControlScroll
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
 
 prop_layout = OrderedDict([
     ("Unknown", {
@@ -27,7 +27,7 @@ def get_control_scroll(vidpip):
     elif vidpip.source_name == "gst-v4l2src":
         return V4L2GstControlScroll(vidpip)
     elif vidpip.source_name == "gst-v4l2src-mu800":
-        return V4L2ApiControlScroll(vidpip)
+        return V4L2MU800ControlScroll(vidpip)
     else:
         print("WARNING: no control layout for source %s" %
               (vidpip.source_name, ))

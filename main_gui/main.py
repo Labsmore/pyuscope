@@ -398,15 +398,15 @@ class MainWindow(QMainWindow):
     def dry(self):
         return self.dry_cb.isChecked()
 
-    def pause(self):
-        if self.pause_pb.text() == 'Pause':
-            self.pause_pb.setText('Run')
+    def stop(self):
+        if self.stop_pb.text() == 'Pause':
+            self.stop_pb.setText('Run')
             self.cnc_thread.setRunning(False)
             if self.pt:
                 self.pt.setRunning(False)
             self.log('Pause requested')
         else:
-            self.pause_pb.setText('Pause')
+            self.stop_pb.setText('Pause')
             self.cnc_thread.setRunning(True)
             if self.pt:
                 self.pt.setRunning(True)
@@ -575,7 +575,7 @@ class MainWindow(QMainWindow):
         self.pt.start()
 
     def setControlsEnabled(self, yes):
-        self.go_pb.setEnabled(yes)
+        self.go_pause_pb.setEnabled(yes)
         self.mv_abs_pb.setEnabled(yes)
         self.mv_rel_pb.setEnabled(yes)
         self.snapshot_pb.setEnabled(yes)
@@ -796,28 +796,45 @@ class MainWindow(QMainWindow):
         self.snapshot_pb.setEnabled(True)
 
     def get_scan_layout(self):
+        """
+        Line up Go/Stop w/ "Job name" to make visually appealing
+        """
+
         gb = QGroupBox('Scan')
-        layout = QGridLayout()
+        layout = QVBoxLayout()
 
-        # TODO: add overlap widgets
+        def jobLayout():
+            layout = QHBoxLayout()
 
-        layout.addWidget(QLabel('Job name'), 0, 0)
-        self.job_name_le = QLineEdit('default')
-        layout.addWidget(self.job_name_le, 0, 1)
-        self.go_pb = QPushButton("Go")
-        self.go_pb.clicked.connect(self.run)
-        layout.addWidget(self.go_pb, 1, 0)
-        self.pb = QProgressBar()
-        layout.addWidget(self.pb, 1, 1)
-        layout.addWidget(QLabel('Dry?'), 2, 0)
-        self.dry_cb = QCheckBox()
-        self.dry_cb.setChecked(self.uconfig['cnc']['dry'])
-        layout.addWidget(self.dry_cb, 2, 1)
+            layout.addWidget(QLabel('Job name'))
+            self.job_name_le = QLineEdit('default')
+            layout.addWidget(self.job_name_le)
 
-        self.pause_pb = QPushButton("Pause")
-        self.pause_pb.clicked.connect(self.pause)
-        layout.addWidget(self.pause_pb, 3, 0)
+            layout.addWidget(QLabel('Dry?'))
+            self.dry_cb = QCheckBox()
+            self.dry_cb.setChecked(self.uconfig['cnc']['dry'])
+            layout.addWidget(self.dry_cb)
 
+            return layout
+
+        def goLayout():
+            layout = QHBoxLayout()
+
+            self.go_pause_pb = QPushButton("Go")
+            self.go_pause_pb.clicked.connect(self.run)
+            layout.addWidget(self.go_pause_pb)
+
+            self.stop_pb = QPushButton("Stop")
+            self.stop_pb.clicked.connect(self.stop)
+            layout.addWidget(self.stop_pb)
+
+            self.pb = QProgressBar()
+            layout.addWidget(self.pb)
+
+            return layout
+
+        layout.addLayout(jobLayout())
+        layout.addLayout(goLayout())
         gb.setLayout(layout)
         return gb
 

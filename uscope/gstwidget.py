@@ -97,7 +97,6 @@ class GstVideoPipeline:
         # Needs to be done early so elements can be added before main setup
         self.player = Gst.Pipeline("player")
 
-
     def size_widgets(self, w=None, h=None, frac=None):
         """
         For now this needs to be called early
@@ -138,7 +137,7 @@ class GstVideoPipeline:
 
         self.full_widget_w = w
         self.full_widget_h = h
-        
+
         if self.full_widget:
             self.full_widget.setMinimumSize(self.full_widget_w,
                                             self.full_widget_h)
@@ -152,7 +151,7 @@ class GstVideoPipeline:
 
         if self.roi_widget:
             self.roi_widget.setMinimumSize(self.roi_widget_w,
-                                            self.roi_widget_h)
+                                           self.roi_widget_h)
             self.roi_widget.resize(self.roi_widget_w, self.roi_widget_h)
 
     def fit_pix(self, w, h):
@@ -258,7 +257,7 @@ class GstVideoPipeline:
                     self.player.add(dst)
                 except gi.overrides.Gst.AddError:
                     pass
-                    print("WARNING: failed to add %s" % (dst,))
+                    print("WARNING: failed to add %s" % (dst, ))
             src.link(dst)
             print("tee simple link %s => %s" % (src, dst))
         else:
@@ -277,7 +276,7 @@ class GstVideoPipeline:
                         self.player.add(dst)
                     except gi.overrides.Gst.AddError:
                         pass
-                        print("WARNING: failed to add %s" % (dst,))
+                        print("WARNING: failed to add %s" % (dst, ))
                 assert queue.link(dst)
                 print("tee queue link %s => %s" % (src, dst))
 
@@ -464,4 +463,3 @@ def gstwidget_main(AQMainWindow, parse_args=default_parse_args):
     # Is it simply not running?
     # must be what pygst is doing
     sys.exit(app.exec_())
-

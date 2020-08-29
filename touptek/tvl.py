@@ -6,6 +6,7 @@ No motion control
 
 from uscope import gstwidget
 from uscope.touptek_widget import TTControlScroll
+from uscope.control_scroll_base import cal_load, cal_save
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gst_util import CbSink
@@ -29,6 +30,7 @@ Initialization constraints:
 
 import datetime
 import os
+
 
 class TestGUI(QMainWindow):
     def __init__(self, source=None, esize=None):
@@ -110,12 +112,8 @@ class TestGUI(QMainWindow):
         #print(dir(self.vidpip.source))
         #assert 0
 
-
         def buttonBarLayout():
             layout = QHBoxLayout()
-
-            self.default_pb = QPushButton("Default")
-            layout.addWidget(self.default_pb)
 
             btn = QPushButton("Snapshot")
 
@@ -125,7 +123,6 @@ class TestGUI(QMainWindow):
             btn.clicked.connect(requestSnapshot)
             layout.addWidget(btn)
 
-            layout.addWidget(QPushButton("Z"))
             return layout
 
         def liveTabWidget():
@@ -151,8 +148,6 @@ class TestGUI(QMainWindow):
         layout = QVBoxLayout()
         layout.addLayout(buttonBarLayout())
         layout.addLayout(lowerlLayout())
-
-        self.default_pb.clicked.connect(self.control_scroll.defaultControls)
 
         centralWidget = QWidget()
         centralWidget.setLayout(layout)

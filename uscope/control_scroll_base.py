@@ -1,27 +1,50 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
+import os
+from uscope.util import writej, readj
+
 from collections import OrderedDict
+
+
 def unpack_groupv(groupv):
     if type(groupv) is dict:
         return groupv.get("name"), groupv.get("ro", True)
     else:
         return groupv, False
 
+
 class GstControlScroll(QScrollArea):
     """
     Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
     """
-
     def __init__(self, vidpip, prop_layout, parent=None):
         QScrollArea.__init__(self, parent=parent)
 
         self.vidpip = vidpip
 
         layout = QVBoxLayout()
-        row = 0
-        self.ctrls = {}
 
+        def buttonLayout():
+            layout = QHBoxLayout()
+
+            self.default_pb = QPushButton("Default")
+            layout.addWidget(self.default_pb)
+            self.default_pb.clicked.connect(self.defaultControls)
+
+            self.cal_save_pb = QPushButton("Cal save")
+            layout.addWidget(self.cal_save_pb)
+            self.cal_save_pb.clicked.connect(self.cal_save)
+
+            self.cal_load_pb = QPushButton("Cal load")
+            layout.addWidget(self.cal_load_pb)
+            self.cal_load_pb.clicked.connect(self.cal_load)
+
+            return layout
+
+        layout.addLayout(buttonLayout())
+
+        self.ctrls = {}
         self.properties = []
 
         for group_name, group in prop_layout.items():
@@ -30,6 +53,7 @@ class GstControlScroll(QScrollArea):
             layout.addWidget(groupbox)
 
             layoutg = QGridLayout()
+            row = 0
             groupbox.setLayout(layoutg)
 
             for groupv in group:
@@ -45,6 +69,12 @@ class GstControlScroll(QScrollArea):
 
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.updateControls)
+
+    def cal_load(self, lazy=False):
+        cal_load(self, lazy=lazy)
+
+    def cal_save(self):
+        cal_save(self)
 
     def run(self):
         if self.update_timer:
@@ -69,14 +99,7 @@ class GstControlScroll(QScrollArea):
         """
         Query all gstreamer properties and update sliders to reflect current state
         """
-        for name, widget in self.ctrls.items():
-            val = self.vidpip.source.get_property(name)
-            if type(widget) == QSlider:
-                widget.setValue(val)
-            elif type(widget) == QCheckBox:
-                widget.setChecked(val)
-            else:
-                assert 0, type(widget)
+        self.set_properties(self.get_properties())
 
     def assemble_gint(self, name, layoutg, row, ps):
         def changed(name, value_label):
@@ -144,3 +167,39 @@ class GstControlScroll(QScrollArea):
         else:
             assert 0, (name, ps.value_type.name)
         return row
+
+    def get_properties(self):
+        """
+        Return dict containing property values
+        """
+        ret = {}
+        for name in self.ctrls.keys():
+            ret[name] = self.vidpip.source.get_property(name)
+        return ret
+
+    def set_properties(self, vals):
+        for name, widget in self.ctrls.items():
+            val = vals[name]
+            if type(widget) == QSlider:
+                widget.setValue(val)
+            elif type(widget) == QCheckBox:
+                widget.setChecked(val)
+            else:
+                assert 0, type(widget)
+
+
+def cal_load(control_scroll, lazy=False):
+    config_dir = "config"
+    fn = os.path.join(config_dir, "imager_calibration.json")
+    if lazy and not os.path.exists(fn):
+        return
+    control_scroll.set_properties(readj(fn))
+
+
+def cal_save(control_scroll):
+    config_dir = "config"
+    if not os.path.exists(config_dir):
+        os.mkdir(config_dir)
+    fn = os.path.join(config_dir, "imager_calibration.json")
+    print("Saving cal to %s" % fn)
+    writej(fn, control_scroll.get_properties())

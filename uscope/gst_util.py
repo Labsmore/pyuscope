@@ -19,6 +19,7 @@ from gi.repository import Gst
 Gst.init(None)
 from gi.repository import GstBase, GObject
 
+
 class CbSink(GstBase.BaseSink):
     """
     Simple capture sink providing callback
@@ -65,6 +66,7 @@ class CbSink(GstBase.BaseSink):
             buffer.unmap(mapinfo)
 
         return Gst.FlowReturn.OK
+
 
 class CaptureSink(CbSink):
     """
@@ -142,6 +144,6 @@ class CaptureSink(CbSink):
 GObject.type_register(CbSink)
 GObject.type_register(CaptureSink)
 __gstelementfactory__ = (
-                        ("cbsink", Gst.Rank.NONE, CbSink),
-                        ("capturesink", Gst.Rank.NONE, CaptureSink),
-                        )
+    ("cbsink", Gst.Rank.NONE, CbSink),
+    ("capturesink", Gst.Rank.NONE, CaptureSink),
+)

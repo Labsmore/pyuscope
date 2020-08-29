@@ -34,8 +34,11 @@ defaults = {
 }
 
 
-def get_config(fn='microscope.json'):
-    j = json.load(open('microscope.json'), object_pairs_hook=OrderedDict)
+def get_config(config_dir=None):
+    if config_dir is None:
+        config_dir = "config"
+    j = json.load(open(os.path.join(config_dir, "microscope.json")),
+                  object_pairs_hook=OrderedDict)
 
     def default(rootj, rootd):
         for k, v in rootd.items():

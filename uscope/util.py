@@ -3,6 +3,7 @@ import inspect
 import os
 import shutil
 import sys
+import json
 
 
 def print_debug(s=None):
@@ -188,3 +189,12 @@ class IOLog(object):
     def write(self, data):
         self.fd.write(data)
         self.out_fd.write(data)
+
+
+def writej(fn, j):
+    open(fn, 'w').write(
+        json.dumps(j, sort_keys=True, indent=4, separators=(',', ': ')))
+
+
+def readj(fn):
+    return json.load(open(fn, 'r'))

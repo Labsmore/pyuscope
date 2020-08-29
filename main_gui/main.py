@@ -3,6 +3,7 @@
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.control_scroll import get_control_scroll
 from uscope.util import add_bool_arg
+from uscope import control_scroll_base
 
 from uscope.config import get_config
 from uscope.hal.img.imager import Imager
@@ -94,6 +95,7 @@ def get_cnc_hal(log):
         return cnc_hal.MockHal(log=log)
     '''
 
+
 class GstImager(Imager):
     def __init__(self, gui):
         Imager.__init__(self)
@@ -122,7 +124,6 @@ class GstImager(Imager):
         #    scaled.save(file_name_out)
         return scaled
 
-
     def add_planner_metadata(self, imagerj):
         """
         # TODO: instead dump from actual v4l
@@ -138,16 +139,16 @@ class GstImager(Imager):
 Placeholder class
 These are disabled right now and movement must be done from X GUI
 """
+
+
 class LCNCMovement:
     pass
 
+
 class PropertiesWindow(QMainWindow):
-    def __init__(self, vidpip, parent=None):
+    def __init__(self, vidpip, show=True, parent=None):
         super(PropertiesWindow, self).__init__(parent)
         layout = QHBoxLayout()
-
-        self.default_pb = QPushButton("Default")
-        layout.addWidget(self.default_pb)
 
         self.control_scroll = get_control_scroll(vidpip)
         layout.addWidget(self.control_scroll)
@@ -155,13 +156,14 @@ class PropertiesWindow(QMainWindow):
         w = QWidget()
         w.setLayout(layout)
         self.setCentralWidget(w)
-        
-        if self.control_scroll:
-            self.default_pb.clicked.connect(self.control_scroll.defaultControls)
+
+        if show and self.control_scroll:
             self.show()
         self.control_scroll.run()
+        self.control_scroll.cal_load(lazy=True)
 
         dbg("initUI done")
+
 
 class MainWindow(QMainWindow):
     cncProgress = pyqtSignal(int, int, str, int)
@@ -207,9 +209,10 @@ class MainWindow(QMainWindow):
         self.initUI()
 
         self.propwin = None
-        if controls:
-            self.propwin = PropertiesWindow(self.vidpip, parent=self)
-            self.activateWindow()
+        self.propwin = PropertiesWindow(self.vidpip,
+                                        show=controls,
+                                        parent=self)
+        self.activateWindow()
 
         self.vid_fd = None
 
@@ -225,7 +228,6 @@ class MainWindow(QMainWindow):
         self.vidpip.run()
 
         self.init_imager()
-
 
         if self.uconfig['cnc']['startup_run']:
             self.run()
@@ -585,13 +587,15 @@ class MainWindow(QMainWindow):
 
         imagerj = {}
         imagerj["microscope.json"] = uconfig
+        uconfig["imager"][
+            "calibration"] = self.propwin.control_scroll.get_properties()
 
         # not sure if this is the right place to add this
         # imagerj['copyright'] = "&copy; %s John McMaster, CC-BY" % datetime.datetime.today().year
         imagerj['objective'] = rconfig['obj']
 
         self.imager.add_planner_metadata(imagerj)
-    
+
         self.pt = PlannerThread(self, rconfig, imagerj)
         self.connect(self.pt, SIGNAL('log'), self.log)
         self.pt.plannerDone.connect(self.plannerDone)
@@ -622,6 +626,7 @@ class MainWindow(QMainWindow):
         # Prevent accidental start after done
         self.dry_cb.setChecked(True)
 
+    """
     def stop(self):
         '''Stop operations after the next operation'''
         self.cnc_thread.stop()
@@ -633,6 +638,7 @@ class MainWindow(QMainWindow):
     def clear_estop(self):
         '''Stop operations immediately.  Position state may become corrupted'''
         self.cnc_thread.unestop()
+    """
 
     def set_start_pos(self):
         '''
@@ -713,7 +719,7 @@ class MainWindow(QMainWindow):
         self.plan_y1_le = QLineEdit('0.000')
         gl.addWidget(self.plan_y1_le, row, 2)
         row += 1
-        
+
         gb = QGroupBox('Axes')
         gb.setLayout(gl)
         return gb
@@ -743,12 +749,12 @@ class MainWindow(QMainWindow):
         self.snapshot_suffix_le = QLineEdit('.jpg')
         # XXX: since we already have jpegenc this is questionable
         self.snapshot_suffix_le.setEnabled(False)
-        self.snapshot_suffix_le.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
+        self.snapshot_suffix_le.setSizePolicy(
+            QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
         hl = QHBoxLayout()
         hl.addWidget(self.snapshot_fn_le)
         hl.addWidget(self.snapshot_suffix_le)
         layout.addLayout(hl, 0, 1)
-
 
         gb.setLayout(layout)
         return gb
@@ -771,7 +777,8 @@ class MainWindow(QMainWindow):
         # if self.prefix_date_cb.isChecked():
         if 1:
             # 2020-08-12_06-46-21
-            prefix = datetime.datetime.utcnow().isoformat().replace('T', '_').replace(':', '-').split('.')[0] + "_"
+            prefix = datetime.datetime.utcnow().isoformat().replace(
+                'T', '_').replace(':', '-').split('.')[0] + "_"
 
         extension = str(self.snapshot_suffix_le.text())
 
@@ -780,7 +787,8 @@ class MainWindow(QMainWindow):
             mod_str = ''
             if mod:
                 mod_str = '_%u' % mod
-            fn_full = os.path.join(self.uconfig['imager']['snapshot_dir'], prefix + user + mod_str + extension)
+            fn_full = os.path.join(self.uconfig['imager']['snapshot_dir'],
+                                   prefix + user + mod_str + extension)
             if os.path.exists(fn_full):
                 if mod is None:
                     mod = 1
@@ -791,10 +799,11 @@ class MainWindow(QMainWindow):
 
     def captureSnapshot(self, image_id):
         self.log('RX image for saving')
+
         def try_save():
             image = self.capture_sink.pop_image(image_id)
             fn_full = self.snapshot_fn()
-            self.log('Capturing %s...' % fn_full)            
+            self.log('Capturing %s...' % fn_full)
             factor = float(self.uconfig['imager']['scalar'])
             # Use a reasonably high quality filter
             try:
@@ -802,6 +811,7 @@ class MainWindow(QMainWindow):
             # FIXME: refine
             except Exception:
                 self.log('WARNING: failed to save %s' % fn_full)
+
         try_save()
 
         self.snapshot_pb.setEnabled(True)
@@ -850,7 +860,6 @@ class MainWindow(QMainWindow):
             layout.addWidget(self.pb)
 
             return layout
-
 
         layout.addLayout(leftLayout())
         layout.addLayout(rightLayout())
@@ -911,6 +920,7 @@ def parse_args():
     args = parser.parse_args()
 
     return vars(args)
+
 
 if __name__ == '__main__':
     gstwidget_main(MainWindow, parse_args=parse_args)

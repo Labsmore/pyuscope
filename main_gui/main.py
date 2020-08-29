@@ -430,10 +430,10 @@ class MainWindow(QMainWindow):
             # scan_json['overlap'] = float(self.overlap_le.text())
             # scan_json['border'] = float(self.border_le.text())
 
-            scan_json['start']['x'] = float(self.start_pos_x_le.text())
-            scan_json['start']['y'] = float(self.start_pos_y_le.text())
-            scan_json['end']['x'] = float(self.end_pos_x_le.text())
-            scan_json['end']['y'] = float(self.end_pos_y_le.text())
+            scan_json['start']['x'] = float(self.plan_x0_le.text())
+            scan_json['start']['y'] = float(self.plan_y0_le.text())
+            scan_json['end']['x'] = float(self.plan_x1_le.text())
+            scan_json['end']['y'] = float(self.plan_y1_le.text())
         except ValueError:
             self.log("Bad position")
             return False
@@ -608,12 +608,12 @@ class MainWindow(QMainWindow):
     def set_start_pos(self):
         '''
         try:
-            lex = float(self.start_pos_x_le.text())
+            lex = float(self.plan_x0_le.text())
         except ValueError:
             self.log('WARNING: bad X value')
 
         try:
-            ley = float(self.start_pos_y_le.text())
+            ley = float(self.plan_y0_le.text())
         except ValueError:
             self.log('WARNING: bad Y value')
         '''
@@ -621,8 +621,8 @@ class MainWindow(QMainWindow):
         # this is the current XY position
         pos = self.cnc_thread.pos()
         #self.log("Updating start pos w/ %s" % (str(pos)))
-        self.start_pos_x_le.setText('%0.3f' % pos['x'])
-        self.start_pos_y_le.setText('%0.3f' % pos['y'])
+        self.plan_x0_le.setText('%0.3f' % pos['x'])
+        self.plan_y0_le.setText('%0.3f' % pos['y'])
 
     def set_end_pos(self):
         # take as lower right corner of view area
@@ -634,100 +634,59 @@ class MainWindow(QMainWindow):
             'height'] / self.uconfig['imager']['width']
         x1 = pos['x'] + x_view
         y1 = pos['y'] + y_view
-        self.end_pos_x_le.setText('%0.3f' % x1)
-        self.end_pos_y_le.setText('%0.3f' % y1)
+        self.plan_x1_le.setText('%0.3f' % x1)
+        self.plan_y1_le.setText('%0.3f' % y1)
 
-    def get_axes_layout(self):
-        def get_general_layout():
-            layout = QVBoxLayout()
+    def get_axes_gb(self):
+        """
+        Grid layout
+        3w x 4h
 
-            def get_go():
-                layout = QHBoxLayout()
+                X   Y
+        Current
+        Start
+        End
+        
+        start, end should be buttons to snap current position
+        """
 
-                self.ret0_pb = QPushButton("Ret0 all")
-                self.ret0_pb.clicked.connect(self.ret0)
-                layout.addWidget(self.ret0_pb)
+        gl = QGridLayout()
+        row = 0
 
-                self.mv_abs_pb = QPushButton("Go abs all")
-                self.mv_abs_pb.clicked.connect(self.mv_abs)
-                layout.addWidget(self.mv_abs_pb)
+        gl.addWidget(QLabel("X (mm)"), row, 1)
+        gl.addWidget(QLabel("Y (mm)"), row, 2)
+        row += 1
 
-                self.mv_rel_pb = QPushButton("Go rel all")
-                self.mv_rel_pb.clicked.connect(self.mv_rel)
-                layout.addWidget(self.mv_rel_pb)
+        self.axis_pos_label = {}
+        gl.addWidget(QLabel("Current"), row, 0)
+        label = QLabel("?")
+        gl.addWidget(label, row, 1)
+        self.axis_pos_label['x'] = label
+        label = QLabel("?")
+        gl.addWidget(label, row, 2)
+        self.axis_pos_label['y'] = label
+        row += 1
 
-                return layout
+        self.plan_start_pb = QPushButton("Start")
+        self.plan_start_pb.clicked.connect(self.set_start_pos)
+        gl.addWidget(self.plan_start_pb, row, 0)
+        self.plan_x0_le = QLineEdit('0.000')
+        gl.addWidget(self.plan_x0_le, row, 1)
+        self.plan_y0_le = QLineEdit('0.000')
+        gl.addWidget(self.plan_y0_le, row, 2)
+        row += 1
 
-            def get_stop():
-                layout = QHBoxLayout()
-
-                self.stop_pb = QPushButton("Stop")
-                self.stop_pb.clicked.connect(self.stop)
-                layout.addWidget(self.stop_pb)
-
-                self.estop_pb = QPushButton("Emergency stop")
-                self.estop_pb.clicked.connect(self.estop)
-                layout.addWidget(self.estop_pb)
-
-                self.clear_estop_pb = QPushButton("Clear e-stop")
-                self.clear_estop_pb.clicked.connect(self.clear_estop)
-                layout.addWidget(self.clear_estop_pb)
-
-                return layout
-
-            def get_pos_start():
-                layout = QHBoxLayout()
-
-                layout.addWidget(QLabel("Start X0 Y0"))
-                self.start_pos_x_le = QLineEdit('0.0')
-                layout.addWidget(self.start_pos_x_le)
-                self.start_pos_y_le = QLineEdit('0.0')
-                layout.addWidget(self.start_pos_y_le)
-                self.start_pos_pb = QPushButton("Set")
-                self.start_pos_pb.clicked.connect(self.set_start_pos)
-                layout.addWidget(self.start_pos_pb)
-
-                return layout
-
-            def get_pos_end():
-                layout = QHBoxLayout()
-
-                layout.addWidget(QLabel("End X0 Y0"))
-                self.end_pos_x_le = QLineEdit('0.0')
-                layout.addWidget(self.end_pos_x_le)
-                self.end_pos_y_le = QLineEdit('0.0')
-                layout.addWidget(self.end_pos_y_le)
-                self.end_pos_pb = QPushButton("Set")
-                self.end_pos_pb.clicked.connect(self.set_end_pos)
-                layout.addWidget(self.end_pos_pb)
-
-                return layout
-
-            layout.addLayout(get_go())
-            layout.addLayout(get_stop())
-            layout.addLayout(get_pos_start())
-            layout.addLayout(get_pos_end())
-            return layout
-
-        def getPosLayout():
-            self.axis_pos_label = {}
-            dbg('Axes: %u' % len(self.cnc_thread.hal.axes()))
-            gl = QGridLayout()
-            row = 0
-            for axis in sorted(self.cnc_thread.hal.axes()):
-                gl.addWidget(QLabel("%s pos (mm):" % axis), row, 0)
-                axis_pos_label = QLabel("Unknown")
-                self.axis_pos_label[axis] = axis_pos_label
-                gl.addWidget(axis_pos_label, row, 1)
-                row += 1
-            return gl
-    
-        layout = QHBoxLayout()
-        layout.addLayout(get_general_layout())
-        layout.addLayout(getPosLayout())
-
+        self.plan_end_pb = QPushButton("End")
+        self.plan_end_pb.clicked.connect(self.set_end_pos)
+        gl.addWidget(self.plan_end_pb, row, 0)
+        self.plan_x1_le = QLineEdit('0.000')
+        gl.addWidget(self.plan_x1_le, row, 1)
+        self.plan_y1_le = QLineEdit('0.000')
+        gl.addWidget(self.plan_y1_le, row, 2)
+        row += 1
+        
         gb = QGroupBox('Axes')
-        gb.setLayout(layout)
+        gb.setLayout(gl)
         return gb
 
     def get_snapshot_layout(self):
@@ -864,7 +823,7 @@ class MainWindow(QMainWindow):
 
     def get_bottom_layout(self):
         layout = QHBoxLayout()
-        layout.addWidget(self.get_axes_layout())
+        layout.addWidget(self.get_axes_gb())
 
         def get_lr_layout():
             layout = QVBoxLayout()

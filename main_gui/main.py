@@ -13,6 +13,7 @@ from uscope.hal.cnc import lcnc_ar
 from uscope.hal.cnc import lcnc as lcnc_hal
 from uscope.lcnc.client import LCNCRPC
 from uscope import gst_util
+from uscope.gst_util import Gst, CaptureSink
 from uscope.v4l2_util import ctrl_set
 
 from main_gui.threads import CncThread, PlannerThread
@@ -179,7 +180,16 @@ class MainWindow(QMainWindow):
         self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)
         # FIXME: review sizing
         self.vidpip.size_widgets(frac=0.5)
-        self.vidpip.setupGst(raw_tees=[])
+        # self.capture_sink = Gst.ElementFactory.make("capturesink")
+
+        self.jpegenc = Gst.ElementFactory.make("jpegenc")
+        self.vidpip.player.add(self.jpegenc)
+
+        self.capture_sink = CaptureSink()
+        assert self.capture_sink
+        self.vidpip.player.add(self.capture_sink)
+        self.vidpip.setupGst(raw_tees=[self.jpegenc])
+        self.jpegenc.link(self.capture_sink)
 
         self.uconfig = uconfig
 
@@ -189,6 +199,7 @@ class MainWindow(QMainWindow):
         # Special case for logging that might occur out of thread
         self.connect(self, SIGNAL('log'), self.log)
         self.connect(self, SIGNAL('pos'), self.update_pos)
+        self.snapshotCaptured.connect(self.captureSnapshot)
 
         self.pt = None
         self.log_fd = None
@@ -197,8 +208,11 @@ class MainWindow(QMainWindow):
         self.cnc_thread = CncThread(hal=hal, cmd_done=self.cmd_done)
         self.connect(self.cnc_thread, SIGNAL('log'), self.log)
         self.initUI()
-        self.propwin = PropertiesWindow(self.vidpip, parent=self)
-        self.activateWindow()
+
+        self.propwin = None
+        if 0:
+            self.propwin = PropertiesWindow(self.vidpip, parent=self)
+            self.activateWindow()
 
         self.vid_fd = None
 
@@ -228,6 +242,8 @@ class MainWindow(QMainWindow):
             self.pt = None
 
     def log(self, s='', newline=True):
+        s = str(s)
+        print("LOG: %s" % s)
         if newline:
             s += '\n'
 
@@ -729,7 +745,11 @@ class MainWindow(QMainWindow):
         # d = QFileDialog.getExistingDirectory(self, 'Select snapshot directory', snapshot_dir)
 
         self.snapshot_serial = -1
-        layout.addWidget(QLabel('File name'), 0, 0)
+
+        self.snapshot_pb = QPushButton("Snap")
+        self.snapshot_pb.clicked.connect(self.take_snapshot)
+        layout.addWidget(self.snapshot_pb, 0, 0)
+
         self.snapshot_fn_le = QLineEdit('snapshot')
         self.snapshot_suffix_le = QLineEdit('.jpg')
         self.snapshot_suffix_le.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
@@ -738,8 +758,6 @@ class MainWindow(QMainWindow):
         hl.addWidget(self.snapshot_suffix_le)
         layout.addLayout(hl, 0, 1)
 
-        self.snapshot_pb = QPushButton("Snapshot")
-        self.snapshot_pb.clicked.connect(self.take_snapshot)
 
         gb.setLayout(layout)
         return gb
@@ -759,7 +777,8 @@ class MainWindow(QMainWindow):
         user = str(self.snapshot_fn_le.text())
 
         prefix = ''
-        if self.prefix_date_cb.isChecked():
+        # if self.prefix_date_cb.isChecked():
+        if 1:
             # 2020-08-12_06-46-21
             prefix = datetime.datetime.utcnow().isoformat().replace('T', '_').replace(':', '-').split('.')[0] + "_"
 

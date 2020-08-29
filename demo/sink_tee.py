@@ -5,7 +5,8 @@ Demonstrates splitting the pipeline into:
 -saving .jpg or raw to disk
 """
 
-from uscope.gstwidget import GstVideoPipeline, gstwidget_main, CbSink, Gst
+from uscope.gstwidget import GstVideoPipeline, gstwidget_main, Gst
+from uscope.gst_util import CbSink
 from PyQt4.QtGui import QMainWindow, QHBoxLayout, QWidget
 
 

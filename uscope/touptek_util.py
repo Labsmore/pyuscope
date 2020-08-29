@@ -108,6 +108,7 @@ class TTControlScroll(QScrollArea):
         slider = QSlider(Qt.Horizontal)
         slider.setMinimum(ps.minimum)
         slider.setMaximum(ps.maximum)
+        # slider.setTickPosition(QSlider.TicksBothSides)
         slider.setValue(ps.default_value)
         slider.valueChanged.connect(changed(name, value_label))
         self.ctrls[name] = slider

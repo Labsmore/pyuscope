@@ -102,7 +102,8 @@ class CaptureSink(CbSink):
         del self.images[image_id]
         # Arbitrarily convert to PIL here
         # TODO: should pass rawer/lossless image to PIL instead of jpg?
-        return Image.open(io.StringIO(ret))
+        open("tmp.bin", "wb").write(ret)
+        return Image.open(io.BytesIO(ret))
 
     '''
     gstreamer plugin core methods
@@ -119,15 +120,17 @@ class CaptureSink(CbSink):
             '''
             #print 'Got image'
             if self.image_requested.is_set():
-                #print 'Processing image request'
+                print('Processing image request')
                 # Does this need to be locked?
                 # Copy buffer so that even as object is reused we don't lose it
                 # is there a difference between str(buffer) and buffer.data?
-                self.images[self.next_image_id] = str(buffer)
+                # type <class 'bytes'>
+                # print("type", type(buffer))
+                self.images[self.next_image_id] = bytearray(buffer)
                 # Clear before emitting signal so that it can be re-requested in response
                 self.image_requested.clear()
                 #print 'Emitting capture event'
-                self.cb(self.next_image_id)
+                self.user_cb(self.next_image_id)
                 #print 'Capture event emitted'
                 self.next_image_id += 1
         except:

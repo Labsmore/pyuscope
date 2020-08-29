@@ -258,6 +258,7 @@ class GstVideoPipeline:
                     self.player.add(dst)
                 except gi.overrides.Gst.AddError:
                     pass
+                    print("WARNING: failed to add %s" % (dst,))
             src.link(dst)
             print("tee simple link %s => %s" % (src, dst))
         else:
@@ -266,6 +267,7 @@ class GstVideoPipeline:
             assert src.link(tee)
 
             for dst in dsts:
+                assert dst is not None
                 queue = Gst.ElementFactory.make("queue")
                 # self.queues.append(queue)
                 self.player.add(queue)
@@ -275,6 +277,7 @@ class GstVideoPipeline:
                         self.player.add(dst)
                     except gi.overrides.Gst.AddError:
                         pass
+                        print("WARNING: failed to add %s" % (dst,))
                 assert queue.link(dst)
                 print("tee queue link %s => %s" % (src, dst))
 

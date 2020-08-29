@@ -11,7 +11,8 @@ gst-launch-1.0 toupcamsrc ! tee name=t \
     ! queue ! videoconvert ! videoscale ! ximagesink
 """
 
-from uscope.gstwidget import GstVideoPipeline, gstwidget_main, CbSink, Gst
+from uscope.gstwidget import GstVideoPipeline, gstwidget_main, Gst
+from uscope.gst_util import CbSink
 from PyQt4.QtGui import QMainWindow
 from PyQt4.QtGui import QHBoxLayout
 from PyQt4.QtGui import QWidget
@@ -20,7 +21,7 @@ from PyQt4.QtGui import QWidget
 class TestGUI(QMainWindow):
     def __init__(self, source=None):
         QMainWindow.__init__(self)
-        self.vidpip = GstVideoPipeline(full=True, roi=True)
+        self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)
         self.initUI()
         self.mysink = CbSink()
 

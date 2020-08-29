@@ -12,7 +12,6 @@ from uscope.hal.cnc import hal as cnc_hal
 from uscope.hal.cnc import lcnc_ar
 from uscope.hal.cnc import lcnc as lcnc_hal
 from uscope.lcnc.client import LCNCRPC
-from uscope import gst_util
 from uscope.gst_util import Gst, CaptureSink
 from uscope.v4l2_util import ctrl_set
 
@@ -35,21 +34,6 @@ import threading
 import json
 
 uconfig = get_config()
-
-"""
-gobject = None
-gst = None
-try:
-    import gobject
-    import gst
-    gst_util.register()
-except ImportError:
-    if uconfig['imager']['engine'] == 'gstreamer' or uconfig['imager'][
-            'engine'] == 'gstreamer-testrc':
-        print(
-            'Failed to import a gstreamer package when gstreamer is required')
-        raise
-"""
 
 debug = 1
 
@@ -165,15 +149,22 @@ class PropertiesWindow(QMainWindow):
         layout.addWidget(self.default_pb)
 
         # Need to hide this when not needed
-        self.control_scroll = TTControlScroll(vidpip)
+        if self.vidpip.source_name == "gst-toupcamsrc":
+            self.control_scroll = TTControlScroll(vidpip)
+        # elif self.vidpip.source_name == "gst-v4l2src":
+        #     self.control_scroll = V4L2ControlScroll(vidpip)
+        else:
+            self.control_scroll = None
+            print("WARNING: no control layout for source %s" % (self.vidpip.source_name,)) 
         layout.addWidget(self.control_scroll)
 
         w = QWidget()
         w.setLayout(layout)
         self.setCentralWidget(w)
-        self.show()
-
-        self.default_pb.clicked.connect(self.control_scroll.defaultControls)
+        
+        if self.control_scroll:
+            self.default_pb.clicked.connect(self.control_scroll.defaultControls)
+            self.show()
 
         dbg("initUI done")
 
@@ -901,12 +892,6 @@ class MainWindow(QMainWindow):
             return layout
 
         layout = QHBoxLayout()
-
-        # Need to hide this when not needed
-        if 0:
-            self.control_scroll = TTControlScroll(self.vidpip)
-            layout.addWidget(self.control_scroll)
-
         layout.addLayout(rightLayout())
 
         w = QWidget()

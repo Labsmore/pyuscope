@@ -159,6 +159,7 @@ class PropertiesWindow(QMainWindow):
         if self.control_scroll:
             self.default_pb.clicked.connect(self.control_scroll.defaultControls)
             self.show()
+        self.control_scroll.run()
 
         dbg("initUI done")
 

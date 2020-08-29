@@ -43,7 +43,18 @@ class GstControlScroll(QScrollArea):
         self.setWidgetResizable(True)
         self.setWidget(widget)
 
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self.updateControls)
+
+    def run(self):
+        if self.update_timer:
+            self.update_timer.start(200)
+
     def defaultControls(self):
+        """
+        Set all controls to their default values
+        """
+
         print("default controls")
         for name, widget in self.ctrls.items():
             ps = self.vidpip.source.find_property(name)
@@ -51,6 +62,19 @@ class GstControlScroll(QScrollArea):
                 widget.setValue(ps.default_value)
             elif type(widget) == QCheckBox:
                 widget.setChecked(ps.default_value)
+            else:
+                assert 0, type(widget)
+
+    def updateControls(self):
+        """
+        Query all gstreamer properties and update sliders to reflect current state
+        """
+        for name, widget in self.ctrls.items():
+            val = self.vidpip.source.get_property(name)
+            if type(widget) == QSlider:
+                widget.setValue(val)
+            elif type(widget) == QCheckBox:
+                widget.setChecked(val)
             else:
                 assert 0, type(widget)
 

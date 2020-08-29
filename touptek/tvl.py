@@ -60,6 +60,7 @@ class TestGUI(QMainWindow):
 
         self.initUI()
         self.vidpip.run()
+        self.control_scroll.run()
 
     def snapshot_fn(self):
         prefix_date = True

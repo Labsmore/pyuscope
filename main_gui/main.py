@@ -107,80 +107,6 @@ def get_cnc_hal(log):
         return cnc_hal.MockHal(log=log)
     '''
 
-
-class AxisWidget(QWidget):
-    def __init__(self, axis, cnc_thread, parent=None):
-        QWidget.__init__(self, parent)
-
-        self.axis = axis
-        self.cnc_thread = cnc_thread
-
-        self.gb = QGroupBox('Axis %s' % self.axis.upper())
-        self.gl = QGridLayout()
-        self.gb.setLayout(self.gl)
-        row = 0
-
-        self.gl.addWidget(QLabel("Pos (mm):"), row, 0)
-        self.pos_value = QLabel("Unknown")
-        self.gl.addWidget(self.pos_value, row, 1)
-        row += 1
-
-        # Return to 0 position
-        self.ret0_pb = QPushButton("Ret0")
-        self.ret0_pb.clicked.connect(self.ret0)
-        self.gl.addWidget(self.ret0_pb, row, 0)
-        # Set the 0 position
-        self.home_pb = QPushButton("Home")
-        self.home_pb.clicked.connect(self.home)
-        self.gl.addWidget(self.home_pb, row, 1)
-        row += 1
-
-        self.abs_pos_le = QLineEdit('0.0')
-        self.gl.addWidget(self.abs_pos_le, row, 0)
-        self.mv_abs_pb = QPushButton("Go absolute (mm)")
-        self.mv_abs_pb.clicked.connect(self.mv_abs)
-        self.gl.addWidget(self.mv_abs_pb, row, 1)
-        row += 1
-
-        self.rel_pos_le = QLineEdit('0.0')
-        self.gl.addWidget(self.rel_pos_le, row, 0)
-        self.mv_rel_pb = QPushButton("Go relative (mm)")
-        self.mv_rel_pb.clicked.connect(self.mv_rel)
-        self.gl.addWidget(self.mv_rel_pb, row, 1)
-        row += 1
-        '''
-        self.meas_label = QLabel("Meas (um)")
-        self.gl.addWidget(self.meas_label, row, 0)
-        self.meas_value = QLabel("Unknown")
-        self.gl.addWidget(self.meas_value, row, 1)
-        # Only resets in the GUI, not related to internal axis position counter
-        self.meas_reset_pb = QPushButton("Reset meas")
-        self.meas_reset()
-        self.meas_reset_pb.clicked.connect(self.meas_reset)
-        self.axisSet.connect(self.update_meas)
-        self.gl.addWidget(self.meas_reset_pb, row, 0)
-        row += 1
-        '''
-
-        self.l = QHBoxLayout()
-        self.l.addWidget(self.gb)
-        self.setLayout(self.l)
-
-    def home(self):
-        self.cnc_thread.cmd('home', [self.axis])
-
-    def ret0(self):
-        self.cnc_thread.cmd('mv_abs', {self.axis: 0.0})
-
-    def mv_rel(self):
-        self.cnc_thread.cmd('mv_rel',
-                            {self.axis: float(str(self.rel_pos_le.text()))})
-
-    def mv_abs(self):
-        self.cnc_thread.cmd('mv_abs',
-                            {self.axis: float(str(self.abs_pos_le.text()))})
-
-
 class GstImager(Imager):
     def __init__(self, gui):
         Imager.__init__(self)
@@ -230,7 +156,7 @@ class MainWindow(QMainWindow):
             pass
         self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)
         # FIXME: review sizing
-        self.vidpip.size_widgets(frac=0.2)
+        self.vidpip.size_widgets(frac=0.4)
         self.vidpip.setupGst(raw_tees=[])
 
         self.uconfig = uconfig
@@ -297,7 +223,7 @@ class MainWindow(QMainWindow):
 
     def update_pos(self, pos):
         for axis, axis_pos in pos.items():
-            self.axes[axis].pos_value.setText('%0.3f' % axis_pos)
+            self.axis_pos_label[axis].pos_value.setText('%0.3f' % axis_pos)
 
     def hal_progress(self, pos):
         self.emit(SIGNAL('pos'), pos)
@@ -433,20 +359,24 @@ class MainWindow(QMainWindow):
                     self.v4ls[k].setText(str(v))
 
     def ret0(self):
-        pos = dict([(k, 0.0) for k in self.axes])
+        return
+        pos = dict([(k, 0.0) for k in self.axis_pos_label])
         self.cnc_thread.cmd('mv_abs', pos)
 
     def home(self):
-        self.cnc_thread.cmd('home', [k for k in self.axes])
+        return
+        self.cnc_thread.cmd('home', [k for k in self.axis_pos_label])
 
     def mv_rel(self):
+        return
         pos = dict([(k, float(str(axis.rel_pos_le.text())))
-                    for k, axis in self.axes.items()])
+                    for k, axis in self.axis_pos_label.items()])
         self.cnc_thread.cmd('mv_rel', pos)
 
     def mv_abs(self):
+        return
         pos = dict([(k, float(str(axis.abs_pos_le.text())))
-                    for k, axis in self.axes.items()])
+                    for k, axis in self.axis_pos_label.items()])
         self.cnc_thread.cmd('mv_abs', pos)
 
     def processCncProgress(self, pictures_to_take, pictures_taken, image,
@@ -497,8 +427,8 @@ class MainWindow(QMainWindow):
         }
 
         try:
-            scan_json['overlap'] = float(self.overlap_le.text())
-            scan_json['border'] = float(self.border_le.text())
+            # scan_json['overlap'] = float(self.overlap_le.text())
+            # scan_json['border'] = float(self.border_le.text())
 
             scan_json['start']['x'] = float(self.start_pos_x_le.text())
             scan_json['start']['y'] = float(self.start_pos_y_le.text())
@@ -708,9 +638,6 @@ class MainWindow(QMainWindow):
         self.end_pos_y_le.setText('%0.3f' % y1)
 
     def get_axes_layout(self):
-        layout = QHBoxLayout()
-        gb = QGroupBox('Axes')
-
         def get_general_layout():
             layout = QVBoxLayout()
 
@@ -776,35 +703,30 @@ class MainWindow(QMainWindow):
 
                 return layout
 
-            def get_pos_misc():
-                layout = QGridLayout()
-
-                layout.addWidget(QLabel('Overlap'), 0, 0)
-                self.overlap_le = QLineEdit('0.7')
-                layout.addWidget(self.overlap_le, 0, 1)
-
-                layout.addWidget(QLabel('Border'), 1, 0)
-                self.border_le = QLineEdit('0.1')
-                layout.addWidget(self.border_le, 1, 1)
-
-                return layout
-
             layout.addLayout(get_go())
             layout.addLayout(get_stop())
             layout.addLayout(get_pos_start())
             layout.addLayout(get_pos_end())
-            layout.addLayout(get_pos_misc())
             return layout
 
+        def getPosLayout():
+            self.axis_pos_label = {}
+            dbg('Axes: %u' % len(self.cnc_thread.hal.axes()))
+            gl = QGridLayout()
+            row = 0
+            for axis in sorted(self.cnc_thread.hal.axes()):
+                gl.addWidget(QLabel("%s pos (mm):" % axis), row, 0)
+                axis_pos_label = QLabel("Unknown")
+                self.axis_pos_label[axis] = axis_pos_label
+                gl.addWidget(axis_pos_label, row, 1)
+                row += 1
+            return gl
+    
+        layout = QHBoxLayout()
         layout.addLayout(get_general_layout())
+        layout.addLayout(getPosLayout())
 
-        self.axes = {}
-        dbg('Axes: %u' % len(self.cnc_thread.hal.axes()))
-        for axis in sorted(self.cnc_thread.hal.axes()):
-            axisw = AxisWidget(axis, self.cnc_thread)
-            self.axes[axis] = axisw
-            layout.addWidget(axisw)
-
+        gb = QGroupBox('Axes')
         gb.setLayout(layout)
         return gb
 
@@ -960,8 +882,11 @@ class MainWindow(QMainWindow):
         # top layout
         layout = QVBoxLayout()
 
+        dbg("get_config_layout()")
         layout.addLayout(self.get_config_layout())
+        dbg("get_video_layout()")
         layout.addLayout(self.get_video_layout())
+        dbg("get_bottom_layout()")
         layout.addLayout(self.get_bottom_layout())
         self.log_widget.setReadOnly(True)
         layout.addWidget(self.log_widget)
@@ -970,6 +895,7 @@ class MainWindow(QMainWindow):
         w.setLayout(layout)
         self.setCentralWidget(w)
         self.show()
+        dbg("initUI done")
 
     def keyPressEvent(self, event):
         k = event.key()

@@ -595,7 +595,7 @@ class Planner(object):
         plannerj = {}
 
         # plannerj['x'] = ...
-        for axisc, axis in self.axes.iteritems():
+        for axisc, axis in self.axes.items():
             plannerj[axisc] = axis.meta()
 
         # In seconds

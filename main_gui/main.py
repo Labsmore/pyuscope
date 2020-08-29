@@ -138,6 +138,17 @@ class GstImager(Imager):
         return scaled
 
 
+    def add_planner_metadata(self, imagerj):
+        """
+        # TODO: instead dump from actual v4l
+        # safer and more comprehensive
+        v4lj = {}
+        for k, v in self.v4ls.iteritems():
+            v4lj[k] = int(str(v.text()))
+        imagerj["v4l"] = v4lj
+        """
+
+
 """
 Placeholder class
 These are disabled right now and movement must be done from X GUI
@@ -226,6 +237,10 @@ class MainWindow(QMainWindow):
         self.cncProgress.connect(self.processCncProgress)
 
         self.vidpip.run()
+
+        self.init_imager()
+
+
         if self.uconfig['cnc']['startup_run']:
             self.run()
 
@@ -293,6 +308,17 @@ class MainWindow(QMainWindow):
         im_w_um = self.obj_config["x_view"]
         im_h_um = im_w_um * im_h_pix / im_w_pix
         self.obj_view.setText('View : %0.3fx %0.3fy' % (im_w_um, im_h_um))
+
+    def init_imager(self):
+        self.log('Loading imager...')
+
+        source = self.vidpip.source_name
+        if source == 'mock':
+            self.imager = MockImager()
+        elif source.find("gst-") == 0:
+            self.imager = GstImager(self)
+        else:
+            raise Exception('Invalid imager type %s' % source)
 
     def update_v4l_config(self):
         pass
@@ -492,24 +518,6 @@ class MainWindow(QMainWindow):
         if not self.write_scan_json():
             return
 
-        imager = None
-        if not dry:
-            self.log('Loading imager...')
-            itype = self.uconfig['imager']['engine']
-
-            if itype == 'auto':
-                if os.path.exists('/dev/video0'):
-                    itype = 'gstreamer'
-                else:
-                    itype = 'gstreamer-testsrc'
-
-            if itype == 'mock':
-                imager = MockImager()
-            elif itype == 'gstreamer' or itype == 'gstreamer-testsrc':
-                imager = GstImager(self)
-            else:
-                raise Exception('Invalid imager type %s' % itype)
-
         def emitCncProgress(pictures_to_take, pictures_taken, image, first):
             #print 'Emitting CNC progress'
             if image is None:
@@ -534,7 +542,7 @@ class MainWindow(QMainWindow):
             # Will be offloaded to its own thread
             # Operations must be blocking
             # We enforce that nothing is running and disable all CNC GUI controls
-            'imager': imager,
+            'imager': self.imager,
 
             # Callback for progress
             'progress_cb': emitCncProgress,
@@ -596,13 +604,8 @@ class MainWindow(QMainWindow):
         # imagerj['copyright'] = "&copy; %s John McMaster, CC-BY" % datetime.datetime.today().year
         imagerj['objective'] = rconfig['obj']
 
-        # TODO: instead dump from actual v4l
-        # safer and more comprehensive
-        v4lj = {}
-        for k, v in self.v4ls.iteritems():
-            v4lj[k] = int(str(v.text()))
-        imagerj["v4l"] = v4lj
-
+        self.imager.add_planner_metadata(imagerj)
+    
         self.pt = PlannerThread(self, rconfig, imagerj)
         self.connect(self.pt, SIGNAL('log'), self.log)
         self.pt.plannerDone.connect(self.plannerDone)
@@ -615,9 +618,9 @@ class MainWindow(QMainWindow):
         self.pt.start()
 
     def setControlsEnabled(self, yes):
-        self.go_pause_pb.setEnabled(yes)
-        self.mv_abs_pb.setEnabled(yes)
-        self.mv_rel_pb.setEnabled(yes)
+        #self.go_pause_pb.setEnabled(yes)
+        #self.mv_abs_pb.setEnabled(yes)
+        #self.mv_rel_pb.setEnabled(yes)
         self.snapshot_pb.setEnabled(yes)
 
     def plannerDone(self):

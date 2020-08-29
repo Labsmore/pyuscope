@@ -752,6 +752,8 @@ class MainWindow(QMainWindow):
 
         self.snapshot_fn_le = QLineEdit('snapshot')
         self.snapshot_suffix_le = QLineEdit('.jpg')
+        # XXX: since we already have jpegenc this is questionable
+        self.snapshot_suffix_le.setEnabled(False)
         self.snapshot_suffix_le.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
         hl = QHBoxLayout()
         hl.addWidget(self.snapshot_fn_le)

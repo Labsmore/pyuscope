@@ -2,3 +2,7 @@ out
 snapshot
 scan.json
 config
+
+# some local junk
+env.sh
+archive

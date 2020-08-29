@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
+from uscope.touptek_util import TTControlScroll
 
 from uscope.config import get_config
 from uscope.hal.img.imager import Imager
@@ -143,6 +144,27 @@ These are disabled right now and movement must be done from X GUI
 class LCNCMovement:
     pass
 
+class PropertiesWindow(QMainWindow):
+    def __init__(self, vidpip, parent=None):
+        super(PropertiesWindow, self).__init__(parent)
+        layout = QHBoxLayout()
+
+        self.default_pb = QPushButton("Default")
+        layout.addWidget(self.default_pb)
+
+        # Need to hide this when not needed
+        self.control_scroll = TTControlScroll(vidpip)
+        layout.addWidget(self.control_scroll)
+
+        w = QWidget()
+        w.setLayout(layout)
+        self.setCentralWidget(w)
+        self.show()
+
+        self.default_pb.clicked.connect(self.control_scroll.defaultControls)
+
+        dbg("initUI done")
+
 class MainWindow(QMainWindow):
     cncProgress = pyqtSignal(int, int, str, int)
     snapshotCaptured = pyqtSignal(int)
@@ -175,6 +197,8 @@ class MainWindow(QMainWindow):
         self.cnc_thread = CncThread(hal=hal, cmd_done=self.cmd_done)
         self.connect(self.cnc_thread, SIGNAL('log'), self.log)
         self.initUI()
+        self.propwin = PropertiesWindow(self.vidpip, parent=self)
+        self.activateWindow()
 
         self.vid_fd = None
 
@@ -840,17 +864,26 @@ class MainWindow(QMainWindow):
         self.vidpip.setupWidgets()
         self.setWindowTitle('pr0ncnc')
 
-        # top layout
-        layout = QVBoxLayout()
+        def rightLayout():
+            layout = QVBoxLayout()
+            dbg("get_config_layout()")
+            layout.addLayout(self.get_config_layout())
+            dbg("get_video_layout()")
+            layout.addLayout(self.get_video_layout())
+            dbg("get_bottom_layout()")
+            layout.addLayout(self.get_bottom_layout())
+            self.log_widget.setReadOnly(True)
+            layout.addWidget(self.log_widget)
+            return layout
 
-        dbg("get_config_layout()")
-        layout.addLayout(self.get_config_layout())
-        dbg("get_video_layout()")
-        layout.addLayout(self.get_video_layout())
-        dbg("get_bottom_layout()")
-        layout.addLayout(self.get_bottom_layout())
-        self.log_widget.setReadOnly(True)
-        layout.addWidget(self.log_widget)
+        layout = QHBoxLayout()
+
+        # Need to hide this when not needed
+        if 0:
+            self.control_scroll = TTControlScroll(self.vidpip)
+            layout.addWidget(self.control_scroll)
+
+        layout.addLayout(rightLayout())
 
         w = QWidget()
         w.setLayout(layout)

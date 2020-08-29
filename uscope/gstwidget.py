@@ -96,7 +96,7 @@ class GstVideoPipeline:
         self.size_widgets()
 
         # Needs to be done early so elements can be added before main setup
-        self.player = Gst.Pipeline("player")
+        self.player = Gst.Pipeline.new("player")
 
     def size_widgets(self, w=None, h=None, frac=None):
         """

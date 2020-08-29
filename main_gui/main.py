@@ -801,40 +801,48 @@ class MainWindow(QMainWindow):
         """
 
         gb = QGroupBox('Scan')
-        layout = QVBoxLayout()
+        layout = QHBoxLayout()
 
-        def jobLayout():
-            layout = QHBoxLayout()
+        def leftLayout():
+            layout = QGridLayout()
 
-            layout.addWidget(QLabel('Job name'))
-            self.job_name_le = QLineEdit('default')
-            layout.addWidget(self.job_name_le)
-
-            layout.addWidget(QLabel('Dry?'))
-            self.dry_cb = QCheckBox()
-            self.dry_cb.setChecked(self.uconfig['cnc']['dry'])
-            layout.addWidget(self.dry_cb)
-
-            return layout
-
-        def goLayout():
-            layout = QHBoxLayout()
+            layout.addWidget(QLabel('Job name'), 0, 0, 1, 2)
 
             self.go_pause_pb = QPushButton("Go")
             self.go_pause_pb.clicked.connect(self.run)
-            layout.addWidget(self.go_pause_pb)
+            layout.addWidget(self.go_pause_pb, 1, 0)
 
             self.stop_pb = QPushButton("Stop")
             self.stop_pb.clicked.connect(self.stop)
-            layout.addWidget(self.stop_pb)
+            layout.addWidget(self.stop_pb, 1, 1)
 
+            return layout
+
+        def rightLayout():
+            layout = QVBoxLayout()
+
+            def topLayout():
+                layout = QHBoxLayout()
+
+                self.job_name_le = QLineEdit('default')
+                layout.addWidget(self.job_name_le)
+
+                layout.addWidget(QLabel('Dry?'))
+                self.dry_cb = QCheckBox()
+                self.dry_cb.setChecked(self.uconfig['cnc']['dry'])
+                layout.addWidget(self.dry_cb)
+
+                return layout
+
+            layout.addLayout(topLayout())
             self.pb = QProgressBar()
             layout.addWidget(self.pb)
 
             return layout
 
-        layout.addLayout(jobLayout())
-        layout.addLayout(goLayout())
+
+        layout.addLayout(leftLayout())
+        layout.addLayout(rightLayout())
         gb.setLayout(layout)
         return gb
 

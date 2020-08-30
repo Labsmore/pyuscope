@@ -188,7 +188,10 @@ class GstControlScroll(ImagerControlScroll):
 
     def set_properties(self, vals):
         for name, widget in self.ctrls.items():
-            val = vals[name]
+            try:
+                val = vals[name]
+            except KeyError:
+                print("WARNING: %s keeping default value" % name)
             if type(widget) == QSlider:
                 widget.setValue(val)
             elif type(widget) == QCheckBox:

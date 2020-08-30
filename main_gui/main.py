@@ -52,13 +52,14 @@ def dbg(*args):
         print('main: ' + (args[0] % args[1:]))
 
 
-def get_cnc_hal(log):
-    print('get_cnc_hal', log)
+def get_cnc_hal(log=print):
     try:
         lcnc_host = uconfig["cnc"]["lcnc"]["host"]
     except KeyError:
         lcnc_host = "mk"
     engine = uconfig['cnc']['engine']
+    log('get_cnc_hal: %s' % engine)
+
     if engine == 'mock':
         return cnc_hal.MockHal(log=log)
     elif engine == 'lcnc-py':
@@ -268,7 +269,7 @@ class MainWindow(QMainWindow):
     def emit_log(self, s='', newline=True):
         # event must be omitted from the correct thread
         # however, if it hasn't been created yet assume we should log from this thread
-        self.log.emit(s)
+        self.log_msg.emit(s)
 
     def update_pos(self, pos):
         for axis, axis_pos in pos.items():
@@ -306,9 +307,8 @@ class MainWindow(QMainWindow):
         self.obj_view.setText('View : %0.3fx %0.3fy' % (im_w_um, im_h_um))
 
     def init_imager(self):
-        self.log('Loading imager...')
-
         source = self.vidpip.source_name
+        self.log('Loading imager %s...' % source)
         if source == 'mock':
             self.imager = MockImager()
         elif source.find("gst-") == 0:

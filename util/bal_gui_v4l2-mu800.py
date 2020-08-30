@@ -1,72 +1,71 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+"""
+Comprehensive image acquisition test GUI
+No motion control
+"""
 
-from uscope.config import get_config
-from uscope.v4l2_util import ctrl_set
-
-from PyQt4 import Qt
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-from PyQt4.QtGui import QWidget, QLabel
-
-import Queue
+from uscope import gstwidget
+from uscope.control_scroll import get_control_scroll
+from uscope.gstwidget import GstVideoPipeline, gstwidget_main
+from uscope.gst_util import CbSink
 import threading
-import sys
-import traceback
-import os
-import signal
+import queue
 
-import gobject, pygst
-pygst.require('0.10')
-import gst
-
-import StringIO
 from PIL import Image
+import io
+from uscope import v4l2_util
 
-uconfig = get_config()
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
 
-'''
-Do not encode images in gstreamer context or it brings system to halt
-instead, request images and have them encoded in requester's context
-'''
-class CaptureSink(gst.Element):
-    __gstdetails__ = ('CaptureSink','Sink', \
-                      'Captures images for the CNC', 'John McMaster')
+from uscope import config
 
-    _sinkpadtemplate = gst.PadTemplate ("sinkpadtemplate",
-                                        gst.PAD_SINK,
-                                        gst.PAD_ALWAYS,
-                                        gst.caps_new_any())
+import gi
+gi.require_version('Gst', '1.0')
+gi.require_version('GstBase', '1.0')
+gi.require_version('GstVideo', '1.0')
 
-    def __init__(self):
-        gst.Element.__init__(self)
-        self.sinkpad = gst.Pad(self._sinkpadtemplate, "sink")
-        self.add_pad(self.sinkpad)
+from gi.repository import GstVideo
 
-        self.sinkpad.set_chain_function(self.chainfunc)
-        self.sinkpad.set_event_function(self.eventfunc)
+from gi.repository import Gst
+Gst.init(None)
+from gi.repository import GstBase, GObject
+"""
+Initialization constraints:
+-Gst initialization needs
+"""
 
-        self.img_cb = lambda buffer: None
+WEBCAM = 1
 
-    '''
-    gstreamer plugin core methods
-    '''
+import datetime
+import os
 
-    def chainfunc(self, pad, buffer):
-        #print 'Capture sink buffer in'
-        try:
-            self.img_cb(buffer)
-        except:
-            traceback.print_exc()
-            os._exit(1)
+def process_image(img, setr, setg, setb):
+    rval = 0
+    gval = 0
+    bval = 0
+    xs = 5
+    ys = 5
+    for y in range(0, img.size[1], ys):
+        for x in range(0, img.size[0], xs):
+            (r, g, b) = img.getpixel((x, y))
+            rval += r
+            gval += g
+            bval += b
+    sz = img.size[0] * img.size[1] / xs / ys * 256
 
-        return gst.FLOW_OK
+    rbal = 1.0 * rval / gval
+    gbal = 1.0 * gval / gval
+    bbal = 1.0 * bval / gval
 
-    def eventfunc(self, pad, event):
-        return True
-
-gobject.type_register(CaptureSink)
-# Register the element into this process' registry.
-gst.element_register (CaptureSink, 'capturesink', gst.RANK_MARGINAL)
+    sf = 0.2
+    limit = lambda x: max(min(int(x), 1023), 0)
+    newr = limit(setr - rbal * sf)
+    newg = setg
+    newb = limit(setb - bbal * sf)
+    
+    return rval / sz, gval / sz, bval / sz, rbal, gbal, bbal, newr, newg, newb
 
 class ImageProcessor(QThread):
     n_frames = pyqtSignal(int) # Number of images
@@ -78,13 +77,18 @@ class ImageProcessor(QThread):
     r_bal = pyqtSignal(int) # calc red bal (r/g)
     b_bal = pyqtSignal(int) # calc blue bal (b/g)
 
-    def __init__(self):
+    r_new = pyqtSignal(str) # calc red value
+    g_new = pyqtSignal(str) # calc green value
+    b_new = pyqtSignal(str) # calc blue value
+
+    def __init__(self, tg):
         QThread.__init__(self)
 
+        self.tg = tg
         self.running = threading.Event()
 
         self.image_requested = threading.Event()
-        self.q = Queue.Queue()
+        self.q = queue.Queue()
         self._n_frames = 0
 
     def run(self):
@@ -92,33 +96,24 @@ class ImageProcessor(QThread):
         self.image_requested.set()
         while self.running.is_set():
             try:
-                img = self.q.get(True, 0.1)
-            except Queue.Empty:
+                img, props = self.q.get(True, 0.1)
+            except queue.Empty:
                 continue
-            img = Image.open(StringIO.StringIO(img))
+            img = Image.open(io.BytesIO(img))
 
-            rval = 0
-            gval = 0
-            bval = 0
-            xs = 5
-            ys = 5
-            for y in xrange(0, img.size[1], ys):
-                for x in xrange(0, img.size[0], xs):
-                    (r, g, b) = img.getpixel((x, y))
-                    rval += r
-                    gval += g
-                    bval += b
-            sz = img.size[0] * img.size[1] / xs / ys * 256
-            rbal = 1.0 * rval / gval
-            gbal = 1.0 * gval / gval
-            bbal = 1.0 * bval / gval
+            
+            rval, gval, bval, rbal, _gbal, bbal, newr, newg, newb = process_image(img, props["Red Balance"], props["Gain"], props["Blue Balance"])
 
-            self.r_val.emit(int(rval * 1000.0 / sz))
-            self.g_val.emit(int(gval * 1000.0 / sz))
-            self.b_val.emit(int(bval * 1000.0 / sz))
+            self.r_val.emit(int(rval * 1000.0))
+            self.g_val.emit(int(gval * 1000.0))
+            self.b_val.emit(int(bval * 1000.0))
 
             self.r_bal.emit(int((rbal - 1) * 1000.0))
             self.b_bal.emit(int((bbal - 1) * 1000.0))
+
+            self.r_new.emit(str(newr))
+            self.g_new.emit(str(newg))
+            self.b_new.emit(str(newb))
 
             self.image_requested.set()
 
@@ -126,6 +121,10 @@ class ImageProcessor(QThread):
         self.running.clear()
 
     def img_cb(self, buffer):
+        """
+        Called in GUI context
+        """
+
         self._n_frames += 1
         self.n_frames.emit(self._n_frames)
         '''
@@ -139,293 +138,199 @@ class ImageProcessor(QThread):
         if self.image_requested.is_set():
             #print 'Processing image request'
             # is there a difference between str(buffer) and buffer.data?
-            self.q.put(buffer.data)
+            self.q.put((buffer, self.tg.get_properties()))
             # Clear before emitting signal so that it can be re-requested in response
             self.image_requested.clear()
 
-
 class TestGUI(QMainWindow):
-    def __init__(self):
+    def __init__(self, source=None):
         QMainWindow.__init__(self)
         self.showMaximized()
+        self.vidpip = GstVideoPipeline(source=source)
+        self.vidpip.size_widgets(frac=0.5)
+
+        self.mysink = CbSink()
+        self.vidpip.player.add(self.mysink)
+
+        self.snapshot_requested = False
+        self.raw = 0
+        if self.raw:
+            totee = self.mysink
+        else:
+            print("Create jpegnec")
+            self.jpegenc = Gst.ElementFactory.make("jpegenc")
+            self.vidpip.player.add(self.jpegenc)
+            totee = self.jpegenc
+
+        self.vidpip.setupGst(raw_tees=[totee])
+        if not self.raw:
+            print("raw add")
+            assert self.jpegenc.link(self.mysink)
 
         self.initUI()
+        self.vidpip.run()
+        #self.control_scroll.run()
 
-        self.vid_fd = None
+        self.setup_processor()
 
-        # Must not be initialized until after layout is set
-        self.gstWindowId = None
-        engine_config = 'gstreamer'
-        engine_config = 'gstreamer-testsrc'
-        if engine_config == 'gstreamer':
-            self.source = gst.element_factory_make("v4l2src", "vsource")
-            self.source.set_property("device", "/dev/video0")
-            self.vid_fd = -1
-            self.setupGst()
-        elif engine_config == 'gstreamer-testsrc':
-            print 'WARNING: using test source'
-            self.source = gst.element_factory_make("videotestsrc", "video-source")
-            self.setupGst()
-        else:
-            raise Exception('Unknown engine %s' % (engine_config,))
+        """
+        # Now driven through image CB
+        self.awb_timer = QTimer()
+        self.awb_timer.timeout.connect(self.updateControls)
+        self.awb_timer.start(1000)
+        """
 
-        self.processor = ImageProcessor()
+    def setup_processor(self):
+        self.processor = ImageProcessor(self)
         self.processor.n_frames.connect(self.n_frames.setNum)
+
         self.processor.r_val.connect(self.r_val.setNum)
         self.processor.g_val.connect(self.g_val.setNum)
         self.processor.b_val.connect(self.b_val.setNum)
+
         self.processor.r_bal.connect(self.r_bal.setNum)
         self.processor.b_bal.connect(self.b_bal.setNum)
-        self.capture_sink.img_cb = self.processor.img_cb
+
+        self.processor.r_new.connect(self.ctrls["Red Balance"].setText)
+        # self.processor.g_new.connect(self.ctrls["Gain"].setText)
+        self.processor.b_new.connect(self.ctrls["Blue Balance"].setText)
+
+        # Update after all other signals
+        self.processor.b_new.connect(self.set_v4l2)
+
+        self.mysink.set_cb(self.processor.img_cb)
 
         self.processor.start()
 
-        if self.gstWindowId:
-            print "Starting gstreamer pipeline"
-            self.player.set_state(gst.STATE_PLAYING)
-
-    def awb(self):
-        # makes one step for now
-
-        # note
-        # rb is out of 1000
-        # actual is out of 1024
-
-        rv = int(self.r_val.text())
-        gv = int(self.g_val.text())
-        bv = int(self.b_val.text())
-
-        rb = int(self.r_bal.text())
-        bb = int(self.b_bal.text())
-
-        # Using hacked driver where these are set directly
-        setg = int(self.ctrls["Gain"].text())
-        setr = int(self.ctrls["Red Balance"].text())
-        setb = int(self.ctrls["Blue Balance"].text())
-
-
-        # make a linear guess based on the difference
-        # it might under or overshoot, but should converge in time
-        limit = lambda x: max(min(int(x), 1023), 0)
-        sf = 0.2
-        rb_new = limit(setr - rb * sf)
-        bb_new = limit(setb - bb * sf)
-        print 'Step'
-        print '  R: %d w/ %d => %d' % (setr, rb, rb_new)
-        print '  B: %d w/ %d => %d' % (setb, bb, bb_new)
-
-        #ctrl_set(self.vid_fd, "Red Balance", rb_new)
-        self.ctrls["Red Balance"].setText(str(rb_new))
-
-        #ctrl_set(self.vid_fd, "Blue Balance", bb_new)
-        self.ctrls["Blue Balance"].setText(str(bb_new))
-
-    def get_video_layout(self):
-        # Overview
-        def low_res_layout():
-            layout = QVBoxLayout()
-            layout.addWidget(QLabel("Overview"))
-
-            # Raw X-windows canvas
-            self.video_container = QWidget()
-            # Allows for convenient keyboard control by clicking on the video
-            self.video_container.setFocusPolicy(Qt.ClickFocus)
-            w, h = 3264/4, 2448/4
-            self.video_container.setMinimumSize(w, h)
-            self.video_container.resize(w, h)
-            policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            self.video_container.setSizePolicy(policy)
-
-            layout.addWidget(self.video_container)
-
-            return layout
-
-        self.awb_pb = QPushButton("AWG (G, E fixed)")
-        self.awb_pb.clicked.connect(self.awb)
-
-        layout = QHBoxLayout()
-        layout.addLayout(low_res_layout())
-        layout.addWidget(self.awb_pb)
-        return layout
-
-    def get_ctrl_layout(self):
-
-        layout = QGridLayout()
-        row = 0
-
-        self.ctrls = {}
-        for name in ("Red Balance", "Gain", "Blue Balance", "Exposure"):
-            def textChanged(name):
-                def f():
-                    if self.vid_fd >= 0:
-                        try:
-                            val = int(self.ctrls[name].text())
-                        except ValueError:
-                            pass
-                        else:
-                            print '%s changed => %d' % (name, val)
-                            ctrl_set(self.vid_fd, name, val)
-                return f
-
-            layout.addWidget(QLabel(name), row, 0)
-            ctrl = QLineEdit('0')
-            ctrl.textChanged.connect(textChanged(name))
-            self.ctrls[name] = ctrl
-            layout.addWidget(ctrl, row, 1)
-            row += 1
-
-        return layout
-
-    def get_rgb_layout(self):
-
-        layout = QGridLayout()
-        row = 0
-
-        layout.addWidget(QLabel('N'), row, 0)
-        self.n_frames = QLabel('0')
-        layout.addWidget(self.n_frames, row, 1)
-        row += 1
-
-        layout.addWidget(QLabel('R_V'), row, 0)
-        self.r_val = QLabel('0')
-        layout.addWidget(self.r_val, row, 1)
-        row += 1
-
-        layout.addWidget(QLabel('G_V'), row, 0)
-        self.g_val = QLabel('0')
-        layout.addWidget(self.g_val, row, 1)
-        row += 1
-
-        layout.addWidget(QLabel('B_V'), row, 0)
-        self.b_val = QLabel('0')
-        layout.addWidget(self.b_val, row, 1)
-        row += 1
-
-        layout.addWidget(QLabel('R_B'), row, 0)
-        self.r_bal = QLabel('0')
-        layout.addWidget(self.r_bal, row, 1)
-        row += 1
-
-        layout.addWidget(QLabel('B_B'), row, 0)
-        self.b_bal = QLabel('0')
-        layout.addWidget(self.b_bal, row, 1)
-        row += 1
-
-        return layout
-
-    def setupGst(self):
-        print "Setting up gstreamer pipeline"
-        self.gstWindowId = self.video_container.winId()
-
-        self.player = gst.Pipeline("player")
-        self.tee = gst.element_factory_make("tee")
-        sinkx = gst.element_factory_make("ximagesink", 'sinkx_overview')
-        fcs = gst.element_factory_make('ffmpegcolorspace')
-        caps = gst.caps_from_string('video/x-raw-yuv')
-        self.capture_enc = gst.element_factory_make("jpegenc")
-        self.capture_sink = gst.element_factory_make("capturesink")
-        self.capture_sink_queue = gst.element_factory_make("queue")
-        self.resizer =  gst.element_factory_make("videoscale")
-
-        # Video render stream
-        self.player.add(      self.source, self.tee)
-        gst.element_link_many(self.source, self.tee)
-
-        self.player.add(fcs,                 self.resizer, sinkx)
-        gst.element_link_many(self.tee, fcs, self.resizer, sinkx)
-
-        self.player.add(                self.capture_sink_queue, self.capture_enc, self.capture_sink)
-        gst.element_link_many(self.tee, self.capture_sink_queue, self.capture_enc, self.capture_sink)
-
-        bus = self.player.get_bus()
-        bus.add_signal_watch()
-        bus.enable_sync_message_emission()
-        bus.connect("message", self.on_message)
-        bus.connect("sync-message::element", self.on_sync_message)
-
-    def on_message(self, bus, message):
-        t = message.type
-
-        if self.vid_fd is not None and self.vid_fd < 0:
-            self.vid_fd = self.source.get_property("device-fd")
-            if self.vid_fd >= 0:
-                print 'Initializing V4L controls'
-                self.v4l_load()
-
-        if t == gst.MESSAGE_EOS:
-            self.player.set_state(gst.STATE_NULL)
-            print "End of stream"
-        elif t == gst.MESSAGE_ERROR:
-            err, debug = message.parse_error()
-            print "Error: %s" % err, debug
-            self.player.set_state(gst.STATE_NULL)
-            ''
-
-    def v4l_load(self):
-        vconfig = uconfig["imager"].get("v4l2", None)
-        if not vconfig:
+    def snapshot_cb(self, buffer):
+        if not self.snapshot_requested:
             return
-        for configk, configv in vconfig.iteritems():
-            break
-        #if type(configv) != dict or '"Gain"' not in configv:
-        #    raise Exception("Bad v4l default config (old style?)")
-
-        print 'Selected config %s' % configk
-        for k, v in configv.iteritems():
-            if k in self.ctrls:
-                self.ctrls[k].setText(str(v))
-            else:
-                ctrl_set(self.vid_fd, k, v)
-
-    def on_sync_message(self, bus, message):
-        if message.structure is None:
-            return
-        message_name = message.structure.get_name()
-        if message_name == "prepare-xwindow-id":
-            if message.src.get_name() == 'sinkx_overview':
-                print 'sinkx_overview win_id'
-                win_id = self.gstWindowId
-            else:
-                raise Exception('oh noes')
-
-            assert win_id
-            imagesink = message.src
-            imagesink.set_xwindow_id(win_id)
+        fn = self.snapshot_fn()
+        print("got buffer, size %u, save %s" % (len(buffer), fn))
+        open(fn, "wb").write(buffer)
+        self.snapshot_requested = False
 
     def initUI(self):
-        self.setGeometry(300, 300, 250, 150)
-        self.setWindowTitle('pyv4l test')
+        self.setWindowTitle('Test')
+        self.vidpip.setupWidgets()
 
-        # top layout
+        #print(dir(self.vidpip.source))
+        #assert 0
+
+        def get_ctrl_layout():
+    
+            layout = QGridLayout()
+            row = 0
+    
+            self.ctrls = {}
+            for name in ("Red Balance", "Gain", "Blue Balance", "Exposure"):
+                def textChanged(name):
+                    def f():
+                        if self.fd() >= 0:
+                            if WEBCAM:
+                                return
+                            try:
+                                val = int(self.ctrls[name].text())
+                            except ValueError:
+                                pass
+                            else:
+                                print('%s changed => %d' % (name, val))
+                                v4l2_util.ctrl_set(self.fd(), name, val)
+                    return f
+    
+                layout.addWidget(QLabel(name), row, 0)
+                ctrl = QLineEdit('256')
+                ctrl.textChanged.connect(textChanged(name))
+                self.ctrls[name] = ctrl
+                layout.addWidget(ctrl, row, 1)
+                row += 1
+    
+            return layout
+
+
+        def balLayout():
+            layout = QGridLayout()
+            row = 0
+    
+            self.cal_save_pb = QPushButton("Cal save")
+            layout.addWidget(self.cal_save_pb)
+            self.cal_save_pb.clicked.connect(self.cal_save)
+    
+            layout.addWidget(QLabel('N'), row, 0)
+            self.n_frames = QLabel('0')
+            layout.addWidget(self.n_frames, row, 1)
+            row += 1
+    
+            layout.addWidget(QLabel('R_V'), row, 0)
+            self.r_val = QLabel('0')
+            layout.addWidget(self.r_val, row, 1)
+            row += 1
+    
+            layout.addWidget(QLabel('G_V'), row, 0)
+            self.g_val = QLabel('0')
+            layout.addWidget(self.g_val, row, 1)
+            row += 1
+    
+            layout.addWidget(QLabel('B_V'), row, 0)
+            self.b_val = QLabel('0')
+            layout.addWidget(self.b_val, row, 1)
+            row += 1
+    
+            layout.addWidget(QLabel('R_B'), row, 0)
+            self.r_bal = QLabel('0')
+            layout.addWidget(self.r_bal, row, 1)
+            row += 1
+    
+            layout.addWidget(QLabel('B_B'), row, 0)
+            self.b_bal = QLabel('0')
+            layout.addWidget(self.b_bal, row, 1)
+            row += 1
+    
+            return layout
+
         layout = QHBoxLayout()
+        layout.addLayout(get_ctrl_layout())
+        layout.addLayout(balLayout())
+        #self.control_scroll = get_control_scroll(self.vidpip)
+        #layout.addWidget(self.control_scroll)
+        layout.addWidget(self.vidpip.full_widget)
 
-        layout.addLayout(self.get_ctrl_layout())
-        layout.addLayout(self.get_rgb_layout())
-        layout.addLayout(self.get_video_layout())
-
-        w = QWidget()
-        w.setLayout(layout)
-        self.setCentralWidget(w)
+        centralWidget = QWidget()
+        centralWidget.setLayout(layout)
+        self.setCentralWidget(centralWidget)
         self.show()
 
-def excepthook(excType, excValue, tracebackobj):
-    print '%s: %s' % (excType, excValue)
-    traceback.print_tb(tracebackobj)
-    os._exit(1)
+    def get_properties(self):
+        ret = {}
+        for ctrl_name, widget in self.ctrls.items():
+            ret[ctrl_name] = int(widget.text())
+        return ret
+
+    def set_v4l2(self, _hack):
+        if self.fd() < 0:
+            return
+        if WEBCAM:
+            return
+        for ctrl_name, val in self.get_properties().items():
+            v4l2_util.ctrl_set(self.fd(), ctrl_name, val)
+
+    def cal_save(self):
+        config.cal_save(source=self.vidpip.source_name,
+                        j=self.get_properties())
+
+    def fd(self):
+        # -1 before pipeline started
+        return self.vidpip.source.get_property("device-fd")
+
+
+def parse_args():
+    import argparse
+
+    parser = argparse.ArgumentParser(description='')
+    args = parser.parse_args()
+
+    return vars(args)
+
 
 if __name__ == '__main__':
-    '''
-    We are controlling a robot
-    '''
-    sys.excepthook = excepthook
-    # Exit on ^C instead of ignoring
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-
-    gobject.threads_init()
-
-    app = QApplication(sys.argv)
-    _gui = TestGUI()
-    # XXX: what about the gstreamer message bus?
-    # Is it simply not running?
-    # must be what pygst is doing
-    sys.exit(app.exec_())
+    gstwidget_main(TestGUI, parse_args=parse_args)

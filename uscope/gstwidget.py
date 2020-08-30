@@ -1,3 +1,5 @@
+from uscope.img_util import auto_detect_source
+
 from PyQt5.Qt import Qt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -80,8 +82,9 @@ class GstVideoPipeline:
         # assert 0
         if source is None or source == "auto":
             # XXX: is there a way to see if a camera is attached?
-            source = 'gst-toupcamsrc'
+            source = auto_detect_source()
         self.source_name = source
+        print("vidpip source %s" % source)
 
         # TODO: auto calc these or something better
         self.camw = 5440
@@ -224,7 +227,7 @@ class GstVideoPipeline:
         # Must not be initialized until after layout is set
         # print(source)
         # assert 0
-        if self.source_name == 'gst-v4l2src':
+        if self.source_name in ('gst-v4l2src', 'gst-v4l2src-mu800'):
             self.source = Gst.ElementFactory.make('v4l2src', None)
             assert self.source is not None
             self.source.set_property("device", "/dev/video0")

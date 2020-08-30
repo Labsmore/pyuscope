@@ -73,38 +73,46 @@ def ctrls(fd):
     for queryctrl in get_device_controls(fd):
         if queryctrl.flags & v4l2.V4L2_CTRL_FLAG_DISABLED:
             continue
-
-        ret.append(queryctrl.name)
-
+        
+        ret.append(queryctrl.name.decode("ascii"))
+    
     return ret
-
 
 def ctrl_get(fd, name):
     for queryctrl in get_device_controls(fd):
         if queryctrl.flags & v4l2.V4L2_CTRL_FLAG_DISABLED:
             continue
-        if queryctrl.name != name:
+        if queryctrl.name.decode("ascii") != name:
             continue
-
+        
         control = v4l2.v4l2_control(queryctrl.id)
         fcntl.ioctl(fd, v4l2.VIDIOC_G_CTRL, control)
         return control.value
-
+    
     raise ValueError("Failed to find control %s" % name)
-
 
 def ctrl_set(fd, name, value):
     for queryctrl in get_device_controls(fd):
         if queryctrl.flags & v4l2.V4L2_CTRL_FLAG_DISABLED:
             continue
-        if queryctrl.name != name:
+        if queryctrl.name.decode("ascii") != name:
             continue
         if value < queryctrl.minimum or value > queryctrl.maximum:
-            raise ValueError("Require %d <= %d <= %d" %
-                             (queryctrl.minimum, value, queryctrl.maximum))
+            raise ValueError("Require %d <= %d <= %d" % (queryctrl.minimum, value, queryctrl.maximum))
 
         control = v4l2.v4l2_control(queryctrl.id, value)
         fcntl.ioctl(fd, v4l2.VIDIOC_S_CTRL, control)
         return
-
+    
     raise ValueError("Failed to find control %s" % name)
+
+def ctrl_minmax(fd, name):
+    for queryctrl in get_device_controls(fd):
+        if queryctrl.flags & v4l2.V4L2_CTRL_FLAG_DISABLED:
+            continue
+        if queryctrl.name.decode("ascii") != name:
+            continue
+        return queryctrl.minimum, queryctrl.maximum
+    
+    raise ValueError("Failed to find control %s" % name)
+

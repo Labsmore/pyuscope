@@ -9,7 +9,6 @@ from collections import OrderedDict
 
 from uscope import config
 
-
 def unpack_groupv(groupv):
     if type(groupv) is dict:
         return groupv.get("name"), groupv.get("ro", True)
@@ -18,6 +17,12 @@ def unpack_groupv(groupv):
 
 
 class ImagerControlScroll(QScrollArea):
+    def __init__(self, parent=None):
+        QScrollArea.__init__(self, parent=parent)
+
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self.updateControls)
+
     def buttonLayout(self):
         layout = QHBoxLayout()
 
@@ -49,26 +54,25 @@ class ImagerControlScroll(QScrollArea):
         if self.update_timer:
             self.update_timer.start(200)
 
-    def defaultControls(self):
-        """
-        Set all controls to their default values
-        """
-
-        print("default controls")
-        for name, widget in self.ctrls.items():
-            ps = self.vidpip.source.find_property(name)
-            if type(widget) == QSlider:
-                widget.setValue(ps.default_value)
-            elif type(widget) == QCheckBox:
-                widget.setChecked(ps.default_value)
-            else:
-                assert 0, type(widget)
-
     def updateControls(self):
         """
         Query all gstreamer properties and update sliders to reflect current state
         """
         self.set_properties(self.get_properties())
+
+
+    def get_properties(self):
+        raise Exception("Required")
+
+    def set_properties(self, vals):
+        raise Exception("Required")
+
+    def defaultControls(self):
+        """
+        Set all controls to their default values
+        """
+
+        raise Exception("Required")
 
 
 class GstControlScroll(ImagerControlScroll):
@@ -107,8 +111,6 @@ class GstControlScroll(ImagerControlScroll):
         self.setWidgetResizable(True)
         self.setWidget(widget)
 
-        self.update_timer = QTimer()
-        self.update_timer.timeout.connect(self.updateControls)
 
     def assemble_gint(self, name, layoutg, row, ps):
         def changed(name, value_label):
@@ -192,9 +194,26 @@ class GstControlScroll(ImagerControlScroll):
                 val = vals[name]
             except KeyError:
                 print("WARNING: %s keeping default value" % name)
+                continue
             if type(widget) == QSlider:
                 widget.setValue(val)
             elif type(widget) == QCheckBox:
                 widget.setChecked(val)
             else:
                 assert 0, type(widget)
+
+    def defaultControls(self):
+        """
+        Set all controls to their default values
+        """
+
+        print("default controls")
+        for name, widget in self.ctrls.items():
+            ps = self.vidpip.source.find_property(name)
+            if type(widget) == QSlider:
+                widget.setValue(ps.default_value)
+            elif type(widget) == QCheckBox:
+                widget.setChecked(ps.default_value)
+            else:
+                assert 0, type(widget)
+

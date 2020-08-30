@@ -26,101 +26,32 @@
         }
     },
     "imager": {
-        "!engine":"mock",
-        "!engine":"gstreamer-testsrc",
-        "engine":"gstreamer",
+        "source":"mock",
         "snapshot_dir":"snapshot",
 		"width": 3264,
 		"height": 2448,
-		"scalar": 0.5,
-		"v4l2": {
-		    "2020-04-03_a-y": {
-                "Red Balance":  237,
-                "Gain":         200,
-                "Blue Balance": 418,
-                "Exposure":     50
-		    },
-		    "irfilt-rnd_2019-06-25": {
-                "Red Balance":  204,
-                "Gain":         200,
-                "Blue Balance": 514,
-                "Exposure":     50
-		    },
-		    "irfilt3_2018-11-21": {
-                "Red Balance":  149,
-                "Gain":         200,
-                "Blue Balance": 520,
-                "Exposure":     50
-		    },
-		    "irfilt2_2018-11-21": {
-                "Red Balance":  21,
-                "Gain":         280,
-                "Blue Balance": 398,
-                "Exposure":     50
-		    },
-		    "vmax_ns20x_pol-y_wafer-back_2018-10-25_3": {
-                "Red Balance":  0,
-                "Gain":         100,
-                "Blue Balance": 420,
-                "Exposure":     50
-		    },
-		    "vmax_ns20x_pol-y_wafer-back_2018-10-25_2": {
-                "Red Balance":  0,
-                "Gain":         100,
-                "Blue Balance": 420,
-                "Exposure":     50
-		    },
-		    "vmax_ns20x_pol-n_backside_nd_2017-12-31": {
-                "Red Balance":  90,
-                "Gain":         100,
-                "Blue Balance": 207,
-                "Exposure":     50
-		    },
-		    "vmax_ns20x_pol-n_backside_exp-10_2017-12-31": {
-                "Red Balance":  44,
-                "Gain":         50,
-                "Blue Balance": 103,
-                "Exposure":     10
-		    },
-		    "vmax_ns100x_pol-n_backside_2017-12-31": {
-                "Red Balance":  47,
-                "Gain":         50,
-                "Blue Balance": 95,
-                "Exposure":     10
-		    },
-		    "vmax_ns20x_pol-y_backside_2017-12-31": {
-                "Red Balance":  256,
-                "Gain":         250,
-                "Blue Balance": 958,
-                "Exposure":     800
-		    }
-	    },
-		"v4l2_old": {
-		    "8v_ns20x_pol-no_backside_exp-60_2017-12-31": {
-                "Red Balance":  125,
-                "Gain":         165,
-                "Blue Balance": 387,
-                "Exposure":     60
-		    },
-		    "10v_ns20x_pol-no_backside_exp-60_2017-12-31": {
-                "Red Balance":  138,
-                "Gain":         165,
-                "Blue Balance": 359,
-                "Exposure":     60
-		    },
-		    "10v_ns100x_pol-no_backside_exp-60_2017-12-31": {
-                "Red Balance":  148,
-                "Gain":         165,
-                "Blue Balance": 326,
-                "Exposure":     60
-		    },
-		    "12v_ns100x_pol-no_backside_exp-60_2017-12-31": {
-                "Red Balance":  158,
-                "Gain":         165,
-                "Blue Balance": 304,
-                "Exposure":     60
-		    }
-	    }
+		"scalar": 0.5
+    },
+    "imager": {
+        "source":"gst-toupcamsrc",
+        "snapshot_dir":"snapshot",
+		"width": 3264,
+		"height": 2448,
+		"scalar": 0.5
+    },
+    "imager": {
+        "source":"gst-v4l2src",
+        "snapshot_dir":"snapshot",
+		"width": 3264,
+		"height": 2448,
+		"scalar": 0.5
+    },
+    "imager": {
+        "source":"auto",
+        "snapshot_dir":"snapshot",
+		"width": 3264,
+		"height": 2448,
+		"scalar": 0.5
     },
     "objective": [
 		{

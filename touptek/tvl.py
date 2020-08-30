@@ -5,7 +5,7 @@ No motion control
 """
 
 from uscope import gstwidget
-from uscope.imagers.gst_toupcamsrc.widgets import TTControlScroll
+from uscope.control_scroll import get_control_scroll
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gst_util import CbSink
 
@@ -39,8 +39,6 @@ class TestGUI(QMainWindow):
         self.vidpip = GstVideoPipeline(source=source)
         self.vidpip.size_widgets(frac=0.5)
 
-        # self.mysink = Gst.ElementFactory.make("mysink")
-        # self.mysink = MySink()
         self.mysink = CbSink()
         self.vidpip.player.add(self.mysink)
 
@@ -140,7 +138,7 @@ class TestGUI(QMainWindow):
 
         def lowerlLayout():
             layout = QHBoxLayout()
-            self.control_scroll = TTControlScroll(self.vidpip)
+            self.control_scroll = get_control_scroll(self.vidpip)
             layout.addWidget(self.control_scroll)
             layout.addWidget(imageTabs())
             return layout

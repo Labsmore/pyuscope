@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 '''
 To keep things simple,
 just 
@@ -7,10 +6,10 @@ just
 
 from uvscada.v4l2_util import ctrl_set
 
-from PyQt4 import Qt
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-from PyQt4.QtGui import QWidget, QLabel
+from PyQt5 import Qt
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import QWidget, QLabel
 
 import cv2
 import numpy as np
@@ -25,41 +24,38 @@ import shutil
 import time
 
 import gobject, pygst
-pygst.require('0.10')
+pygst.require('1.0')
 import gst
 
 import StringIO
 from PIL import Image
 
-LAPLACIAN=1
-LAPLACIAN2=0
-HISTEQ=1
-COLORMAP=cv2.COLORMAP_JET
+LAPLACIAN = 1
+LAPLACIAN2 = 0
+HISTEQ = 1
+COLORMAP = cv2.COLORMAP_JET
 
 # too big
 #SCALE_DST=1
-SCALE_DST=4
+SCALE_DST = 4
 
 # shows bayer artifacts
 # should be at least 2
 #SCALE_BIN=1
-SCALE_BIN=4
+SCALE_BIN = 4
 #SCALE_BIN=256
-
-
-
 '''
 Do not encode images in gstreamer context or it brings system to halt
 instead, request images and have them encoded in requester's context
 '''
+
+
 class CaptureSink(gst.Element):
     __gstdetails__ = ('CaptureSink','Sink', \
                       'Captures images for the CNC', 'John McMaster')
 
-    _sinkpadtemplate = gst.PadTemplate ("sinkpadtemplate",
-                                        gst.PAD_SINK,
-                                        gst.PAD_ALWAYS,
-                                        gst.caps_new_any())
+    _sinkpadtemplate = gst.PadTemplate("sinkpadtemplate", gst.PAD_SINK,
+                                       gst.PAD_ALWAYS, gst.caps_new_any())
 
     def __init__(self):
         gst.Element.__init__(self)
@@ -88,12 +84,14 @@ class CaptureSink(gst.Element):
     def eventfunc(self, pad, event):
         return True
 
+
 gobject.type_register(CaptureSink)
 # Register the element into this process' registry.
-gst.element_register (CaptureSink, 'capturesink', gst.RANK_MARGINAL)
+gst.element_register(CaptureSink, 'capturesink', gst.RANK_MARGINAL)
+
 
 class ImageProcessor(QThread):
-    n_frames = pyqtSignal(int) # Number of images
+    n_frames = pyqtSignal(int)  # Number of images
     processed = pyqtSignal()
 
     def __init__(self):
@@ -128,7 +126,10 @@ class ImageProcessor(QThread):
 
         laplacian = np.uint8(img)
 
-        laplacian = cv2.resize(laplacian, (0,0), fx=1.0/SCALE_BIN, fy=1.0/SCALE_BIN, interpolation=cv2.INTER_AREA)
+        laplacian = cv2.resize(laplacian, (0, 0),
+                               fx=1.0 / SCALE_BIN,
+                               fy=1.0 / SCALE_BIN,
+                               interpolation=cv2.INTER_AREA)
 
         if LAPLACIAN:
             laplacian = cv2.Laplacian(laplacian, cv2.CV_64F)
@@ -137,11 +138,15 @@ class ImageProcessor(QThread):
         laplacian = np.uint8(laplacian)
         if HISTEQ:
             laplacian = cv2.equalizeHist(laplacian)
-            print('hist max: %u, hist min: %u' % (np.amax(laplacian), np.amin(laplacian)))
+            print('hist max: %u, hist min: %u' %
+                  (np.amax(laplacian), np.amin(laplacian)))
         if COLORMAP is not None:
             laplacian = cv2.applyColorMap(laplacian, COLORMAP)
 
-        laplacian = cv2.resize(laplacian, (0,0), fx=SCALE_BIN/SCALE_DST, fy=SCALE_BIN/SCALE_DST, interpolation=cv2.INTER_AREA)
+        laplacian = cv2.resize(laplacian, (0, 0),
+                               fx=SCALE_BIN / SCALE_DST,
+                               fy=SCALE_BIN / SCALE_DST,
+                               interpolation=cv2.INTER_AREA)
 
         #laplacian.save('focus_eval.jpg', quality=90)
         cv2.imwrite('focus_eval-out.tmp.png', laplacian)
@@ -166,7 +171,7 @@ class ImageProcessor(QThread):
         #open('tmp_%d.jpg' % self._n_frames, 'w').write(buffer.data)
         if self.image_requested.is_set():
             #print 'Processing image request'
-                # Clear before emitting signal so that it can be re-requested in response
+            # Clear before emitting signal so that it can be re-requested in response
             self.image_requested.clear()
             # is there a difference between str(buffer) and buffer.data?
             self.q.put(buffer.data)
@@ -195,13 +200,13 @@ class TestGUI(QMainWindow):
         self.sinkx.set_xwindow_id(0)
         self.timers = []
         # simplest reliable workaround, see SO thread
-        self.delay(self.win_init,  100)
+        self.delay(self.win_init, 100)
         if 0:
-            self.delay(self.call_show,      5000)
-            self.delay(self.set_winid,      10000)
-            self.delay(self.start_playing,  1000)
-            self.delay(self.set_winid0,     15000)
-            self.delay(self.set_winid,      20000)
+            self.delay(self.call_show, 5000)
+            self.delay(self.set_winid, 10000)
+            self.delay(self.start_playing, 1000)
+            self.delay(self.set_winid0, 15000)
+            self.delay(self.set_winid, 20000)
 
     def win_init(self):
         self.call_show()
@@ -244,11 +249,11 @@ class TestGUI(QMainWindow):
             self.setupGst()
         elif engine_config == 'gstreamer-testsrc':
             print 'WARNING: using test source'
-            self.source = gst.element_factory_make("videotestsrc", "video-source")
+            self.source = gst.element_factory_make("videotestsrc",
+                                                   "video-source")
             self.setupGst()
         else:
-            raise Exception('Unknown engine %s' % (engine_config,))
-
+            raise Exception('Unknown engine %s' % (engine_config, ))
 
     def v4l_updated(self):
         for k, v in self.v4ls.iteritems():
@@ -277,7 +282,8 @@ class TestGUI(QMainWindow):
         row += 1
         layout.addWidget(QLabel('Hist eq: %s' % bool(HISTEQ)), row, 0)
         row += 1
-        layout.addWidget(QLabel('Color map: %s' % (COLORMAP is not None,)), row, 0)
+        layout.addWidget(QLabel('Color map: %s' % (COLORMAP is not None, )),
+                         row, 0)
         row += 1
         layout.addWidget(QLabel('Bin scalar: %s' % SCALE_BIN), row, 0)
         row += 1
@@ -286,7 +292,9 @@ class TestGUI(QMainWindow):
 
         self.v4ls = {}
         # hacked driver to directly drive values
-        for ki, (label, v4l_name) in enumerate((("Red", "Red Balance"), ("Green", "Gain"), ("Blue", "Blue Balance"), ("Exp", "Exposure"))):
+        for ki, (label, v4l_name) in enumerate(
+            (("Red", "Red Balance"), ("Green", "Gain"),
+             ("Blue", "Blue Balance"), ("Exp", "Exposure"))):
             cols = 4
             rowoff = ki / cols
             coloff = cols * (ki % cols)
@@ -324,7 +332,7 @@ class TestGUI(QMainWindow):
             self.video_container = QWidget()
             # Allows for convenient keyboard control by clicking on the video
             self.video_container.setFocusPolicy(Qt.ClickFocus)
-            w, h = 3264/4, 2448/4
+            w, h = 3264 / 4, 2448 / 4
             self.video_container.setMinimumSize(w, h)
             self.video_container.resize(w, h)
             policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -350,17 +358,19 @@ class TestGUI(QMainWindow):
         self.capture_enc = gst.element_factory_make("jpegenc")
         self.capture_sink = gst.element_factory_make("capturesink")
         self.capture_sink_queue = gst.element_factory_make("queue")
-        self.resizer =  gst.element_factory_make("videoscale")
+        self.resizer = gst.element_factory_make("videoscale")
 
         # Video render stream
-        self.player.add(      self.source, self.tee)
+        self.player.add(self.source, self.tee)
         gst.element_link_many(self.source, self.tee)
 
-        self.player.add(fcs,                 self.resizer, self.sinkx)
+        self.player.add(fcs, self.resizer, self.sinkx)
         gst.element_link_many(self.tee, fcs, self.resizer, self.sinkx)
 
-        self.player.add(                self.capture_sink_queue, self.capture_enc, self.capture_sink)
-        gst.element_link_many(self.tee, self.capture_sink_queue, self.capture_enc, self.capture_sink)
+        self.player.add(self.capture_sink_queue, self.capture_enc,
+                        self.capture_sink)
+        gst.element_link_many(self.tee, self.capture_sink_queue,
+                              self.capture_enc, self.capture_sink)
 
         bus = self.player.get_bus()
         bus.add_signal_watch()
@@ -418,10 +428,12 @@ class TestGUI(QMainWindow):
         w.setLayout(layout)
         self.setCentralWidget(w)
 
+
 def excepthook(excType, excValue, tracebackobj):
     print '%s: %s' % (excType, excValue)
     traceback.print_tb(tracebackobj)
     os._exit(1)
+
 
 if __name__ == '__main__':
     '''

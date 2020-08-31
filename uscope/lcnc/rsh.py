@@ -25,15 +25,22 @@ import pexpect.fdpexpect
 import telnetlib
 import time
 
+
 class Rsh(object):
-    def __init__(self, host='localhost', port=5007, password=None, enable=True, machine=True, mdi=True):
+    def __init__(self,
+                 host='localhost',
+                 port=5007,
+                 password=None,
+                 enable=True,
+                 machine=True,
+                 mdi=True):
         self.telsh = telnetlib.Telnet('mk-xray', 5007, timeout=0.5)
         self.client = pexpect.fdpexpect.fdspawn(self.telsh)
         self.auth(password)
         # Required for class to operate correctly
         self.set_echo(False)
         self.set_verbose(True)
-        
+
         if enable:
             self.enable(True)
         if machine:
@@ -72,7 +79,7 @@ class Rsh(object):
     def set_machine(self, yn):
         if yn != True:
             raise Exception("FIXME")
-            
+
         self.client.sendline('SET MACHINE ON')
         self.client.expect('SET MACHINE ACK')
 
@@ -94,14 +101,14 @@ class Rsh(object):
         # but doesn't return error
         self.client.sendline('SET MDI %s' % cmd)
         self.client.expect('SET MDI ACK')
-        
+
         if timeout is not None:
             self.timeout(timeout)
-    
+
     def timeout(self, timeout):
         if timeout != 0:
             raise Exception('FIXME')
-        
+
         while True:
             self.client.sendline('GET PROGRAM_STATUS')
             status = self.client.readline().strip()

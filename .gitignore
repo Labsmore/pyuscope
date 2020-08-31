@@ -1,5 +1,8 @@
 out
 snapshot
-microscope.json
 scan.json
+config
 
+# some local junk
+env.sh
+archive

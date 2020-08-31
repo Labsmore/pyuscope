@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-Comprehensive image acquisition test GUI
-No motion control
+Ideal flow:
+-Wait for gst/v4l2 to initialize and seed values
+-User can't change R or B while AWB running. They also don't poll (except for initial)
+-Algorithm changes sliders. Changing sliders triggers gst update
 """
 
 from uscope import gstwidget
@@ -36,10 +38,9 @@ Initialization constraints:
 -Gst initialization needs
 """
 
-WEBCAM = 1
-
 import datetime
 import os
+
 
 def process_image(img, setr, setg, setb):
     rval = 0
@@ -55,31 +56,37 @@ def process_image(img, setr, setg, setb):
             bval += b
     sz = img.size[0] * img.size[1] / xs / ys * 256
 
-    rbal = 1.0 * rval / gval
-    gbal = 1.0 * gval / gval
-    bbal = 1.0 * bval / gval
+    rbal = 1.0 * rval / gval - 1.0
+    gbal = 1.0 * gval / gval - 1.0
+    bbal = 1.0 * bval / gval - 1.0
 
-    sf = 0.2
+    sfr = 20
+    # Blue responds slower
+    sfb = 40
     limit = lambda x: max(min(int(x), 1023), 0)
-    newr = limit(setr - rbal * sf)
+    newr = limit(setr - rbal * sfr)
     newg = setg
-    newb = limit(setb - bbal * sf)
-    
+    newb = limit(setb - bbal * sfb)
+
+    print("V-RGB %u %u %u => R-B %0.3f B-B %0.3f" %
+          (rval, gval, bval, rbal, bbal))
+    print("RGB %u %u %u => %u %u %u" % (setr, setg, setb, newr, newg, newb))
     return rval / sz, gval / sz, bval / sz, rbal, gbal, bbal, newr, newg, newb
 
+
 class ImageProcessor(QThread):
-    n_frames = pyqtSignal(int) # Number of images
+    n_frames = pyqtSignal(int)  # Number of images
 
-    r_val = pyqtSignal(int) # calc red value
-    g_val = pyqtSignal(int) # calc green value
-    b_val = pyqtSignal(int) # calc blue value
+    r_val = pyqtSignal(int)  # calc red value
+    g_val = pyqtSignal(int)  # calc green value
+    b_val = pyqtSignal(int)  # calc blue value
 
-    r_bal = pyqtSignal(int) # calc red bal (r/g)
-    b_bal = pyqtSignal(int) # calc blue bal (b/g)
+    r_bal = pyqtSignal(int)  # calc red bal (r/g)
+    b_bal = pyqtSignal(int)  # calc blue bal (b/g)
 
-    r_new = pyqtSignal(str) # calc red value
-    g_new = pyqtSignal(str) # calc green value
-    b_new = pyqtSignal(str) # calc blue value
+    r_new = pyqtSignal(int)
+    g_new = pyqtSignal(int)
+    b_new = pyqtSignal(int)
 
     def __init__(self, tg):
         QThread.__init__(self)
@@ -93,27 +100,28 @@ class ImageProcessor(QThread):
 
     def run(self):
         self.running.set()
-        self.image_requested.set()
         while self.running.is_set():
             try:
                 img, props = self.q.get(True, 0.1)
             except queue.Empty:
                 continue
+            print("")
             img = Image.open(io.BytesIO(img))
 
-            
-            rval, gval, bval, rbal, _gbal, bbal, newr, newg, newb = process_image(img, props["Red Balance"], props["Gain"], props["Blue Balance"])
+            rval, gval, bval, rbal, _gbal, bbal, newr, newg, newb = process_image(
+                img, props["Red Balance"], props["Gain"],
+                props["Blue Balance"])
 
             self.r_val.emit(int(rval * 1000.0))
             self.g_val.emit(int(gval * 1000.0))
             self.b_val.emit(int(bval * 1000.0))
 
-            self.r_bal.emit(int((rbal - 1) * 1000.0))
-            self.b_bal.emit(int((bbal - 1) * 1000.0))
+            self.r_bal.emit(int(rbal * 1000.0))
+            self.b_bal.emit(int(bbal * 1000.0))
 
-            self.r_new.emit(str(newr))
-            self.g_new.emit(str(newg))
-            self.b_new.emit(str(newb))
+            self.r_new.emit(newr)
+            self.g_new.emit(newg)
+            self.b_new.emit(newb)
 
             self.image_requested.set()
 
@@ -124,6 +132,13 @@ class ImageProcessor(QThread):
         """
         Called in GUI context
         """
+
+        # First frame?
+        if self._n_frames == 0:
+            # Initialize control values
+            self.tg.control_scroll.setWidgetsToProperties()
+            # And process the image
+            self.image_requested.set()
 
         self._n_frames += 1
         self.n_frames.emit(self._n_frames)
@@ -138,9 +153,10 @@ class ImageProcessor(QThread):
         if self.image_requested.is_set():
             #print 'Processing image request'
             # is there a difference between str(buffer) and buffer.data?
-            self.q.put((buffer, self.tg.get_properties()))
+            self.q.put((buffer, self.tg.control_scroll.get_properties()))
             # Clear before emitting signal so that it can be re-requested in response
             self.image_requested.clear()
+
 
 class TestGUI(QMainWindow):
     def __init__(self, source=None):
@@ -169,10 +185,12 @@ class TestGUI(QMainWindow):
 
         self.initUI()
         self.vidpip.run()
-        #self.control_scroll.run()
+        # Starts the polling timer
+        # Lets disable in favor of manually controlling updates
+        # to avoid contention with AWB algorithm
+        # self.control_scroll.run()
 
         self.setup_processor()
-
         """
         # Now driven through image CB
         self.awb_timer = QTimer()
@@ -191,9 +209,11 @@ class TestGUI(QMainWindow):
         self.processor.r_bal.connect(self.r_bal.setNum)
         self.processor.b_bal.connect(self.b_bal.setNum)
 
-        self.processor.r_new.connect(self.ctrls["Red Balance"].setText)
-        # self.processor.g_new.connect(self.ctrls["Gain"].setText)
-        self.processor.b_new.connect(self.ctrls["Blue Balance"].setText)
+        self.processor.r_new.connect(
+            self.control_scroll.widgets["Red"].setValue)
+        # self.processor.g_new.connect(self.control_scroll.widgets["Gren"].setValue)
+        self.processor.b_new.connect(
+            self.control_scroll.widgets["Blue"].setValue)
 
         # Update after all other signals
         self.processor.b_new.connect(self.set_v4l2)
@@ -217,82 +237,46 @@ class TestGUI(QMainWindow):
         #print(dir(self.vidpip.source))
         #assert 0
 
-        def get_ctrl_layout():
-    
-            layout = QGridLayout()
-            row = 0
-    
-            self.ctrls = {}
-            for name in ("Red Balance", "Gain", "Blue Balance", "Exposure"):
-                def textChanged(name):
-                    def f():
-                        if self.fd() >= 0:
-                            if WEBCAM:
-                                return
-                            try:
-                                val = int(self.ctrls[name].text())
-                            except ValueError:
-                                pass
-                            else:
-                                print('%s changed => %d' % (name, val))
-                                v4l2_util.ctrl_set(self.fd(), name, val)
-                    return f
-    
-                layout.addWidget(QLabel(name), row, 0)
-                ctrl = QLineEdit('256')
-                ctrl.textChanged.connect(textChanged(name))
-                self.ctrls[name] = ctrl
-                layout.addWidget(ctrl, row, 1)
-                row += 1
-    
-            return layout
-
-
         def balLayout():
             layout = QGridLayout()
             row = 0
-    
-            self.cal_save_pb = QPushButton("Cal save")
-            layout.addWidget(self.cal_save_pb)
-            self.cal_save_pb.clicked.connect(self.cal_save)
-    
+
             layout.addWidget(QLabel('N'), row, 0)
             self.n_frames = QLabel('0')
             layout.addWidget(self.n_frames, row, 1)
             row += 1
-    
+
             layout.addWidget(QLabel('R_V'), row, 0)
             self.r_val = QLabel('0')
             layout.addWidget(self.r_val, row, 1)
             row += 1
-    
+
             layout.addWidget(QLabel('G_V'), row, 0)
             self.g_val = QLabel('0')
             layout.addWidget(self.g_val, row, 1)
             row += 1
-    
+
             layout.addWidget(QLabel('B_V'), row, 0)
             self.b_val = QLabel('0')
             layout.addWidget(self.b_val, row, 1)
             row += 1
-    
+
             layout.addWidget(QLabel('R_B'), row, 0)
             self.r_bal = QLabel('0')
             layout.addWidget(self.r_bal, row, 1)
             row += 1
-    
+
             layout.addWidget(QLabel('B_B'), row, 0)
             self.b_bal = QLabel('0')
             layout.addWidget(self.b_bal, row, 1)
             row += 1
-    
+
             return layout
 
         layout = QHBoxLayout()
-        layout.addLayout(get_ctrl_layout())
+        self.control_scroll = get_control_scroll(self.vidpip)
+        layout.addWidget(self.control_scroll)
         layout.addLayout(balLayout())
-        #self.control_scroll = get_control_scroll(self.vidpip)
-        #layout.addWidget(self.control_scroll)
         layout.addWidget(self.vidpip.full_widget)
 
         centralWidget = QWidget()
@@ -300,27 +284,15 @@ class TestGUI(QMainWindow):
         self.setCentralWidget(centralWidget)
         self.show()
 
-    def get_properties(self):
-        ret = {}
-        for ctrl_name, widget in self.ctrls.items():
-            ret[ctrl_name] = int(widget.text())
-        return ret
-
     def set_v4l2(self, _hack):
         if self.fd() < 0:
             return
-        if WEBCAM:
-            return
-        for ctrl_name, val in self.get_properties().items():
+        for ctrl_name, val in self.control_scroll.get_properties().items():
             v4l2_util.ctrl_set(self.fd(), ctrl_name, val)
-
-    def cal_save(self):
-        config.cal_save(source=self.vidpip.source_name,
-                        j=self.get_properties())
 
     def fd(self):
         # -1 before pipeline started
-        return self.vidpip.source.get_property("device-fd")
+        return self.control_scroll.fd()
 
 
 def parse_args():

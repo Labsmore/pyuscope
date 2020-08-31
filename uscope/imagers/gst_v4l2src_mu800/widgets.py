@@ -11,21 +11,20 @@ from collections import OrderedDict
 acts on file descriptor directly via v4l2 API
 (like on old GUI)
 """
-
 """
 WARNING:
 hack to control green directly
 as such "Gain" is actualy just "Green gain"
 Similarly others aren't balance but directly control invididual gains
 """
-prop_layout = OrderedDict([
-    ("RGBE", OrderedDict([
-        ("Red", ("Red Balance", 0, 511)),
-        ("Green", ("Gain", 0, 511)),
-        ("Blue", ("Blue Balance", 0, 511)),
-        ("Exp", ("Exposure", 0, 799)),
-    ]))
-])
+prop_layout = OrderedDict([("RGBE",
+                            OrderedDict([
+                                ("Red", ("Red Balance", 0, 511)),
+                                ("Green", ("Gain", 0, 511)),
+                                ("Blue", ("Blue Balance", 0, 511)),
+                                ("Exp", ("Exposure", 0, 799)),
+                            ]))])
+
 
 class V4L2MU800ControlScroll(ImagerControlScroll):
     def __init__(self, vidpip, parent=None):
@@ -37,6 +36,7 @@ class V4L2MU800ControlScroll(ImagerControlScroll):
         layout.addLayout(self.buttonLayout())
 
         # GUI elements
+        # Indexed by disp_name
         self.widgets = {}
         # List of v4l2 controls actually used
         self.ctrl2disp = {}
@@ -98,7 +98,8 @@ class V4L2MU800ControlScroll(ImagerControlScroll):
         slider.setMaximum(maxval)
         # slider.setTickPosition(QSlider.TicksBothSides)
         slider.setValue(defval)
-        slider.valueChanged.connect(changed(slider, disp_name, ctrl_name, value_label))
+        slider.valueChanged.connect(
+            changed(slider, disp_name, ctrl_name, value_label))
         self.widgets[disp_name] = slider
         layoutg.addWidget(slider, row, 0, 1, 2)
         row += 1
@@ -134,6 +135,5 @@ class V4L2MU800ControlScroll(ImagerControlScroll):
                 continue
             widget.setValue(val)
 
-    def defaultControls(self):
+    def setWidgetsToDefaults(self):
         print("WARNING: default not implemented")
-

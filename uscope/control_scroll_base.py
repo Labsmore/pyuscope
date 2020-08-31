@@ -9,6 +9,7 @@ from collections import OrderedDict
 
 from uscope import config
 
+
 def unpack_groupv(groupv):
     if type(groupv) is dict:
         return groupv.get("name"), groupv.get("ro", True)
@@ -21,14 +22,14 @@ class ImagerControlScroll(QScrollArea):
         QScrollArea.__init__(self, parent=parent)
 
         self.update_timer = QTimer()
-        self.update_timer.timeout.connect(self.updateControls)
+        self.update_timer.timeout.connect(self.setWidgetsToProperties)
 
     def buttonLayout(self):
         layout = QHBoxLayout()
 
         self.default_pb = QPushButton("Default")
         layout.addWidget(self.default_pb)
-        self.default_pb.clicked.connect(self.defaultControls)
+        self.default_pb.clicked.connect(self.setWidgetsToDefaults)
 
         self.cal_save_pb = QPushButton("Cal save")
         layout.addWidget(self.cal_save_pb)
@@ -54,20 +55,27 @@ class ImagerControlScroll(QScrollArea):
         if self.update_timer:
             self.update_timer.start(200)
 
-    def updateControls(self):
+    def setWidgetsToProperties(self):
         """
         Query all gstreamer properties and update sliders to reflect current state
         """
         self.set_properties(self.get_properties())
 
-
     def get_properties(self):
+        """
+        Get all of the property values from the source stream
+        (ie not using GUI controls)
+        """
         raise Exception("Required")
 
     def set_properties(self, vals):
+        """
+        Set the underlaying media stream to vals
+        Widgets are not affected
+        """
         raise Exception("Required")
 
-    def defaultControls(self):
+    def setWidgetsToDefaults(self):
         """
         Set all controls to their default values
         """
@@ -110,7 +118,6 @@ class GstControlScroll(ImagerControlScroll):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setWidgetResizable(True)
         self.setWidget(widget)
-
 
     def assemble_gint(self, name, layoutg, row, ps):
         def changed(name, value_label):
@@ -202,7 +209,7 @@ class GstControlScroll(ImagerControlScroll):
             else:
                 assert 0, type(widget)
 
-    def defaultControls(self):
+    def setWidgetsToDefaults(self):
         """
         Set all controls to their default values
         """
@@ -216,4 +223,3 @@ class GstControlScroll(ImagerControlScroll):
                 widget.setChecked(ps.default_value)
             else:
                 assert 0, type(widget)
-

@@ -62,8 +62,8 @@ class GstVideoPipeline:
     vidpip.setupGst()
     vidpip.run()
     """
-    def __init__(self, source=None, full=True, roi=False, load=True):
-        self.load = load
+    def __init__(self, source=None, full=True, roi=False, usj=True):
+        self.usj = usj
         self.source = None
         self.source_name = None
 
@@ -245,9 +245,9 @@ class GstVideoPipeline:
         else:
             raise Exception('Unknown source %s' % (self.source_name, ))
 
-        if self.load:
-            uconfig = config.get_uconfig()
-            properties = uconfig["imager"].get("source_properties", {})
+        if self.usj:
+            usj = config.get_usj()
+            properties = usj["imager"].get("source_properties", {})
             for propk, propv in properties.items():
                 print("Set source %s => %s" % (propk, propv))
                 self.source.set_property(propk, propv)

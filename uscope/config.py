@@ -34,14 +34,15 @@ defaults = {
     }
 }
 
-uconfig = None
+# microscope.json
+usj = None
 
 
-def get_uconfig(config_dir=None):
-    global uconfig
+def get_usj(config_dir=None):
+    global usj
 
-    if uconfig is not None:
-        return uconfig
+    if usj is not None:
+        return usj
 
     if config_dir is None:
         config_dir = "config"
@@ -56,8 +57,8 @@ def get_uconfig(config_dir=None):
                 default(rootj[k], v)
 
     default(j, defaults)
-    uconfig = j
-    return uconfig
+    usj = j
+    return usj
 
 
 """

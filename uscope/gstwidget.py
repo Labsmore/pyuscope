@@ -23,6 +23,8 @@ from gi.repository import Gst
 Gst.init(None)
 from gi.repository import GstBase, GObject, GstVideo
 
+from uscope import config
+
 import platform
 """
 def screen_wh():
@@ -60,7 +62,8 @@ class GstVideoPipeline:
     vidpip.setupGst()
     vidpip.run()
     """
-    def __init__(self, source=None, full=True, roi=False):
+    def __init__(self, source=None, full=True, roi=False, load=True):
+        self.load = load
         self.source = None
         self.source_name = None
 
@@ -241,6 +244,13 @@ class GstVideoPipeline:
             self.source = Gst.ElementFactory.make('videotestsrc', None)
         else:
             raise Exception('Unknown source %s' % (self.source_name, ))
+
+        if self.load:
+            uconfig = config.get_uconfig()
+            properties = uconfig["imager"].get("source_properties", {})
+            for propk, propv in properties.items():
+                print("Set source %s => %s" % (propk, propv))
+                self.source.set_property(propk, propv)
 
     def link_tee(self, src, dsts, add=0):
         """

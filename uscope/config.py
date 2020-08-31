@@ -34,8 +34,15 @@ defaults = {
     }
 }
 
+uconfig = None
 
-def get_config(config_dir=None):
+
+def get_uconfig(config_dir=None):
+    global uconfig
+
+    if uconfig is not None:
+        return uconfig
+
     if config_dir is None:
         config_dir = "config"
     j = json.load(open(os.path.join(config_dir, "microscope.json")),
@@ -49,7 +56,8 @@ def get_config(config_dir=None):
                 default(rootj[k], v)
 
     default(j, defaults)
-    return j
+    uconfig = j
+    return uconfig
 
 
 """

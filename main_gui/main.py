@@ -180,10 +180,7 @@ class MainWindow(QMainWindow):
         # FIXME: pull from config file etc
         if source is None:
             source = usj["imager"]["source"]
-        # FIXME: hack
-        # https://github.com/JohnDMcMaster/pyuscope/issues/17
-        roi = 1 or source != "gst-v4l2src"
-        self.vidpip = GstVideoPipeline(source=source, full=True, roi=roi)
+        self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)
         # FIXME: review sizing
         self.vidpip.size_widgets(frac=0.5)
         # self.capture_sink = Gst.ElementFactory.make("capturesink")

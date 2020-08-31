@@ -330,20 +330,15 @@ class GstVideoPipeline:
             workaround: disable raw caps negotation on toupcamsrc
         update: toupcamsrc failed due to bad config file setting incorrect caps negotation
         """
-        if 1 or self.source_name == "gst-v4l2src":
-            print("neg raw caps: yes")
-            usj = config.get_usj()
-            self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")
-            self.raw_capsfilter.props.caps = Gst.Caps(
-                "video/x-raw,width=%u,height=%u" %
-                (usj["imager"]["width"], usj["imager"]["height"]))
-            self.player.add(self.raw_capsfilter)
+        usj = config.get_usj()
+        self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")
+        self.raw_capsfilter.props.caps = Gst.Caps(
+            "video/x-raw,width=%u,height=%u" %
+            (usj["imager"]["width"], usj["imager"]["height"]))
+        self.player.add(self.raw_capsfilter)
 
-            assert self.source.link(self.raw_capsfilter)
-            raw_element = self.raw_capsfilter
-        else:
-            print("neg raw caps: no")
-            raw_element = self.source
+        assert self.source.link(self.raw_capsfilter)
+        raw_element = self.raw_capsfilter
 
 
         # This either will be directly forwarded or put into a queue
@@ -359,15 +354,12 @@ class GstVideoPipeline:
             self.player.add(self.full_scale)
             our_vc_tees.append(self.full_scale)
 
-            if 1:
-                # Unreliable without this => set widget size explicitly
-                self.full_capsfilter = Gst.ElementFactory.make("capsfilter")
-                self.full_capsfilter.props.caps = Gst.Caps(
-                    "video/x-raw,width=%u,height=%u" %
-                    (self.full_widget_w, self.full_widget_h))
-                self.player.add(self.full_capsfilter)
-            else:
-                self.full_capsfilter = None
+            # Unreliable without this => set widget size explicitly
+            self.full_capsfilter = Gst.ElementFactory.make("capsfilter")
+            self.full_capsfilter.props.caps = Gst.Caps(
+                "video/x-raw,width=%u,height=%u" %
+                (self.full_widget_w, self.full_widget_h))
+            self.player.add(self.full_capsfilter)
 
             self.full_sinkx = Gst.ElementFactory.make("ximagesink",
                                                       'sinkx_overview')

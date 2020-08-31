@@ -46,6 +46,13 @@
 		"height": 2448,
 		"scalar": 0.5
     },
+    "imager": {
+        "source":"gst-v4l2src-mu800",
+        "snapshot_dir":"snapshot",
+		"width": 3264,
+		"height": 2448,
+		"scalar": 0.5
+    },
     "!imager": {
         "source":"auto",
         "snapshot_dir":"snapshot",

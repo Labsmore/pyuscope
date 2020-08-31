@@ -90,8 +90,10 @@ class GstVideoPipeline:
         print("vidpip source %s" % source)
 
         # TODO: auto calc these or something better
-        self.camw = 5440
-        self.camh = 3648
+        usj = config.get_usj()
+        self.camw = usj["imager"]["width"]
+        self.camh = usj["imager"]["height"]
+
         # Usable area, not total area
         # XXX: probably should maximize window and take window size
         self.screenw = 1920
@@ -334,7 +336,7 @@ class GstVideoPipeline:
             self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")
             self.raw_capsfilter.props.caps = Gst.Caps(
                 "video/x-raw,width=%u,height=%u" %
-                (usj["imager"].get("width"), usj["imager"].get("height")))
+                (usj["imager"]["width"], usj["imager"]["height"]))
             self.player.add(self.raw_capsfilter)
 
             assert self.source.link(self.raw_capsfilter)
@@ -357,12 +359,15 @@ class GstVideoPipeline:
             self.player.add(self.full_scale)
             our_vc_tees.append(self.full_scale)
 
-            # Unreliable without this => set widget size explicitly
-            self.full_capsfilter = Gst.ElementFactory.make("capsfilter")
-            self.full_capsfilter.props.caps = Gst.Caps(
-                "video/x-raw,width=%u,height=%u" %
-                (self.full_widget_w, self.full_widget_h))
-            self.player.add(self.full_capsfilter)
+            if 1:
+                # Unreliable without this => set widget size explicitly
+                self.full_capsfilter = Gst.ElementFactory.make("capsfilter")
+                self.full_capsfilter.props.caps = Gst.Caps(
+                    "video/x-raw,width=%u,height=%u" %
+                    (self.full_widget_w, self.full_widget_h))
+                self.player.add(self.full_capsfilter)
+            else:
+                self.full_capsfilter = None
 
             self.full_sinkx = Gst.ElementFactory.make("ximagesink",
                                                       'sinkx_overview')
@@ -380,11 +385,14 @@ class GstVideoPipeline:
             assert self.roi_scale
             self.player.add(self.roi_scale)
 
-            self.roi_capsfilter = Gst.ElementFactory.make("capsfilter")
-            self.roi_capsfilter.props.caps = Gst.Caps(
-                "video/x-raw,width=%u,height=%u" %
-                (self.roi_widget_w, self.roi_widget_h))
-            self.player.add(self.roi_capsfilter)
+            if 1:
+                self.roi_capsfilter = Gst.ElementFactory.make("capsfilter")
+                self.roi_capsfilter.props.caps = Gst.Caps(
+                    "video/x-raw,width=%u,height=%u" %
+                    (self.roi_widget_w, self.roi_widget_h))
+                self.player.add(self.roi_capsfilter)
+            else:
+                self.roi_capsfilter = None
 
             self.roi_sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_roi')
             assert self.roi_sinkx
@@ -406,13 +414,19 @@ class GstVideoPipeline:
         # Finish linking post vc_tee
 
         if self.full:
-            assert self.full_scale.link(self.full_capsfilter)
-            assert self.full_capsfilter.link(self.full_sinkx)
+            if self.full_capsfilter:
+                assert self.full_scale.link(self.full_capsfilter)
+                assert self.full_capsfilter.link(self.full_sinkx)
+            else:
+                self.full_scale.link(self.full_sinkx)
 
         if self.roi:
             assert self.roi_videocrop.link(self.roi_scale)
-            assert self.roi_scale.link(self.roi_capsfilter)
-            assert self.roi_capsfilter.link(self.roi_sinkx)
+            if self.roi_capsfilter:
+                assert self.roi_scale.link(self.roi_capsfilter)
+                assert self.roi_capsfilter.link(self.roi_sinkx)
+            else:
+                self.roi_scale.link(self.roi_sinkx)
 
         bus = self.player.get_bus()
         bus.add_signal_watch()

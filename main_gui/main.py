@@ -182,7 +182,7 @@ class MainWindow(QMainWindow):
             source = usj["imager"]["source"]
         # FIXME: hack
         # https://github.com/JohnDMcMaster/pyuscope/issues/17
-        roi = source != "gst-v4l2src"
+        roi = 1 or source != "gst-v4l2src"
         self.vidpip = GstVideoPipeline(source=source, full=True, roi=roi)
         # FIXME: review sizing
         self.vidpip.size_widgets(frac=0.5)

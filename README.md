@@ -37,10 +37,12 @@ Supported movement sources:
   * Works with custom motor driver board ("pr0ndexer")
   * Job setup is done through our GUI
   * In practice only works with MU800 camera
+ * Tested Ubuntu 16.04
 
 1.0.0
   * Motor contril via LinuxCNC
   * Job setup is primarily done through Axis (LinuxCNC GUI)
+ * Tested Ubuntu 16.04
 
 2.0.0
  * gst-toupcamsrc supported
@@ -50,4 +52,5 @@ Supported movement sources:
  * python2 => python3
  * gstreamer-0.10 => gstreamer-1.0
  * PyQt4 => PyQT5
+ * Tested Ubuntu 16.04 and 20.04
 

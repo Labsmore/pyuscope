@@ -326,8 +326,9 @@ class GstVideoPipeline:
             workaround: disable roi on v4l2src
         -adding caps negotation on toupcamsrc caused roi issue
             workaround: disable raw caps negotation on toupcamsrc
+        update: toupcamsrc failed due to bad config file setting incorrect caps negotation
         """
-        if self.source_name == "gst-v4l2src":
+        if 1 or self.source_name == "gst-v4l2src":
             print("neg raw caps: yes")
             usj = config.get_usj()
             self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")

@@ -291,7 +291,11 @@ class GstVideoPipeline:
                     except gi.overrides.Gst.AddError:
                         pass
                         print("WARNING: failed to add %s" % (dst, ))
-                assert queue.link(dst)
+                try:
+                    assert queue.link(dst)
+                except:
+                    print("Failed to link %s => %s" % (src, dst))
+                    raise
                 print("tee queue link %s => %s" % (src, dst))
 
     def setupGst(self, source=None, raw_tees=None, vc_tees=None, esize=None):
@@ -315,6 +319,20 @@ class GstVideoPipeline:
 
         self.prepareSource(esize=esize)
         self.player.add(self.source)
+
+        if 1:
+            usj = config.get_usj()
+            self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")
+            self.raw_capsfilter.props.caps = Gst.Caps(
+                "video/x-raw,width=%u,height=%u" %
+                (usj["imager"].get("width"), usj["imager"].get("height")))
+            self.player.add(self.raw_capsfilter)
+
+            assert self.source.link(self.raw_capsfilter)
+            raw_element = self.raw_capsfilter
+        else:
+            raw_element = self.source
+
 
         # This either will be directly forwarded or put into a queue
         self.videoconvert = Gst.ElementFactory.make('videoconvert')
@@ -367,7 +385,7 @@ class GstVideoPipeline:
         # Note at least one vc tee is garaunteed (either full or roi)
         print("Link raw...")
         raw_tees = [self.videoconvert] + raw_tees
-        self.link_tee(self.source, raw_tees)
+        self.link_tee(raw_element, raw_tees)
 
         print("Link vc...")
         print("our", our_vc_tees)
@@ -421,9 +439,6 @@ class GstVideoPipeline:
             self.player.set_state(Gst.State.NULL)
         elif t == Gst.MessageType.STATE_CHANGED:
             pass
-            # assert self.vidpip.source.get_property("devicepresent")
-            # self.player.get_state()
-            #print("present", self.source.get_property("devicepresent"))
 
     def on_sync_message(self, bus, message):
         if message.get_structure() is None:

@@ -320,7 +320,15 @@ class GstVideoPipeline:
         self.prepareSource(esize=esize)
         self.player.add(self.source)
 
-        if 1:
+        """
+        observation:
+        -adding caps negotation on v4l2src fixed lots of issues (although roi still not working)
+            workaround: disable roi on v4l2src
+        -adding caps negotation on toupcamsrc caused roi issue
+            workaround: disable raw caps negotation on toupcamsrc
+        """
+        if self.source_name == "gst-v4l2src":
+            print("neg raw caps: yes")
             usj = config.get_usj()
             self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")
             self.raw_capsfilter.props.caps = Gst.Caps(
@@ -331,6 +339,7 @@ class GstVideoPipeline:
             assert self.source.link(self.raw_capsfilter)
             raw_element = self.raw_capsfilter
         else:
+            print("neg raw caps: no")
             raw_element = self.source
 
 

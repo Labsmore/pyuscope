@@ -56,6 +56,10 @@ def process_image(img, setr, setg, setb):
             bval += b
     sz = img.size[0] * img.size[1] / xs / ys * 256
 
+    rval = rval / sz
+    gval = gval / sz
+    bval = bval / sz
+
     rbal = 1.0 * rval / gval - 1.0
     gbal = 1.0 * gval / gval - 1.0
     bbal = 1.0 * bval / gval - 1.0
@@ -68,22 +72,31 @@ def process_image(img, setr, setg, setb):
     newg = setg
     newb = limit(setb - bbal * sfb)
 
-    print("V-RGB %u %u %u => R-B %0.3f B-B %0.3f" %
-          (rval, gval, bval, rbal, bbal))
+    print("V-RGB %0.1f%% %0.1f%% %0.1f%% => R-B %0.3f B-B %0.3f" %
+          (100.0 * rval, 100.0 * gval, 100.0 * bval, rbal, bbal))
     print("RGB %u %u %u => %u %u %u" % (setr, setg, setb, newr, newg, newb))
-    return rval / sz, gval / sz, bval / sz, rbal, gbal, bbal, newr, newg, newb
+    return rval, gval, bval, rbal, gbal, bbal, newr, newg, newb
 
 
 class ImageProcessor(QThread):
     n_frames = pyqtSignal(int)  # Number of images
 
-    r_val = pyqtSignal(int)  # calc red value
-    g_val = pyqtSignal(int)  # calc green value
-    b_val = pyqtSignal(int)  # calc blue value
+    # Fraction of range 0.0 to 1.0 * 1000
+    # ie 1000 means maxed out
+    # ie 0 means channel empty
+    r_val = pyqtSignal(float)
+    g_val = pyqtSignal(float)
+    b_val = pyqtSignal(float)
 
-    r_bal = pyqtSignal(int)  # calc red bal (r/g)
-    b_bal = pyqtSignal(int)  # calc blue bal (b/g)
+    # Balance fraction relative to green * 1000
+    # 0 means same balance as green
+    # 1000 means twice as much as green
+    # -1000 menas half as much as green
+    # Scaled to 1000 though to make display in GUI easier
+    r_bal = pyqtSignal(int)
+    b_bal = pyqtSignal(int)
 
+    # New control values
     r_new = pyqtSignal(int)
     g_new = pyqtSignal(int)
     b_new = pyqtSignal(int)
@@ -112,12 +125,12 @@ class ImageProcessor(QThread):
                 img, props["Red Balance"], props["Gain"],
                 props["Blue Balance"])
 
-            self.r_val.emit(int(rval * 1000.0))
-            self.g_val.emit(int(gval * 1000.0))
-            self.b_val.emit(int(bval * 1000.0))
+            self.r_val.emit(int(rval * 1000))
+            self.g_val.emit(int(gval * 1000))
+            self.b_val.emit(int(bval * 1000))
 
-            self.r_bal.emit(int(rbal * 1000.0))
-            self.b_bal.emit(int(bbal * 1000.0))
+            self.r_bal.emit(int(rbal * 1000))
+            self.b_bal.emit(int(bbal * 1000))
 
             self.r_new.emit(newr)
             self.g_new.emit(newg)

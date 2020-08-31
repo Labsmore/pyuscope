@@ -31,3 +31,23 @@ Supported movement sources:
   * linuxcnc
   * Others, but they aren't well maintained
 
+# Version history
+
+0.0.0
+  * Works with custom motor driver board ("pr0ndexer")
+  * Job setup is done through our GUI
+  * In practice only works with MU800 camera
+
+1.0.0
+  * Motor contril via LinuxCNC
+  * Job setup is primarily done through Axis (LinuxCNC GUI)
+
+2.0.0
+ * gst-toupcamsrc supported
+ * GUI simplified
+ * Job setup is entirely done through Axis (LinuxCNC GUI)
+ * Major configuration file format changes
+ * python2 => python3
+ * gstreamer-0.10 => gstreamer-1.0
+ * PyQt4 => PyQT5
+

@@ -46,7 +46,7 @@
 		"height": 2448,
 		"scalar": 0.5
     },
-    "imager": {
+    "!imager": {
         "source":"auto",
         "snapshot_dir":"snapshot",
 		"width": 3264,

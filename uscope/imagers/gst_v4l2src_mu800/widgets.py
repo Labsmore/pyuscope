@@ -19,9 +19,9 @@ Similarly others aren't balance but directly control invididual gains
 """
 prop_layout = OrderedDict([("RGBE",
                             OrderedDict([
-                                ("Red", ("Red Balance", 0, 511)),
+                                ("Red", ("Red Balance", 0, 1023)),
                                 ("Green", ("Gain", 0, 511)),
-                                ("Blue", ("Blue Balance", 0, 511)),
+                                ("Blue", ("Blue Balance", 0, 1023)),
                                 ("Exp", ("Exposure", 0, 799)),
                             ]))])
 

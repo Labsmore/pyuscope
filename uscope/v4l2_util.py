@@ -99,6 +99,7 @@ def ctrl_set(fd, name, value):
             continue
         if queryctrl.name.decode("ascii") != name:
             continue
+        # print("Check %s: %d <= %d <= %d" % (name, queryctrl.minimum, value, queryctrl.maximum))
         if value < queryctrl.minimum or value > queryctrl.maximum:
             raise ValueError("Require %d <= %d <= %d" %
                              (queryctrl.minimum, value, queryctrl.maximum))

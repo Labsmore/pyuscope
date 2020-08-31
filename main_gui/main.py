@@ -5,7 +5,7 @@ from uscope.control_scroll import get_control_scroll
 from uscope.util import add_bool_arg
 from uscope import control_scroll_base
 
-from uscope.config import get_config
+from uscope.config import get_usj
 from uscope.hal.img.imager import Imager
 from uscope.img_util import get_scaled
 from uscope.benchmark import Benchmark
@@ -36,7 +36,7 @@ import traceback
 import threading
 import json
 
-uconfig = get_config()
+usj = get_usj()
 
 debug = 1
 
@@ -54,10 +54,10 @@ def dbg(*args):
 
 def get_cnc_hal(log=print):
     try:
-        lcnc_host = uconfig["cnc"]["lcnc"]["host"]
+        lcnc_host = usj["cnc"]["lcnc"]["host"]
     except KeyError:
         lcnc_host = "mk"
-    engine = uconfig['cnc']['engine']
+    engine = usj['cnc']['engine']
     log('get_cnc_hal: %s' % engine)
 
     if engine == 'mock':
@@ -119,7 +119,7 @@ class GstImager(Imager):
         self.image_ready.wait()
         self.gui.emit_log('Got image %s' % self.image_id)
         image = self.gui.capture_sink.pop_image(self.image_id)
-        factor = float(uconfig['imager']['scalar'])
+        factor = float(usj['imager']['scalar'])
         # Use a reasonably high quality filter
         scaled = get_scaled(image, factor, Image.ANTIALIAS)
         #if not self.gui.dry():
@@ -179,7 +179,7 @@ class MainWindow(QMainWindow):
 
         # FIXME: pull from config file etc
         if source is None:
-            source = uconfig["imager"]["source"]
+            source = usj["imager"]["source"]
         # FIXME: hack
         # https://github.com/JohnDMcMaster/pyuscope/issues/17
         roi = source != "gst-v4l2src"
@@ -197,7 +197,7 @@ class MainWindow(QMainWindow):
         self.vidpip.setupGst(raw_tees=[self.jpegenc])
         self.jpegenc.link(self.capture_sink)
 
-        self.uconfig = uconfig
+        self.usj = usj
 
         # must be created early to accept early logging
         # not displayed until later though
@@ -225,7 +225,7 @@ class MainWindow(QMainWindow):
 
         # Must not be initialized until after layout is set
         self.gstWindowId = None
-        engine_config = self.uconfig['imager']['engine']
+        engine_config = self.usj['imager']['engine']
 
         self.cnc_thread.start()
 
@@ -236,7 +236,7 @@ class MainWindow(QMainWindow):
 
         self.init_imager()
 
-        if self.uconfig['cnc']['startup_run']:
+        if self.usj['cnc']['startup_run']:
             self.run()
 
     def __del__(self):
@@ -291,17 +291,17 @@ class MainWindow(QMainWindow):
         self.obj_cb.clear()
         self.obj_config = None
         self.obj_configi = None
-        for objective in self.uconfig['objective']:
+        for objective in self.usj['objective']:
             self.obj_cb.addItem(objective['name'])
 
     def update_obj_config(self):
         '''Make resolution display reflect current objective'''
         self.obj_configi = self.obj_cb.currentIndex()
-        self.obj_config = self.uconfig['objective'][self.obj_configi]
+        self.obj_config = self.usj['objective'][self.obj_configi]
         self.log('Selected objective %s' % self.obj_config['name'])
 
-        im_w_pix = int(self.uconfig['imager']['width'])
-        im_h_pix = int(self.uconfig['imager']['height'])
+        im_w_pix = int(self.usj['imager']['width'])
+        im_h_pix = int(self.usj['imager']['height'])
         im_w_um = self.obj_config["x_view"]
         im_h_um = im_w_um * im_h_pix / im_w_pix
         self.obj_view.setText('View : %0.3fx %0.3fy' % (im_w_um, im_h_um))
@@ -409,7 +409,7 @@ class MainWindow(QMainWindow):
         v4l is lower priority right now. Revisit later
         """
         print('Initializing V4L controls')
-        vconfig = uconfig["imager"].get("v4l2", None)
+        vconfig = usj["imager"].get("v4l2", None)
         if vconfig:
             for configk, configv in vconfig.items():
                 break
@@ -521,10 +521,10 @@ class MainWindow(QMainWindow):
             self.cncProgress.emit(pictures_to_take, pictures_taken, image,
                                   first)
 
-        if not dry and not os.path.exists(self.uconfig['out_dir']):
-            os.mkdir(self.uconfig['out_dir'])
+        if not dry and not os.path.exists(self.usj['out_dir']):
+            os.mkdir(self.usj['out_dir'])
 
-        out_dir = os.path.join(self.uconfig['out_dir'],
+        out_dir = os.path.join(self.usj['out_dir'],
                                str(self.job_name_le.text()))
         if os.path.exists(out_dir):
             self.log("job name dir %s already exists" % out_dir)
@@ -545,7 +545,7 @@ class MainWindow(QMainWindow):
             'out_dir': out_dir,
 
             # Comprehensive config structure
-            'uscope': self.uconfig,
+            'uscope': self.usj,
             # Which objective to use in above config
             'obj': self.obj_configi,
 
@@ -594,8 +594,8 @@ class MainWindow(QMainWindow):
         # obj = rconfig['uscope']['objective'][rconfig['obj']]
 
         imagerj = {}
-        imagerj["microscope.json"] = uconfig
-        uconfig["imager"][
+        imagerj["microscope.json"] = usj
+        usj["imager"][
             "calibration"] = self.propwin.control_scroll.get_properties()
 
         # not sure if this is the right place to add this
@@ -628,7 +628,7 @@ class MainWindow(QMainWindow):
         self.pt = None
         self.cnc_thread.hal.dry = False
         self.setControlsEnabled(True)
-        if self.uconfig['cnc']['startup_run_exit']:
+        if self.usj['cnc']['startup_run_exit']:
             print('Planner debug break on completion')
             os._exit(1)
         # Prevent accidental start after done
@@ -673,8 +673,8 @@ class MainWindow(QMainWindow):
         pos = self.cnc_thread.pos()
         #self.log("Updating end pos from %s" % (str(pos)))
         x_view = self.obj_config["x_view"]
-        y_view = 1.0 * x_view * self.uconfig['imager'][
-            'height'] / self.uconfig['imager']['width']
+        y_view = 1.0 * x_view * self.usj['imager'][
+            'height'] / self.usj['imager']['width']
         x1 = pos['x'] + x_view
         y1 = pos['y'] + y_view
         self.plan_x1_le.setText('%0.3f' % x1)
@@ -736,7 +736,7 @@ class MainWindow(QMainWindow):
         gb = QGroupBox('Snapshot')
         layout = QGridLayout()
 
-        snapshot_dir = self.uconfig['imager']['snapshot_dir']
+        snapshot_dir = self.usj['imager']['snapshot_dir']
         if not os.path.isdir(snapshot_dir):
             self.log('Snapshot dir %s does not exist' % snapshot_dir)
             if os.path.exists(snapshot_dir):
@@ -795,7 +795,7 @@ class MainWindow(QMainWindow):
             mod_str = ''
             if mod:
                 mod_str = '_%u' % mod
-            fn_full = os.path.join(self.uconfig['imager']['snapshot_dir'],
+            fn_full = os.path.join(self.usj['imager']['snapshot_dir'],
                                    prefix + user + mod_str + extension)
             if os.path.exists(fn_full):
                 if mod is None:
@@ -812,7 +812,7 @@ class MainWindow(QMainWindow):
             image = self.capture_sink.pop_image(image_id)
             fn_full = self.snapshot_fn()
             self.log('Capturing %s...' % fn_full)
-            factor = float(self.uconfig['imager']['scalar'])
+            factor = float(self.usj['imager']['scalar'])
             # Use a reasonably high quality filter
             try:
                 get_scaled(image, factor, Image.ANTIALIAS).save(fn_full)
@@ -858,7 +858,7 @@ class MainWindow(QMainWindow):
 
                 layout.addWidget(QLabel('Dry?'))
                 self.dry_cb = QCheckBox()
-                self.dry_cb.setChecked(self.uconfig['cnc']['dry'])
+                self.dry_cb.setChecked(self.usj['cnc']['dry'])
                 layout.addWidget(self.dry_cb)
 
                 return layout

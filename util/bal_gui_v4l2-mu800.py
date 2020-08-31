@@ -60,9 +60,9 @@ def process_image(img, setr, setg, setb):
     gbal = 1.0 * gval / gval - 1.0
     bbal = 1.0 * bval / gval - 1.0
 
-    sfr = 20
+    sfr = 100
     # Blue responds slower
-    sfb = 40
+    sfb = 150
     limit = lambda x: max(min(int(x), 1023), 0)
     newr = limit(setr - rbal * sfr)
     newg = setg

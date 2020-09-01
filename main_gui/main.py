@@ -52,6 +52,14 @@ def dbg(*args):
         print('main: ' + (args[0] % args[1:]))
 
 
+def error(msg, code=1):
+    prefix = 'ERROR'
+    if sys.stdout.isatty():
+        prefix = '\33[91m' + prefix + '\33[0m'
+    print('{} {}'.format(prefix, msg))
+    exit(code)
+
+
 def get_cnc_hal(log=print):
     try:
         lcnc_host = usj["cnc"]["lcnc"]["host"]
@@ -179,7 +187,9 @@ class MainWindow(QMainWindow):
 
         # FIXME: pull from config file etc
         if source is None:
-            source = usj["imager"]["source"]
+            source = usj["imager"].get("source", None)
+        if source is None:
+            raise AttributeError("config has no imager source")
         self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)
         # FIXME: review sizing
         self.vidpip.size_widgets(frac=0.5)
@@ -240,13 +250,16 @@ class MainWindow(QMainWindow):
         self.shutdown()
 
     def shutdown(self):
-        self.cnc_thread.hal.ar_stop()
-        if self.cnc_thread:
-            self.cnc_thread.stop()
-            self.cnc_thread = None
-        if self.pt:
-            self.pt.stop()
-            self.pt = None
+        try:
+            self.cnc_thread.hal.ar_stop()
+            if self.cnc_thread:
+                self.cnc_thread.stop()
+                self.cnc_thread = None
+            if self.pt:
+                self.pt.stop()
+                self.pt = None
+        except AttributeError:
+            pass
 
     def log(self, s='', newline=True):
         s = str(s)
@@ -921,4 +934,8 @@ def parse_args():
 
 
 if __name__ == '__main__':
-    gstwidget_main(MainWindow, parse_args=parse_args)
+    try:
+        gstwidget_main(MainWindow, parse_args=parse_args)
+    except Exception as e:
+        print(traceback.format_exc(-1))
+        error(str(e))

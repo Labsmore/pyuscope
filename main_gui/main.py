@@ -52,6 +52,14 @@ def dbg(*args):
         print('main: ' + (args[0] % args[1:]))
 
 
+def error(msg, code=1):
+    prefix = 'ERROR'
+    if sys.stdout.isatty():
+        prefix = '\33[91m' + prefix + '\33[0m'
+    print('{} {}'.format(prefix, msg))
+    exit(code)
+
+
 def get_cnc_hal(log=print):
     try:
         lcnc_host = usj["cnc"]["lcnc"]["host"]
@@ -923,4 +931,8 @@ def parse_args():
 
 
 if __name__ == '__main__':
-    gstwidget_main(MainWindow, parse_args=parse_args)
+    try:
+        gstwidget_main(MainWindow, parse_args=parse_args)
+    except Exception as e:
+        print(traceback.format_exc(-1))
+        error(str(e))

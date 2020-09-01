@@ -250,7 +250,7 @@ class MainWindow(QMainWindow):
 
     def log(self, s='', newline=True):
         s = str(s)
-        print("LOG: %s" % s)
+        # print("LOG: %s" % s)
         if newline:
             s += '\n'
 
@@ -361,16 +361,6 @@ class MainWindow(QMainWindow):
         self.reload_obj_cb()
         self.update_obj_config()
         row += 1
-
-        if 0:
-            cl.addWidget(QLabel("Sensor config"), row, 0)
-            self.v4l_cb = QComboBox()
-            cl.addWidget(self.v4l_cb, row, 1)
-            self.v4l_cb.currentIndexChanged.connect(self.update_v4l_config)
-            row += 1
-
-        # FIXME: integrate gst controls instead
-        # row = self.add_v4l_controls(cl, row)
 
         return cl
 
@@ -604,7 +594,7 @@ class MainWindow(QMainWindow):
         self.imager.add_planner_metadata(imagerj)
 
         self.pt = PlannerThread(self, rconfig, imagerj)
-        self.log_msg.connect(self.log)
+        self.pt.log_msg.connect(self.log)
         self.pt.plannerDone.connect(self.plannerDone)
         self.setControlsEnabled(False)
         if dry:

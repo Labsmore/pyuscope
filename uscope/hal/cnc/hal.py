@@ -162,7 +162,6 @@ class MockHal(Hal):
             self._pos[axis] = 0.0
 
     def _log(self, msg):
-        print('_log')
         if self.dry:
             self.log('Mock-dry: ' + msg)
         else:

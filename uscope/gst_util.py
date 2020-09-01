@@ -53,8 +53,6 @@ class CbSink(GstBase.BaseSink):
     """
 
     def do_render(self, buffer):
-        print("do_render(), %s" % (buffer, ))
-
         (result, mapinfo) = buffer.map(Gst.MapFlags.READ)
         assert result
 

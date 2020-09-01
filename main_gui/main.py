@@ -5,7 +5,7 @@ from uscope.control_scroll import get_control_scroll
 from uscope.util import add_bool_arg
 from uscope import control_scroll_base
 
-from uscope.config import get_usj
+from uscope.config import get_usj, cal_load_all
 from uscope.hal.img.imager import Imager
 from uscope.img_util import get_scaled
 from uscope.benchmark import Benchmark
@@ -25,6 +25,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
+import time
 import datetime
 import os.path
 from PIL import Image
@@ -113,26 +114,49 @@ class GstImager(Imager):
         self.image_ready = threading.Event()
         self.image_id = None
 
-    def get(self):
+    def next_image(self):
         #self.gui.emit_log('gstreamer imager: taking image to %s' % file_name_out)
-        def emitSnapshotCaptured(image_id):
+        def got_image(image_id):
             self.gui.emit_log('Image captured reported: %s' % image_id)
             self.image_id = image_id
             self.image_ready.set()
 
         self.image_id = None
         self.image_ready.clear()
-        self.gui.capture_sink.request_image(emitSnapshotCaptured)
+        self.gui.capture_sink.request_image(got_image)
         self.gui.emit_log('Waiting for next image...')
         self.image_ready.wait()
         self.gui.emit_log('Got image %s' % self.image_id)
-        image = self.gui.capture_sink.pop_image(self.image_id)
+        return self.gui.capture_sink.pop_image(self.image_id)
+
+    def get_normal(self):
+        image = self.next_image()
         factor = float(usj['imager']['scalar'])
-        # Use a reasonably high quality filter
         scaled = get_scaled(image, factor, Image.ANTIALIAS)
-        #if not self.gui.dry():
-        #    scaled.save(file_name_out)
-        return scaled
+        return {"0": scaled}
+
+    def get_hdr(self, hdr):
+        ret = {}
+        for hdri, hdrv in enumerate(hdr["properties"]):
+            print("hdr: set %u %s" % (hdri, hdrv))
+            assert 0, "fixme GUI thread violation"
+            self.gui.propwin.control_scroll.set_properties(hdrv)
+            time.sleep(hdr["tsleep"])
+            image = self.next_image()
+            factor = float(usj['imager']['scalar'])
+            scaled = get_scaled(image, factor, Image.ANTIALIAS)
+            ret["%u" % hdri] = scaled
+        return ret
+
+    def get(self):
+        # FIXME: cache at beginning of scan somehow
+        cal = cal_load_all(usj['imager']['source'])
+        hdr = cal.get("hdr", None)
+
+        if hdr:
+            return self.get_hdr(hdr)
+        else:
+            return self.get_normal()
 
     def add_planner_metadata(self, imagerj):
         """

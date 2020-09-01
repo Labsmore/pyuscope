@@ -390,10 +390,16 @@ class Planner(object):
             self.out_dir,
             'c%03d_r%03d%s' % (self.cur_col, self.cur_row, stack_suffix))
 
-    def take_picture(self, fn):
+    def take_picture(self, fn_base):
         self.hal.settle()
         if not self.dry:
-            self.imager.get().save(fn + self.img_ext)
+            images = self.imager.get()
+            if len(images) == 1:
+                image = list(images.values())[0]
+                image.save(fn_base + self.img_ext)
+            else:
+                for k, image in images.items():
+                    image.save(fn_base + "_" + k + self.img_ext)
         self.all_imgs += 1
 
     def take_pictures(self):

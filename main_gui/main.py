@@ -458,18 +458,9 @@ class MainWindow(QMainWindow):
         return self.dry_cb.isChecked()
 
     def stop(self):
-        if self.stop_pb.text() == 'Pause':
-            self.stop_pb.setText('Run')
-            self.cnc_thread.setRunning(False)
-            if self.pt:
-                self.pt.setRunning(False)
-            self.log('Pause requested')
-        else:
-            self.stop_pb.setText('Pause')
-            self.cnc_thread.setRunning(True)
-            if self.pt:
-                self.pt.setRunning(True)
-            self.log('Resume requested')
+        if self.pt:
+            self.log('Stop requested')
+            self.pt.stop()
 
     def write_scan_json(self):
         scan_json = {
@@ -499,7 +490,18 @@ class MainWindow(QMainWindow):
         json.dump(scan_json, open('scan.json', 'w'), indent=4, sort_keys=True)
         return True
 
-    def run(self):
+    def go_pause(self):
+        # CNC running?
+        if self.pt:
+            # Pause
+            if self.pt.is_paused():
+                self.go_pause_pb.setText("Pause")
+                self.pt.unpause()
+            else:
+                self.go_pause_pb.setText("Continue")
+                self.pt.pause()
+            return
+
         if not self.snapshot_pb.isEnabled():
             self.log("Wait for snapshot to complete before CNC'ing")
             return
@@ -610,6 +612,7 @@ class MainWindow(QMainWindow):
         else:
             self.log_fd = open(os.path.join(out_dir, 'log.txt'), 'w')
 
+        self.go_pause_pb.setText("Pause")
         self.pt.start()
 
     def setControlsEnabled(self, yes):
@@ -620,6 +623,7 @@ class MainWindow(QMainWindow):
 
     def plannerDone(self):
         self.log('RX planner done')
+        self.go_pause_pb.setText("Go")
         # Cleanup camera objects
         self.log_fd = None
         self.pt = None
@@ -670,8 +674,8 @@ class MainWindow(QMainWindow):
         pos = self.cnc_thread.pos()
         #self.log("Updating end pos from %s" % (str(pos)))
         x_view = self.obj_config["x_view"]
-        y_view = 1.0 * x_view * self.usj['imager'][
-            'height'] / self.usj['imager']['width']
+        y_view = 1.0 * x_view * self.usj['imager']['height'] / self.usj[
+            'imager']['width']
         x1 = pos['x'] + x_view
         y1 = pos['y'] + y_view
         self.plan_x1_le.setText('%0.3f' % x1)
@@ -835,7 +839,7 @@ class MainWindow(QMainWindow):
             layout.addWidget(QLabel('Job name'), 0, 0, 1, 2)
 
             self.go_pause_pb = QPushButton("Go")
-            self.go_pause_pb.clicked.connect(self.run)
+            self.go_pause_pb.clicked.connect(self.go_pause)
             layout.addWidget(self.go_pause_pb, 1, 0)
 
             self.stop_pb = QPushButton("Stop")

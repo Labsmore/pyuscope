@@ -185,6 +185,10 @@ class PlannerAxis(object):
             yield self.start + i * step
 
 
+class Stop(Exception):
+    pass
+
+
 class Planner(object):
     def __init__(
         self,
@@ -215,8 +219,12 @@ class Planner(object):
         self.out_dir = out_dir
         self.img_sz = img_sz
 
-        self.normal_running = threading.Event()
-        self.normal_running.set()
+        # polarity such that can wait on being set
+        self.unpaused = threading.Event()
+        self.unpaused.set()
+
+        self.running = True
+
         # FIXME: this is better than before but CTypes pickle error from deepcopy
         self.config = scan_config
         self.progress_cb = progress_cb
@@ -313,6 +321,10 @@ class Planner(object):
 
         self.notify_progress(None, True)
 
+    def check_running(self):
+        if not self.running:
+            raise Stop()
+
     def log(self, msg='', verbosity=2):
         if verbosity <= self.v:
             self._log(msg)
@@ -340,8 +352,18 @@ class Planner(object):
     def end_program(self):
         pass
 
-    def pause(self, seconds):
-        pass
+    def is_paused(self):
+        return not self.unpaused.is_set()
+
+    def pause(self):
+        '''Used to pause movement'''
+        self.unpaused.clear()
+
+    def unpause(self):
+        self.unpaused.set()
+
+    def stop(self):
+        self.running = False
 
     def write_meta(self):
         # Copy config for reference
@@ -497,14 +519,8 @@ class Planner(object):
             active, nexts = nexts, active
             row += 1
 
-    def set_run(self, running):
-        '''Used to pause movement'''
-        if running:
-            self.normal_running.set()
-        else:
-            self.normal_running.clear()
-
     def run(self):
+        self.check_running()
         self.start_time = time.time()
         self.log()
         self.log()
@@ -545,12 +561,14 @@ class Planner(object):
             # columns
             for ((cur_x, cur_y), (self.cur_col,
                                   self.cur_row)) in self.gen_xycr():
+                self.check_running()
+
                 self.log('')
                 self.log('Pictures taken: %d / %d' %
                          (self.xy_imgs, self.pictures_to_take))
-                if not self.normal_running.is_set():
+                if not self.unpaused.is_set():
                     self.log('Planner paused')
-                    self.normal_running.wait()
+                    self.unpaused.wait()
                     self.log('Planner unpaused')
 
                 #self.log('', 3)

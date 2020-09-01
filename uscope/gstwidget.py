@@ -321,7 +321,6 @@ class GstVideoPipeline:
 
         self.prepareSource(esize=esize)
         self.player.add(self.source)
-
         """
         observation:
         -adding caps negotation on v4l2src fixed lots of issues (although roi still not working)
@@ -339,7 +338,6 @@ class GstVideoPipeline:
 
         assert self.source.link(self.raw_capsfilter)
         raw_element = self.raw_capsfilter
-
 
         # This either will be directly forwarded or put into a queue
         self.videoconvert = Gst.ElementFactory.make('videoconvert')

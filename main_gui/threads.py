@@ -21,26 +21,6 @@ def dbg(*args):
 
 
 '''
-Try to seperate imaging and movement
-For now keep unified in planner thread
-'''
-
-
-class ImagingThread(QThread):
-    def __init__(self):
-        self.queue = queue.Queue()
-        self.running = threading.Event()
-
-    def run(self):
-        self.running.set()
-        while self.running.is_set():
-            time.sleep(1)
-
-    def stop(self):
-        self.running.clear()
-
-
-'''
 Offloads controller processing to another thread (or potentially even process)
 Makes it easier to keep RT deadlines and such
 However, it doesn't provide feedback completion so use with care
@@ -171,6 +151,23 @@ class PlannerThread(QThread):
         planner = self.planner
         if planner:
             planner.setRunning(running)
+
+    def is_paused(self):
+        if self.planner:
+            return self.planner.is_paused()
+        return False
+
+    def pause(self):
+        if self.planner:
+            self.planner.pause()
+
+    def unpause(self):
+        if self.planner:
+            self.planner.unpause()
+
+    def stop(self):
+        if self.planner:
+            self.planner.stop()
 
     def run(self):
         try:

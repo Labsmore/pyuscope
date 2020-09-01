@@ -250,13 +250,16 @@ class MainWindow(QMainWindow):
         self.shutdown()
 
     def shutdown(self):
-        self.cnc_thread.hal.ar_stop()
-        if self.cnc_thread:
-            self.cnc_thread.stop()
-            self.cnc_thread = None
-        if self.pt:
-            self.pt.stop()
-            self.pt = None
+        try:
+            self.cnc_thread.hal.ar_stop()
+            if self.cnc_thread:
+                self.cnc_thread.stop()
+                self.cnc_thread = None
+            if self.pt:
+                self.pt.stop()
+                self.pt = None
+        except AttributeError:
+            pass
 
     def log(self, s='', newline=True):
         s = str(s)

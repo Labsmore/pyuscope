@@ -31,6 +31,28 @@ Supported movement sources:
   * linuxcnc
   * Others, but they aren't well maintained
 
+# Quick start V4L2
+
+First you might be able to try this GUI which will try to auto-detect v4l2:
+
+```
+python3 util/prop_gui.py
+```
+
+If that doesn't work or you want the full GUI, try this:
+
+```
+cp -r configs/v4l2_example/ config
+```
+
+Edit config/microscope.json and set desired width/height.
+You may need to use a program like "cheese" to see what the options are
+
+```
+python3 main_gui/main.py
+```
+
+
 # Version history
 
 0.0.0

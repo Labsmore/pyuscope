@@ -1,0 +1,27 @@
+{
+    "cnc": {
+        "engine": "mock"
+    },
+    "imager": {
+        "source":"gst-v4l2src",
+		"width": 1280,
+		"height": 720,
+        "source_properties": {
+            "device": "/dev/video0"
+        },
+		"scalar": 0.5
+    },
+    "objective": [
+		{
+			"name":"Mitutoyo Apo 20X",
+			"suffix":"mit20x",
+			"x_view": 1.075
+		},
+		{
+			"name":"Mitutoyo Apo 10X",
+			"suffix":"mit10x",
+			"x_view": 2.150
+		}
+    ]
+}
+

@@ -336,7 +336,8 @@ class GstVideoPipeline:
             (usj["imager"]["width"], usj["imager"]["height"]))
         self.player.add(self.raw_capsfilter)
 
-        assert self.source.link(self.raw_capsfilter)
+        if not self.source.link(self.raw_capsfilter):
+            raise RuntimeError("Couldn't set capabilities on the source")
         raw_element = self.raw_capsfilter
 
         # This either will be directly forwarded or put into a queue

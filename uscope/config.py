@@ -88,6 +88,7 @@ def cal_load(source):
             return config["properties"]
     return None
 
+
 def cal_load_all(source):
     fn = cal_fn()
     if not os.path.exists(fn):
@@ -98,6 +99,7 @@ def cal_load_all(source):
         if config["source"] == source:
             return config
     return None
+
 
 def cal_save(source, j):
     fn = cal_fn(mkdir=True)

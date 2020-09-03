@@ -108,11 +108,15 @@ def get_cnc_hal(log=print):
 
 
 class GstImager(Imager):
+    class Emitter(QObject):
+        change_properties = pyqtSignal(dict)
+
     def __init__(self, gui):
         Imager.__init__(self)
         self.gui = gui
         self.image_ready = threading.Event()
         self.image_id = None
+        self.emitter = GstImager.Emitter()
 
     def next_image(self):
         #self.gui.emit_log('gstreamer imager: taking image to %s' % file_name_out)
@@ -137,22 +141,24 @@ class GstImager(Imager):
 
     def get_hdr(self, hdr):
         ret = {}
+        factor = float(usj['imager']['scalar'])
         for hdri, hdrv in enumerate(hdr["properties"]):
             print("hdr: set %u %s" % (hdri, hdrv))
-            assert 0, "fixme GUI thread violation"
-            self.gui.propwin.control_scroll.set_properties(hdrv)
+            self.emitter.change_properties.emit(hdrv)
+            # Wait for setting to take effect
             time.sleep(hdr["tsleep"])
             image = self.next_image()
-            factor = float(usj['imager']['scalar'])
             scaled = get_scaled(image, factor, Image.ANTIALIAS)
             ret["%u" % hdri] = scaled
         return ret
 
     def get(self):
         # FIXME: cache at beginning of scan somehow
-        cal = cal_load_all(usj['imager']['source'])
-        hdr = cal.get("hdr", None)
-
+        hdr = None
+        source = usj['imager']['source']
+        cal = cal_load_all(source)
+        if cal:
+            hdr = cal.get("hdr", None)
         if hdr:
             return self.get_hdr(hdr)
         else:
@@ -347,6 +353,8 @@ class MainWindow(QMainWindow):
             self.imager = MockImager()
         elif source.find("gst-") == 0:
             self.imager = GstImager(self)
+            self.imager.emitter.change_properties.connect(
+                self.propwin.control_scroll.set_properties)
         else:
             raise Exception('Invalid imager type %s' % source)
 
@@ -364,23 +372,6 @@ class MainWindow(QMainWindow):
             else:
                 val = min(val, 1023)
             ctrl_set(self.vid_fd, k, val)
-
-    def add_v4l_controls(self, cl, row):
-        self.v4ls = {}
-        # hacked driver to directly drive values
-        for ki, (label, v4l_name) in enumerate(
-            (("Red", "Red Balance"), ("Green", "Gain"),
-             ("Blue", "Blue Balance"), ("Exp", "Exposure"))):
-            cols = 4
-            rowoff = ki / cols
-            coloff = cols * (ki % cols)
-
-            cl.addWidget(QLabel(label), row + rowoff, coloff)
-            le = QLineEdit('')
-            self.v4ls[v4l_name] = le
-            cl.addWidget(le, row + rowoff, coloff + 1)
-            le.textChanged.connect(self.v4l_updated)
-            row += 2
 
     def get_config_layout(self):
         cl = QGridLayout()
@@ -425,24 +416,6 @@ class MainWindow(QMainWindow):
 
     def setupGst(self):
         pass
-
-    def init_v4l_ctrl(self):
-        """
-        Was being called on
-        self.source.get_property("device-fd")
-        v4l is lower priority right now. Revisit later
-        """
-        print('Initializing V4L controls')
-        vconfig = usj["imager"].get("v4l2", None)
-        if vconfig:
-            for configk, configv in vconfig.items():
-                break
-            print('Selected config %s' % configk)
-
-            for k, v in configv.items():
-                #ctrl_set(self.vid_fd, k, v)
-                if k in self.v4ls:
-                    self.v4ls[k].setText(str(v))
 
     def ret0(self):
         return

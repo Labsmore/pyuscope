@@ -39,6 +39,9 @@ class XrayImager(Imager):
         self.gxs = usbint.GXS700()
 
     def __del__(self):
+        self.off()
+
+    def off(self):
         if self.xr:
             self.xr.off()
 

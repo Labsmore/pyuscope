@@ -19,6 +19,7 @@ import time
 
 store_bin = False
 store_png = True
+planner = None
 
 
 class DryCheckpoint(Exception):
@@ -26,13 +27,13 @@ class DryCheckpoint(Exception):
 
 
 class XrayImager(Imager):
-    def __init__(self, dry):
+    def __init__(self, dry=False, verbose=False):
         Imager.__init__(self)
         self.dry = dry
         self.xr = None
         self.gxs = None
 
-        self.xr = xray.WPS7XRay(verbose=args.verbose, dry=self.dry)
+        self.xr = xray.WPS7XRay(verbose=verbose, dry=self.dry)
 
         print('Warming filament...')
         self.xr.warm()
@@ -61,6 +62,7 @@ class XrayImager(Imager):
         img_dec.raw = img_bin
         return img_dec
 
+
 # TODO: planner needs to support more image types
 # something like this needs to be rolled into the core more
 class MyPlanner(uscope.planner.Planner):
@@ -75,7 +77,11 @@ class MyPlanner(uscope.planner.Planner):
         planner.all_imgs += 1
 
 
-if __name__ == "__main__":
+def main():
+    global store_bin
+    global store_png
+    global planner
+
     parser = argparse.ArgumentParser(description='Planner module command line')
     parser.add_argument('--host',
                         default='mk',
@@ -108,7 +114,7 @@ if __name__ == "__main__":
     if not args.dry:
         os.mkdir(args.out)
 
-    imager = XrayImager(dry=args.dry)
+    imager = XrayImager(dry=args.dry, verbose=args.verbose)
     #imager = MockImager()
     hal = lcnc_ar.LcncPyHalAr(host=args.host,
                               local_ini='config/xray/rsh.ini',
@@ -140,17 +146,21 @@ if __name__ == "__main__":
         # should measure broken sensor under microscope
         mm_per_pix = 1 / 55.
         planner = MyPlanner(json.load(open(args.scan_json)),
-                                         hal,
-                                         imager=imager,
-                                         img_sz=img_sz,
-                                         unit_per_pix=mm_per_pix,
-                                         out_dir=args.out,
-                                         progress_cb=None,
-                                         dry=args.dry,
-                                         log=None,
-                                         verbosity=2)
+                            hal,
+                            imager=imager,
+                            img_sz=img_sz,
+                            unit_per_pix=mm_per_pix,
+                            out_dir=args.out,
+                            progress_cb=None,
+                            dry=args.dry,
+                            log=None,
+                            verbosity=2)
         planner.run()
     finally:
         print('Forcing x-ray off at exit')
         imager.off()
         hal.ar_stop()
+
+
+if __name__ == "__main__":
+    main()

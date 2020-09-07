@@ -8,17 +8,14 @@ from uscope.hal.cnc import lcnc_ar
 #from config import get_config
 from uscope.util import add_bool_arg
 from uscope.hal.img.imager import Imager
-import uvscada.gxs700_util
-from uvscada.wps7 import WPS7
+from gxs700 import usbint
+from gxs700 import xray
 
 import argparse
 import json
 import os
 import shutil
 import time
-
-SW_HV = 1
-SW_FIL = 2
 
 store_bin = False
 store_png = True
@@ -32,95 +29,47 @@ class XrayImager(Imager):
     def __init__(self, dry):
         Imager.__init__(self)
         self.dry = dry
-        # About 3 seconds exposure required for range I'm using
-        self.shot_on = 3
-        # 10% duty cycle
-        self.shot_off = 27
-        # XXX FIXME TODO
-        # I'm actually firing at 60V @ 8A => 480W
-        # With 100W dissapation I can actually run at about 20% duty cycle
-        # need some way to more accurately measure thermals
-        # in the meantime hack this in half
-        watt = 60 * 8
-        print(
-            'WARNING: set for %dW duty cycle.  Running at higher power may damage head'
-            % watt)
-        self.shot_off = self.shot_on * watt / 100 - self.shot_on
-        print('Shot off time: %0.1f' % self.shot_off)
+        self.xr = None
+        self.gxs = None
+
+        self.xr = xray.WPS7XRay(verbose=args.verbose, dry=self.dry)
 
         print('Warming filament...')
-        # Should dry do this?
-        # Tests WPS connectivity and shouldn't fire the x-ray
-        wps.on(SW_FIL)
-        self.fil_on = time.time()
-        self.fire_last = 0
+        self.xr.warm()
+        self.gxs = usbint.GXS700()
 
-        self.gxs = uscope.gxs700_util.ez_open(verbose=False)
-
-        self.gxs.wait_trig_cb = self.fire
-
-    def fire(self):
-        print('Checking filament')
-        wait = 5 - time.time() - self.fil_on
-        if wait > 0:
-            print('Waiting %0.1f sec for filament to warm...' % wait)
-            if self.dry:
-                print('DRY: skip wait')
-            else:
-                time.sleep(wait)
-
-        print('Checking head temp')
-        wait = self.shot_off - (time.time() - self.fire_last)
-        print('Waiting %0.1f sec for head to cool...' % wait)
-        if wait > 0:
-            if self.dry:
-                print('DRY: skip wait')
-            else:
-                time.sleep(wait)
-        print('Head ready')
-
-        try:
-            if self.dry:
-                print('DRY: not firing')
-            else:
-                print('X-RAY: BEAM ON %0.1f sec' % self.shot_on)
-                wps.on(SW_HV)
-                time.sleep(self.shot_on)
-                self.fire_last = time.time()
-        finally:
-            print('X-RAY: BEAM OFF')
-            wps.off(SW_HV)
-
-        if self.dry:
-            # Takes a while to download and want this to be quick
-            #self.gxs.sw_trig()
-            self.gxs.hw_trig_disarm()
-            raise DryCheckpoint()
+    def __del__(self):
+        if self.xr:
+            self.xr.off()
 
     def get(self):
         try:
-            img_bin = self.gxs.cap_bin()
+            # XXX: there used to be a hack here to prevent image download
+            # for quicker dry check
+            img_bin = self.gxs.cap_bin(xr=self.xr)
         except DryCheckpoint:
             if self.dry:
                 print('DRY: skipping image')
                 return None
             raise
         print('x-ray: decoding')
-        img_dec = uscope.gxs700.GXS700.decode(img_bin)
+        img_dec = self.gxs.decode(img_bin)
         # Cheat a little
         img_dec.raw = img_bin
         return img_dec
 
-
-def take_picture(fn_base):
-    planner.hal.settle()
-    img_dec = planner.imager.get()
-    if not planner.dry:
-        if store_bin:
-            open(fn_base + '.bin', 'w').write(img_dec.raw)
-        if store_png:
-            img_dec.save(fn_base + '.png')
-    planner.all_imgs += 1
+# TODO: planner needs to support more image types
+# something like this needs to be rolled into the core more
+class MyPlanner(uscope.planner.Planner):
+    def take_picture(self, fn_base):
+        planner.hal.settle()
+        img_dec = planner.imager.get()
+        if not planner.dry:
+            if store_bin:
+                open(fn_base + '.bin', 'w').write(img_dec.raw)
+            if store_png:
+                img_dec.save(fn_base + '.png')
+        planner.all_imgs += 1
 
 
 if __name__ == "__main__":
@@ -156,7 +105,6 @@ if __name__ == "__main__":
     if not args.dry:
         os.mkdir(args.out)
 
-    wps = WPS7()
     imager = XrayImager(dry=args.dry)
     #imager = MockImager()
     hal = lcnc_ar.LcncPyHalAr(host=args.host,
@@ -184,11 +132,11 @@ if __name__ == "__main__":
         #img_sz = (1850, 1344)
         # mechanically this is better
         # Post process data
-        img_sz = (1344, 1850)
+        img_sz = imager.gxs.WH
         # Wonder if this is exact?
         # should measure broken sensor under microscope
         mm_per_pix = 1 / 55.
-        planner = uscope.planner.Planner(json.load(open(args.scan_json)),
+        planner = MyPlanner(json.load(open(args.scan_json)),
                                          hal,
                                          imager=imager,
                                          img_sz=img_sz,
@@ -198,11 +146,8 @@ if __name__ == "__main__":
                                          dry=args.dry,
                                          log=None,
                                          verbosity=2)
-        planner.take_picture = take_picture
         planner.run()
     finally:
         print('Forcing x-ray off at exit')
-        wps.off(SW_HV)
-        time.sleep(0.2)
-        wps.off(SW_FIL)
+        imager.off()
         hal.ar_stop()

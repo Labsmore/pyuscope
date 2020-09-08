@@ -51,7 +51,9 @@ setup(
     # FIXME
     install_requires=[
     ],
-    long_description=read('README.md'),
+    #long_description=read('README.md'),
+    # Expects rst, not .md
+    long_description="FIXME",
     classifiers=[
         "License :: OSI Approved :: BSD License",
     ],

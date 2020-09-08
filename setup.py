@@ -3,7 +3,7 @@ import os
 from setuptools import setup
 import shutil
 import glob
-
+import sys
 
 # Utility function to read the README file.
 # Used for the long_description.  It's nice, because now 1) we have a top level
@@ -26,11 +26,15 @@ for script in scripts:
     dst = 'build/pyuscope-' + script.replace('.py', '').replace('_', '-').replace("/", "-")
     dst = dst.replace("-util", "")
     print(script, dst)
-    # switch to symlink to make "develop" work correctly
-    # shutil.copy(script, dst)
     if os.path.exists(dst):
         os.unlink(dst)
-    os.symlink(os.path.abspath(script), dst)
+        print("removed")
+    if "develop" in sys.argv:
+        # switch to symlink to make "develop" work correctly
+        print("check", dst)
+        os.symlink(os.path.abspath(script), dst)
+    else:
+        shutil.copy(script, dst)
     scripts_dist.append(dst)
 
 setup(

@@ -26,7 +26,11 @@ for script in scripts:
     dst = 'build/pyuscope-' + script.replace('.py', '').replace('_', '-').replace("/", "-")
     dst = dst.replace("-util", "")
     print(script, dst)
-    shutil.copy(script, dst)
+    # switch to symlink to make "develop" work correctly
+    # shutil.copy(script, dst)
+    if os.path.exists(dst):
+        os.unlink(dst)
+    os.symlink(os.path.abspath(script), dst)
     scripts_dist.append(dst)
 
 setup(

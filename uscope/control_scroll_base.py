@@ -52,6 +52,9 @@ class ImagerControlScroll(QScrollArea):
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.update_by_prop)
 
+        # self.set_push_gui(True)
+        # self.set_push_prop(True)
+
     def buttonLayout(self):
         layout = QHBoxLayout()
 
@@ -224,7 +227,7 @@ class ImagerControlScroll(QScrollArea):
         """
         vals = {}
         for disp_name, val in self.get_disp_properties().items():
-            if self.disp2prop["push_prop"]:
+            if self.disp2prop[disp_name]["push_prop"]:
                 vals[disp_name] = val
         self.set_disp_properties(vals)
 
@@ -279,13 +282,33 @@ class GstControlScroll(ImagerControlScroll):
         source = self.vidpip.source
         return source.get_property(name)
 
+    def set_push_gui(self, val):
+        val = bool(val)
+        for disp_name, val in self.get_disp_properties().items():
+            self.disp2prop[disp_name]["push_gui"] = val
+
+    def set_push_prop(self, val):
+        val = bool(val)
+        for disp_name, val in self.get_disp_properties().items():
+            self.disp2prop[disp_name]["push_prop"] = val
+
+
     """
     def raw_prop_default(self, name):
         ps = self.vidpip.source.find_property(name)
         return ps.default_value
     """
 
-    def template_property(self, prop_name, defaults):
+    def template_property(self, prop_entry):
+        if type(prop_entry) == str:
+            prop_name = prop_entry
+            defaults = {}
+        elif type(prop_entry) == dict:
+            prop_name = prop_entry["prop_name"]
+            defaults = prop_entry
+        else:
+            assert 0, type(prop_entry)
+
         ps = self.vidpip.source.find_property(prop_name)
         ret = {}
         ret["prop_name"] = prop_name
@@ -310,15 +333,9 @@ class GstControlScroll(ImagerControlScroll):
         groups = OrderedDict()
         for group_name, gst_properties in groups_gst.items():
             propdict = OrderedDict()
-            if type(gst_properties) == list:
-                for propk in gst_properties:
-                    propdict[propk] = self.template_property(propk, {})
-            elif type(gst_properties) == OrderedDict:
-                assert 0, "fixme"
-                for propk, propv in gst_properties.items():
-                    propdict[propk] = self.template_property(propk, propv)
-            else:
-                assert 0, type(gst_properties)
+            for propk in gst_properties:
+                val = self.template_property(propk)
+                propdict[val["prop_name"]] = val
             groups[group_name] = propdict
         print("groups", groups)
         # import sys; sys.exit(1)

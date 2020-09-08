@@ -9,10 +9,26 @@ from collections import OrderedDict
 
 groups_gst = OrderedDict([
     ("HSV+", [
-        "brightness",
-        "contrast",
-        "saturation",
-        "hue",
+        {
+            "prop_name": "brightness",
+            "min": 0,
+            "max": 255
+        },
+        {
+            "prop_name": "contrast",
+            "min": 0,
+            "max": 255
+        },
+        {
+            "prop_name": "saturation",
+            "min": 0,
+            "max": 100
+        },
+        {
+            "prop_name": "hue",
+            "min": -180,
+            "max": 180
+        },
     ]),
 ])
 

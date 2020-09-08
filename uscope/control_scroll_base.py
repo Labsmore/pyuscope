@@ -10,26 +10,54 @@ from collections import OrderedDict
 from uscope import config
 
 
-def unpack_groupv(groupv):
-    if type(groupv) is dict:
-        return groupv.get("name"), groupv.get("ro", True)
-    else:
-        return groupv, False
-
-
 class ImagerControlScroll(QScrollArea):
-    def __init__(self, parent=None):
+    def __init__(self, groups, parent=None):
         QScrollArea.__init__(self, parent=parent)
 
+        print("init", groups)
+
+        self.disp2widgets = {}
+
+        layout = QVBoxLayout()
+        layout.addLayout(self.buttonLayout())
+
+        # Indexed by display name
+        # self.disp2ctrl = OrderedDict()
+        # Indexed by display name
+        self.disp2prop = OrderedDict()
+        # Indexed by low level name
+        self.raw2prop = OrderedDict()
+
+        for group_name, properties in groups.items():
+            groupbox = QGroupBox(group_name)
+            groupbox.setCheckable(False)
+            layout.addWidget(groupbox)
+
+            layoutg = QGridLayout()
+            row = 0
+            groupbox.setLayout(layoutg)
+
+            for _disp_name, prop in properties.items():
+                # assert disp_name == prop["disp_name"]
+                row = self._assemble_property(prop, layoutg, row)
+
+        widget = QWidget()
+        widget.setLayout(layout)
+
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setWidgetResizable(True)
+        self.setWidget(widget)
+
         self.update_timer = QTimer()
-        self.update_timer.timeout.connect(self.setWidgetsToProperties)
+        self.update_timer.timeout.connect(self.update_by_prop)
 
     def buttonLayout(self):
         layout = QHBoxLayout()
 
         self.default_pb = QPushButton("Default")
         layout.addWidget(self.default_pb)
-        self.default_pb.clicked.connect(self.setWidgetsToDefaults)
+        self.default_pb.clicked.connect(self.update_by_deafults)
 
         self.cal_save_pb = QPushButton("Cal save")
         layout.addWidget(self.cal_save_pb)
@@ -40,6 +68,180 @@ class ImagerControlScroll(QScrollArea):
         self.cal_load_pb.clicked.connect(self.cal_load)
 
         return layout
+
+    def _assemble_int(self, prop, layoutg, row):
+        def gui_changed(prop, slider, value_label):
+            def f():
+                try:
+                    val = int(slider.value())
+                except ValueError:
+                    pass
+                else:
+                    if prop["push_gui"]:
+                        self.raw_prop_write(prop["prop_name"], val)
+                        value_label.setText(str(val))
+                        print('%s (%s) changed => %d' %
+                              (prop["disp_name"], prop["prop_name"], val))
+
+            return f
+
+        layoutg.addWidget(QLabel(prop["disp_name"]), row, 0)
+        value_label = QLabel(str(prop["default"]))
+        layoutg.addWidget(value_label, row, 1)
+        row += 1
+        slider = QSlider(Qt.Horizontal)
+        slider.setMinimum(prop["min"])
+        slider.setMaximum(prop["max"])
+        # slider.setTickPosition(QSlider.TicksBothSides)
+        slider.setValue(prop["default"])
+        slider.valueChanged.connect(gui_changed(prop, slider, value_label))
+        self.disp2widgets[prop["disp_name"]] = (slider, value_label)
+        layoutg.addWidget(slider, row, 0, 1, 2)
+        row += 1
+        return row
+
+    def _assemble_bool(self, prop, layoutg, row):
+        def gui_changed(prop):
+            def f(val):
+                if prop["push_gui"]:
+                    self.raw_prop_write(prop["prop_name"], val)
+                    print('%s (%s) changed => %d' %
+                          (prop["disp_name"], prop["prop_name"], val))
+
+            return f
+
+        cb = QCheckBox(prop["disp_name"])
+        cb.setChecked(prop["default"])
+        cb.stateChanged.connect(gui_changed(prop))
+        self.disp2widgets[prop["disp_name"]] = cb
+        layoutg.addWidget(cb, row, 0, 1, 2)
+        row += 1
+        return row
+
+    def _prop_defaults(self, prop):
+        print("prop", type(prop))
+        if type(prop) is dict:
+            ret = dict(prop)
+        else:
+            ret = {"prop_name": prop}
+
+        def default(k, default):
+            ret[k] = ret.get(k, default)
+
+        default("disp_name", ret["prop_name"])
+        assert "type" in ret, ret
+        # xxx: might need to change this
+        assert "default" in ret
+
+        # Read only property
+        # Don't let user change it
+        default("ro", False)
+        # Push updates from property changing automatically
+        default("push_prop", not ret["ro"])
+        # Push updates from user changing GUI
+        default("push_gui", not ret["ro"])
+
+        if ret["type"] == "int":
+            assert "min" in ret
+            assert "max" in ret
+        elif ret["type"] == "bool":
+            pass
+        else:
+            assert 0, "unknown type %s" % ret["type"]
+
+        return ret
+
+    def _assemble_property(self, prop, layoutg, row):
+        """
+        Take a user supplied property map and add it to the GUI
+        """
+
+        prop = self._prop_defaults(prop)
+        # self.properties[prop["disp_name"]] = prop
+
+        prop_name = prop["prop_name"]
+        disp_name = prop.get("disp_name", prop_name)
+        assert disp_name not in self.disp2prop
+        self.disp2prop[disp_name] = prop
+        assert prop_name not in self.raw2prop
+        self.raw2prop[prop_name] = prop
+
+        range_str = ""
+        if "min" in prop:
+            range_str = ", range %s to %s" % (prop["min"], prop["max"])
+        print("add disp %s prop %s, type %s, default %s%s" %
+              (disp_name, prop_name, prop["type"], prop["default"], range_str))
+
+        if prop["type"] == "int":
+            row = self._assemble_int(prop, layoutg, row)
+        elif prop["type"] == "bool":
+            row = self._assemble_bool(prop, layoutg, row)
+        else:
+            assert 0, (prop["type"], prop)
+        return row
+
+    def get_disp_properties(self):
+        """
+        Return dict containing property values indexed by display name
+        Uses API as source of truth and may not match GUI
+        """
+
+        ret = {}
+        for disp_name, prop in self.disp2prop.items():
+            ret[disp_name] = self.raw_prop_read(prop["prop_name"])
+        return ret
+
+    def set_disp_properties(self, vals):
+        """
+        Set properties indexed by display name
+        Update the GUI and underlying control
+        Note: underlying control is updated either directly or indirectly through signal
+        """
+        for disp_name, val in vals.items():
+            prop = self.disp2prop[disp_name]
+            # Rely on GUI signal writing API unless GUI updates are disabled
+            if not prop["push_gui"]:
+                self.raw_prop_write(prop["prop_name"], val)
+            widgets = self.disp2widgets[disp_name]
+            if prop["type"] == "int":
+                slider, value_label = widgets
+                slider.setValue(val)
+                value_label.setText(str(val))
+            elif prop["type"] == "bool":
+                widgets.setChecked(val)
+            else:
+                assert 0, prop
+
+    """
+    def raw_prop_default(self, name):
+        raise Exception("Required")
+    """
+
+    def update_by_prop(self):
+        """
+        Update state based on camera API
+        Query all GUI controlled properties and update GUI to reflect current state
+        """
+        vals = {}
+        for disp_name, val in self.get_disp_properties().items():
+            if self.disp2prop["push_prop"]:
+                vals[disp_name] = val
+        self.set_disp_properties(vals)
+
+    def update_by_deafults(self):
+        """
+        Update state based on default value
+        """
+        vals = {}
+        for disp_name, prop in self.disp2prop.items():
+            vals[disp_name] = prop["default"]
+        self.set_disp_properties(vals)
+
+    def raw_prop_write(self, name, value):
+        raise Exception("Required")
+
+    def raw_prop_read(self, name):
+        raise Exception("Required")
 
     def cal_load(self):
         j = config.cal_load(source=self.vidpip.source_name)
@@ -55,171 +257,69 @@ class ImagerControlScroll(QScrollArea):
         if self.update_timer:
             self.update_timer.start(200)
 
-    def setWidgetsToProperties(self):
-        """
-        Query all gstreamer properties and update sliders to reflect current state
-        """
-        self.set_properties(self.get_properties())
-
-    def get_properties(self):
-        """
-        Get all of the property values from the source stream
-        (ie not using GUI controls)
-        """
-        raise Exception("Required")
-
-    def set_properties(self, vals):
-        """
-        Set the underlaying media stream to vals
-        Widgets are not affected
-        """
-        raise Exception("Required")
-
-    def setWidgetsToDefaults(self):
-        """
-        Set all controls to their default values
-        """
-
-        raise Exception("Required")
-
 
 class GstControlScroll(ImagerControlScroll):
     """
     Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
     """
-    def __init__(self, vidpip, prop_layout, parent=None):
-        ImagerControlScroll.__init__(self, parent=parent)
-
+    def __init__(self, vidpip, groups_gst, parent=None):
         self.vidpip = vidpip
+        ImagerControlScroll.__init__(self,
+                                     groups=self.flatten_groups(groups_gst),
+                                     parent=parent)
 
         layout = QVBoxLayout()
-
         layout.addLayout(self.buttonLayout())
 
-        self.ctrls = {}
-        self.properties = []
+    def raw_prop_write(self, name, val):
+        source = self.vidpip.source
+        source.set_property(name, val)
 
-        for group_name, group in prop_layout.items():
-            groupbox = QGroupBox(group_name)
-            groupbox.setCheckable(False)
-            layout.addWidget(groupbox)
+    def raw_prop_read(self, name):
+        source = self.vidpip.source
+        return source.get_property(name)
 
-            layoutg = QGridLayout()
-            row = 0
-            groupbox.setLayout(layoutg)
-
-            for groupv in group:
-                row = self.assemble_group(groupv, layoutg, row)
-
-        widget = QWidget()
-        widget.setLayout(layout)
-
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setWidgetResizable(True)
-        self.setWidget(widget)
-
-    def assemble_gint(self, name, layoutg, row, ps):
-        def changed(name, value_label):
-            def f():
-                slider = self.ctrls[name]
-                try:
-                    val = int(slider.value())
-                except ValueError:
-                    pass
-                else:
-                    self.vidpip.source.set_property(name, val)
-                    value_label.setText(str(val))
-                    print('%s changed => %d' % (name, val))
-
-            return f
-
-        value_label = QLabel(str(ps.default_value))
-        layoutg.addWidget(QLabel(name), row, 0)
-        layoutg.addWidget(value_label, row, 1)
-        row += 1
-        slider = QSlider(Qt.Horizontal)
-        slider.setMinimum(ps.minimum)
-        slider.setMaximum(ps.maximum)
-        # slider.setTickPosition(QSlider.TicksBothSides)
-        slider.setValue(ps.default_value)
-        slider.valueChanged.connect(changed(name, value_label))
-        self.ctrls[name] = slider
-        layoutg.addWidget(slider, row, 0, 1, 2)
-        row += 1
-        return row
-
-    def assemble_gboolean(self, name, layoutg, row, ps):
-        def changed(name, cb):
-            def f(val):
-                self.vidpip.source.set_property(name, val)
-                print('%s changed => %d' % (name, val))
-
-            return f
-
-        cb = QCheckBox(name)
-        cb.setChecked(ps.default_value)
-        cb.stateChanged.connect(changed(name, cb))
-        self.ctrls[name] = cb
-        layoutg.addWidget(cb, row, 0, 1, 2)
-        row += 1
-        return row
-
-    def assemble_group(self, groupv, layoutg, row):
-        name, is_const = unpack_groupv(groupv)
-        self.properties.append(name)
+    """
+    def raw_prop_default(self, name):
         ps = self.vidpip.source.find_property(name)
-        # default = self.vidpip.source.get_property(name)
-        if ps.value_type.name == "gint":
-            print("%s, %s, default %s, range %s to %s" %
-                  (name, ps.value_type.name, ps.default_value, ps.minimum,
-                   ps.maximum))
-        else:
-            print("%s, %s, default %s" %
-                  (name, ps.value_type.name, ps.default_value))
+        return ps.default_value
+    """
 
-        if ps.value_type.name == "gint":
-            row = self.assemble_gint(name, layoutg, row, ps)
-        elif ps.value_type.name == "gboolean":
-            row = self.assemble_gboolean(name, layoutg, row, ps)
-        else:
-            assert 0, (name, ps.value_type.name)
-        return row
-
-    def get_properties(self):
-        """
-        Return dict containing property values
-        """
+    def template_property(self, prop_name, defaults):
+        ps = self.vidpip.source.find_property(prop_name)
         ret = {}
-        for name in self.ctrls.keys():
-            ret[name] = self.vidpip.source.get_property(name)
+        ret["prop_name"] = prop_name
+        ret["default"] = ps.default_value
+
+        if ps.value_type.name == "gint":
+            ret["min"] = ps.minimum
+            ret["max"] = ps.maximum
+            ret["type"] = "int"
+        elif ps.value_type.name == "gboolean":
+            ret["type"] = "bool"
+        else:
+            assert 0, ps.value_type.name
+
+        ret.update(defaults)
         return ret
 
-    def set_properties(self, vals):
-        for name, widget in self.ctrls.items():
-            try:
-                val = vals[name]
-            except KeyError:
-                print("WARNING: %s keeping default value" % name)
-                continue
-            if type(widget) == QSlider:
-                widget.setValue(val)
-            elif type(widget) == QCheckBox:
-                widget.setChecked(val)
-            else:
-                assert 0, type(widget)
-
-    def setWidgetsToDefaults(self):
+    def flatten_groups(self, groups_gst):
         """
-        Set all controls to their default values
+        Convert a high level gst property description to something usable by widget API
         """
-
-        print("default controls")
-        for name, widget in self.ctrls.items():
-            ps = self.vidpip.source.find_property(name)
-            if type(widget) == QSlider:
-                widget.setValue(ps.default_value)
-            elif type(widget) == QCheckBox:
-                widget.setChecked(ps.default_value)
+        groups = OrderedDict()
+        for group_name, gst_properties in groups_gst.items():
+            propdict = OrderedDict()
+            if type(gst_properties) == list:
+                for propk in gst_properties:
+                    propdict[propk] = self.template_property(propk, {})
+            elif type(gst_properties) == OrderedDict:
+                assert 0, "fixme"
+                for propk, propv in gst_properties.items():
+                    propdict[propk] = self.template_property(propk, propv)
             else:
-                assert 0, type(widget)
+                assert 0, type(gst_properties)
+            groups[group_name] = propdict
+        print("groups", groups)
+        # import sys; sys.exit(1)
+        return groups

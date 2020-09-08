@@ -7,13 +7,13 @@ from uscope.control_scroll_base import GstControlScroll
 
 from collections import OrderedDict
 
-prop_layout = OrderedDict([
-    ("HSV+", {
+groups_gst = OrderedDict([
+    ("HSV+", [
         "brightness",
         "contrast",
         "saturation",
         "hue",
-    }),
+    ]),
 ])
 
 
@@ -24,5 +24,5 @@ class V4L2GstControlScroll(GstControlScroll):
     def __init__(self, vidpip, parent=None):
         GstControlScroll.__init__(self,
                                   vidpip=vidpip,
-                                  prop_layout=prop_layout,
+                                  groups_gst=groups_gst,
                                   parent=parent)

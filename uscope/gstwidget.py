@@ -300,7 +300,7 @@ class GstVideoPipeline:
                     raise
                 print("tee queue link %s => %s" % (src, dst))
 
-    def setupGst(self, source=None, raw_tees=None, vc_tees=None, esize=None):
+    def setupGst(self, raw_tees=None, vc_tees=None, esize=None):
         """
         TODO: clean up queue architecture
         Probably need to add a seperate (optional) tee before and after videoconvert

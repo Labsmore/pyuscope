@@ -7,41 +7,41 @@ from collections import OrderedDict
 
 from uscope.control_scroll_base import GstControlScroll
 
-prop_layout = OrderedDict([
-    ("Black balance", {
+groups_gst = OrderedDict([
+    ("Black balance", [
         "bb-r",
         "bb-g",
         "bb-b",
-    }),
-    ("White balance", {
+    ]),
+    ("White balance", [
         "wb-r",
         "wb-g",
         "wb-b",
-    }),
-    ("HSV+", {
+    ]),
+    ("HSV+", [
         "hue",
         "saturation",
         "brightness",
         "contrast",
         "gamma",
-    }),
-    ("AWB", {
+    ]),
+    ("AWB", [
         "awb_rgb",
         "awb_tt",
-    }),
-    ("Exposure", {
+    ]),
+    ("Exposure", [
         "auto-exposure",
         "expotime",
-    }),
-    ("Flip", {
+    ]),
+    ("Flip", [
         "hflip",
         "vflip",
-    }),
+    ]),
     (
         "Misc",
-        {
+        [
             #"name": "esize", "ro": True,
-        }),
+        ]),
 ])
 
 
@@ -52,5 +52,5 @@ class TTControlScroll(GstControlScroll):
     def __init__(self, vidpip, parent=None):
         GstControlScroll.__init__(self,
                                   vidpip=vidpip,
-                                  prop_layout=prop_layout,
+                                  groups_gst=groups_gst,
                                   parent=parent)

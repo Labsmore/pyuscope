@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import *
 
 from collections import OrderedDict
 
-from uscope.control_scroll_base import GstControlScroll
+from uscope.control_scroll import GstControlScroll
 
 groups_gst = OrderedDict([
     ("Black balance", [

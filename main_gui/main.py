@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
-from uscope.control_scroll import get_control_scroll
+from uscope.control_scrolls import get_control_scroll
 from uscope.util import add_bool_arg
-from uscope import control_scroll_base
 
 from uscope.config import get_usj, cal_load_all
 from uscope.hal.img.imager import Imager
@@ -348,7 +347,7 @@ class MainWindow(QMainWindow):
         elif source.find("gst-") == 0:
             self.imager = GstImager(self)
             self.imager.emitter.change_properties.connect(
-                self.propwin.control_scroll.set_properties)
+                self.propwin.control_scroll.set_disp_properties)
         else:
             raise Exception('Invalid imager type %s' % source)
 

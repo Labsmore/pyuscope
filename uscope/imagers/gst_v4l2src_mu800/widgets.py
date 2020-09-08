@@ -3,7 +3,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
-from uscope.control_scroll_base import ImagerControlScroll
+from uscope.control_scroll import ImagerControlScroll
 from uscope import v4l2_util
 
 from collections import OrderedDict

@@ -16,7 +16,7 @@ from uscope.lcnc.client import LCNCRPC
 from uscope.gst_util import Gst, CaptureSink
 from uscope.v4l2_util import ctrl_set
 
-from main_gui.threads import CncThread, PlannerThread
+from uscope.main_gui.threads import CncThread, PlannerThread
 from io import StringIO
 
 from PyQt5 import Qt
@@ -863,10 +863,12 @@ def parse_args():
 
     return vars(args)
 
-
-if __name__ == '__main__':
+def main():
     try:
         gstwidget_main(MainWindow, parse_args=parse_args)
     except Exception as e:
         print(traceback.format_exc(-1))
         error(str(e))
+
+if __name__ == '__main__':
+    main()

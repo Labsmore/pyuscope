@@ -76,3 +76,7 @@ python3 main_gui/main.py
  * PyQt4 => PyQT5
  * Tested Ubuntu 16.04 and 20.04
 
+2.1.0
+ * HDR support
+ * First packaged release
+

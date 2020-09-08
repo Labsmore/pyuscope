@@ -351,21 +351,6 @@ class MainWindow(QMainWindow):
         else:
             raise Exception('Invalid imager type %s' % source)
 
-    def update_v4l_config(self):
-        pass
-
-    def v4l_updated(self):
-        for k, v in self.v4ls.items():
-            try:
-                val = int(str(v.text()))
-            except ValueError:
-                continue
-            if k == 'E':
-                val = min(val, 800)
-            else:
-                val = min(val, 1023)
-            ctrl_set(self.vid_fd, k, val)
-
     def get_config_layout(self):
         cl = QGridLayout()
 

@@ -87,23 +87,6 @@ def get_cnc_hal(log=print):
         return lcnc_hal.LcncRshHal(log=log)
     else:
         raise Exception("Unknown CNC engine %s" % engine)
-    '''
-    # pr0ndexer (still on MicroControle hardware though)
-    elif engine == 'pdc':
-        try:
-            #return PDC(debug=False, log=log, config=config)
-            return cnc_hal.PdcHal(log=log)
-        except IOError:
-            print 'Failed to open PD device'
-            raise
-    '''
-    '''
-    Instead of auto lets support a fallback allowed option
-    elif engine == 'auto':
-        raise Exception('FIXME')
-        log('Failed to open device, falling back to mock')
-        return cnc_hal.MockHal(log=log)
-    '''
 
 
 class GstImager(Imager):
@@ -392,30 +375,6 @@ class MainWindow(QMainWindow):
         layout.addLayout(high_res_layout())
         return layout
 
-    def setupGst(self):
-        pass
-
-    def ret0(self):
-        return
-        pos = dict([(k, 0.0) for k in self.axis_pos_label])
-        self.cnc_thread.cmd('mv_abs', pos)
-
-    def home(self):
-        return
-        self.cnc_thread.cmd('home', [k for k in self.axis_pos_label])
-
-    def mv_rel(self):
-        return
-        pos = dict([(k, float(str(axis.rel_pos_le.text())))
-                    for k, axis in self.axis_pos_label.items()])
-        self.cnc_thread.cmd('mv_rel', pos)
-
-    def mv_abs(self):
-        return
-        pos = dict([(k, float(str(axis.abs_pos_le.text())))
-                    for k, axis in self.axis_pos_label.items()])
-        self.cnc_thread.cmd('mv_abs', pos)
-
     def processCncProgress(self, pictures_to_take, pictures_taken, image,
                            first):
         #dbg('Processing CNC progress')
@@ -594,9 +553,6 @@ class MainWindow(QMainWindow):
         self.pt.start()
 
     def setControlsEnabled(self, yes):
-        #self.go_pause_pb.setEnabled(yes)
-        #self.mv_abs_pb.setEnabled(yes)
-        #self.mv_rel_pb.setEnabled(yes)
         self.snapshot_pb.setEnabled(yes)
 
     def plannerDone(self):

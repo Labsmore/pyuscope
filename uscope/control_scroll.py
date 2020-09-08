@@ -80,11 +80,12 @@ class ImagerControlScroll(QScrollArea):
                 except ValueError:
                     pass
                 else:
+                    print('%s (%s) req => %d, allowed %d' %
+                          (prop["disp_name"], prop["prop_name"], val, prop["push_gui"]))
+                    assert type(prop["push_gui"]) is bool
                     if prop["push_gui"]:
                         self.raw_prop_write(prop["prop_name"], val)
                         value_label.setText(str(val))
-                        print('%s (%s) changed => %d' %
-                              (prop["disp_name"], prop["prop_name"], val))
 
             return f
 
@@ -106,10 +107,10 @@ class ImagerControlScroll(QScrollArea):
     def _assemble_bool(self, prop, layoutg, row):
         def gui_changed(prop):
             def f(val):
+                print('%s (%s) req => %d, allowed %d' %
+                      (prop["disp_name"], prop["prop_name"], val, prop["push_gui"]))
                 if prop["push_gui"]:
                     self.raw_prop_write(prop["prop_name"], val)
-                    print('%s (%s) changed => %d' %
-                          (prop["disp_name"], prop["prop_name"], val))
 
             return f
 
@@ -143,6 +144,7 @@ class ImagerControlScroll(QScrollArea):
         default("push_prop", not ret["ro"])
         # Push updates from user changing GUI
         default("push_gui", not ret["ro"])
+        assert type(ret["push_gui"]) is bool
 
         if ret["type"] == "int":
             assert "min" in ret
@@ -264,12 +266,23 @@ class ImagerControlScroll(QScrollArea):
 
     def set_push_gui(self, val):
         val = bool(val)
-        for disp_name, val in self.get_disp_properties().items():
-            self.disp2prop[disp_name]["push_gui"] = val
+        for disp_name in self.get_disp_properties().keys():
+            prop = self.disp2prop[disp_name]
+            prop["push_gui"] = val
+
+            widgets = self.disp2widgets[disp_name]
+            if prop["type"] == "int":
+                slider, _value_label = widgets
+                slider.setEnabled(val)
+            elif prop["type"] == "bool":
+                widgets.setEnabled(val)
+            else:
+                assert 0, prop
+
 
     def set_push_prop(self, val):
         val = bool(val)
-        for disp_name, val in self.get_disp_properties().items():
+        for disp_name in self.get_disp_properties().keys():
             self.disp2prop[disp_name]["push_prop"] = val
 
 

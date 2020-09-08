@@ -427,18 +427,7 @@ class MainWindow(QMainWindow):
         json.dump(scan_json, open('scan.json', 'w'), indent=4, sort_keys=True)
         return True
 
-    def go_pause(self):
-        # CNC running?
-        if self.pt:
-            # Pause
-            if self.pt.is_paused():
-                self.go_pause_pb.setText("Pause")
-                self.pt.unpause()
-            else:
-                self.go_pause_pb.setText("Continue")
-                self.pt.pause()
-            return
-
+    def go(self):
         if not self.snapshot_pb.isEnabled():
             self.log("Wait for snapshot to complete before CNC'ing")
             return
@@ -532,7 +521,7 @@ class MainWindow(QMainWindow):
         imagerj = {}
         imagerj["microscope.json"] = usj
         usj["imager"][
-            "calibration"] = self.propwin.control_scroll.get_properties()
+            "calibration"] = self.propwin.control_scroll.get_disp_properties()
 
         # not sure if this is the right place to add this
         # imagerj['copyright'] = "&copy; %s John McMaster, CC-BY" % datetime.datetime.today().year
@@ -550,7 +539,38 @@ class MainWindow(QMainWindow):
             self.log_fd = open(os.path.join(out_dir, 'log.txt'), 'w')
 
         self.go_pause_pb.setText("Pause")
+
+        if self.get_hdr():
+            # Actively driving properties during operation may cause signal thrashing
+            # Only take explicit external updates
+            # GUI will continue to update to reflect state though
+            self.propwin.control_scroll.set_push_gui(False)
+            self.propwin.control_scroll.set_push_prop(False)
+
         self.pt.start()
+
+
+    def get_hdr(self):
+        hdr = None
+        source = usj['imager']['source']
+        cal = cal_load_all(source)
+        if cal:
+            hdr = cal.get("hdr", None)
+        return hdr
+
+    def go_pause(self):
+        # CNC already running? pause/continue
+        if self.pt:
+            # Pause
+            if self.pt.is_paused():
+                self.go_pause_pb.setText("Pause")
+                self.pt.unpause()
+            else:
+                self.go_pause_pb.setText("Continue")
+                self.pt.pause()
+        # Go go go!
+        else:
+            self.go()
 
     def setControlsEnabled(self, yes):
         self.snapshot_pb.setEnabled(yes)
@@ -568,6 +588,11 @@ class MainWindow(QMainWindow):
             os._exit(1)
         # Prevent accidental start after done
         self.dry_cb.setChecked(True)
+
+        # Return to normal state if HDR was enabled
+        self.propwin.control_scroll.set_push_gui(True)
+        self.propwin.control_scroll.set_push_prop(True)
+
 
     """
     def stop(self):

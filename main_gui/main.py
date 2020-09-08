@@ -200,7 +200,6 @@ class PropertiesWindow(QMainWindow):
         if show and self.control_scroll:
             self.show()
         self.control_scroll.run()
-        self.control_scroll.cal_load()
 
         dbg("initUI done")
 
@@ -215,11 +214,6 @@ class MainWindow(QMainWindow):
         QMainWindow.__init__(self)
         self.showMaximized()
 
-        # FIXME: pull from config file etc
-        if source is None:
-            source = usj["imager"].get("source", None)
-        if source is None:
-            raise AttributeError("config has no imager source")
         self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)
         # FIXME: review sizing
         self.vidpip.size_widgets(frac=0.5)

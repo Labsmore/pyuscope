@@ -80,19 +80,23 @@ class GstVideoPipeline:
         # Must have at least one widget
         assert self.full or self.roi
 
+        if self.usj:
+            # TODO: auto calc these or something better
+            usj = config.get_usj()
+            self.camw = usj["imager"]["width"]
+            self.camh = usj["imager"]["height"]
+        # maybe just make this required
+        else:
+            # Could query
+            assert 0, "fixme?"
+
         # Must not be initialized until after layout is set
-        # print(source)
-        # assert 0
-        if source is None or source == "auto":
-            # XXX: is there a way to see if a camera is attached?
+        if source is None:
+            source = usj["imager"].get("source", "auto")
+        if source == "auto":
             source = auto_detect_source()
         self.source_name = source
         print("vidpip source %s" % source)
-
-        # TODO: auto calc these or something better
-        usj = config.get_usj()
-        self.camw = usj["imager"]["width"]
-        self.camh = usj["imager"]["height"]
 
         # Usable area, not total area
         # XXX: probably should maximize window and take window size

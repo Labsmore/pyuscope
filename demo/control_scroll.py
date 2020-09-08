@@ -57,6 +57,7 @@ class TestGUI(QMainWindow):
         centralWidget.setLayout(layout)
         self.setCentralWidget(centralWidget)
         self.show()
+        self.control_scroll.run()
 
 
 if __name__ == '__main__':

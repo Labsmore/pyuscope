@@ -227,6 +227,7 @@ class ImagerControlScroll(QScrollArea):
         """
         vals = {}
         for disp_name, val in self.get_disp_properties().items():
+            # print("Should update %s: %s" % (disp_name, self.disp2prop[disp_name]["push_prop"]))
             if self.disp2prop[disp_name]["push_prop"]:
                 vals[disp_name] = val
         self.set_disp_properties(vals)
@@ -250,7 +251,7 @@ class ImagerControlScroll(QScrollArea):
         j = config.cal_load(source=self.vidpip.source_name)
         if not j:
             return
-        self.set_properties(j)
+        self.set_disp_properties(j)
 
     def cal_save(self):
         config.cal_save(source=self.vidpip.source_name,
@@ -259,6 +260,17 @@ class ImagerControlScroll(QScrollArea):
     def run(self):
         if self.update_timer:
             self.update_timer.start(200)
+        self.cal_load()
+
+    def set_push_gui(self, val):
+        val = bool(val)
+        for disp_name, val in self.get_disp_properties().items():
+            self.disp2prop[disp_name]["push_gui"] = val
+
+    def set_push_prop(self, val):
+        val = bool(val)
+        for disp_name, val in self.get_disp_properties().items():
+            self.disp2prop[disp_name]["push_prop"] = val
 
 
 class GstControlScroll(ImagerControlScroll):
@@ -281,17 +293,6 @@ class GstControlScroll(ImagerControlScroll):
     def raw_prop_read(self, name):
         source = self.vidpip.source
         return source.get_property(name)
-
-    def set_push_gui(self, val):
-        val = bool(val)
-        for disp_name, val in self.get_disp_properties().items():
-            self.disp2prop[disp_name]["push_gui"] = val
-
-    def set_push_prop(self, val):
-        val = bool(val)
-        for disp_name, val in self.get_disp_properties().items():
-            self.disp2prop[disp_name]["push_prop"] = val
-
 
     """
     def raw_prop_default(self, name):

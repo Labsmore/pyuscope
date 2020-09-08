@@ -17,50 +17,46 @@ hack to control green directly
 as such "Gain" is actualy just "Green gain"
 Similarly others aren't balance but directly control invididual gains
 """
-prop_layout = OrderedDict([("RGBE",
-                            OrderedDict([
-                                ("Red", ("Red Balance", 0, 1023)),
-                                ("Green", ("Gain", 0, 511)),
-                                ("Blue", ("Blue Balance", 0, 1023)),
-                                ("Exp", ("Exposure", 0, 799)),
-                            ]))])
+
+groups_gst = OrderedDict([
+    ("HSV+", [
+        {
+            "prop_name": "Red Balance",
+            "disp_name": "Red",
+            "min": 0,
+            "max": 1023
+        },
+        {
+            "prop_name": "Gain",
+            "disp_name": "Green",
+            "min": 0,
+            "max": 511
+        },
+        {
+            "prop_name": "Blue Balance",
+            "disp_name": "Blue",
+            "min": 0,
+            "max": 1023
+        },
+        {
+            "prop_name": "Exposure",
+            "disp_name": "Exp",
+            "min": 0,
+            "max": 799
+        },
+    ]),
+])
 
 
 class V4L2MU800ControlScroll(ImagerControlScroll):
     def __init__(self, vidpip, parent=None):
-        ImagerControlScroll.__init__(self, parent=parent)
         self.vidpip = vidpip
+        ImagerControlScroll.__init__(self,
+                                     groups=self.flatten_groups(groups_gst),
+                                     parent=parent)
 
         layout = QVBoxLayout()
-
         layout.addLayout(self.buttonLayout())
-
-        # GUI elements
-        # Indexed by disp_name
-        self.widgets = {}
-        # List of v4l2 controls actually used
-        self.ctrl2disp = {}
-        self.disp2ctrl = {}
-
-        for group_name, group in prop_layout.items():
-            groupbox = QGroupBox(group_name)
-            groupbox.setCheckable(False)
-            layout.addWidget(groupbox)
-
-            layoutg = QGridLayout()
-            row = 0
-            groupbox.setLayout(layoutg)
-
-            for groupk, groupv in group.items():
-                row = self.assemble_group(groupk, groupv, layoutg, row)
-
-        widget = QWidget()
-        widget.setLayout(layout)
-
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setWidgetResizable(True)
-        self.setWidget(widget)
 
     def fd(self):
         fd = self.vidpip.source.get_property("device-fd")
@@ -68,72 +64,33 @@ class V4L2MU800ControlScroll(ImagerControlScroll):
         #    print("WARNING: bad fd")
         return fd
 
-    def assemble_group(self, disp_name, groupv, layoutg, row):
-        ctrl_name, minval, maxval = groupv
-        #minval, maxval = v4l2_util.ctrl_minmax(self.fd())
-        self.disp2ctrl[disp_name] = ctrl_name
-        self.ctrl2disp[ctrl_name] = disp_name
-        # defval = v4l2_util.ctrl_get(self.fd(), ctrl_name)
-        defval = 0
+    def raw_prop_write(self, name, val):
+        v4l2_util.ctrl_set(self.fd(), name, val)
 
-        def changed(slider, disp_name, ctrl_name, value_label):
-            def f():
-                try:
-                    val = int(slider.value())
-                except ValueError:
-                    pass
-                else:
-                    v4l2_util.ctrl_set(self.fd(), ctrl_name, val)
-                    value_label.setText(str(val))
-                    print('%s changed => %d' % (disp_name, val))
+    def raw_prop_read(self, name):
+        return v4l2_util.ctrl_get(self.fd(), name)
 
-            return f
+    def template_property(self, prop_entry):
+        prop_name = prop_entry["prop_name"]
 
-        value_label = QLabel(str(defval))
-        layoutg.addWidget(QLabel(disp_name), row, 0)
-        layoutg.addWidget(value_label, row, 1)
-        row += 1
-        slider = QSlider(Qt.Horizontal)
-        slider.setMinimum(minval)
-        slider.setMaximum(maxval)
-        # slider.setTickPosition(QSlider.TicksBothSides)
-        slider.setValue(defval)
-        slider.valueChanged.connect(
-            changed(slider, disp_name, ctrl_name, value_label))
-        self.widgets[disp_name] = slider
-        layoutg.addWidget(slider, row, 0, 1, 2)
-        row += 1
-
-        return row
-
-    def get_properties(self):
         ret = {}
-        if self.fd() < 0:
-            return ret
-        # controls [b'Red Balance', b'Blue Balance', b'Exposure', b'Gain']
-        print("controls", v4l2_util.ctrls(self.fd()))
-        for ctrl, _disp in self.ctrl2disp.items():
-            ret[ctrl] = v4l2_util.ctrl_get(self.fd(), ctrl)
-        print(ret)
+        ret["default"] = self.raw_prop_read(prop_name)
+        ret["type"] = "int"
+
+        ret.update(prop_entry)
         return ret
 
-    def set_properties(self, vals):
-        if self.fd() < 0:
-            return
+    def flatten_groups(self, groups_gst):
         """
-        for ctrl, val in vals.items():
-            assert ctrl in self.ctrl2disp, ctrl
-            v4l2_util.ctrl_set(self.fd(), ctrl, val)
+        Convert a high level gst property description to something usable by widget API
         """
-
-        for disp_name, widget in self.widgets.items():
-            ctrl_name = self.disp2ctrl[disp_name]
-            try:
-                val = vals[ctrl_name]
-            except KeyError:
-                print("WARNING: %s keeping default value" % name)
-                continue
-            widget.setValue(val)
-
-    def setWidgetsToDefaults(self):
-        print("WARNING: default not implemented")
+        groups = OrderedDict()
+        for group_name, gst_properties in groups_gst.items():
+            propdict = OrderedDict()
+            for propk in gst_properties:
+                val = self.template_property(propk)
+                propdict[val["prop_name"]] = val
+            groups[group_name] = propdict
+        print("groups", groups)
+        # import sys; sys.exit(1)
+        return groups

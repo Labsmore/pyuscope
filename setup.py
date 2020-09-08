@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import os
-from setuptools import setup
+from setuptools import setup, find_packages
 import shutil
 import glob
 import sys
@@ -46,7 +46,7 @@ setup(
     license="BSD",
     keywords="microscope touptek",
     url='https://github.com/JohnDMcMaster/pyuscope',
-    packages=['uscope'],
+    packages=find_packages(exclude=['build']),
     scripts=scripts_dist,
     # FIXME
     install_requires=[

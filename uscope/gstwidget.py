@@ -62,7 +62,12 @@ class GstVideoPipeline:
     vidpip.setupGst()
     vidpip.run()
     """
-    def __init__(self, source=None, full=True, roi=False, usj=True):
+    def __init__(self,
+                 source=None,
+                 full=True,
+                 roi=False,
+                 usj=True,
+                 nwidgets=None):
         self.usj = usj
         self.source = None
         self.source_name = None
@@ -102,6 +107,11 @@ class GstVideoPipeline:
         # XXX: probably should maximize window and take window size
         self.screenw = 1920
         self.screenh = 900
+        self.roi_zoom = 1
+
+        if not nwidgets:
+            nwidgets = 2 if self.full and self.roi else 1
+        self.nwidgets = nwidgets
 
         self.full_capsfilter = None
         self.roi_capsfilter = None
@@ -128,14 +138,10 @@ class GstVideoPipeline:
             self.screenh = h
 
         assert self.full or self.roi
-        if self.full and self.roi:
-            # probably horizontal layout...
-            w, h, ratio = self.fit_pix(self.camw * 2, self.camh)
-            w = w / 2
-        else:
-            w, h, ratio = self.fit_pix(self.camw, self.camh)
-        print("cam %uw x %uh => xwidget %uw x %uh %ur" %
-              (self.camw, self.camh, w, h, ratio))
+        w, h, ratio = self.fit_pix(self.camw * self.nwidgets, self.camh)
+        w = w / self.nwidgets
+        print("%u cam %uw x %uh => xwidget %uw x %uh %ur" %
+              (self.nwidgets, self.camw, self.camh, w, h, ratio))
 
         self.full_widget_ratio = ratio
 
@@ -169,7 +175,7 @@ class GstVideoPipeline:
 
     def fit_pix(self, w, h):
         ratio = 1
-        while w > self.screenw and h > self.screenh:
+        while w > self.screenw or h > self.screenh:
             w = w / 2
             h = h / 2
             ratio *= 2
@@ -192,8 +198,7 @@ class GstVideoPipeline:
         self.roi_videocrop.set_property("left", 1224)
         self.roi_videocrop.set_property("right", 1224)
         """
-        ratio = self.full_widget_ratio * 1
-        # ratio = 1
+        ratio = self.full_widget_ratio * self.roi_zoom
         keepw = self.camw // ratio
         keeph = self.camh // ratio
         print("crop ratio %u => %u, %uw x %uh" %
@@ -213,6 +218,7 @@ class GstVideoPipeline:
             "cam %uw x %uh %0.1fr => crop (x2) %uw x %uh => %uw x %uh %0.1fr" %
             (self.camw, self.camh, self.camw / self.camh, left, top, finalw,
              finalh, finalw / finalh))
+        # assert 0, self.roi_zoom
 
     def setupWidgets(self, parent=None):
         if self.full:

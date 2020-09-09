@@ -5,6 +5,7 @@ import shutil
 import glob
 import sys
 
+
 # Utility function to read the README file.
 # Used for the long_description.  It's nice, because now 1) we have a top level
 # README file and 2) it's easier to type in the README file than to put a raw
@@ -23,7 +24,8 @@ print(scripts)
 for script in scripts:
     # Make script names more executable like
     # util/main_gui.py => pyuscope-main-gui
-    dst = 'build/pyuscope-' + script.replace('.py', '').replace('_', '-').replace("/", "-")
+    dst = 'build/pyuscope-' + script.replace('.py', '').replace(
+        '_', '-').replace("/", "-")
     dst = dst.replace("-util", "")
     print(script, dst)
     if os.path.exists(dst):
@@ -49,8 +51,7 @@ setup(
     packages=find_packages(exclude=['build']),
     scripts=scripts_dist,
     # FIXME
-    install_requires=[
-    ],
+    install_requires=[],
     #long_description=read('README.md'),
     # Expects rst, not .md
     long_description="FIXME",

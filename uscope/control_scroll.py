@@ -81,7 +81,8 @@ class ImagerControlScroll(QScrollArea):
                     pass
                 else:
                     print('%s (%s) req => %d, allowed %d' %
-                          (prop["disp_name"], prop["prop_name"], val, prop["push_gui"]))
+                          (prop["disp_name"], prop["prop_name"], val,
+                           prop["push_gui"]))
                     assert type(prop["push_gui"]) is bool
                     if prop["push_gui"]:
                         self.raw_prop_write(prop["prop_name"], val)
@@ -108,7 +109,8 @@ class ImagerControlScroll(QScrollArea):
         def gui_changed(prop):
             def f(val):
                 print('%s (%s) req => %d, allowed %d' %
-                      (prop["disp_name"], prop["prop_name"], val, prop["push_gui"]))
+                      (prop["disp_name"], prop["prop_name"], val,
+                       prop["push_gui"]))
                 if prop["push_gui"]:
                     self.raw_prop_write(prop["prop_name"], val)
 
@@ -278,7 +280,6 @@ class ImagerControlScroll(QScrollArea):
                 widgets.setEnabled(val)
             else:
                 assert 0, prop
-
 
     def set_push_prop(self, val):
         val = bool(val)

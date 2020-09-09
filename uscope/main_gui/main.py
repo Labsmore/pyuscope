@@ -549,7 +549,6 @@ class MainWindow(QMainWindow):
 
         self.pt.start()
 
-
     def get_hdr(self):
         hdr = None
         source = usj['imager']['source']
@@ -592,7 +591,6 @@ class MainWindow(QMainWindow):
         # Return to normal state if HDR was enabled
         self.propwin.control_scroll.set_push_gui(True)
         self.propwin.control_scroll.set_push_prop(True)
-
 
     """
     def stop(self):
@@ -888,12 +886,14 @@ def parse_args():
 
     return vars(args)
 
+
 def main():
     try:
         gstwidget_main(MainWindow, parse_args=parse_args)
     except Exception as e:
         print(traceback.format_exc(-1))
         error(str(e))
+
 
 if __name__ == '__main__':
     main()

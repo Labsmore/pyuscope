@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 
+"""
+ubuntu 16.04
+sudo pip3 install scikit-build
+sudo pip3 install --upgrade numpy==1.18.4
+sudo pip3 install opencv-python==4.2.0.32
+"""
+
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main, Gst
 from uscope.gst_util import CbSink
 from PyQt5.QtGui import *

@@ -22,7 +22,7 @@ COLORMAP = cv2.COLORMAP_JET
 
 # too big
 #SCALE_DST=1
-SCALE_DST = 4
+SCALE_DST = 2
 
 # shows bayer artifacts
 # should be at least 2
@@ -176,54 +176,59 @@ class TestGUI(QMainWindow):
         # open("raw.jpg", "wb").write(buffer)
         self.processor.img_cb(buffer)
 
-    def get_misc_layout(self):
-        layout = QGridLayout()
-        row = 0
-
-        layout.addWidget(QLabel('N'), row, 0)
-        self.n_frames = QLabel('0')
-        layout.addWidget(self.n_frames, row, 1)
-        row += 1
-
-        layout.addWidget(QLabel('Laplacian: %s' % bool(LAPLACIAN)), row, 0)
-        row += 1
-        layout.addWidget(QLabel('Laplacian2: %s' % bool(LAPLACIAN2)), row, 0)
-        row += 1
-        layout.addWidget(QLabel('Hist eq: %s' % bool(HISTEQ)), row, 0)
-        row += 1
-        layout.addWidget(QLabel('Color map: %s' % (COLORMAP is not None, )),
-                         row, 0)
-        row += 1
-        layout.addWidget(QLabel('Bin scalar: %s' % SCALE_BIN), row, 0)
-        row += 1
-        layout.addWidget(QLabel('Display scalar: %s' % SCALE_DST), row, 0)
-        row += 1
-
-        return layout
-
     def refresh_image(self):
         self.pic.setPixmap(QPixmap("focus_eval-out.png"))
         self.pic.show()
 
-    def get_left_layout(self):
-        layout = QVBoxLayout()
-
-        layout.addLayout(self.get_misc_layout())
-
-        self.pic = QLabel(self)
-        layout.addWidget(self.pic)
-
-        return layout
-
     def initUI(self):
         self.setWindowTitle('Demo')
         self.vidpip.setupWidgets()
+
         # self.vidpip.size_widgets(frac=0.4)
 
+        def left_layout():
+            layout = QGridLayout()
+            row = 0
+
+            layout.addWidget(QLabel('N'), row, 0)
+            self.n_frames = QLabel('0')
+            layout.addWidget(self.n_frames, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel('Laplacian: %s' % bool(LAPLACIAN)), row, 0)
+            row += 1
+            layout.addWidget(QLabel('Laplacian2: %s' % bool(LAPLACIAN2)), row,
+                             0)
+            row += 1
+            layout.addWidget(QLabel('Hist eq: %s' % bool(HISTEQ)), row, 0)
+            row += 1
+            layout.addWidget(
+                QLabel('Color map: %s' % (COLORMAP is not None, )), row, 0)
+            row += 1
+            layout.addWidget(QLabel('Bin scalar: %s' % SCALE_BIN), row, 0)
+            row += 1
+            layout.addWidget(QLabel('Display scalar: %s' % SCALE_DST), row, 0)
+            row += 1
+
+            return layout
+
+        def right_layout():
+            layout = QVBoxLayout()
+
+            def top_layout():
+                layout = QHBoxLayout()
+                layout.addWidget(self.vidpip.full_widget)
+                layout.addWidget(self.vidpip.roi_widget)
+                return layout
+
+            layout.addLayout(top_layout())
+            self.pic = QLabel(self)
+            layout.addWidget(self.pic)
+            return layout
+
         layout = QHBoxLayout()
-        layout.addLayout(self.get_left_layout())
-        layout.addWidget(self.vidpip.full_widget)
-        layout.addWidget(self.vidpip.roi_widget)
+        layout.addLayout(left_layout())
+        layout.addLayout(right_layout())
 
         widget = QWidget()
         widget.setLayout(layout)

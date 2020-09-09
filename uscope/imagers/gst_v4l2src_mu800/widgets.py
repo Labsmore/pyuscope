@@ -65,16 +65,22 @@ class V4L2MU800ControlScroll(ImagerControlScroll):
         return fd
 
     def raw_prop_write(self, name, val):
-        v4l2_util.ctrl_set(self.fd(), name, val)
+        fd = self.fd()
+        if fd >= 0:
+            v4l2_util.ctrl_set(fd, name, val)
 
     def raw_prop_read(self, name):
-        return v4l2_util.ctrl_get(self.fd(), name)
+        fd = self.fd()
+        if fd < 0:
+            return None
+        return v4l2_util.ctrl_get(fd, name)
 
     def template_property(self, prop_entry):
         prop_name = prop_entry["prop_name"]
 
         ret = {}
-        ret["default"] = self.raw_prop_read(prop_name)
+        # self.raw_prop_read(prop_name)
+        ret["default"] = None
         ret["type"] = "int"
 
         ret.update(prop_entry)

@@ -7,7 +7,7 @@ Ideal flow:
 """
 
 from uscope import gstwidget
-from uscope.control_scroll import get_control_scroll
+from uscope.control_scrolls import get_control_scroll
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gst_util import CbSink
 import threading
@@ -122,8 +122,8 @@ class ImageProcessor(QThread):
             img = Image.open(io.BytesIO(img))
 
             rval, gval, bval, rbal, _gbal, bbal, newr, newg, newb = process_image(
-                img, props["Red Balance"], props["Gain"],
-                props["Blue Balance"])
+                img, props["Red"], props["Green"],
+                props["Blue"])
 
             self.r_val.emit(int(rval * 1000))
             self.g_val.emit(int(gval * 1000))
@@ -148,8 +148,8 @@ class ImageProcessor(QThread):
 
         # First frame?
         if self._n_frames == 0:
-            # Initialize control values
-            self.tg.control_scroll.setWidgetsToProperties()
+            # Hack: initialize control values since we can't before pipeline starts
+            # self.tg.control_scroll.refresh_defaults()
             # And process the image
             self.image_requested.set()
 
@@ -166,7 +166,7 @@ class ImageProcessor(QThread):
         if self.image_requested.is_set():
             #print 'Processing image request'
             # is there a difference between str(buffer) and buffer.data?
-            self.q.put((buffer, self.tg.control_scroll.get_properties()))
+            self.q.put((buffer, self.tg.control_scroll.get_disp_properties()))
             # Clear before emitting signal so that it can be re-requested in response
             self.image_requested.clear()
 
@@ -198,10 +198,7 @@ class TestGUI(QMainWindow):
 
         self.initUI()
         self.vidpip.run()
-        # Starts the polling timer
-        # Lets disable in favor of manually controlling updates
-        # to avoid contention with AWB algorithm
-        # self.control_scroll.run()
+        self.control_scroll.run()
 
         self.setup_processor()
         """
@@ -222,14 +219,13 @@ class TestGUI(QMainWindow):
         self.processor.r_bal.connect(self.r_bal.setNum)
         self.processor.b_bal.connect(self.b_bal.setNum)
 
-        self.processor.r_new.connect(
-            self.control_scroll.widgets["Red"].setValue)
-        # self.processor.g_new.connect(self.control_scroll.widgets["Gren"].setValue)
-        self.processor.b_new.connect(
-            self.control_scroll.widgets["Blue"].setValue)
 
-        # Update after all other signals
-        self.processor.b_new.connect(self.set_v4l2)
+        def update_red(val):
+            self.control_scroll.set_disp_properties({"Red": val})
+        self.processor.r_new.connect(update_red)
+        def update_blue(val):
+            self.control_scroll.set_disp_properties({"Blue": val})
+        self.processor.b_new.connect(update_blue)
 
         self.mysink.set_cb(self.processor.img_cb)
 
@@ -288,6 +284,8 @@ class TestGUI(QMainWindow):
 
         layout = QHBoxLayout()
         self.control_scroll = get_control_scroll(self.vidpip)
+        self.control_scroll.set_push_gui(False)
+        self.control_scroll.set_push_prop(True)
         layout.addWidget(self.control_scroll)
         layout.addLayout(balLayout())
         layout.addWidget(self.vidpip.full_widget)
@@ -297,15 +295,6 @@ class TestGUI(QMainWindow):
         self.setCentralWidget(centralWidget)
         self.show()
 
-    def set_v4l2(self, _hack):
-        if self.fd() < 0:
-            return
-        for ctrl_name, val in self.control_scroll.get_properties().items():
-            v4l2_util.ctrl_set(self.fd(), ctrl_name, val)
-
-    def fd(self):
-        # -1 before pipeline started
-        return self.control_scroll.fd()
 
 
 def parse_args():

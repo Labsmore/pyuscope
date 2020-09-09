@@ -98,7 +98,8 @@ class ImagerControlScroll(QScrollArea):
         slider.setMinimum(prop["min"])
         slider.setMaximum(prop["max"])
         # slider.setTickPosition(QSlider.TicksBothSides)
-        slider.setValue(prop["default"])
+        if prop["default"] is not None:
+            slider.setValue(prop["default"])
         slider.valueChanged.connect(gui_changed(prop, slider, value_label))
         self.disp2widgets[prop["disp_name"]] = (slider, value_label)
         layoutg.addWidget(slider, row, 0, 1, 2)
@@ -117,7 +118,8 @@ class ImagerControlScroll(QScrollArea):
             return f
 
         cb = QCheckBox(prop["disp_name"])
-        cb.setChecked(prop["default"])
+        if prop["default"] is not None:
+            cb.setChecked(prop["default"])
         cb.stateChanged.connect(gui_changed(prop))
         self.disp2widgets[prop["disp_name"]] = cb
         layoutg.addWidget(cb, row, 0, 1, 2)
@@ -187,6 +189,14 @@ class ImagerControlScroll(QScrollArea):
             assert 0, (prop["type"], prop)
         return row
 
+    def refresh_defaults(self):
+        """
+        v4l2: we don't get fd until fairly late, so can't set defaults during normal init
+        Instead once fd is availible force a refresh
+        """
+        self.get_disp_properties()
+
+
     def get_disp_properties(self):
         """
         Return dict containing property values indexed by display name
@@ -195,7 +205,11 @@ class ImagerControlScroll(QScrollArea):
 
         ret = {}
         for disp_name, prop in self.disp2prop.items():
-            ret[disp_name] = self.raw_prop_read(prop["prop_name"])
+            val = self.raw_prop_read(prop["prop_name"])
+            ret[disp_name] = val
+            # If we don't have a default take first value
+            if prop["default"] is None:
+                prop["default"] = val
         return ret
 
     def set_disp_properties(self, vals):
@@ -205,7 +219,11 @@ class ImagerControlScroll(QScrollArea):
         Note: underlying control is updated either directly or indirectly through signal
         """
         for disp_name, val in vals.items():
-            prop = self.disp2prop[disp_name]
+            try:
+                prop = self.disp2prop[disp_name]
+            except:
+                print("oops", self.disp2prop.keys())
+                raise
             # Rely on GUI signal writing API unless GUI updates are disabled
             if not prop["push_gui"]:
                 self.raw_prop_write(prop["prop_name"], val)
@@ -242,6 +260,8 @@ class ImagerControlScroll(QScrollArea):
         """
         vals = {}
         for disp_name, prop in self.disp2prop.items():
+            if prop["default"] is None:
+                continue
             vals[disp_name] = prop["default"]
         self.set_disp_properties(vals)
 
@@ -259,7 +279,7 @@ class ImagerControlScroll(QScrollArea):
 
     def cal_save(self):
         config.cal_save(source=self.vidpip.source_name,
-                        j=self.get_properties())
+                        j=self.get_disp_properties())
 
     def run(self):
         if self.update_timer:

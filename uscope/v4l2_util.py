@@ -29,6 +29,7 @@ print cp.card
 
 
 def get_device_controls(fd):
+    assert fd >= 0, fd
     # original enumeration method
     queryctrl = v4l2.v4l2_queryctrl(v4l2.V4L2_CID_BASE)
 

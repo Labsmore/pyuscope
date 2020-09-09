@@ -22,7 +22,7 @@ COLORMAP = cv2.COLORMAP_JET
 
 # too big
 #SCALE_DST=1
-SCALE_DST = 2
+SCALE_DST = 4
 
 # shows bayer artifacts
 # should be at least 2

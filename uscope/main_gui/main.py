@@ -281,6 +281,7 @@ class MainWindow(QMainWindow):
 
         if self.log_fd is not None:
             self.log_fd.write(s)
+            self.log_fd.flush()
 
     def emit_log(self, s='', newline=True):
         # event must be omitted from the correct thread

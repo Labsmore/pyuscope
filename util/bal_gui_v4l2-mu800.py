@@ -284,8 +284,9 @@ class TestGUI(QMainWindow):
 
         layout = QHBoxLayout()
         self.control_scroll = get_control_scroll(self.vidpip)
-        self.control_scroll.set_push_gui(False)
-        self.control_scroll.set_push_prop(True)
+        props = {"Red", "Blue"}
+        self.control_scroll.set_push_gui(False, props)
+        self.control_scroll.set_push_prop(True, props)
         layout.addWidget(self.control_scroll)
         layout.addLayout(balLayout())
         layout.addWidget(self.vidpip.full_widget)

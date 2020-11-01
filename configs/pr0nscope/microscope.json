@@ -87,6 +87,11 @@
 			"x_view": 0.2388
 		},
 		{
+			"name":"VC 60X",
+			"scalar": 0.5,
+			"x_view": 0.199
+		},
+		{
 			"name":"Mitutoyo Apo 100X",
 			"scalar": 0.5,
 			"x_view": 0.1194

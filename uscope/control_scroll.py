@@ -286,9 +286,11 @@ class ImagerControlScroll(QScrollArea):
             self.update_timer.start(200)
         self.cal_load()
 
-    def set_push_gui(self, val):
+    def set_push_gui(self, val, disp_names=None):
         val = bool(val)
         for disp_name in self.get_disp_properties().keys():
+            if disp_names and disp_name not in disp_names:
+                continue
             prop = self.disp2prop[disp_name]
             prop["push_gui"] = val
 
@@ -301,9 +303,11 @@ class ImagerControlScroll(QScrollArea):
             else:
                 assert 0, prop
 
-    def set_push_prop(self, val):
+    def set_push_prop(self, val, disp_names=None):
         val = bool(val)
         for disp_name in self.get_disp_properties().keys():
+            if disp_names and disp_name not in disp_names:
+                continue
             self.disp2prop[disp_name]["push_prop"] = val
 
 

@@ -194,16 +194,20 @@ class Planner(object):
         self,
         scan_config,
         hal,
-        imager,
+        imager=None,
         # (w, h) in pixels
-        img_sz,
+        img_sz=None,
         # 10 => each pixel is 10 um x 10 um
-        unit_per_pix,
-        out_dir,
+        unit_per_pix=None,
+        out_dir=None,
+        # (w, h) in movement units
+        img_wh_units=None,
         progress_cb=None,
         dry=False,
         log=None,
         verbosity=2,
+        imager_take=None,
+        origin="ul",
         imagerj={}):
         if log is None:
 
@@ -212,8 +216,10 @@ class Planner(object):
 
         self._log = log
         self.v = verbosity
+        self.origin = origin
         self.hal = hal
         self.imager = imager
+        self.imager_take = imager_take
         self.dry = dry
         # os.path.join(config['cnc']['out_dir'], self.rconfig.job_name)
         self.out_dir = out_dir
@@ -253,11 +259,16 @@ class Planner(object):
             start[1] -= border
             end[0] += border
             end[1] += border
+        
+        if img_wh_units is None:
+            assert unit_per_pix is not None, "If img_wh_units is None unit_per_pix is required"
+            img_wh_units = (img_sz[0] * unit_per_pix, img_sz[1] * unit_per_pix)
+        
         self.axes = OrderedDict([
             ('x',
              PlannerAxis('X',
                          ideal_overlap,
-                         img_sz[0] * unit_per_pix,
+                         img_wh_units[0],
                          img_sz[0],
                          start[0],
                          end[0],
@@ -265,7 +276,7 @@ class Planner(object):
             ('y',
              PlannerAxis('Y',
                          ideal_overlap,
-                         img_sz[1] * unit_per_pix,
+                         img_wh_units[1],
                          img_sz[1],
                          start[1],
                          end[1],
@@ -393,13 +404,16 @@ class Planner(object):
     def take_picture(self, fn_base):
         self.hal.settle()
         if not self.dry:
-            images = self.imager.get()
-            if len(images) == 1:
-                image = list(images.values())[0]
-                image.save(fn_base + self.img_ext)
+            if self.imager_take:
+                self.imager_take.take(fn_base)
             else:
-                for k, image in images.items():
-                    image.save(fn_base + "_" + k + self.img_ext)
+                images = self.imager.get()
+                if len(images) == 1:
+                    image = list(images.values())[0]
+                    image.save(fn_base + self.img_ext)
+                else:
+                    for k, image in images.items():
+                        image.save(fn_base + "_" + k + self.img_ext)
         self.all_imgs += 1
 
     def take_pictures(self):
@@ -563,6 +577,8 @@ class Planner(object):
             # Do initial backlash compensation
             self.backlash_init()
 
+            self.last_row = None
+            self.last_col = None
             self.cur_col = -1
             # columns
             for ((cur_x, cur_y), (self.cur_col,
@@ -585,7 +601,10 @@ class Planner(object):
                 self.mv_abs_backlash({'x': cur_x, 'y': cur_y})
                 self.take_pictures()
 
-            self.hal.ret0()
+                self.last_row = self.cur_row
+                self.last_col = self.cur_col
+
+            self.mv_abs_backlash({'x': float(self.config['start']['x']), 'y': float(self.config['start']['y'])})
             self.end_program()
             self.end_time = time.time()
 
@@ -637,9 +656,8 @@ class Planner(object):
         return ret
 
     def backlash_init(self):
-        # TODO: rethink this for non-0 start
         if self.x.backlash:
-            self.hal.mv_abs({'x': -self.x.backlash, 'y': -self.y.backlash})
+            self.hal.mv_abs({'x': self.axes['x'].start - self.x.backlash, 'y': self.axes['y'].start - self.y.backlash})
         self.x.comp = 1
         self.y.comp = 1
 
@@ -654,28 +672,27 @@ class Planner(object):
 
         self.comment('mv_abs_backlash: %s, %s' %
                      (fmt_axis('x'), fmt_axis('y')))
-        pos = self.hal.pos()
-        blsh_mv = {}
-        for axisc in list(move_to.keys()):
-            axis = self.axes[axisc]
-            if not axis.backlash:
-                continue
-            delta = move_to[axisc] - pos[axisc]
-            #print 'planner back', axisc, axis.comp, delta, move_to[axisc], pos[axisc]
-
-            # Going right but was not compensating right?
-            if delta > 0 and axis.comp <= 0:
-                self.log(
-                    'Axis %c: compensate for changing to increasing' % axisc,
-                    2)
-                blsh_mv[axisc] = -axis.backlash
+        
+        """
+        Simple model
+        Assume starting at top col and moving down serpentine
+        Need to correct if we are at a new row
+        """
+        axisc = 'x'
+        axis = self.axes[axisc]
+        axis.comp = 0
+        if self.last_row != self.cur_row and self.axes['x'].backlash:
+            blsh_mv = {}
+            blsh_mv['y'] = move_to['y']
+            # Starting at left
+            if self.cur_col == 0:
+                # Go far left
+                blsh_mv[axisc] = move_to[axisc] - axis.backlash
                 axis.comp = 1
-            # Going left but was not compensating left?
-            elif delta < 0 and axis.comp >= 0:
-                self.log(
-                    'Axis %c: compensate for changing to decreasing' % axisc,
-                    2)
-                blsh_mv[axisc] = +axis.backlash
+            # Starting at right
+            else:
+                # Go far right
+                blsh_mv[axisc] = move_to[axisc] + axis.backlash
                 axis.comp = -1
-        self.hal.mv_rel(blsh_mv)
+            self.hal.mv_abs(blsh_mv)
         self.hal.mv_abs(move_to)

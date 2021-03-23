@@ -192,7 +192,7 @@ class MainWindow(QMainWindow):
     log_msg = pyqtSignal(str)
     pos = pyqtSignal(int)
 
-    def __init__(self, source=None, controls=False):
+    def __init__(self, source=None, controls=True):
         QMainWindow.__init__(self)
         self.showMaximized()
 
@@ -881,7 +881,7 @@ def parse_args():
     import argparse
 
     parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--controls', action="store_true")
+    add_bool_arg(parser, '--controls', default=True)
     parser.add_argument('source', nargs="?", default=None)
     args = parser.parse_args()
 

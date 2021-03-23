@@ -284,7 +284,10 @@ class ImagerControlScroll(QScrollArea):
     def run(self):
         if self.update_timer:
             self.update_timer.start(200)
-        self.cal_load()
+        # Doesn't load reliably, add a delay
+        # self.cal_load()
+        # Seems to be working, good enough
+        QTimer.singleShot(500, self.cal_load)
 
     def set_push_gui(self, val, disp_names=None):
         val = bool(val)

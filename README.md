@@ -56,14 +56,14 @@ python3 main_gui/main.py
 # Version history
 
 0.0.0
-  * Works with custom motor driver board ("pr0ndexer")
-  * Job setup is done through our GUI
-  * In practice only works with MU800 camera
+ * Works with custom motor driver board ("pr0ndexer")
+ * Job setup is done through our GUI
+ * In practice only works with MU800 camera
  * Tested Ubuntu 16.04
 
 1.0.0
-  * Motor contril via LinuxCNC
-  * Job setup is primarily done through Axis (LinuxCNC GUI)
+ * Motor contril via LinuxCNC
+ * Job setup is primarily done through Axis (LinuxCNC GUI)
  * Tested Ubuntu 16.04
 
 2.0.0

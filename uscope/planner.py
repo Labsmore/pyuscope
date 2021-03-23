@@ -397,9 +397,16 @@ class Planner(object):
             os.mkdir(self.out_dir)
 
     def img_fn(self, stack_suffix=''):
-        return os.path.join(
-            self.out_dir,
-            'c%03d_r%03d%s' % (self.cur_col, self.cur_row, stack_suffix))
+        # XXX: quick hack, look into something more proper
+        if self.origin == "ul":
+            return os.path.join(
+                self.out_dir,
+                'c%03d_r%03d%s' % (self.cur_col, self.cur_row, stack_suffix))
+        else:
+            return os.path.join(
+                self.out_dir,
+                'c%03d_r%03d%s' % (self.cur_col, self.y.images() - self.cur_row - 1, stack_suffix))
+
 
     def take_picture(self, fn_base):
         self.hal.settle()

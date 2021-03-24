@@ -12,7 +12,7 @@ However, I've been using this workflow for years now, and will probably continue
 See some high level usage notes here: https://microwiki.org/wiki/index.php/McScope
 
 ```
-sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5
+sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb
 
 # install for v4l2
 # https://github.com/antmicro/python3-v4l2

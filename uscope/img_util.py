@@ -13,8 +13,6 @@ def get_scaled(image, factor, filt=Image.NEAREST):
 
 
 def auto_detect_source():
-    'gst-toupcamsrc'
-
     # find our device
     for dev in usb.core.find(find_all=True):
         if dev.idVendor != VID_TOUPTEK:

@@ -8,18 +8,19 @@ loadusr -w config-pin -f ./my.bbio
 # ###################################
 # kinematics
 loadrt trivkins
-#loadrt core_xy_kins
 
 # trajectory planner
 loadrt tp
 
 # motion controller, get name and thread periods from ini file
 loadrt [EMCMOT]EMCMOT servo_period_nsec=[EMCMOT]SERVO_PERIOD num_joints=[TRAJ]AXES tp=tp kins=trivkins
-#loadrt [EMCMOT]EMCMOT servo_period_nsec=[EMCMOT]SERVO_PERIOD num_joints=[TRAJ]AXES tp=tp kins=core_xy_kins
 
 # load low-level drivers
 loadrt hal_bb_gpio output_pins=816,822,823,824,825,826,914,923,925 input_pins=807,808,809,810,817,911,913
-loadrt [PRUCONF](DRIVER) prucode=$(HAL_RTMOD_DIR)/[PRUCONF](PRUBIN) [PRUCONF](CONFIG)
+# Default PRU_PERIOD is 10,000
+# However we have an unusually high (micro)step rate => crank it up
+# We don't have too many axes though so we can get away with this
+loadrt [PRUCONF](DRIVER) prucode=$(HAL_RTMOD_DIR)/[PRUCONF](PRUBIN) [PRUCONF](CONFIG) pru_period=500
 loadrt pid count=2
 loadrt limit1 count=2
 

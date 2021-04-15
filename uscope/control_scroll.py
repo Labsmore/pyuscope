@@ -377,6 +377,12 @@ class GstControlScroll(ImagerControlScroll):
             propdict = OrderedDict()
             for propk in gst_properties:
                 val = self.template_property(propk)
+                if val["prop_name"] == "expotime":
+                    # Despite max 15e3 exposure max, reporting 5e6
+                    # actually this is us?
+                    # Even so limit to 1 sec
+                    val["max"] = min(1000000, val["max"])
+                    print("override", val)
                 propdict[val["prop_name"]] = val
             groups[group_name] = propdict
         print("groups", groups)

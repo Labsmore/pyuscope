@@ -8,8 +8,11 @@ PID_MU800 = 0x6801
 
 
 def get_scaled(image, factor, filt=Image.NEAREST):
-    return image.resize(
-        (int(image.size[0] * factor), int(image.size[1] * factor)), filt)
+    if factor == 1.0:
+        return image
+    else:
+        return image.resize(
+            (int(image.size[0] * factor), int(image.size[1] * factor)), filt)
 
 
 def auto_detect_source():

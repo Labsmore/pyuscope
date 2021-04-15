@@ -66,12 +66,14 @@ class CbSink(GstBase.BaseSink):
         return Gst.FlowReturn.OK
 
 
+# NOTE: this was a jpg capture sink, now its a raw capture sink
 class CaptureSink(CbSink):
     """
     Multi-threaded capture sink
     Queues images on request
     """
-    def __init__(self):
+    # FIXME: get width/height from stream
+    def __init__(self, width, height, raw_input=True):
         CbSink.__init__(self)
 
         self.image_requested = threading.Event()
@@ -79,6 +81,9 @@ class CaptureSink(CbSink):
         self.images = {}
         self.cb = self.render_cb
         self.user_cb = None
+        self.width = width
+        self.height = height
+        self.raw_input = raw_input
 
     def request_image(self, cb):
         '''Request that the next image be saved'''
@@ -98,12 +103,15 @@ class CaptureSink(CbSink):
 
     def pop_image(self, image_id):
         '''Fetch the image and delete it form the buffer'''
-        ret = self.images[image_id]
+        buf, width, height, raw_input = self.images[image_id]
         del self.images[image_id]
         # Arbitrarily convert to PIL here
         # TODO: should pass rawer/lossless image to PIL instead of jpg?
-        open("tmp.bin", "wb").write(ret)
-        return Image.open(io.BytesIO(ret))
+        # open("tmp.bin", "wb").write(ret)
+        if raw_input:
+            return Image.frombytes('RGB', (width, height), bytes(buf), 'raw', 'RGB')
+        else:
+            return Image.open(io.BytesIO(buf))
 
     '''
     gstreamer plugin core methods
@@ -118,7 +126,7 @@ class CaptureSink(CbSink):
             -Snapshot: want next image
             In either case the GUI should listen to all events and clear out the ones it doesn't want
             '''
-            #print 'Got image'
+            # print('Got image')
             if self.image_requested.is_set():
                 print('Processing image request')
                 # Does this need to be locked?
@@ -126,7 +134,17 @@ class CaptureSink(CbSink):
                 # is there a difference between str(buffer) and buffer.data?
                 # type <class 'bytes'>
                 # print("type", type(buffer))
-                self.images[self.next_image_id] = bytearray(buffer)
+                
+                # FIXME: hack
+                # get width more properly
+                """
+                if len(buffer) == 5440 * 3648 * 3:
+                    width, height = 5440, 3648
+                else:
+                    assert 0, "FIXME"
+                """
+
+                self.images[self.next_image_id] = (bytearray(buffer), self.width, self.height, self.raw_input)
                 # Clear before emitting signal so that it can be re-requested in response
                 self.image_requested.clear()
                 #print 'Emitting capture event'

@@ -195,22 +195,30 @@ class MainWindow(QMainWindow):
     def __init__(self, source=None, controls=True):
         QMainWindow.__init__(self)
         self.showMaximized()
+        self.usj = usj
 
         self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)
         # FIXME: review sizing
         self.vidpip.size_widgets(frac=0.5)
         # self.capture_sink = Gst.ElementFactory.make("capturesink")
 
-        self.jpegenc = Gst.ElementFactory.make("jpegenc")
-        self.vidpip.player.add(self.jpegenc)
-
-        self.capture_sink = CaptureSink()
+        # TODO: some pipelines output jpeg directly
+        # May need to tweak this
+        raw_input = True
+        self.capture_sink = CaptureSink(width=int(self.usj['imager']['width']), height=int(self.usj['imager']['height']),
+                                        raw_input=raw_input)
         assert self.capture_sink
         self.vidpip.player.add(self.capture_sink)
-        self.vidpip.setupGst(raw_tees=[self.jpegenc])
-        self.jpegenc.link(self.capture_sink)
+        # jpegenc is probably obsolete here
+        # Now data is normalized in CaptureSink to do jpeg conversion etc
+        if 1:
+            self.vidpip.setupGst(raw_tees=[self.capture_sink])
+        else:
+            self.jpegenc = Gst.ElementFactory.make("jpegenc")
+            self.vidpip.player.add(self.jpegenc)
+            self.vidpip.setupGst(raw_tees=[self.jpegenc])
+            self.jpegenc.link(self.capture_sink)
 
-        self.usj = usj
 
         # must be created early to accept early logging
         # not displayed until later though
@@ -774,7 +782,12 @@ class MainWindow(QMainWindow):
             factor = float(self.usj['imager']['scalar'])
             # Use a reasonably high quality filter
             try:
-                get_scaled(image, factor, Image.ANTIALIAS).save(fn_full)
+                scaled = get_scaled(image, factor, Image.ANTIALIAS)
+                extension = str(self.snapshot_suffix_le.text())
+                if extension == ".jpg":
+                    scaled.save(fn_full, quality=95)
+                else:
+                    scaled.save(fn_full)
             # FIXME: refine
             except Exception:
                 self.log('WARNING: failed to save %s' % fn_full)

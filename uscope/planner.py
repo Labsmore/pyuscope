@@ -409,6 +409,13 @@ class Planner(object):
 
 
     def take_picture(self, fn_base):
+        def save(image, fn_base, img_ext):
+            fn_full = fn_base + img_ext
+            if img_ext == ".jpg":
+                image.save(fn_full, quality=95)
+            else:
+                image.save(fn_full)
+
         self.hal.settle()
         if not self.dry:
             if self.imager_take:
@@ -417,10 +424,10 @@ class Planner(object):
                 images = self.imager.get()
                 if len(images) == 1:
                     image = list(images.values())[0]
-                    image.save(fn_base + self.img_ext)
+                    save(image, fn_base, self.img_ext)
                 else:
                     for k, image in images.items():
-                        image.save(fn_base + "_" + k + self.img_ext)
+                        save(image, fn_base + "_" + k, self.img_ext)
         self.all_imgs += 1
 
     def take_pictures(self):

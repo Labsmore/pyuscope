@@ -128,6 +128,7 @@ class GstVideoPipeline:
         w/h: total canvas area available for all widgets we need to create
         """
 
+        print("size_widgets(w=%s, h=%s, frac=%s)" % (w, h, frac))
         if frac:
             sw, sh = screen_wh()
             w = int(sw * frac)
@@ -140,7 +141,7 @@ class GstVideoPipeline:
         assert self.full or self.roi
         w, h, ratio = self.fit_pix(self.camw * self.nwidgets, self.camh)
         w = w / self.nwidgets
-        print("%u cam %uw x %uh => xwidget %uw x %uh %ur" %
+        print("%u widgets, cam %uw x %uh => xwidget %uw x %uh %ur" %
               (self.nwidgets, self.camw, self.camh, w, h, ratio))
 
         self.full_widget_ratio = ratio
@@ -207,13 +208,18 @@ class GstVideoPipeline:
         # Divide remaining pixels between left and right
         left = right = (self.camw - keepw) // 2
         top = bottom = (self.camh - keeph) // 2
-        self.roi_videocrop.set_property("top", top)
-        self.roi_videocrop.set_property("bottom", bottom)
-        self.roi_videocrop.set_property("left", left)
-        self.roi_videocrop.set_property("right", right)
+        border = 1
+        self.roi_videocrop.set_property("top", top - border)
+        self.roi_videocrop.set_property("bottom", bottom - border)
+        self.roi_videocrop.set_property("left", left - border)
+        self.roi_videocrop.set_property("right", right - border)
 
         finalw = self.camw - left - right
         finalh = self.camh - top - bottom
+        print("crop: %u l %u r => %u w" % (left, right, finalw))
+        print("crop: %u t %u b => %u h" % (top, bottom, finalh))
+        print("crop image ratio: %0.3f" % (finalw / finalh,))
+        print("cam image ratio: %0.3f" % (self.camw / self.camh,))
         print(
             "cam %uw x %uh %0.1fr => crop (x2) %uw x %uh => %uw x %uh %0.1fr" %
             (self.camw, self.camh, self.camw / self.camh, left, top, finalw,
@@ -329,6 +335,10 @@ class GstVideoPipeline:
             "Setting up gstreamer pipeline w/ full=%u, roi=%u, tees-r %u, tees-vc %u"
             % (self.full, self.roi, len(raw_tees), len(vc_tees)))
 
+        usj = config.get_usj()
+
+        if esize is None:
+            esize=usj["imager"].get("esize", None)
         self.prepareSource(esize=esize)
         self.player.add(self.source)
         """
@@ -339,7 +349,6 @@ class GstVideoPipeline:
             workaround: disable raw caps negotation on toupcamsrc
         update: toupcamsrc failed due to bad config file setting incorrect caps negotation
         """
-        usj = config.get_usj()
         self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")
         self.raw_capsfilter.props.caps = Gst.Caps(
             "video/x-raw,width=%u,height=%u" %

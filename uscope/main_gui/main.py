@@ -205,7 +205,9 @@ class MainWindow(QMainWindow):
         # TODO: some pipelines output jpeg directly
         # May need to tweak this
         raw_input = True
-        self.capture_sink = CaptureSink(width=int(self.usj['imager']['width']), height=int(self.usj['imager']['height']),
+        self.capture_sink = CaptureSink(width=int(self.usj['imager']['width']),
+                                        height=int(
+                                            self.usj['imager']['height']),
                                         raw_input=raw_input)
         assert self.capture_sink
         self.vidpip.player.add(self.capture_sink)
@@ -218,7 +220,6 @@ class MainWindow(QMainWindow):
             self.vidpip.player.add(self.jpegenc)
             self.vidpip.setupGst(raw_tees=[self.jpegenc])
             self.jpegenc.link(self.capture_sink)
-
 
         # must be created early to accept early logging
         # not displayed until later though

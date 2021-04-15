@@ -122,8 +122,7 @@ class ImageProcessor(QThread):
             img = Image.open(io.BytesIO(img))
 
             rval, gval, bval, rbal, _gbal, bbal, newr, newg, newb = process_image(
-                img, props["Red"], props["Green"],
-                props["Blue"])
+                img, props["Red"], props["Green"], props["Blue"])
 
             self.r_val.emit(int(rval * 1000))
             self.g_val.emit(int(gval * 1000))
@@ -219,12 +218,14 @@ class TestGUI(QMainWindow):
         self.processor.r_bal.connect(self.r_bal.setNum)
         self.processor.b_bal.connect(self.b_bal.setNum)
 
-
         def update_red(val):
             self.control_scroll.set_disp_properties({"Red": val})
+
         self.processor.r_new.connect(update_red)
+
         def update_blue(val):
             self.control_scroll.set_disp_properties({"Blue": val})
+
         self.processor.b_new.connect(update_blue)
 
         self.mysink.set_cb(self.processor.img_cb)
@@ -295,7 +296,6 @@ class TestGUI(QMainWindow):
         centralWidget.setLayout(layout)
         self.setCentralWidget(centralWidget)
         self.show()
-
 
 
 def parse_args():

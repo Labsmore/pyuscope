@@ -72,6 +72,7 @@ class CaptureSink(CbSink):
     Multi-threaded capture sink
     Queues images on request
     """
+
     # FIXME: get width/height from stream
     def __init__(self, width, height, raw_input=True):
         CbSink.__init__(self)
@@ -109,7 +110,8 @@ class CaptureSink(CbSink):
         # TODO: should pass rawer/lossless image to PIL instead of jpg?
         # open("tmp.bin", "wb").write(ret)
         if raw_input:
-            return Image.frombytes('RGB', (width, height), bytes(buf), 'raw', 'RGB')
+            return Image.frombytes('RGB', (width, height), bytes(buf), 'raw',
+                                   'RGB')
         else:
             return Image.open(io.BytesIO(buf))
 
@@ -134,7 +136,7 @@ class CaptureSink(CbSink):
                 # is there a difference between str(buffer) and buffer.data?
                 # type <class 'bytes'>
                 # print("type", type(buffer))
-                
+
                 # FIXME: hack
                 # get width more properly
                 """
@@ -144,7 +146,9 @@ class CaptureSink(CbSink):
                     assert 0, "FIXME"
                 """
 
-                self.images[self.next_image_id] = (bytearray(buffer), self.width, self.height, self.raw_input)
+                self.images[self.next_image_id] = (bytearray(buffer),
+                                                   self.width, self.height,
+                                                   self.raw_input)
                 # Clear before emitting signal so that it can be re-requested in response
                 self.image_requested.clear()
                 #print 'Emitting capture event'

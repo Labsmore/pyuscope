@@ -218,8 +218,8 @@ class GstVideoPipeline:
         finalh = self.camh - top - bottom
         print("crop: %u l %u r => %u w" % (left, right, finalw))
         print("crop: %u t %u b => %u h" % (top, bottom, finalh))
-        print("crop image ratio: %0.3f" % (finalw / finalh,))
-        print("cam image ratio: %0.3f" % (self.camw / self.camh,))
+        print("crop image ratio: %0.3f" % (finalw / finalh, ))
+        print("cam image ratio: %0.3f" % (self.camw / self.camh, ))
         print(
             "cam %uw x %uh %0.1fr => crop (x2) %uw x %uh => %uw x %uh %0.1fr" %
             (self.camw, self.camh, self.camw / self.camh, left, top, finalw,
@@ -338,7 +338,7 @@ class GstVideoPipeline:
         usj = config.get_usj()
 
         if esize is None:
-            esize=usj["imager"].get("esize", None)
+            esize = usj["imager"].get("esize", None)
         self.prepareSource(esize=esize)
         self.player.add(self.source)
         """

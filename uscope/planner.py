@@ -259,11 +259,11 @@ class Planner(object):
             start[1] -= border
             end[0] += border
             end[1] += border
-        
+
         if img_wh_units is None:
             assert unit_per_pix is not None, "If img_wh_units is None unit_per_pix is required"
             img_wh_units = (img_sz[0] * unit_per_pix, img_sz[1] * unit_per_pix)
-        
+
         self.axes = OrderedDict([
             ('x',
              PlannerAxis('X',
@@ -405,8 +405,8 @@ class Planner(object):
         else:
             return os.path.join(
                 self.out_dir,
-                'c%03d_r%03d%s' % (self.cur_col, self.y.images() - self.cur_row - 1, stack_suffix))
-
+                'c%03d_r%03d%s' % (self.cur_col, self.y.images() -
+                                   self.cur_row - 1, stack_suffix))
 
     def take_picture(self, fn_base):
         def save(image, fn_base, img_ext):
@@ -618,7 +618,10 @@ class Planner(object):
                 self.last_row = self.cur_row
                 self.last_col = self.cur_col
 
-            self.mv_abs_backlash({'x': float(self.config['start']['x']), 'y': float(self.config['start']['y'])})
+            self.mv_abs_backlash({
+                'x': float(self.config['start']['x']),
+                'y': float(self.config['start']['y'])
+            })
             self.end_program()
             self.end_time = time.time()
 
@@ -671,7 +674,10 @@ class Planner(object):
 
     def backlash_init(self):
         if self.x.backlash:
-            self.hal.mv_abs({'x': self.axes['x'].start - self.x.backlash, 'y': self.axes['y'].start - self.y.backlash})
+            self.hal.mv_abs({
+                'x': self.axes['x'].start - self.x.backlash,
+                'y': self.axes['y'].start - self.y.backlash
+            })
         self.x.comp = 1
         self.y.comp = 1
 
@@ -686,7 +692,6 @@ class Planner(object):
 
         self.comment('mv_abs_backlash: %s, %s' %
                      (fmt_axis('x'), fmt_axis('y')))
-        
         """
         Simple model
         Assume starting at top col and moving down serpentine

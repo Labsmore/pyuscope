@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 ubuntu 16.04
 sudo pip3 install scikit-build

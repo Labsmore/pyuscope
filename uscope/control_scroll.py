@@ -196,7 +196,6 @@ class ImagerControlScroll(QScrollArea):
         """
         self.get_disp_properties()
 
-
     def get_disp_properties(self):
         """
         Return dict containing property values indexed by display name

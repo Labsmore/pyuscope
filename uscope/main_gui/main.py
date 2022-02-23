@@ -196,6 +196,7 @@ class MainWindow(QMainWindow):
         QMainWindow.__init__(self)
         self.showMaximized()
         self.usj = usj
+        self.objective_name_le = None
 
         self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)
         # FIXME: review sizing
@@ -331,6 +332,8 @@ class MainWindow(QMainWindow):
         im_w_um = self.obj_config["x_view"]
         im_h_um = im_w_um * im_h_pix / im_w_pix
         self.obj_view.setText('View : %0.3fx %0.3fy' % (im_w_um, im_h_um))
+        if self.objective_name_le:
+            self.objective_name_le.setText(self.obj_config["suffix"])
 
     def init_imager(self):
         source = self.vidpip.source_name
@@ -358,7 +361,6 @@ class MainWindow(QMainWindow):
         cl.addWidget(self.obj_view, row, 2)
         # seed it
         self.reload_obj_cb()
-        self.update_obj_config()
         row += 1
 
         return cl
@@ -845,6 +847,10 @@ class MainWindow(QMainWindow):
             self.layer_name_le = QLineEdit('mz')
             layout.addWidget(self.layer_name_le)
 
+            layout.addWidget(QLabel('Ojbective'))
+            self.objective_name_le = QLineEdit('unkx')
+            layout.addWidget(self.objective_name_le)
+
             return layout
         
 
@@ -870,8 +876,9 @@ class MainWindow(QMainWindow):
         if not layer:
             layer = "unknown"
 
-        obj_config = self.usj['objective'][self.obj_cb.currentIndex()]
-        objective = obj_config["suffix"]
+        objective = str(self.objective_name_le.text())
+        if not objective:
+            objective = "unkx"
 
         return vendor + "_" + product + "_" + layer + "_" + objective
 
@@ -907,6 +914,8 @@ class MainWindow(QMainWindow):
 
         layout = QHBoxLayout()
         layout.addLayout(rightLayout())
+
+        self.update_obj_config()
 
         w = QWidget()
         w.setLayout(layout)

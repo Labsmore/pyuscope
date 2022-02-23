@@ -459,8 +459,7 @@ class MainWindow(QMainWindow):
         if not dry and not os.path.exists(self.usj['out_dir']):
             os.mkdir(self.usj['out_dir'])
 
-        out_dir = os.path.join(self.usj['out_dir'],
-                               str(self.job_name_le.text()))
+        out_dir = os.path.join(self.usj['out_dir'], self.getJobName())
         if os.path.exists(out_dir):
             self.log("job name dir %s already exists" % out_dir)
             return
@@ -802,50 +801,80 @@ class MainWindow(QMainWindow):
         Line up Go/Stop w/ "Job name" to make visually appealing
         """
 
-        gb = QGroupBox('Scan')
-        layout = QHBoxLayout()
-
-        def leftLayout():
-            layout = QGridLayout()
-
-            layout.addWidget(QLabel('Job name'), 0, 0, 1, 2)
+        def getProgressLayout():
+            layout = QHBoxLayout()
 
             self.go_pause_pb = QPushButton("Go")
             self.go_pause_pb.clicked.connect(self.go_pause)
-            layout.addWidget(self.go_pause_pb, 1, 0)
+            layout.addWidget(self.go_pause_pb)
 
             self.stop_pb = QPushButton("Stop")
             self.stop_pb.clicked.connect(self.stop)
-            layout.addWidget(self.stop_pb, 1, 1)
+            layout.addWidget(self.stop_pb)
 
-            return layout
+            layout.addWidget(QLabel('Dry?'))
+            self.dry_cb = QCheckBox()
+            self.dry_cb.setChecked(self.usj['cnc']['dry'])
+            layout.addWidget(self.dry_cb)
 
-        def rightLayout():
-            layout = QVBoxLayout()
-
-            def topLayout():
-                layout = QHBoxLayout()
-
-                self.job_name_le = QLineEdit('default')
-                layout.addWidget(self.job_name_le)
-
-                layout.addWidget(QLabel('Dry?'))
-                self.dry_cb = QCheckBox()
-                self.dry_cb.setChecked(self.usj['cnc']['dry'])
-                layout.addWidget(self.dry_cb)
-
-                return layout
-
-            layout.addLayout(topLayout())
             self.pb = QProgressBar()
             layout.addWidget(self.pb)
 
             return layout
 
-        layout.addLayout(leftLayout())
-        layout.addLayout(rightLayout())
+
+        def getNameLayout():
+            layout = QHBoxLayout()
+
+            # old: freeform
+            # layout.addWidget(QLabel('Job name'), 0, 0, 1, 2)
+            # self.job_name_le = QLineEdit('default')
+            # layout.addWidget(self.job_name_le)
+
+            # Will add _ between elements to make final name
+    
+            layout.addWidget(QLabel('Vendor'))
+            self.vendor_name_le = QLineEdit('unknown')
+            layout.addWidget(self.vendor_name_le)
+
+            layout.addWidget(QLabel('Product'))
+            self.product_name_le = QLineEdit('unknown')
+            layout.addWidget(self.product_name_le)
+
+            layout.addWidget(QLabel('Layer'))
+            self.layer_name_le = QLineEdit('mz')
+            layout.addWidget(self.layer_name_le)
+
+            return layout
+        
+
+        layout = QVBoxLayout()
+        gb = QGroupBox('Scan')
+        layout.addLayout(getNameLayout())
+        layout.addLayout(getProgressLayout())
         gb.setLayout(layout)
         return gb
+
+    def getJobName(self):
+        # old: freeform
+        # return str(self.job_name_le.text())
+        vendor = str(self.vendor_name_le.text())
+        if not vendor:
+            vendor = "unknown"
+
+        product = str(self.product_name_le.text())
+        if not product:
+            product = "unknown"
+
+        layer = str(self.layer_name_le.text())
+        if not layer:
+            layer = "unknown"
+
+        obj_config = self.usj['objective'][self.obj_cb.currentIndex()]
+        objective = obj_config["suffix"]
+
+        return vendor + "_" + product + "_" + layer + "_" + objective
+
 
     def get_bottom_layout(self):
         layout = QHBoxLayout()

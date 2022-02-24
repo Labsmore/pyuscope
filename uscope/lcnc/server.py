@@ -2,11 +2,40 @@
 '''
 WARNING: this file is deployed standalone to remote systems
 Do not add uvscada dependencies
+
+WARNING: system only supports python2
 '''
 
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 import linuxcnc
+import os
+import socket
+import signal
+import sys
 
+PID_FILE = "/tmp/pyuscope_server.pid"
+
+def port_in_use(port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    ret = False
+    ret = s.connect_ex(('localhost', port)) == 0
+    s.close()
+    return ret
+
+def kill_existing(verbose=False):
+    if not os.path.exists(PID_FILE):
+        raise Exception("Port open  but no pid file")
+
+    pid = int(open(PID_FILE, "r").read())
+    if verbose:
+        print("server: killing %u" % pid)
+    os.kill(pid, 9)
+
+sys_excepthook = sys.excepthook
+def excepthook(excType, excValue, tracebackobj):
+    print("removing")
+    os.unlink(PID_FILE)
+    sys_excepthook(excType, excValue, tracebackobj)
 
 class Server(object):
     def __init__(self, bind='localhost', port=22617, verbose=False):
@@ -17,6 +46,25 @@ class Server(object):
 
         self.s = linuxcnc.stat()
         self.c = linuxcnc.command()
+
+        # might get collision w/ other pid? check port first
+        if port_in_use(port):
+            kill_existing(verbose=verbose)
+
+        with open(PID_FILE, "w") as f:
+            f.write(str(os.getpid()))
+
+        # doesn't seem to work
+        # pid solution seems to be working well...ignore
+        if 0:
+            sys.excepthook = excepthook
+            # Remove lock file on ^C
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    def __del__(self):
+        if self.verbose:
+            print("Deleting PID file")
+        os.unlink(PID_FILE)
 
     def s_poll(self):
         self.s.poll()

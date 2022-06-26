@@ -25,8 +25,8 @@ def camera_in_use():
 
 
 class Imager:
-    def __init__(self):
-        pass
+    def __init__(self, verbose=False):
+        self.verbose = verbose
 
     # Must implement at least one of the following
 
@@ -40,8 +40,8 @@ class Imager:
 
 
 class MockImager(Imager):
-    def __init__(self):
-        Imager.__init__(self)
+    def __init__(self, verbose=False):
+        Imager.__init__(self, verbose=verbose)
 
     def get(self):
         # Small test image

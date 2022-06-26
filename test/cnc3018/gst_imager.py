@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
 
-from uscope.motion.grbl import GRBLSer, GRBL, GrblHal
-from uscope.imager.imager import MockImager
-from uscope.util import add_bool_arg
-import uscope.planner
-import shutil
-import os
-import json
+import gi
+gi.require_version('Gst', '1.0')
+
+# Needed for window.get_xid(), xvimagesink.set_window_handle(), respectively:
+# WARNING: importing GdkX11 will cause hard crash (related to Qt)
+# fortunately its not needed
+# from gi.repository import GdkX11, GstVideo
+from gi.repository import Gst
+Gst.init(None)
+from gi.repository import GObject, GLib
+
+
 from uscope.imager.imager import Imager
 from uscope.gst_util import Gst, CaptureSink
-
+import threading
 
 class GstImager(Imager):
     def __init__(self, source_name=None, verbose=False):
         Imager.__init__(self)
+        self.image_ready = threading.Event()
         self.image_id = None
         if source_name is None:
-            source_name = "gst-videotestsrc"
+            # source_name = "gst-videotestsrc"
+            source_name = "gst-v4l2src"
         self.source_name = source_name
         """
         v4l2-ctl -d /dev/video0 --list-formats-ext
@@ -24,6 +31,14 @@ class GstImager(Imager):
         touptek_esize = 0
         width = 640
         height = 480
+
+        width = 1024
+        height = 768
+
+        width = 1280
+        height = 720
+
+        self.jpg = True
 
         self.player = Gst.Pipeline.new("player")
 
@@ -44,13 +59,31 @@ class GstImager(Imager):
         if not self.raw_capsfilter.link(self.videoconvert):
             raise RuntimeError("Failed to link")
 
+        if self.jpg:
+            self.jpegenc = Gst.ElementFactory.make("jpegenc")
+            self.player.add(self.jpegenc)
+            if not self.videoconvert.link(self.jpegenc):
+                raise RuntimeError("Failed to link")
+        else:
+            self.jpegenc = None
+
         self.capture_sink = CaptureSink(width=width,
                                         height=height,
-                                        raw_input=True)
+                                        raw_input=not self.jpg)
         assert self.capture_sink is not None
         self.player.add(self.capture_sink)
-        if not self.videoconvert.link(self.capture_sink):
-            raise RuntimeError("Failed to link")
+        if self.jpegenc:
+            if not self.jpegenc.link(self.capture_sink):
+                raise RuntimeError("Failed to link")
+        else:
+            if not self.videoconvert.link(self.capture_sink):
+                raise RuntimeError("Failed to link")
+
+        bus = self.player.get_bus()
+        bus.add_signal_watch()
+        bus.enable_sync_message_emission()
+        bus.connect("message", self.on_message)
+        bus.connect("sync-message::element", self.on_sync_message)
 
     def prepareSource(self, touptek_esize=None):
         # Must not be initialized until after layout is set
@@ -59,7 +92,7 @@ class GstImager(Imager):
         if self.source_name in ('gst-v4l2src', 'gst-v4l2src-mu800'):
             self.source = Gst.ElementFactory.make('v4l2src', None)
             assert self.source is not None
-            self.source.set_property("device", "/dev/video0")
+            self.source.set_property("device", "/dev/video2")
         elif self.source_name == 'gst-toupcamsrc':
             self.source = Gst.ElementFactory.make('toupcamsrc', None)
             assert self.source is not None, "Failed to load toupcamsrc. Is it in the path?"
@@ -95,67 +128,48 @@ class GstImager(Imager):
         img = self.capture_sink.pop_image(self.image_id)
         return {"0": img}
 
+    def on_message(self, bus, message):
+        t = message.type
 
-def main1():
-    imager = GstImager()
-    print("Getting image")
-    _im = imager.get()
-    print("Got image")
+        # print("on_message", message, t)
+        if t == Gst.MessageType.EOS:
+            self.player.set_state(Gst.State.NULL)
+            print("End of stream")
+        elif t == Gst.MessageType.ERROR:
+            err, debug = message.parse_error()
+            print("Error: %s" % err, debug)
+            self.player.set_state(Gst.State.NULL)
+        elif t == Gst.MessageType.STATE_CHANGED:
+            pass
 
+    def on_sync_message(self, bus, message):
+        if message.get_structure() is None:
+            return
+        message_name = message.get_structure().get_name()
+        if message_name == "prepare-window-handle":
+            print("prepare-window-handle", message.src.get_name(),
+                  self.full_widget_winid, self.roi_widget_winid)
 
 def main():
-    import argparse
 
-    parser = argparse.ArgumentParser(description='Planner module command line')
-    parser.add_argument('--host',
-                        default='mk',
-                        help='Host.  Activates remote mode')
-    parser.add_argument('--port', default=22617, type=int, help='Host port')
-    parser.add_argument('--overwrite', action='store_true')
-    add_bool_arg(parser,
-                 '--verbose',
-                 default=False,
-                 help='Due to health hazard, default is True')
-    add_bool_arg(parser,
-                 '--dry',
-                 default=True,
-                 help='Due to health hazard, default is True')
-    parser.add_argument('scan_json',
-                        nargs='?',
-                        default='scan.json',
-                        help='Scan parameters JSON')
-    parser.add_argument('out',
-                        nargs='?',
-                        default='out/default',
-                        help='Output directory')
-    args = parser.parse_args()
-
-    if os.path.exists(args.out):
-        if not args.overwrite:
-            raise Exception("Refusing to overwrite")
-        shutil.rmtree(args.out)
-    if not args.dry:
-        os.mkdir(args.out)
-
-    # imager = MockImager()
+    # GObject.threads_init()
+    Gst.init(None)
     imager = GstImager()
-    hal = GrblHal()
 
-    # w, h in pix
-    img_sz = (1500, 1000)
-    mm_per_pix = 1 / 1000
-    planner = uscope.planner.Planner(json.load(open(args.scan_json)),
-                                     hal,
-                                     imager=imager,
-                                     img_sz=img_sz,
-                                     unit_per_pix=mm_per_pix,
-                                     out_dir=args.out,
-                                     progress_cb=None,
-                                     dry=args.dry,
-                                     log=None,
-                                     verbosity=2)
-    planner.run()
+    print("starting pipeline")
+    imager.player.set_state(Gst.State.PLAYING)
 
+    def get_image():
+        print("Getting image")
+        im = imager.get()
+        print("Got image")
+        im["0"].save("gst_imager.jpg")
+        loop.quit()
+    thread = threading.Thread(target=get_image)
+    thread.start()
+    loop = GLib.MainLoop()
+    print("Running event loop")
+    loop.run()
 
 if __name__ == "__main__":
     main()

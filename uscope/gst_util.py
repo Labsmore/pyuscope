@@ -53,6 +53,7 @@ class CbSink(GstBase.BaseSink):
     """
 
     def do_render(self, buffer):
+        # print("do_render()")
         (result, mapinfo) = buffer.map(Gst.MapFlags.READ)
         assert result
 
@@ -106,6 +107,7 @@ class CaptureSink(CbSink):
         '''Fetch the image and delete it form the buffer'''
         buf, width, height, raw_input = self.images[image_id]
         del self.images[image_id]
+        print("bytes", len(buf), 'w', width, 'h', height)
         # Arbitrarily convert to PIL here
         # TODO: should pass rawer/lossless image to PIL instead of jpg?
         # open("tmp.bin", "wb").write(ret)
@@ -120,7 +122,7 @@ class CaptureSink(CbSink):
     '''
 
     def render_cb(self, buffer):
-        #print 'Capture sink buffer in'
+        # print("render_cb()")
         try:
             '''
             Two major circumstances:

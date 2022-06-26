@@ -1,26 +1,42 @@
-pr0ncnc
-Copyright 2011-2019 John McMaster <JohnDMcMaster@gmail.com>
+pyuscope is a collection of python based microscope utilities. In particular:
+* Complete microscope applications for a few "official" configurations
+* Framework for advanced users
 
-This is a framework and python gstreamer GUI to coordinate linear stages and sensors for panoramic scans
-Its primarily for large XY scans of microscope samples
+The flagship application creates panoramic scans using:
+* LinuxCNC for motion control
+* ToupTek cameras (via gstreamer) to take pictures
 
-Why did you make this project?
-Originally, I needed to do some custom stuff and had a burning hated for Java (used by MicroManager)
-I've warmed up to Java slightly, and its possible MicroManager is a better fit for most people
-However, I've been using this workflow for years now, and will probably continue to do so
+These panoramic scans are typically chip images (ex: see http://siliconpr0n.org/)
 
-See some high level usage notes here: https://microwiki.org/wiki/index.php/McScope
-
-```
-sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb
-
-# install for v4l2
-# https://github.com/antmicro/python3-v4l2
-```
 Notable applications:
   * main_gui/main.py: primary GUI
   * touptek/tvl.py: for testing touptek plugin
   * demo/*.py: small tech demos
+
+# Supported hardware
+
+## Supported configurations
+
+"pr0nscope"
+* Laptop: ThinkPad T430
+* OS: Ubuntu 20.04
+* Camera: ToupTek E3ISPM20000KPA
+* Motion control: LinuxCNC via machinekit (BBB)
+* Microscope: Olympus BH2 based
+
+WIP: 3018 GRBL
+* Laptop: ThinkPad T430
+* OS: Ubuntu 20.04
+* Camera: ToupTek E3ISPM20000KPA
+* Motion control: Grbl 1.1f
+* Microscope: Olympus BH2 based
+
+Why does the laptop matter?
+Mostly for the screen resolution to make the GUI nice
+
+## Supported hardware
+
+See some high level usage notes here: https://microwiki.org/wiki/index.php/McScope
 
 Supported gstreamer image sources:
   * toupcamsrc (primary)
@@ -32,6 +48,13 @@ Supported movement sources:
   * Others, but they aren't well maintained
 
 # Quick start V4L2
+
+```
+sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb
+
+# install for v4l2
+# https://github.com/antmicro/python3-v4l2
+```
 
 First you might be able to try this GUI which will try to auto-detect v4l2:
 
@@ -52,6 +75,12 @@ You may need to use a program like "cheese" to see what the options are
 python3 main_gui/main.py
 ```
 
+# Why?
+
+Originally I needed to support specialized hardware and had a burning hated for Java
+which is used by MicroManager, the flagship FOSS microchip software.
+I've warmed up to Java slightly, and its possible MicroManager is a better fit for most people.
+However, I've been using this workflow for years now, and will probably continue to do so
 
 # Version history
 

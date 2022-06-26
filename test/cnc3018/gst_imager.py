@@ -1,4 +1,58 @@
 #!/usr/bin/env python3
+"""
+================================================================================
+Test source
+================================================================================
+
+Example:
+./test/cnc3018/gst_imager.py --source videotestsrc --width 456 --height 123 --gst-jpg out.jpg
+
+Notes:
+-width/height can be anything
+
+
+================================================================================
+v4l
+================================================================================
+
+Example:
+./test/cnc3018/gst_imager.py --source v4l2src --v4l2src-device /dev/video2 --width 640 --height 480 --gst-jpg out.jpg
+
+Notes:
+-width/height must match a valid resolution
+
+Get formats:
+v4l2-ctl -d /dev/video2 --list-formats-ext
+
+If you get:
+Error: gst-stream-error-quark: Internal data stream error. (1) gstbasesrc.c(3072): gst_base_src_loop (): /GstPipeline:player/GstV4l2Src:v4l2src0:
+streaming stopped, reason not-negotiated (-4)
+You may have selected an invalid resolution
+
+
+================================================================================
+touptek
+================================================================================
+
+Example:
+
+./test/cnc3018/gst_imager.py --source toupcamsrc --toupcamsrc-esize 2 --wh 800,600 --gst-jpg out.jpg
+
+Notes:
+-width/height must match a valid resolution and the provided esize
+
+Get formats:
+use touplite GUI
+"esize" starts from 0 and is each of the resolutions in order
+TODO: find a way to list on CLI
+
+esize quick reference
+
+ToupTek UCMOS08000KPB / AmScope MU800
+0: 3264, 2448
+1: 1600, 1200
+2: 800, 600
+"""
 
 from uscope.util import add_bool_arg
 import uscope.imager.gst
@@ -21,54 +75,41 @@ def main():
         default=True,
         help="Capture jpg (as opposed to raw) using gstreamer encoder")
     add_bool_arg(parser, "--show", default=False, help="")
-    parser.add_argument("--width", default=640, type=int, help="")
-    parser.add_argument("--height", default=480, type=int, help="")
-    parser.add_argument("--touptek-esize",
+    parser.add_argument("--wh", default="640,480", help="Image width,height")
+    parser.add_argument("--toupcamsrc-esize",
                         default=0,
                         type=int,
                         help="touptek esize. Must have correct width/height")
+    parser.add_argument("--v4l2src-device", default=None, help="video device")
     parser.add_argument("--source",
-                        default="gst-videotestsrc",
-                        help="gst-videotestsrc, gst-v4l2src, gst-toupcamsrc")
+                        default="videotestsrc",
+                        help="videotestsrc, v4l2src, toupcamsrc")
     parser.add_argument("out", nargs="?", help="File to save to")
     args = parser.parse_args()
-    ''''
-    """
-    v4l2-ctl -d /dev/video0 --list-formats-ext
-    """
-    touptek_esize = source_opts.get("esize", 0)
-    width = 640
-    height = 480
 
-    width = 1024
-    height = 768
-
-    if self.source_name == "gst-toupcamsrc":
-        touptek_esize = 2
-        width = 800
-        height = 600
-
-    if self.source_name == "gst-v4l2src":
-        width = 1280
-        height = 720
-    '''
-
+    width, height = args.wh.split(",")
+    width = int(width)
+    height = int(height)
     source_opts = {
-        "width": args.width,
-        "height": args.height,
+        "width": width,
+        "height": height,
         "gst_jpg": args.gst_jpg,
-        "touptek": {
-            "esize": args.touptek_esize,
-        }
+        "v4l2src": {
+            "device": args.v4l2src_device,
+        },
+        "toupcamsrc": {
+            "esize": args.toupcamsrc_esize,
+        },
     }
 
     imager = uscope.imager.gst.GstImager(source_name=args.source,
                                          source_opts=source_opts)
 
     def thread(loop):
-        if imager.source_name == "gst-v4l2src":
+        if imager.source_name == "toupcamsrc":
+            # gain takes a while to ramp up
             print("stabalizing camera")
-            time.sleep(2)
+            time.sleep(1)
         print("Getting image")
         im = imager.get()
         print("Got image")

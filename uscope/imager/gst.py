@@ -20,9 +20,7 @@ class GstImager(Imager):
         self.image_ready = threading.Event()
         self.image_id = None
         if source_name is None:
-            source_name = "gst-videotestsrc"
-            source_name = "gst-v4l2src"
-            source_name = "gst-toupcamsrc"
+            source_name = "videotestsrc"
         self.source_name = source_name
 
         self.width = source_opts.get("width", 640)
@@ -78,17 +76,20 @@ class GstImager(Imager):
         # Must not be initialized until after layout is set
         # print(source)
         # assert 0
-        if self.source_name in ('gst-v4l2src', 'gst-v4l2src-mu800'):
+        if self.source_name in ("v4l2src", "v4l2src-mu800"):
             self.source = Gst.ElementFactory.make('v4l2src', None)
             assert self.source is not None
-            self.source.set_property("device", "/dev/video2")
-        elif self.source_name == 'gst-toupcamsrc':
+            device = source_opts.get("v4l2src",
+                                     {}).get("device", "/dev/video0")
+            self.source.set_property("device", device)
+        elif self.source_name == "toupcamsrc":
             self.source = Gst.ElementFactory.make('toupcamsrc', None)
             assert self.source is not None, "Failed to load toupcamsrc. Is it in the path?"
-            touptek_esize = source_opts.get("touptek", {}).get("esize", None)
+            touptek_esize = source_opts.get("toupcamsrc",
+                                            {}).get("esize", None)
             if touptek_esize is not None:
                 self.source.set_property("esize", touptek_esize)
-        elif self.source_name == 'gst-videotestsrc':
+        elif self.source_name == "videotestsrc":
             print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)
         else:

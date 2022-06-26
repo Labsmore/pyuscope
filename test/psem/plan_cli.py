@@ -8,7 +8,7 @@ About 4 seconds
 
 import uscope.planner
 from uscope.hal.img.imager import Imager
-from uscope.hal.cnc.hal import Hal
+from uscope.hal.cnc.hal import MotionHAL
 from uscope.util import add_bool_arg
 
 import argparse
@@ -28,9 +28,9 @@ class CsvImager(Imager):
         self.csvf.write("image,%s\n" % os.path.basename(fn_base))
         return {}
 
-class CsvHal(Hal):
+class CsvHal(MotionHAL):
     def __init__(self, csvf, axes='xy', log=None, dry=False):
-        Hal.__init__(self, log, dry)
+        MotionHAL.__init__(self, log, dry)
         self.csvf = csvf
 
         self._axes = list(axes)

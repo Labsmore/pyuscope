@@ -27,7 +27,7 @@ rea
 
 import uscope.planner
 from uscope.hal.img.imager import Imager
-from uscope.hal.cnc.hal import Hal
+from uscope.hal.cnc.hal import MotionHAL
 from uscope.util import add_bool_arg
 
 import argparse

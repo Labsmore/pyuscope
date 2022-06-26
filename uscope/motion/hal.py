@@ -18,14 +18,14 @@ Planner hardware abstraction layer (HAL)
 At this time there is no need for unit conversions
 Operate in whatever the native system is
 
-Hal is not thread safe with exception of the following:
+MotionHAL is not thread safe with exception of the following:
 -stop
 -estop
 (since it needs to be able to interrupt an active operation)
 '''
 
 
-class Hal(object):
+class MotionHAL(object):
     def __init__(self, log, dry):
         if log is None:
 
@@ -151,9 +151,9 @@ Has no actual hardware associated with it
 '''
 
 
-class MockHal(Hal):
+class MockHal(MotionHAL):
     def __init__(self, axes='xy', log=None, dry=False):
-        Hal.__init__(self, log, dry)
+        MotionHAL.__init__(self, log, dry)
 
         self._axes = list(axes)
         self._pos = {}
@@ -219,9 +219,9 @@ Legacy uscope.mc adapter
 '''
 
 
-class MCHal(Hal):
+class MCHal(MotionHAL):
     def __init__(self, mc, log=None, dry=False):
-        Hal.__init__(self, log, dry)
+        MotionHAL.__init__(self, log, dry)
         self.mc = mc
 
     def sleep(self, sec, why):
@@ -308,9 +308,9 @@ M9 (coolant off): release focus / picture
 '''
 
 
-class GCodeHal(Hal):
+class GCodeHal(MotionHAL):
     def __init__(self, axes='xy', log=None, dry=False):
-        Hal.__init__(self, log, dry)
+        MotionHAL.__init__(self, log, dry)
         self._axes = list(axes)
 
         self._pos = {}

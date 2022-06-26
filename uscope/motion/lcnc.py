@@ -1,14 +1,14 @@
-from uscope.motion import Hal, format_t, AxisExceeded
+from uscope.motion import MotionHAL, format_t, AxisExceeded
 
 import time
 
 
 # Camera always local
-class LcncHal(Hal):
+class LcncHal(MotionHAL):
     def __init__(self, log=None, dry=False):
         self.verbose = 0
         self.feedrate = None
-        Hal.__init__(self, log, dry)
+        MotionHAL.__init__(self, log, dry)
 
     def sleep(self, sec, why):
         ts = format_t(sec)

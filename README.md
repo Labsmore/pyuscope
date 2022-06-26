@@ -80,3 +80,5 @@ python3 main_gui/main.py
  * HDR support
  * First packaged release
 
+2.2.0
+ * Enforce output file naming convention

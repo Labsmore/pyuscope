@@ -18,8 +18,8 @@ if __name__ == "__main__":
         print(hal.limit())
         #time.sleep(1)
         print('getting ready to hal')
-        hal._cmd('G90 G0 X100')
-        hal._cmd('G90 G0 X0')
+        hal._command('G90 G0 X100')
+        hal._command('G90 G0 X0')
         print('Movement done')
         #hal.mv_rel({'x': )
     finally:

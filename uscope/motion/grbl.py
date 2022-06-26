@@ -1,10 +1,11 @@
-#!/usr/bin/env python3
 """
 [HLP:$$ $# $G $I $N $x=val $Nx=line $J=line $SLP $C $X $H ~ ! ? ctrl-x]
 ok
 
 Case insensitive best I can tell
 """
+
+from uscope.motion.hal import MotionHAL, format_t, AxisExceeded
 
 from uscope import util
 import serial
@@ -35,7 +36,8 @@ def trim_status_line(l):
 
 
 class GRBLSer:
-    def __init__(self, port="/dev/ttyUSB0", ser_timeout=0.1, verbose=False):
+    def __init__(self, port="/dev/ttyUSB0", ser_timeout=0.5, verbose=False):
+        verbose = True
         self.verbose = verbose
         self.verbose and print("opening", port)
         self.serial = serial.Serial(
@@ -69,6 +71,7 @@ class GRBLSer:
             self.serial.timeout = timeout
 
     def tx(self, out, nl=True):
+        self.verbose and print("tx '%s'" % (out, ))
         if nl:
             out = out + '\r'
         self.serial.write((out).encode('ascii'))
@@ -81,7 +84,8 @@ class GRBLSer:
         self.tx(out, nl=nl)
         ret = []
         while True:
-            l = self.readline()
+            l = self.readline().strip()
+            self.verbose and print("rx '%s'" % (l, ))
             if not l:
                 raise Timeout()
             elif l == "ok":
@@ -244,42 +248,83 @@ class GRBL:
             "FS": fs,
         }
 
-    def move_abs(self, x, f, blocking=True):
+    def move_absolute(self, moves, f, blocking=True):
         # implies G1
-        self.gs.j("G90 X%.1f F%u" % (x, f))
+        ax_str = ''.join(
+            [' %c%0.3f' % (k.upper(), v) for k, v in moves.items()])
+        self.gs.j("G90 %s F%u" % (ax_str, f))
         if blocking:
             while self.qstatus()["status"] != "Idle":
                 time.sleep(0.1)
 
-    def move_rel(self, x, f, blocking=True):
+    def move_relative(self, moves, f, blocking=True):
         # implies G1
-        self.gs.j("G91 X%.1f F%u" % (x, f))
+        ax_str = ''.join(
+            [' %c%0.3f' % (k.upper(), v) for k, v in moves.items()])
+        self.gs.j("G91 %s F%u" % (ax_str, f))
         if blocking:
             while self.qstatus()["status"] != "Idle":
                 time.sleep(0.1)
 
 
-if 0:
-    gs = GRBLSer()
-    """
-    grbl.tx("$")
-    while True:
-        rx = grbl.readline()
-        if not rx:
-            continue
-        print(rx)
-    """
-    print(gs.help())
-    print(gs.question())
-    gs.j("G91 X+2.0 F1000")
-    print(gs.question())
-    gs.j("G91 X-2.0 F1000")
-    print(gs.question())
-    time.sleep(1)
-    print(gs.question())
+class GrblHal(MotionHAL):
+    def __init__(self, log=None, dry=False):
+        self.verbose = 0
+        self.feedrate = None
+        MotionHAL.__init__(self, log, dry)
+        self.grbl = GRBL()
 
-if 1:
-    grbl = GRBL()
-    grbl.move_abs(x=0.0, f=1000.0)
-    grbl.move_rel(x=2.0, f=1000.0)
-    grbl.move_rel(x=-2.0, f=1000.0)
+    def axes(self):
+        return {'x', 'y', 'z'}
+
+    def sleep(self, sec, why):
+        ts = format_t(sec)
+        s = 'Sleep %s: %s' % (why, ts)
+        self.log(s, 3)
+        self.rt_sleep += sec
+        if not self.dry:
+            time.sleep(sec)
+
+    def command(self, cmd):
+        if self.dry:
+            if self.verbose:
+                self.log(cmd)
+        else:
+            self._command(cmd)
+            self.mv_lastt = time.time()
+
+    def _command(self, cmd):
+        raise Exception("Required")
+
+    def move_absolute(self, moves, limit=True):
+        if len(moves) == 0:
+            return
+        if limit:
+            limit = self.limit()
+            for k, v in moves.items():
+                if v < limit[k][0] or v > limit[k][1]:
+                    raise AxisExceeded("Axis %c to %s exceeds liimt (%s, %s)" %
+                                       (k, v, limit[k][0], limit[k][1]))
+
+        if self.dry:
+            for k, v in moves.items():
+                self._dry_pos[k] = v
+        self.grbl.move_absolute(moves, f=1000)
+
+    def move_relative(self, moves):
+        if len(moves) == 0:
+            return
+
+        limit = self.limit()
+        pos = self.pos()
+        for k, v in moves.items():
+            dst = pos[k] + v
+            if dst < limit[k][0] or dst > limit[k][1]:
+                raise AxisExceeded(
+                    "Axis %c to %s (%s + %s) exceeds liimt (%s, %s)" %
+                    (k, dst, pos[k], v, limit[k][0], limit[k][1]))
+
+        if self.dry:
+            for k, v in moves.items():
+                self._dry_pos[k] += v
+        self.grbl.move_relative(moves, f=1000)

@@ -15,12 +15,14 @@ import sys
 
 PID_FILE = "/tmp/pyuscope_server.pid"
 
+
 def port_in_use(port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ret = False
     ret = s.connect_ex(('localhost', port)) == 0
     s.close()
     return ret
+
 
 def kill_existing(verbose=False):
     if not os.path.exists(PID_FILE):
@@ -31,11 +33,15 @@ def kill_existing(verbose=False):
         print("server: killing %u" % pid)
     os.kill(pid, 9)
 
+
 sys_excepthook = sys.excepthook
+
+
 def excepthook(excType, excValue, tracebackobj):
     print("removing")
     os.unlink(PID_FILE)
     sys_excepthook(excType, excValue, tracebackobj)
+
 
 class Server(object):
     def __init__(self, bind='localhost', port=22617, verbose=False):

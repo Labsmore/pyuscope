@@ -13,7 +13,6 @@ Serial power on message:
 X-Y (T-R) Stage, Version 2.11a, 09/11/98 09:43:04
 Part# 80W03091/81P03092
 '''
-
 """
 rea
 !
@@ -39,8 +38,10 @@ import binascii
 import serial
 import time
 
+
 class Timeout(Exception):
     pass
+
 
 """
 Units
@@ -48,6 +49,8 @@ Units
 So looks like native units might be um
 Takes about 9.0 seconds to move 10 mm
 """
+
+
 class XY75:
     def __init__(self, port='/dev/ttyUSB0', init=True, verbose=False):
         self.verbose = verbose
@@ -92,7 +95,7 @@ class XY75:
 
     def send(self, out):
         if self.verbose:
-            print('xy75 DEBUG: sending: %s' % (out,))
+            print('xy75 DEBUG: sending: %s' % (out, ))
         self.serial.write((out + "\n").encode('ascii'))
         self.serial.flush()
 
@@ -111,9 +114,9 @@ class XY75:
                 return ret.strip()
             ret += c
             if self.verbose:
-                print('xy75 DEBUG: recv: %s' % (ret,))
+                print('xy75 DEBUG: recv: %s' % (ret, ))
 
-    def cmd(self, out):
+    def command(self, out):
         self.send(out)
         ret = []
         while True:
@@ -125,14 +128,14 @@ class XY75:
             ret.append(l)
 
     def cmd_intline(self, out, nparts):
-        lines = self.cmd(out)
+        lines = self.command(out)
         assert len(lines) == 1
         ret = [int(x) for x in lines[0].split(',')]
         assert len(ret) == nparts
         return tuple(ret)
 
     def cmd_line(self, out):
-        lines = self.cmd(out)
+        lines = self.command(out)
         assert len(lines) == 1
         return lines[0]
 
@@ -145,12 +148,13 @@ class XY75:
         Copyright (c) RJ Lee Group, Inc, 1993,1994.  ALL RIGHTS RESERVED.
         READY
         '''
-        ret = self.cmd("who")
+        ret = self.command("who")
         assert len(ret) == 4
         assert ret[0] == "Automated stage controller."
         assert ret[1] == "X-Y (T-R) Stage, Version 2.11a, 09/11/98 09:43:04"
         assert ret[2] == "Part# 80W03091/81P03092"
-        assert ret[3] == "Copyright (c) RJ Lee Group, Inc, 1993,1994.  ALL RIGHTS RESERVED."
+        assert ret[
+            3] == "Copyright (c) RJ Lee Group, Inc, 1993,1994.  ALL RIGHTS RESERVED."
         return ret
 
     def p(self):
@@ -179,7 +183,7 @@ class XY75:
             self.p()
             dt = time.time() - tstart
             if self.is_idle():
-                print("Idle after %0.1f sec" % (dt,))
+                print("Idle after %0.1f sec" % (dt, ))
                 return
             if dt >= timeout:
                 print("status")
@@ -187,7 +191,7 @@ class XY75:
                 raise Timeout()
 
     def a(self):
-        assert len(self.cmd("a")) == 0
+        assert len(self.command("a")) == 0
 
     def c(self):
         """
@@ -216,10 +220,10 @@ class XY75:
         e
         0.0
         """
-        assert len(self.cmd("e")) == 0
+        assert len(self.command("e")) == 0
 
     def rea(self):
-        assert len(self.cmd("rea")) == 0
+        assert len(self.command("rea")) == 0
 
     def asterix(self):
         """
@@ -236,7 +240,7 @@ class XY75:
         YFF =64   800   YPID=300  0    600 
         prof.y.d0=128000  v0=46811  v1=5120  a0=2048
         """
-        assert len(self.cmd("*")) == 10
+        assert len(self.command("*")) == 10
 
     def je(self, n):
         '''
@@ -244,7 +248,7 @@ class XY75:
         Not sure what this is but its clear at init
         clear errors maybe?
         '''
-        assert len(self.cmd("je %u" % n)) == 0
+        assert len(self.command("je %u" % n)) == 0
 
     def get_m(self):
         """
@@ -268,7 +272,7 @@ class XY75:
         Signed
         m 14186,28373
         '''
-        assert len(self.cmd("m %u,%u" % (x, y))) == 0
+        assert len(self.command("m %u,%u" % (x, y))) == 0
 
     def move_to(self, x, y):
         self.wait_idle()
@@ -280,28 +284,28 @@ class XY75:
         xh
         -10000, -12800, -700, -360000, 160, 120
         """
-        assert len(self.cmd("xh")) == 1
+        assert len(self.command("xh")) == 1
 
     def xl(self):
         """
         xl
         500, 12320, 1120, 39200
         """
-        assert len(self.cmd("xl")) == 1
+        assert len(self.command("xl")) == 1
 
     def xp(self):
         """
         xp
         300, 0, 600
         """
-        assert len(self.cmd("xp")) == 1
+        assert len(self.command("xp")) == 1
 
     def yp(self):
         """
         yp
         300, 0, 600
         """
-        assert len(self.cmd("yp")) == 1
+        assert len(self.command("yp")) == 1
 
 
 def init_sequence(xy):
@@ -338,16 +342,18 @@ def init_sequence(xy):
     print("p", xy.p())
     print("c", xy.c())
 
+
 def main():
     parser = argparse.ArgumentParser(description='Planner module command line')
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('x', type=int, help="In um")
     parser.add_argument('y', type=int, help="In um")
     args = parser.parse_args()
-    
+
     xy = XY75(verbose=args.verbose)
     xy.move_to(args.x, args.y)
     print("Final position", xy.p())
+
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,4 @@
-from uscope.motion import MotionHAL, format_t, AxisExceeded
+from uscope.motion.hal import MotionHAL, format_t, AxisExceeded
 
 import time
 
@@ -18,18 +18,18 @@ class LcncHal(MotionHAL):
         if not self.dry:
             time.sleep(sec)
 
-    def cmd(self, cmd):
+    def command(self, cmd):
         if self.dry:
             if self.verbose:
                 self.log(cmd)
         else:
-            self._cmd(cmd)
+            self._command(cmd)
             self.mv_lastt = time.time()
 
-    def _cmd(self, cmd):
+    def _command(self, cmd):
         raise Exception("Required")
 
-    def mv_abs(self, pos, limit=True):
+    def move_absolute(self, pos, limit=True):
         if len(pos) == 0:
             return
         if limit:
@@ -42,11 +42,11 @@ class LcncHal(MotionHAL):
         if self.dry:
             for k, v in pos.items():
                 self._dry_pos[k] = v
-        self.cmd('G90 ' + self.g_feed() +
-                 ''.join([' %c%0.3f' % (k.upper(), v)
-                          for k, v in pos.items()]))
+        self.command(
+            'G90 ' + self.g_feed() +
+            ''.join([' %c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
-    def mv_rel(self, delta):
+    def move_relative(self, delta):
         if len(delta) == 0:
             return
 
@@ -64,7 +64,7 @@ class LcncHal(MotionHAL):
                 self._dry_pos[k] += v
         # Unlike DIY controllers, all axes can be moved concurrently
         # Don't waste time moving them individually
-        self.cmd(
+        self.command(
             'G91 ' + self.g_feed() +
             ''.join([' %c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
 
@@ -170,7 +170,7 @@ class LcncPyHal(LcncHal):
                     (self.stat.axis[0]['input'], self.stat.axis[0]['output']))
             time.sleep(0.1)
 
-    def _cmd(self, cmd):
+    def _command(self, cmd):
         if self.verbose:
             print()
             print()
@@ -195,7 +195,7 @@ class LcncPyHal(LcncHal):
             # Axes may be updated
             # Copy it so that don't crash if its updated during an iteration
             for axis, sign in dict(axes).items():
-                self.mv_rel({axis: sign * 0.05})
+                self.move_relative({axis: sign * 0.05})
                 pos = self.pos()
                 if self.verbose:
                     print('emitting progress: %s' % str(pos))
@@ -230,6 +230,6 @@ class LcncRshHal(LcncHal):
         LcncHal.__init__(self, log=log, dry=dry)
         self.rsh = rsh
 
-    def _cmd(self, cmd):
+    def _command(self, cmd):
         # Waits for completion before returning
         self.rsh.mdi(cmd, timeout=0)

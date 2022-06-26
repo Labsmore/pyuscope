@@ -1,5 +1,5 @@
 import time
-from uscope.hal.img.imager import Imager
+from uscope.imager.imager import Imager
 
 
 class AxisExceeded(ValueError):
@@ -64,13 +64,13 @@ class MotionHAL(object):
 
     def ret0(self):
         '''Return to origin'''
-        self.mv_abs(dict([(k, 0.0) for k in self.axes()]))
+        self.move_absolute(dict([(k, 0.0) for k in self.axes()]))
 
-    def mv_abs(self, pos):
+    def move_absolute(self, pos):
         '''Absolute move to positions specified by pos dict'''
         raise Exception("Required")
 
-    def mv_rel(self, delta):
+    def move_relative(self, delta):
         '''Relative move to positions specified by delta dict'''
         raise Exception("Required")
 
@@ -177,14 +177,14 @@ class MockHal(MotionHAL):
     def take_picture(self, file_name):
         self._log('taking picture to %s' % file_name)
 
-    def mv_abs(self, pos):
+    def move_absolute(self, pos):
         for axis, apos in pos.items():
             self._pos[axis] = apos
         self._log(
             'absolute move to ' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
-    def mv_rel(self, delta):
+    def move_relative(self, delta):
         for axis, adelta in delta.items():
             self._pos[axis] += adelta
         self._log(
@@ -234,22 +234,22 @@ class MCHal(MotionHAL):
         # suspect I don't need anything here
         pass
 
-    def mv_abs(self, pos):
+    def move_absolute(self, pos):
         # Only one axis can be moved at a time
         for axis, apos in pos.items():
             if self.dry:
                 self._pos[axis] = apos
             else:
-                self.mc.axes[axis].mv_abs(apos)
+                self.mc.axes[axis].move_absolute(apos)
                 self.mv_lastt = time.time()
 
-    def mv_rel(self, delta):
+    def move_relative(self, delta):
         # Only one axis can be moved at a time
         for axis, adelta in delta.items():
             if self.dry:
                 self._pos[axis] += adelta
             else:
-                self.mc.axes[axis].mv_rel(adelta)
+                self.mc.axes[axis].move_relative(adelta)
                 self.mv_lastt = time.time()
 
     '''
@@ -322,14 +322,14 @@ class GCodeHal(MotionHAL):
     def imager(self):
         return GCodeHalImager(self)
 
-    def mv_abs(self, pos):
+    def move_absolute(self, pos):
         for axis, apos in pos.items():
             self._pos[axis] = apos
         self._line(
             'G90 G0' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
-    def mv_rel(self, pos):
+    def move_relative(self, pos):
         for axis, delta in pos.items():
             self._pos[axis] += delta
         self._line(

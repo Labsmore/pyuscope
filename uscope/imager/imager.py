@@ -45,4 +45,4 @@ class MockImager(Imager):
 
     def get(self):
         # Small test image
-        return Image.new("RGB", (16, 16), 'white')
+        return {"0": Image.new("RGB", (16, 16), 'white')}

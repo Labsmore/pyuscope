@@ -59,8 +59,8 @@ class CncThread(QThread):
             if self.idle.is_set():
                 break
 
-    def cmd(self, cmd, *args):
-        self.queue.put((cmd, args))
+    def command(self, command, *args):
+        self.queue.put((command, args))
 
     def pos(self):
         self.lock.set()
@@ -80,7 +80,7 @@ class CncThread(QThread):
                 continue
             try:
                 self.lock.clear()
-                (cmd, args) = self.queue.get(True, 0.1)
+                (command, args) = self.queue.get(True, 0.1)
             except queue.Empty:
                 self.idle.set()
                 continue
@@ -90,18 +90,18 @@ class CncThread(QThread):
             self.idle.clear()
 
             def default(*args):
-                raise Exception("Bad command %s" % (cmd, ))
+                raise Exception("Bad command %s" % (command, ))
 
-            def mv_abs(pos):
+            def move_absolute(pos):
                 try:
-                    self.hal.mv_abs(pos)
+                    self.hal.move_absolute(pos)
                 except AxisExceeded as e:
                     self.log(str(e))
                 return self.hal.pos()
 
-            def mv_rel(delta):
+            def move_relative(delta):
                 try:
-                    self.hal.mv_rel(delta)
+                    self.hal.move_relative(delta)
                 except AxisExceeded as e:
                     self.log(str(e))
                 return self.hal.pos()
@@ -114,18 +114,18 @@ class CncThread(QThread):
                 self.hal.forever(*args)
                 return self.hal.pos()
 
-            #print 'cnc thread: dispatch %s' % cmd
+            #print 'cnc thread: dispatch %s' % command
             # Maybe I should just always emit the pos
             ret = {
-                'mv_abs': mv_abs,
-                'mv_rel': mv_rel,
+                'move_absolute': move_absolute,
+                'move_relative': move_relative,
                 'forever': forever,
                 'home': home,
                 'stop': self.hal.stop,
                 'estop': self.hal.estop,
                 'unestop': self.hal.unestop,
-            }.get(cmd, default)(*args)
-            self.cmd_done(cmd, args, ret)
+            }.get(command, default)(*args)
+            self.cmd_done(command, args, ret)
 
     def stop(self):
         self.running.clear()

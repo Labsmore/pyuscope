@@ -310,7 +310,7 @@ class MainWindow(QMainWindow):
         # self.pos.emit(pos)
         pass
 
-    def cmd_done(self, cmd, args, ret):
+    def cmd_done(self, command, args, ret):
         print("FIXME: poll position instead of manually querying")
 
     def reload_obj_cb(self):
@@ -802,7 +802,6 @@ class MainWindow(QMainWindow):
         """
         Line up Go/Stop w/ "Job name" to make visually appealing
         """
-
         def getProgressLayout():
             layout = QHBoxLayout()
 
@@ -824,7 +823,6 @@ class MainWindow(QMainWindow):
 
             return layout
 
-
         def getNameLayout():
             layout = QHBoxLayout()
 
@@ -834,7 +832,7 @@ class MainWindow(QMainWindow):
             # layout.addWidget(self.job_name_le)
 
             # Will add _ between elements to make final name
-    
+
             layout.addWidget(QLabel('Vendor'))
             self.vendor_name_le = QLineEdit('unknown')
             layout.addWidget(self.vendor_name_le)
@@ -852,7 +850,6 @@ class MainWindow(QMainWindow):
             layout.addWidget(self.objective_name_le)
 
             return layout
-        
 
         layout = QVBoxLayout()
         gb = QGroupBox('Scan')
@@ -881,7 +878,6 @@ class MainWindow(QMainWindow):
             objective = "unkx"
 
         return vendor + "_" + product + "_" + layer + "_" + objective
-
 
     def get_bottom_layout(self):
         layout = QHBoxLayout()

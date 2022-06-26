@@ -40,9 +40,9 @@ else:
     import subprocess
 
     def screen_wh():
-        cmd = ['xrandr']
+        command = ['xrandr']
         cmd2 = ['grep', '*']
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        p = subprocess.Popen(command, stdout=subprocess.PIPE)
         p2 = subprocess.Popen(cmd2, stdin=p.stdout, stdout=subprocess.PIPE)
         p.stdout.close()
 

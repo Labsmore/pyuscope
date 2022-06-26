@@ -18,6 +18,7 @@ import shutil
 import time
 import sys
 
+
 class CsvImager(Imager):
     def __init__(self, csvf, verbose=False):
         Imager.__init__(self)
@@ -27,6 +28,7 @@ class CsvImager(Imager):
         print("get image")
         self.csvf.write("image,%s\n" % os.path.basename(fn_base))
         return {}
+
 
 class CsvHal(MotionHAL):
     def __init__(self, csvf, axes='xy', log=None, dry=False):
@@ -54,23 +56,24 @@ class CsvHal(MotionHAL):
     def take_picture(self, file_name):
         self._log('taking picture to %s' % file_name)
 
-    def mv_abs(self, pos):
+    def move_absolute(self, pos):
         for axis, apos in pos.items():
             self._pos[axis] = apos
-        self._log(
-            'absolute move to ' +
-            ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in sorted(pos.items())]))
-        self.csvf.write("move,%0.6f,%0.6f\n" % (self._pos['x'], self._pos['y']))
+        self._log('absolute move to ' + ' '.join(
+            ['%c%0.3f' % (k.upper(), v) for k, v in sorted(pos.items())]))
+        self.csvf.write("move,%0.6f,%0.6f\n" %
+                        (self._pos['x'], self._pos['y']))
         self.csvf.flush()
 
-    def mv_rel(self, delta):
+    def move_relative(self, delta):
         for axis, adelta in delta.items():
             self._pos[axis] += adelta
         self._log(
             'relative move to ' +
             ' '.join(['%c%0.6f' % (k.upper(), v) for k, v in delta.items()]))
         if len(delta):
-            self.csvf.write("move %0.6f %0.6f\n" % (self._pos['x'], self._pos['y']))
+            self.csvf.write("move %0.6f %0.6f\n" %
+                            (self._pos['x'], self._pos['y']))
             self.csvf.flush()
 
     def pos(self):
@@ -86,6 +89,7 @@ class CsvHal(MotionHAL):
 
     def ar_stop(self):
         pass
+
 
 def main():
     parser = argparse.ArgumentParser(description='Planner module command line')
@@ -106,7 +110,6 @@ def main():
     args = parser.parse_args()
 
     img_sz = (args.img_wh, args.img_wh)
-
     """
     # FIXME: fill in table
     img_width_um = {
@@ -118,13 +121,12 @@ def main():
         '50x': 3.2e3,
         }[args.mag]
     """
-    
-    
+
     mm_100x = 1.6
     img_width_mm = {
         '100x': mm_100x,
         '991x': mm_100x * 100 / 991,
-        }[args.mag]
+    }[args.mag]
     img_height_mm = img_width_mm
     img_wh_mm = img_width_mm, img_width_mm * img_sz[1] / img_sz[0]
 
@@ -139,7 +141,8 @@ def main():
         x0, y0, x1, y1 = [float(x) for x in args.roi.split(",")]
         x1full = x1 + img_width_mm
         y1full = y1 + img_height_mm
-        print("Adjusted scan range: %0.6fx,%0.6fy to %0.6fx,%0.6fy" % (x0, y0, x1full, y1full))
+        print("Adjusted scan range: %0.6fx,%0.6fy to %0.6fx,%0.6fy" %
+              (x0, y0, x1full, y1full))
         scan_config = {
             "border": args.border,
             "overlap": 0.7,
@@ -166,18 +169,19 @@ def main():
     hal = CsvHal(csvf=fout2)
 
     planner = uscope.planner.Planner(scan_config=scan_config,
-                        hal=hal,
-                        imager_take=imager,
-                        img_sz=img_sz,
-                        img_wh_units=img_wh_mm,
-                        origin="ll",
-                        out_dir=args.out,
-                        progress_cb=None,
-                        log=None,
-                        verbosity=2)
+                                     hal=hal,
+                                     imager_take=imager,
+                                     img_sz=img_sz,
+                                     img_wh_units=img_wh_mm,
+                                     origin="ll",
+                                     out_dir=args.out,
+                                     progress_cb=None,
+                                     log=None,
+                                     verbosity=2)
     planner.run()
 
     fout.write("test2\n")
+
 
 if __name__ == "__main__":
     main()

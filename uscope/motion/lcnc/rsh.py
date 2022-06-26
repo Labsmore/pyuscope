@@ -93,13 +93,13 @@ class Rsh(object):
         self.client.sendline('SET MODE MDI')
         self.client.expect('SET MODE ACK')
 
-    def mdi(self, cmd, timeout=0):
+    def mdi(self, command, timeout=0):
         if timeout != 0:
             raise Exception('FIXME')
         # for large commands
         # USRMOT: ERROR: invalid command
         # but doesn't return error
-        self.client.sendline('SET MDI %s' % cmd)
+        self.client.sendline('SET MDI %s' % command)
         self.client.expect('SET MDI ACK')
 
         if timeout is not None:

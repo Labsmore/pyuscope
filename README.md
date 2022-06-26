@@ -116,4 +116,5 @@ However, I've been using this workflow for years now, and will probably continue
  * Drop obsolete "Controller" motion control API (including Axis object)
  * Drop obsolete pr0ndexer motion control support
  * Drop obsolete MC motion control support
+ * GRBL support
 

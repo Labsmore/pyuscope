@@ -36,8 +36,12 @@ def trim_status_line(l):
 
 
 class GRBLSer:
-    def __init__(self, port="/dev/ttyUSB0", ser_timeout=0.5, verbose=False):
-        verbose = True
+    def __init__(self,
+                 port="/dev/ttyUSB0",
+                 ser_timeout=0.5,
+                 reset=True,
+                 verbose=False):
+        # verbose = True
         self.verbose = verbose
         self.verbose and print("opening", port)
         self.serial = serial.Serial(
@@ -55,6 +59,9 @@ class GRBLSer:
         self.serial.flushInput()
         self.serial.flushOutput()
         self.flush()
+        if reset:
+            # Reset which also checks communication
+            self.reset()
 
     def flush(self):
         """
@@ -74,7 +81,9 @@ class GRBLSer:
         self.verbose and print("tx '%s'" % (out, ))
         if nl:
             out = out + '\r'
-        self.serial.write((out).encode('ascii'))
+        out = out.encode('ascii')
+        # util.hexdump(out)
+        self.serial.write(out)
         self.serial.flush()
 
     def readline(self):
@@ -115,6 +124,11 @@ class GRBLSer:
         ^X
         Grbl 1.1f ['$' for help]
         """
+        self.tx("\x18", nl=False)
+        l = self.readline().strip()
+        assert l == ""
+        l = self.readline().strip()
+        assert "Grbl" in l
 
     def dollar(self, command):
         """

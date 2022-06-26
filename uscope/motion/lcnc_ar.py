@@ -2,7 +2,7 @@
 Linux CNC auto RPC
 '''
 
-from .lcnc import LcncPyHal
+from uscope.motion import LcncPyHal
 from uscope.lcnc.client import LCNCRPC, PORT
 from uscope import paramiko_util
 

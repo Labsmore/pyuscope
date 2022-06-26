@@ -1,4 +1,4 @@
-from .hal import Hal, format_t, AxisExceeded
+from uscope.motion import Hal, format_t, AxisExceeded
 
 import time
 

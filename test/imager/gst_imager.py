@@ -5,7 +5,7 @@ Test source
 ================================================================================
 
 Example:
-./test/cnc3018/gst_imager.py --source videotestsrc --width 456 --height 123 --gst-jpg out.jpg
+./test/imager/gst_imager.py --source videotestsrc --width 456 --height 123 --gst-jpg out.jpg
 
 Notes:
 -width/height can be anything
@@ -16,7 +16,7 @@ v4l
 ================================================================================
 
 Example:
-./test/cnc3018/gst_imager.py --source v4l2src --v4l2src-device /dev/video2 --width 640 --height 480 --gst-jpg out.jpg
+./test/imager/gst_imager.py --source v4l2src --v4l2src-device /dev/video2 --width 640 --height 480 --gst-jpg out.jpg
 
 Notes:
 -width/height must match a valid resolution
@@ -36,7 +36,7 @@ touptek
 
 Example:
 
-./test/cnc3018/gst_imager.py --source toupcamsrc --toupcamsrc-esize 2 --wh 800,600 --gst-jpg out.jpg
+./test/imager/gst_imager.py --source toupcamsrc --toupcamsrc-esize 2 --wh 800,600 --gst-jpg out.jpg
 
 Notes:
 -width/height must match a valid resolution and the provided esize

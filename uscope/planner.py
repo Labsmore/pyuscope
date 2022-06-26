@@ -15,6 +15,9 @@ import time
 
 
 def drange(start, stop, step, inclusive=False):
+    """
+    range function with double argument
+    """
     r = start
     if inclusive:
         while r <= stop:
@@ -27,7 +30,7 @@ def drange(start, stop, step, inclusive=False):
 
 
 def drange_at_least(start, stop, step):
-    '''Garauntee max is in the output'''
+    """Guarantee max is in the output"""
     r = start
     while True:
         yield r
@@ -36,10 +39,11 @@ def drange_at_least(start, stop, step):
         r += step
 
 
-# tolerance drange
-# in output if within a delta
 def drange_tol(start, stop, step, delta=None):
-    '''Garauntee max is in the output'''
+    """
+    tolerance drange
+    in output if within a delta
+    """
     if delta is None:
         delta = step * 0.05
     r = start

@@ -82,3 +82,9 @@ python3 main_gui/main.py
 
 2.2.0
  * Enforce output file naming convention
+ 
+ 2.3.0 (WIP
+ * Drop obsolete "Controller" motion control API (including Axis object)
+ * Drop obsolete pr0ndexer motion control support
+ * Drop obsolete MC motion control support
+

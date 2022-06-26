@@ -7,7 +7,7 @@ Test source
 ================================================================================
 
 Example:
-./test/imager/gst_imager.py --source videotestsrc --width 456 --height 123 --gst-jpg out.jpg
+./test/imager/gst_imager.py --gst-source videotestsrc --gst-wh 456,123 --gst-jpg out.jpg
 
 Notes:
 -width/height can be anything
@@ -18,7 +18,7 @@ v4l
 ================================================================================
 
 Example:
-./test/imager/gst_imager.py --source v4l2src --v4l2src-device /dev/video2 --width 640 --height 480 --gst-jpg out.jpg
+./test/imager/gst_imager.py --gst-source v4l2src --v4l2src-device /dev/video2 --gst-wh 640,480 --gst-jpg out.jpg
 
 Notes:
 -width/height must match a valid resolution
@@ -38,7 +38,7 @@ touptek
 
 Example:
 
-./test/imager/gst_imager.py --source toupcamsrc --toupcamsrc-esize 2 --wh 800,600 --gst-jpg out.jpg
+./test/imager/gst_imager.py --gst-source toupcamsrc --toupcamsrc-esize 2 --gst-wh 800,600 --gst-jpg out.jpg
 
 Notes:
 -width/height must match a valid resolution and the provided esize
@@ -57,7 +57,7 @@ ToupTek UCMOS08000KPB / AmScope MU800
 """
 
 from uscope.util import add_bool_arg
-import uscope.imager.gst
+from uscope.imager import gst
 import time
 
 
@@ -69,43 +69,12 @@ def main():
     add_bool_arg(parser,
                  "--verbose",
                  default=False,
-                 help="Due to health hazard, default is True")
-    # FIXME: some issue with raw, keep default
-    add_bool_arg(
-        parser,
-        "--gst-jpg",
-        default=True,
-        help="Capture jpg (as opposed to raw) using gstreamer encoder")
-    add_bool_arg(parser, "--show", default=False, help="")
-    parser.add_argument("--wh", default="640,480", help="Image width,height")
-    parser.add_argument("--toupcamsrc-esize",
-                        default=0,
-                        type=int,
-                        help="touptek esize. Must have correct width/height")
-    parser.add_argument("--v4l2src-device", default=None, help="video device")
-    parser.add_argument("--source",
-                        default="videotestsrc",
-                        help="videotestsrc, v4l2src, toupcamsrc")
+                 help="Verbose output")
+    gst.gst_add_args(parser)
     parser.add_argument("out", nargs="?", help="File to save to")
     args = parser.parse_args()
 
-    width, height = args.wh.split(",")
-    width = int(width)
-    height = int(height)
-    source_opts = {
-        "width": width,
-        "height": height,
-        "gst_jpg": args.gst_jpg,
-        "v4l2src": {
-            "device": args.v4l2src_device,
-        },
-        "toupcamsrc": {
-            "esize": args.toupcamsrc_esize,
-        },
-    }
-
-    imager = uscope.imager.gst.GstImager(source_name=args.source,
-                                         source_opts=source_opts)
+    imager = gst.GstImager(gst.gst_get_args(args))
 
     def thread(loop):
         if imager.source_name == "toupcamsrc":
@@ -127,7 +96,7 @@ def main():
                 open(args.out, "wb").write(im)
         loop.quit()
 
-    uscope.imager.gst.easy_run(imager, thread)
+    gst.easy_run(imager, thread)
 
 
 if __name__ == "__main__":

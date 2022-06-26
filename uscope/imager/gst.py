@@ -11,25 +11,28 @@ from gi.repository import GLib
 
 from uscope.imager.imager import Imager
 from uscope.gst_util import CaptureSink
+from uscope.util import add_bool_arg
 import threading
 
 
 class GstImager(Imager):
-    def __init__(self, source_name=None, source_opts={}, verbose=False):
+    def __init__(self, opts={}, verbose=False):
         Imager.__init__(self)
         self.image_ready = threading.Event()
         self.image_id = None
+
+        source_name = opts.get("source", None)
         if source_name is None:
             source_name = "videotestsrc"
         self.source_name = source_name
 
-        self.width = source_opts.get("width", 640)
-        self.height = source_opts.get("height", 480)
-        self.gst_jpg = source_opts.get("gst_jpg", True)
+        self.width = opts.get("width", 640)
+        self.height = opts.get("height", 480)
+        self.gst_jpg = opts.get("gst_jpg", True)
 
         self.player = Gst.Pipeline.new("player")
 
-        self.prepareSource(source_opts)
+        self.prepareSource(opts)
         self.player.add(self.source)
 
         self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")
@@ -140,6 +143,46 @@ class GstImager(Imager):
         if message_name == "prepare-window-handle":
             print("prepare-window-handle", message.src.get_name(),
                   self.full_widget_winid, self.roi_widget_winid)
+
+
+def gst_add_args(parser):
+    # FIXME: some issue with raw, keep default
+    add_bool_arg(
+        parser,
+        "--gst-jpg",
+        default=True,
+        help="Capture jpg (as opposed to raw) using gstreamer encoder")
+    add_bool_arg(parser, "--show", default=False, help="")
+    parser.add_argument("--gst-wh",
+                        default="640,480",
+                        help="Image width,height")
+    parser.add_argument("--toupcamsrc-esize",
+                        default=0,
+                        type=int,
+                        help="touptek esize. Must have correct width/height")
+    parser.add_argument("--v4l2src-device", default=None, help="video device")
+    parser.add_argument("--gst-source",
+                        default="videotestsrc",
+                        help="videotestsrc, v4l2src, toupcamsrc")
+
+
+def gst_get_args(args):
+    width, height = args.gst_wh.split(",")
+    width = int(width)
+    height = int(height)
+    source_opts = {
+        "source": args.gst_source,
+        "width": width,
+        "height": height,
+        "gst_jpg": args.gst_jpg,
+        "v4l2src": {
+            "device": args.v4l2src_device,
+        },
+        "toupcamsrc": {
+            "esize": args.toupcamsrc_esize,
+        },
+    }
+    return source_opts
 
 
 def easy_run(imager, target):

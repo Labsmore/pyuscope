@@ -23,7 +23,7 @@ from uscope.gst_util import Gst, CaptureSink
 import threading
 import time
 
-from .gst_imager import GstImager
+import uscope.imager.gst
 
 
 def main():
@@ -42,7 +42,7 @@ def main():
     add_bool_arg(parser,
                  '--dry',
                  default=True,
-                 help='Due to health hazard, default is True')
+                 help='Must be changed for real operation')
     parser.add_argument('scan_json',
                         nargs='?',
                         default='scan.json',
@@ -67,7 +67,8 @@ def main():
 
     print("Connecting to camera...")
     # imager = MockImager()
-    imager = GstImager()
+    imager = uscope.imager.gst.GstImager(source_name=args.source,
+                                         source_opts=source_opts)
 
     print("starting pipeline")
     imager.player.set_state(Gst.State.PLAYING)

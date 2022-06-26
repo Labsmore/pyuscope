@@ -11,10 +11,11 @@ from gi.repository import Gst
 Gst.init(None)
 from gi.repository import GObject, GLib
 
-
 from uscope.imager.imager import Imager
 from uscope.gst_util import Gst, CaptureSink
 import threading
+import time
+
 
 class GstImager(Imager):
     def __init__(self, source_name=None, verbose=False):
@@ -24,6 +25,7 @@ class GstImager(Imager):
         if source_name is None:
             # source_name = "gst-videotestsrc"
             source_name = "gst-v4l2src"
+            source_name = "gst-toupcamsrc"
         self.source_name = source_name
         """
         v4l2-ctl -d /dev/video0 --list-formats-ext
@@ -35,8 +37,14 @@ class GstImager(Imager):
         width = 1024
         height = 768
 
-        width = 1280
-        height = 720
+        if self.source_name == "gst-toupcamsrc":
+            touptek_esize = 2
+            width = 800
+            height = 600
+
+        if self.source_name == "gst-v4l2src":
+            width = 1280
+            height = 720
 
         self.jpg = True
 
@@ -150,6 +158,7 @@ class GstImager(Imager):
             print("prepare-window-handle", message.src.get_name(),
                   self.full_widget_winid, self.roi_widget_winid)
 
+
 def main():
 
     # GObject.threads_init()
@@ -160,16 +169,21 @@ def main():
     imager.player.set_state(Gst.State.PLAYING)
 
     def get_image():
+        if imager.source_name == "gst-v4l2src":
+            print("stabalizing camera")
+            time.sleep(2)
         print("Getting image")
         im = imager.get()
         print("Got image")
         im["0"].save("gst_imager.jpg")
         loop.quit()
+
     thread = threading.Thread(target=get_image)
     thread.start()
     loop = GLib.MainLoop()
     print("Running event loop")
     loop.run()
+
 
 if __name__ == "__main__":
     main()

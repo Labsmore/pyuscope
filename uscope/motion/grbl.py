@@ -36,12 +36,12 @@ def trim_status_line(l):
 
 
 class GRBLSer:
+
     def __init__(self,
                  port="/dev/ttyUSB0",
                  ser_timeout=0.5,
                  reset=True,
                  verbose=False):
-        # verbose = True
         self.verbose = verbose
         self.verbose and print("opening", port)
         self.serial = serial.Serial(
@@ -89,7 +89,7 @@ class GRBLSer:
     def readline(self):
         return self.serial.readline().decode("ascii").strip()
 
-    def txrxs(self, out, nl=True):
+    def txrxs(self, out, nl=True, trim_data=True):
         self.tx(out, nl=nl)
         ret = []
         while True:
@@ -102,7 +102,10 @@ class GRBLSer:
             elif l.find("error") == 0:
                 raise Exception(l)
             else:
-                ret.append(trim_data_line(l))
+                if trim_data:
+                    ret.append(trim_data_line(l))
+                else:
+                    ret.append(l)
 
     def txrx0(self, out, nl=True):
         ret = self.txrxs(out, nl=nl)
@@ -130,7 +133,7 @@ class GRBLSer:
         l = self.readline().strip()
         assert "Grbl" in l
 
-    def dollar(self, command):
+    def dollar(self):
         """
         $$
         $0=10
@@ -168,7 +171,7 @@ class GRBLSer:
         $131=200.000
         $132=200.000
         """
-        pass
+        return self.txrxs("$$", trim_data=False)
 
     def hash(self):
         """
@@ -195,6 +198,7 @@ class GRBLSer:
         """
         self.tx("?", nl=False)
         l = self.readline()
+        self.verbose and print("rx '%s'" % (l, ))
         return trim_status_line(l)
 
     def c(self):
@@ -241,9 +245,9 @@ class GRBLSer:
 
 
 class GRBL:
-    def __init__(self):
-        self.gs = GRBLSer()
-        pass
+
+    def __init__(self, verbose=False):
+        self.gs = GRBLSer(verbose=verbose)
 
     def qstatus(self):
         """
@@ -255,6 +259,8 @@ class GRBL:
         parts = raw.split("|")
         # FIXME: extra
         ij, mpos, fs = parts[0:3]
+        mpos = (float(x) for x in mpos.split(":")[1].split(","))
+        mpos = dict([(k, v) for k, v in zip("xyz", mpos)])
         return {
             # Idle, Jog
             "status": ij,
@@ -268,8 +274,7 @@ class GRBL:
             [' %c%0.3f' % (k.upper(), v) for k, v in moves.items()])
         self.gs.j("G90 %s F%u" % (ax_str, f))
         if blocking:
-            while self.qstatus()["status"] != "Idle":
-                time.sleep(0.1)
+            self.wait_idle()
 
     def move_relative(self, moves, f, blocking=True):
         # implies G1
@@ -277,16 +282,20 @@ class GRBL:
             [' %c%0.3f' % (k.upper(), v) for k, v in moves.items()])
         self.gs.j("G91 %s F%u" % (ax_str, f))
         if blocking:
-            while self.qstatus()["status"] != "Idle":
-                time.sleep(0.1)
+            self.wait_idle()
+
+    def wait_idle(self):
+        while self.qstatus()["status"] != "Idle":
+            time.sleep(0.1)
 
 
 class GrblHal(MotionHAL):
+
     def __init__(self, log=None, dry=False):
         self.verbose = 0
         self.feedrate = None
-        MotionHAL.__init__(self, log, dry)
         self.grbl = GRBL()
+        MotionHAL.__init__(self, log, dry)
 
     def axes(self):
         return {'x', 'y', 'z'}
@@ -342,3 +351,6 @@ class GrblHal(MotionHAL):
             for k, v in moves.items():
                 self._dry_pos[k] += v
         self.grbl.move_relative(moves, f=1000)
+
+    def pos(self):
+        return self.grbl.qstatus()["MPos"]

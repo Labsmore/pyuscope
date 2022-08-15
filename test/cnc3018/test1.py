@@ -35,6 +35,7 @@ def trim_status_line(l):
 
 
 class GRBLSer:
+
     def __init__(self, port="/dev/ttyUSB0", ser_timeout=0.1, verbose=False):
         self.verbose = verbose
         self.verbose and print("opening", port)
@@ -223,6 +224,7 @@ class GRBLSer:
 
 
 class GRBL:
+
     def __init__(self):
         self.gs = GRBLSer()
         pass
@@ -280,6 +282,10 @@ if 0:
 
 if 1:
     grbl = GRBL()
+    print("move 1")
     grbl.move_abs(x=0.0, f=1000.0)
+    print("move 2")
     grbl.move_rel(x=2.0, f=1000.0)
+    print("move 3")
     grbl.move_rel(x=-2.0, f=1000.0)
+    print("Done")

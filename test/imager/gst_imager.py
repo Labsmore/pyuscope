@@ -66,10 +66,7 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="GstImager (gstreamer wrapper) demo")
-    add_bool_arg(parser,
-                 "--verbose",
-                 default=False,
-                 help="Verbose output")
+    add_bool_arg(parser, "--verbose", default=False, help="Verbose output")
     gst.gst_add_args(parser)
     parser.add_argument("out", nargs="?", help="File to save to")
     args = parser.parse_args()

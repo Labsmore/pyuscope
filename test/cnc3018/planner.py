@@ -1,44 +1,56 @@
 #!/usr/bin/env python3
+"""
+3018 CNC panoramic imaging demo
+Uses grbl controller w/ touptek camera
 
-import gi
-gi.require_version('Gst', '1.0')
 
-# Needed for window.get_xid(), xvimagesink.set_window_handle(), respectively:
-# WARNING: importing GdkX11 will cause hard crash (related to Qt)
-# fortunately its not needed
-# from gi.repository import GdkX11, GstVideo
-from gi.repository import Gst
-Gst.init(None)
-from gi.repository import GObject, GLib
+Setup scan:
 
-from uscope.motion.grbl import GRBLSer, GRBL, GrblHal
+cat << EOF >scan.json
+{
+    "start": {
+        "x": 0,
+        "y": 0
+    },
+    "end": {
+        "x": 2.0,
+        "y": 1.5
+    },
+    "overlap": 0.7
+}
+EOF
+
+./test/cnc3018/planner.py --gst-source videotestsrc --gst-wh 456,123 --no-dry --overwrite scan.json out/
+
+"""
+
+from uscope.motion.grbl import GrblHal
 from uscope.imager.imager import MockImager
 from uscope.util import add_bool_arg
+from uscope.imager import gst
 import uscope.planner
 import shutil
 import os
 import json
-from uscope.imager.imager import Imager
-from uscope.gst_util import Gst, CaptureSink
 import threading
 import time
-
-import uscope.imager.gst
 
 
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Planner module command line')
+    add_bool_arg(parser, "--verbose", default=False, help="Verbose output")
+    gst.gst_add_args(parser)
     parser.add_argument('--host',
                         default='mk',
                         help='Host.  Activates remote mode')
     parser.add_argument('--port', default=22617, type=int, help='Host port')
     parser.add_argument('--overwrite', action='store_true')
-    add_bool_arg(parser,
-                 '--verbose',
-                 default=False,
-                 help='Due to health hazard, default is True')
+    parser.add_argument('--fov-w',
+                        type=float,
+                        required=True,
+                        help="field of view width in units (typically mm)")
     add_bool_arg(parser,
                  '--dry',
                  default=True,
@@ -60,56 +72,44 @@ def main():
     if not args.dry:
         os.mkdir(args.out)
 
-    Gst.init(None)
-
     print("Connecting to CNC...")
-    hal = GrblHal()
+    movement = GrblHal()
 
     print("Connecting to camera...")
     # imager = MockImager()
-    imager = uscope.imager.gst.GstImager(source_name=args.source,
-                                         source_opts=source_opts)
-
-    print("starting pipeline")
-    imager.player.set_state(Gst.State.PLAYING)
+    imager = gst.GstImager(gst.gst_get_args(args))
 
     print("Launching threads...")
 
-    def planner_thread():
+    def planner_thread(loop):
         print("Launching planner...")
 
-        if 1:
+        if 0:
             if imager.source_name == "gst-v4l2src":
                 print("stabalizing camera")
-                time.sleep(2)
+                time.sleep(1)
             print("Getting image")
             im = imager.get()
             print("Got image")
             im["0"].save("gst_imager.jpg")
-            loop.quit()
 
-        if 0:
-            # w, h in pix
-            img_sz = (1500, 1000)
-            mm_per_pix = 1 / 1000
+        if 1:
+            mm_per_pix = args.fov_w / imager.wh()[0]
+            # print("Imager %uw x %uh, w/ width = %0.3f mm => %0.06f mm per pix" % (imager.width, imager.height, args.fov_w, mm_per_pix))
             planner = uscope.planner.Planner(json.load(open(args.scan_json)),
-                                             hal,
+                                             movement=movement,
                                              imager=imager,
-                                             img_sz=img_sz,
-                                             unit_per_pix=mm_per_pix,
+                                             mm_per_pix=mm_per_pix,
                                              out_dir=args.out,
                                              progress_cb=None,
                                              dry=args.dry,
                                              log=None,
+                                             origin="ll",
                                              verbosity=2)
             planner.run()
-            loop.quit()
+        loop.quit()
 
-    thread = threading.Thread(target=planner_thread)
-    thread.start()
-    loop = GLib.MainLoop()
-    print("Running event loop")
-    loop.run()
+    gst.easy_run(imager, planner_thread)
 
 
 if __name__ == "__main__":

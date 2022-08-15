@@ -5,6 +5,7 @@ import time
 
 # Camera always local
 class LcncHal(MotionHAL):
+
     def __init__(self, log=None, dry=False):
         self.verbose = 0
         self.feedrate = None
@@ -80,6 +81,7 @@ class LcncHal(MotionHAL):
 # Currently the rpc version emulates stat and command channels
 # making these identical for the time being
 class LcncPyHal(LcncHal):
+
     def __init__(self, linuxcnc, log=None, dry=False):
         self.ax_c2i = {'x': 0, 'y': 1}
         self.ax_i2c = {0: 'x', 1: 'y'}
@@ -226,6 +228,7 @@ class LcncPyHal(LcncHal):
 
 # LinuxCNC remote connection
 class LcncRshHal(LcncHal):
+
     def __init__(self, rsh, log=None, dry=False):
         LcncHal.__init__(self, log=log, dry=dry)
         self.rsh = rsh

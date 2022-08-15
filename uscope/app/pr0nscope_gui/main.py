@@ -90,6 +90,7 @@ def get_cnc_hal(log=print):
 
 
 class GstImager(Imager):
+
     class Emitter(QObject):
         change_properties = pyqtSignal(dict)
 
@@ -168,6 +169,7 @@ class LCNCMovement:
 
 
 class PropertiesWindow(QMainWindow):
+
     def __init__(self, vidpip, show=True, parent=None):
         super(PropertiesWindow, self).__init__(parent)
         layout = QHBoxLayout()
@@ -802,6 +804,7 @@ class MainWindow(QMainWindow):
         """
         Line up Go/Stop w/ "Job name" to make visually appealing
         """
+
         def getProgressLayout():
             layout = QHBoxLayout()
 

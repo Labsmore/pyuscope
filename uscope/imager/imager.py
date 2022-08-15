@@ -25,10 +25,15 @@ def camera_in_use():
 
 
 class Imager:
+
     def __init__(self, verbose=False):
         self.verbose = verbose
 
     # Must implement at least one of the following
+
+    def wh(self):
+        """Return width, height"""
+        raise Exception('Required')
 
     def get(self):
         '''Return PIL image object'''
@@ -40,6 +45,7 @@ class Imager:
 
 
 class MockImager(Imager):
+
     def __init__(self, verbose=False):
         Imager.__init__(self, verbose=verbose)
 

@@ -14,6 +14,7 @@ prop_layout = OrderedDict([
 
 
 class DummyGstControlScroll(GstControlScroll):
+
     def __init__(self, vidpip, parent=None):
         GstControlScroll.__init__(self,
                                   vidpip=vidpip,

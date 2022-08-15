@@ -20,6 +20,7 @@ import sys
 
 
 class CsvImager(Imager):
+
     def __init__(self, csvf, verbose=False):
         Imager.__init__(self)
         self.csvf = csvf
@@ -31,6 +32,7 @@ class CsvImager(Imager):
 
 
 class CsvHal(MotionHAL):
+
     def __init__(self, csvf, axes='xy', log=None, dry=False):
         MotionHAL.__init__(self, log, dry)
         self.csvf = csvf

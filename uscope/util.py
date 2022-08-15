@@ -26,6 +26,7 @@ def add_bool_arg(parser, yes_arg, default=False, **kwargs):
 
 
 def hexdump(data, label=None, indent='', address_width=8, f=sys.stdout):
+
     def isprint(c):
         return c >= ' ' and c <= '~'
 
@@ -106,6 +107,7 @@ def where(pos=1):
 
 # Print timestamps in front of all output messages
 class IOTimestamp(object):
+
     def __init__(self, obj=sys, name='stdout'):
         self.obj = obj
         self.name = name
@@ -139,6 +141,7 @@ class IOTimestamp(object):
 
 # Log file descriptor to file
 class IOLog(object):
+
     def __init__(self,
                  obj=sys,
                  name='stdout',

@@ -138,6 +138,7 @@ class ImageProcessor(QThread):
 
 
 class TestGUI(QMainWindow):
+
     def __init__(self, source=None):
         QMainWindow.__init__(self)
         self.vidpip = GstVideoPipeline(source=source,

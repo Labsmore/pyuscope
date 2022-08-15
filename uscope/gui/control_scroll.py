@@ -11,6 +11,7 @@ from uscope import config
 
 
 class ImagerControlScroll(QScrollArea):
+
     def __init__(self, groups, parent=None):
         QScrollArea.__init__(self, parent=parent)
 
@@ -73,7 +74,9 @@ class ImagerControlScroll(QScrollArea):
         return layout
 
     def _assemble_int(self, prop, layoutg, row):
+
         def gui_changed(prop, slider, value_label):
+
             def f():
                 try:
                     val = int(slider.value())
@@ -107,7 +110,9 @@ class ImagerControlScroll(QScrollArea):
         return row
 
     def _assemble_bool(self, prop, layoutg, row):
+
         def gui_changed(prop):
+
             def f(val):
                 print('%s (%s) req => %d, allowed %d' %
                       (prop["disp_name"], prop["prop_name"], val,
@@ -317,6 +322,7 @@ class GstControlScroll(ImagerControlScroll):
     """
     Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
     """
+
     def __init__(self, vidpip, groups_gst, parent=None):
         self.vidpip = vidpip
         ImagerControlScroll.__init__(self,

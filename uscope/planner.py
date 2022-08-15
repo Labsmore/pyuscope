@@ -1,9 +1,13 @@
 #!/usr/bin/python
-'''
+"""
 pr0ncnc: IC die image scan
 Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
-'''
+
+au was supposed to be a unitless unit
+In practice I do everything in mm
+So everything is represented as mm, but should work for any unit
+"""
 
 from collections import OrderedDict
 import json
@@ -55,22 +59,23 @@ def drange_tol(start, stop, step, delta=None):
 
 
 class PlannerAxis(object):
+
     def __init__(
-        self,
-        name,
-        # Desired image overlap
-        # Actual may be greater if there is more area
-        # than minimum number of pictures would support
-        req_overlap,
-        # How much the imager can see (in mm)
-        view_au,
-        # How much the imager can see (in pixels)
-        view_pix,
-        # start and end absolute positions (in um)
-        # Inclusive such that 0:0 means image at position 0 only
-        start,
-        end,
-        log=None):
+            self,
+            name,
+            # Desired image overlap
+            # Actual may be greater if there is more area
+            # than minimum number of pictures would support
+            req_overlap,
+            # How much the imager can see (in mm)
+            view_mm,
+            # How much the imager can see (in pixels)
+            view_pix,
+            # start and actual_end absolute positions (in um)
+            # Inclusive such that 0:0 means image at position 0 only
+            start,
+            end,
+            log=None):
         if log is None:
 
             def log(s=''):
@@ -86,20 +91,21 @@ class PlannerAxis(object):
         The naming is somewhat bad on this as it has an anti-intuitive meaning
         
         Proportion of each image that is unique from previous
-        Overlap of 1.0 means that images are all unique sections
+        Overlap of 1.0 means that images_actual are all unique sections
         Overlap of 0.0 means never move and keep taking the same spot
         '''
         self.req_overlap = req_overlap
 
         self.start = start
-        # Requested end, not necessarily true end
-        self.req_end = end
-        self.end = end
-        if self.delta() < view_au:
-            self.log('Axis %s: delta %0.3f < view %0.3f, expanding end' %
-                     (self.name, self.delta(), view_au))
-            self.end = start + view_au
-        self.view_au = view_au
+        # Requested actual_end, not necessarily true actual_end
+        self.requested_end = end
+        self.actual_end = end
+        if self.requested_delta_mm() < view_mm:
+            self.log(
+                'Axis %s: delta %0.3f < view %0.3f, expanding actual_end' %
+                (self.name, self.requested_delta_mm(), view_mm))
+            self.actual_end = start + view_mm
+        self.view_mm = view_mm
 
         # Its actually less than this but it seems it takes some stepping
         # to get it out of the system
@@ -120,45 +126,55 @@ class PlannerAxis(object):
         ret['overlap'] = self.step_percent()
         ret['view_pixels'] = self.view_pixels
         # FIXME: find a way to verify au is in pixels
-        ret['view_mm'] = self.view_au
-        ret['pixels'] = self.delta_pixels()
+        ret['view_mm'] = self.view_mm
+        ret['pixels'] = self.requested_delta_pixels()
         # all of my systems are set to mm though, even if they are imperial screws
-        ret['pixels_mm'] = self.view_pixels / self.view_au
-        mm = self.delta_pixels() / ret['pixels_mm']
+        ret['pixels_mm'] = self.view_pixels / self.view_mm
+        mm = self.requested_delta_pixels() / ret['pixels_mm']
         ret['mm'] = mm
         return ret
 
-    def delta(self):
-        '''Total distance that will actually be imaged'''
-        return self.end - self.start
-
-    def req_delta(self):
+    def requested_delta_mm(self):
         '''Total distance that needs to be imaged (ie requested)'''
-        return self.req_end - self.start
+        return abs(self.requested_end - self.start)
 
-    def delta_pixels(self):
-        return self.images_ideal() * self.view_pixels
+    def actual_delta_mm(self):
+        '''Total distance that will actually be imaged'''
+        return abs(self.actual_end - self.start)
+
+    def requested_delta_pixels(self):
+        # hmm this is wrong
+        # this shouldn't include overlap
+        # return int(self.images_ideal() * self.view_pixels)
+        return int(
+            math.ceil(self.requested_delta_mm() / self.view_mm *
+                      self.view_pixels))
+
+    def actual_delta_pixels(self):
+        return int(
+            math.ceil(self.actual_delta_mm() / self.view_mm *
+                      self.view_pixels))
 
     def images_ideal(self):
         '''
-        Always 1 non-overlapped image + the overlapped images
+        Always 1 non-overlapped image + the overlapped images_actual
         (can actually go negative though)
         Remaining distance from the first image divided by
         how many pixels of each image are unique to the previously taken image when linear
         '''
-        if self.req_delta() <= self.view_au:
-            return 1.0 * self.req_delta() / self.view_au
-        ret = 1.0 + (self.req_delta() - self.view_au) / (self.req_overlap *
-                                                         self.view_au)
+        if self.requested_delta_mm() <= self.view_mm:
+            return 1.0 * self.requested_delta_mm() / self.view_mm
+        ret = 1.0 + (self.requested_delta_mm() -
+                     self.view_mm) / (self.req_overlap * self.view_mm)
         if ret < 0:
-            raise Exception('bad number of idea images %s' % ret)
+            raise Exception('bad number of idea images_actual %s' % ret)
         return ret
 
-    def images(self):
-        '''How many images should actually take after considering margins and rounding'''
+    def images_actual(self):
+        '''How many images_actual should actually take after considering margins and rounding'''
         ret = int(math.ceil(self.images_ideal()))
         if ret < 1:
-            raise Exception('Bad number of images %d' % ret)
+            raise Exception('Bad number of images_actual %d' % ret)
         return ret
 
     def step(self):
@@ -172,20 +188,21 @@ class PlannerAxis(object):
         However, the entire quantity should not be negative
         '''
         # Note that we don't need to adjust the initial view since its fixed, only the steps
-        images_to_take = self.images()
+        images_to_take = self.images_actual()
         if images_to_take == 1:
-            return self.delta()
+            return self.requested_delta_mm()
         else:
-            return (self.delta() - self.view_au) / (images_to_take - 1.0)
+            return (self.requested_delta_mm() -
+                    self.view_mm) / (images_to_take - 1.0)
 
     def step_percent(self):
         '''Actual percentage we move to take the next picture'''
         # Contrast with requested value self.req_overlap
-        return self.step() / self.view_au
+        return self.step() / self.view_mm
 
     def points(self):
         step = self.step()
-        for i in range(self.images()):
+        for i in range(self.images_actual()):
             yield self.start + i * step
 
 
@@ -194,25 +211,38 @@ class Stop(Exception):
 
 
 class Planner(object):
+
     def __init__(
-        self,
-        scan_config,
-        hal,
-        imager=None,
-        # (w, h) in pixels
-        img_sz=None,
-        # 10 => each pixel is 10 um x 10 um
-        unit_per_pix=None,
-        out_dir=None,
-        # (w, h) in movement units
-        img_wh_units=None,
-        progress_cb=None,
-        dry=False,
-        log=None,
-        verbosity=2,
-        imager_take=None,
-        origin="ul",
-        imagerj={}):
+            self,
+            scan_config,
+            # Movement HAL
+            movement=None,
+
+            # Image parameters
+            # Imaging HAL
+            # Takes pictures but doesn't know about physical world
+            imager=None,
+            # Supply one of the following
+            # Most users should supply mm_per_pix
+            mm_per_pix=None,
+            # (w, h) in movement units
+            image_wh_mm=None,
+            out_dir=None,
+            # Progress callback
+            progress_cb=None,
+            # No movement without setting true
+            dry=False,
+            # Log message callback
+            # Defaults to printing to stdout
+            log=None,
+            verbosity=2,
+            # Override image taking
+            # Intended for out of band imaging (ex: snap a remote camera)
+            # where image is not saved here
+            imager_take=None,
+            # advanced, do not use
+            origin="ul",
+            imagerj={}):
         if log is None:
 
             def log(msg='', verbosity=None):
@@ -221,13 +251,14 @@ class Planner(object):
         self._log = log
         self.v = verbosity
         self.origin = origin
-        self.hal = hal
+        self.movement = movement
+        assert self.movement, "Required"
         self.imager = imager
+        assert self.imager, "Required"
         self.imager_take = imager_take
         self.dry = dry
         # os.path.join(config['cnc']['out_dir'], self.rconfig.job_name)
         self.out_dir = out_dir
-        self.img_sz = img_sz
 
         # polarity such that can wait on being set
         self.unpaused = threading.Event()
@@ -264,24 +295,25 @@ class Planner(object):
             end[0] += border
             end[1] += border
 
-        if img_wh_units is None:
-            assert unit_per_pix is not None, "If img_wh_units is None unit_per_pix is required"
-            img_wh_units = (img_sz[0] * unit_per_pix, img_sz[1] * unit_per_pix)
+        if image_wh_mm is None:
+            assert mm_per_pix is not None, "If image_wh_mm is None mm_per_pix is required"
+            image_wh_mm = (self.imager.wh()[0] * mm_per_pix,
+                           self.imager.wh()[1] * mm_per_pix)
 
         self.axes = OrderedDict([
             ('x',
              PlannerAxis('X',
                          ideal_overlap,
-                         img_wh_units[0],
-                         img_sz[0],
+                         image_wh_mm[0],
+                         self.imager.wh()[0],
                          start[0],
                          end[0],
                          log=self.log)),
             ('y',
              PlannerAxis('Y',
                          ideal_overlap,
-                         img_wh_units[1],
-                         img_sz[1],
+                         image_wh_mm[1],
+                         self.imager.wh()[1],
                          start[1],
                          end[1],
                          log=self.log)),
@@ -293,11 +325,11 @@ class Planner(object):
 
         for axisc, axis in self.axes.items():
             self.log('Axis %s' % axisc)
-            self.log('  %f to %f' % (axis.start, axis.end), 2)
+            self.log('  %f to %f' % (axis.start, axis.actual_end), 2)
             self.log(
                 '  Ideal overlap: %f, actual %g' %
                 (ideal_overlap, axis.step_percent()), 2)
-            self.log('  full delta: %f' % (self.x.delta()), 2)
+            self.log('  full delta: %f' % (self.x.requested_delta_mm()), 2)
             self.log('  view: %d pix' % (axis.view_pixels, ), 2)
             if border:
                 self.log('  border: %f' % border)
@@ -305,11 +337,12 @@ class Planner(object):
         # A true useful metric of efficieny loss is how many extra pictures we had to take
         # Maybe overhead is a better way of reporting it
         ideal_n_pictures = self.x.images_ideal() * self.y.images_ideal()
-        expected_n_pictures = self.x.images() * self.y.images()
+        expected_n_pictures = self.x.images_actual() * self.y.images_actual()
         self.log(
             'Ideally taking %g pictures (%g X %g) but actually taking %d (%d X %d), %0.1f%% efficient'
             % (ideal_n_pictures, self.x.images_ideal(), self.y.images_ideal(),
-               expected_n_pictures, self.x.images(), self.y.images(),
+               expected_n_pictures, self.x.images_actual(),
+               self.y.images_actual(),
                ideal_n_pictures / expected_n_pictures * 100.0), 2)
 
         # Try actually generating the points and see if it matches how many we thought we were going to get
@@ -319,16 +352,16 @@ class Planner(object):
         elif self.pictures_to_take != expected_n_pictures:
             self.log(
                 'Going to take %d pictures but thought was going to take %d pictures (x %d X y %d)'
-                % (self.pictures_to_take, expected_n_pictures, self.x.images(),
-                   self.y.images()))
+                % (self.pictures_to_take, expected_n_pictures,
+                   self.x.images_actual(), self.y.images_actual()))
             self.log('Points:')
             for p in self.gen_xys():
                 self.log('    ' + str(p))
             raise Exception('See above')
 
-        # Total number of images taken
+        # Total number of images_actual taken
         self.all_imgs = 0
-        # Number of images taken at unique x, y coordinates
+        # Number of images_actual taken at unique x, y coordinates
         # May be different than all_imags if image stacking
         self.xy_imgs = 0
 
@@ -406,13 +439,16 @@ class Planner(object):
             return os.path.join(
                 self.out_dir,
                 'c%03d_r%03d%s' % (self.cur_col, self.cur_row, stack_suffix))
-        else:
+        elif self.origin == "ll":
             return os.path.join(
                 self.out_dir,
-                'c%03d_r%03d%s' % (self.cur_col, self.y.images() -
+                'c%03d_r%03d%s' % (self.cur_col, self.y.images_actual() -
                                    self.cur_row - 1, stack_suffix))
+        else:
+            assert 0, self.origin
 
     def take_picture(self, fn_base):
+
         def save(image, fn_base, img_ext):
             fn_full = fn_base + img_ext
             if img_ext == ".jpg":
@@ -420,7 +456,7 @@ class Planner(object):
             else:
                 image.save(fn_full)
 
-        self.hal.settle()
+        self.movement.settle()
         if not self.dry:
             if self.imager_take:
                 self.imager_take.take(fn_base)
@@ -441,7 +477,7 @@ class Planner(object):
                 raise Exception('Center stacking requires odd n')
             # how much to step on each side
             n2 = (self.num_stack - 1) / 2
-            self.hal.move_absolute({'z': -n2 * self.stack_step_size})
+            self.movement.move_absolute({'z': -n2 * self.stack_step_size})
             '''
             Say 3 image stack
             Move down 1 step to start and will have to do 2 more
@@ -449,7 +485,7 @@ class Planner(object):
             for i in range(n):
                 img_fn = self.img_fn('_z%02d' % i)
                 self.take_picture(img_fn)
-                # Avoid moving at end
+                # Avoid moving at actual_end
                 if i != n:
                     self.move_relative(None, None, self.stack_step_size)
                     # we now sleep before the actual picture is taken
@@ -469,25 +505,25 @@ class Planner(object):
         au_tol *= 25.4
 
         # Basic sanity check
-        au_tol = self.y.view_au / 100
-        xmax = cur_x + self.x.view_au
-        ymax = cur_y + self.y.view_au
+        au_tol = self.y.view_mm / 100
+        xmax = cur_x + self.x.view_mm
+        ymax = cur_y + self.y.view_mm
 
         fail = False
 
-        if cur_col < 0 or cur_col >= self.x.images():
+        if cur_col < 0 or cur_col >= self.x.images_actual():
             self.log('Col out of range 0 <= %d < %d' %
-                     (cur_col, self.x.images()))
+                     (cur_col, self.x.images_actual()))
             fail = True
-        if cur_x < self.x.start - au_tol or xmax > self.x.end + au_tol:
+        if cur_x < self.x.start - au_tol or xmax > self.x.actual_end + au_tol:
             self.log('X out of range')
             fail = True
 
-        if cur_row < 0 or cur_row >= self.y.images():
+        if cur_row < 0 or cur_row >= self.y.images_actual():
             self.log('Row out of range 0 <= %d < %d' %
-                     (cur_row, self.y.images()))
+                     (cur_row, self.y.images_actual()))
             fail = True
-        if cur_y < self.y.start - au_tol or ymax > self.y.end + au_tol:
+        if cur_y < self.y.start - au_tol or ymax > self.y.actual_end + au_tol:
             self.log('Y out of range')
             fail = True
 
@@ -499,8 +535,9 @@ class Planner(object):
             self.log('  Col: %g' % cur_col)
             raise Exception(
                 'Bad point (%g + %g = %g, %g + %g = %g) for range (%g, %g) to (%g, %g)'
-                % (cur_x, self.x.view_au, xmax, cur_y, self.y.view_au, ymax,
-                   self.x.start, self.y.start, self.x.end, self.y.end))
+                % (cur_x, self.x.view_mm, xmax, cur_y, self.y.view_mm, ymax,
+                   self.x.start, self.y.start, self.x.actual_end,
+                   self.y.actual_end))
 
     def exclude(self, p):
         (_xy, (cur_row, cur_col)) = p
@@ -563,34 +600,88 @@ class Planner(object):
         self.log()
         self.log()
         self.log()
-        hal_dry_old = self.hal.dry
+        hal_dry_old = self.movement.dry
         self.max_move = {'x': 0, 'y': 0}
         try:
-            self.hal.set_dry(self.dry)
-            self.comment('Generated by pr0ncnc on %s' %
+            self.movement.set_dry(self.dry)
+            self.comment('Generated by pyuscope on %s' %
                          (time.strftime("%d/%m/%Y %H:%M:%S"), ))
-            self.comment('Size: x %f um / %d pix, y %f um / %d pix' %
-                         (self.x.delta(), self.x.delta_pixels(),
-                          self.y.delta(), self.y.delta_pixels()))
-            mp = self.x.delta_pixels() * self.y.delta_pixels() / (10**6)
-            imgr_mp = self.img_sz[0] * self.img_sz[0] / 1.e6
-            self.comment('Imager size: %0.1f MP (%dw x %dh) raw => %0.1f MP' %
-                         (imgr_mp, self.img_sz[0], self.img_sz[1], imgr_mp))
 
-            if mp >= 1000:
-                self.comment('Image size: %0.1f GP' % (mp / 1000, ))
+            # imgr_mp = self.imager.wh()[0] * self.imager.wh()[1] / 1.e6
+            # imagr_mp = self.x.view_pixels * self.y.view_pixels
+
+            def pix_str(pixels):
+                pixels = pixels / 1e6
+                if pixels >= 1000:
+                    return "%0.1f GP" % (pixels / 1000, )
+                else:
+                    return "%0.1f MP" % (pixels, )
+
+            # Print separate if small pano forces adjusting bounds
+            print_req = (self.x.requested_delta_pixels(),
+                         self.y.requested_delta_pixels()) != (
+                             self.x.actual_delta_pixels(),
+                             self.y.actual_delta_pixels())
+            if print_req:
+                self.comment("Pano requested size:")
             else:
-                self.comment('Image size: %0.1f MP' % (mp, ))
-            self.comment('fov: x %f, y %f' % (self.x.view_au, self.y.view_au))
-            self.comment('step: x %f, y %f' % (self.x.step(), self.y.step()))
+                self.comment("Pano size (requested/actual):")
+            self.comment(
+                "  mm: %0.3f x,  %0.3f y => %0.1f mm2" %
+                (self.x.requested_delta_mm(), self.y.requested_delta_mm(),
+                 self.x.requested_delta_mm() * self.y.requested_delta_mm()))
+            self.comment("  pix: %u x,  %u y => %s" %
+                         (self.x.requested_delta_pixels(),
+                          self.y.requested_delta_pixels(),
+                          pix_str(self.x.requested_delta_pixels() *
+                                  self.y.requested_delta_pixels())))
+            if print_req:
+                self.comment("  end: %u x,  %us" %
+                             (self.x.requested_end, self.y.requested_end))
 
-            self.comment('pictures: %d' % self.pictures_to_take)
+            if print_req:
+                self.comment("Pano actual size:")
+                self.comment(
+                    "  mm: %0.3f x,  %0.3f y => %0.1f mm2" %
+                    (self.x.actual_delta_mm(), self.y.actual_delta_mm(),
+                     self.x.actual_delta_mm() * self.y.actual_delta_mm()))
+                self.comment("  pix: %u x,  %u y => %s" %
+                             (self.x.actual_delta_pixels(),
+                              self.y.actual_delta_pixels(),
+                              pix_str(self.x.actual_delta_pixels() *
+                                      self.y.actual_delta_pixels())))
+                self.comment("  end: %u x,  %us" %
+                             (self.x.actual_end, self.y.actual_end))
+
+            # FIXME
+            assert not print_req, ((self.x.requested_delta_pixels(),
+                                    self.y.requested_delta_pixels()),
+                                   (self.x.actual_delta_pixels(),
+                                    self.y.actual_delta_pixels()))
+
+            self.comment("Imager size:")
+            self.comment("  mm: %0.3f x,  %0.3f y => %0.1f mm2" %
+                         (self.x.view_mm, self.y.view_mm,
+                          self.x.view_mm * self.y.view_mm))
+            self.comment("  pix: %u x,  %u y => %0.1f MP" %
+                         (self.x.view_pixels, self.y.view_pixels,
+                          self.x.view_pixels * self.y.view_pixels / 1e6))
+            self.comment("Derived:")
+            self.comment('  Ideal pictures: %0.1f x, %0.1f y => %0.1f' %
+                         (self.x.images_ideal(), self.y.images_ideal(),
+                          self.x.images_ideal() * self.y.images_ideal()))
+            self.comment('  Actual pictures: %u x, %u y => %u' %
+                         (self.x.images_actual(), self.y.images_actual(),
+                          self.x.images_actual() * self.y.images_actual()))
+            self.comment('  Generated positions: %u' % self.pictures_to_take)
+            self.comment('  step: %0.3f x, %0.3f y' %
+                         (self.x.step(), self.y.step()))
             self.comment()
 
             self.prepare_image_output()
 
             if not self.dry:
-                self.hal.begin()
+                self.movement.begin()
 
             # Do initial backlash compensation
             self.backlash_init()
@@ -651,7 +742,7 @@ class Planner(object):
                 self.write_meta()
         finally:
             print(('Planner: restoring old dry %s' % (str(hal_dry_old))))
-            self.hal.set_dry(hal_dry_old)
+            self.movement.set_dry(hal_dry_old)
 
     def gen_meta(self):
         '''Can only be called after run'''
@@ -678,15 +769,18 @@ class Planner(object):
 
     def backlash_init(self):
         if self.x.backlash:
-            self.hal.move_absolute({
-                'x': self.axes['x'].start - self.x.backlash,
-                'y': self.axes['y'].start - self.y.backlash
+            self.movement.move_absolute({
+                'x':
+                self.axes['x'].start - self.x.backlash,
+                'y':
+                self.axes['y'].start - self.y.backlash
             })
         self.x.comp = 1
         self.y.comp = 1
 
     def move_absolute_backlash(self, move_to):
         '''Do an absolute move with backlash compensation'''
+
         def fmt_axis(c):
             if c in move_to:
                 self.max_move[c] = max(self.max_move[c], move_to[c])
@@ -717,5 +811,5 @@ class Planner(object):
                 # Go far right
                 blsh_mv[axisc] = move_to[axisc] + axis.backlash
                 axis.comp = -1
-            self.hal.move_absolute(blsh_mv)
-        self.hal.move_absolute(move_to)
+            self.movement.move_absolute(blsh_mv)
+        self.movement.move_absolute(move_to)

@@ -12,6 +12,7 @@ cnc = None
 
 
 class CNC(object):
+
     def __init__(self, em=-1, rpm=None, fr=2.0, fr_z=1.0, verbose=False):
         # was default 1./8
         # for drilling?
@@ -95,7 +96,7 @@ def rpm(val):
     line('M3 S%0.1f' % val)
 
 
-def end():
+def actual_end():
     line()
     # Make sure don't crash
     clear_zq()
@@ -303,7 +304,7 @@ def circ_cent_out(x, y, r, finishes=1):
 
 
 def endrange(start, end, inc, finish=0.001, com=False):
-    '''Inclusive float range(): ending at end instead of beginning like range does'''
+    '''Inclusive float range(): ending at actual_end instead of beginning like range does'''
     if com:
         comment('endrange %0.3f, %0.3f, %0.3f, finish=%0.3f' %
                 (start, end, inc, finish))

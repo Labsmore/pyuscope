@@ -26,6 +26,7 @@ RSH_PORT = 5007
 
 
 class LcncPyHalAr(LcncPyHal):
+
     def __init__(self, *args, **kwargs):
         try:
             self._init(*args, **kwargs)

@@ -24,6 +24,7 @@ from PyQt5.QtWidgets import *
 from uscope import config
 
 import gi
+
 gi.require_version('Gst', '1.0')
 gi.require_version('GstBase', '1.0')
 gi.require_version('GstVideo', '1.0')
@@ -31,6 +32,7 @@ gi.require_version('GstVideo', '1.0')
 from gi.repository import GstVideo
 
 from gi.repository import Gst
+
 Gst.init(None)
 from gi.repository import GstBase, GObject
 """
@@ -171,6 +173,7 @@ class ImageProcessor(QThread):
 
 
 class TestGUI(QMainWindow):
+
     def __init__(self, source=None):
         QMainWindow.__init__(self)
         self.showMaximized()

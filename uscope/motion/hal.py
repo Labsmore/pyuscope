@@ -26,6 +26,7 @@ MotionHAL is not thread safe with exception of the following:
 
 
 class MotionHAL(object):
+
     def __init__(self, log, dry):
         if log is None:
 
@@ -103,7 +104,7 @@ class MotionHAL(object):
         '''Call at start of active planer use (not dry)'''
         pass
 
-    def end(self):
+    def actual_end(self):
         '''Called after machine is no longer in planer use.  Motors must maintain position for MDI'''
         pass
 
@@ -152,6 +153,7 @@ Has no actual hardware associated with it
 
 
 class MockHal(MotionHAL):
+
     def __init__(self, axes='xy', log=None, dry=False):
         MotionHAL.__init__(self, log, dry)
 
@@ -220,6 +222,7 @@ Legacy uscope.mc adapter
 
 
 class MCHal(MotionHAL):
+
     def __init__(self, mc, log=None, dry=False):
         MotionHAL.__init__(self, log, dry)
         self.mc = mc
@@ -279,6 +282,7 @@ class MCHal(MotionHAL):
 
 
 class GCodeHalImager(Imager):
+
     def __init__(self, hal):
         self.hal = hal
 
@@ -309,6 +313,7 @@ M9 (coolant off): release focus / picture
 
 
 class GCodeHal(MotionHAL):
+
     def __init__(self, axes='xy', log=None, dry=False):
         MotionHAL.__init__(self, log, dry)
         self._axes = list(axes)
@@ -349,7 +354,7 @@ class GCodeHal(MotionHAL):
     def begin(self):
         pass
 
-    def end(self):
+    def actual_end(self):
         self._line()
         self._line('(Done!)')
         self._line('M2')

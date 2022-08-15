@@ -49,6 +49,7 @@ groups_gst = OrderedDict([
 
 
 class V4L2MU800ControlScroll(ImagerControlScroll):
+
     def __init__(self, vidpip, parent=None):
         self.vidpip = vidpip
         ImagerControlScroll.__init__(self,

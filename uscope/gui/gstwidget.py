@@ -11,6 +11,7 @@ import os
 import signal
 
 import gi
+
 gi.require_version('Gst', '1.0')
 gi.require_version('GstBase', '1.0')
 gi.require_version('GstVideo', '1.0')
@@ -20,6 +21,7 @@ gi.require_version('GstVideo', '1.0')
 # fortunately its not needed
 # from gi.repository import GdkX11, GstVideo
 from gi.repository import Gst
+
 Gst.init(None)
 from gi.repository import GstBase, GObject, GstVideo
 
@@ -62,6 +64,7 @@ class GstVideoPipeline:
     vidpip.setupGst()
     vidpip.run()
     """
+
     def __init__(self,
                  source=None,
                  full=True,

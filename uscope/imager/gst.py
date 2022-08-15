@@ -1,4 +1,5 @@
 import gi
+
 gi.require_version('Gst', '1.0')
 
 # Needed for window.get_xid(), xvimagesink.set_window_handle(), respectively:
@@ -6,6 +7,7 @@ gi.require_version('Gst', '1.0')
 # fortunately its not needed
 # from gi.repository import GdkX11, GstVideo
 from gi.repository import Gst
+
 Gst.init(None)
 from gi.repository import GLib
 
@@ -16,6 +18,7 @@ import threading
 
 
 class GstImager(Imager):
+
     def __init__(self, opts={}, verbose=False):
         Imager.__init__(self)
         self.image_ready = threading.Event()
@@ -26,8 +29,7 @@ class GstImager(Imager):
             source_name = "videotestsrc"
         self.source_name = source_name
 
-        self.width = opts.get("width", 640)
-        self.height = opts.get("height", 480)
+        self.width, self.height = opts.get("wh", (640, 480))
         self.gst_jpg = opts.get("gst_jpg", True)
 
         self.player = Gst.Pipeline.new("player")
@@ -75,6 +77,9 @@ class GstImager(Imager):
         bus.connect("message", self.on_message)
         bus.connect("sync-message::element", self.on_sync_message)
 
+    def wh(self):
+        return self.width, self.height
+
     def prepareSource(self, source_opts={}):
         # Must not be initialized until after layout is set
         # print(source)
@@ -108,6 +113,7 @@ class GstImager(Imager):
         """
 
     def get(self):
+
         def got_image(image_id):
             print('Image captured reported: %s' % image_id)
             self.image_id = image_id
@@ -172,8 +178,7 @@ def gst_get_args(args):
     height = int(height)
     source_opts = {
         "source": args.gst_source,
-        "width": width,
-        "height": height,
+        "wh": (width, height),
         "gst_jpg": args.gst_jpg,
         "v4l2src": {
             "device": args.v4l2src_device,

@@ -38,11 +38,13 @@ def trim_status_line(l):
 class GRBLSer:
 
     def __init__(self,
-                 port="/dev/ttyUSB0",
+                 port=None,
                  # some boards take more than 1 second to reset
                  ser_timeout=2.0,
                  reset=False,
                  verbose=False):
+        if port is None:
+            port = default_port()
         self.verbose = verbose
         self.verbose and print("opening", port)
         self.serial = serial.Serial(
@@ -265,10 +267,45 @@ class GRBLSer:
         self.txb(b"\x85")
 
 
+class MockGRBLSer(GRBLSer):
+    def __init__(self,
+                 port="/dev/ttyUSB0",
+                 # some boards take more than 1 second to reset
+                 ser_timeout=2.0,
+                 reset=False,
+                 verbose=False):
+        self.verbose = verbose
+        self.verbose and print("MOCK: opening", port)
+        self.serial = None
+        if reset:
+            # Reset which also checks communication
+            self.reset()
+
+    def txb(self, out):
+        self.verbose and print("MOCK: txb", out)
+
+    def txrx0(self, out, nl=True):
+        self.verbose and print("MOCK: txrx0", out)
+
+    def qstatus(self):
+        return {
+            "status": "Idle",
+            "MPos": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "FS": 0.0,
+        }
+
+    def question(self):
+        return "Idle|MPos:0.000,0.000,0.000|FS:0,0"
+
 class GRBL:
 
-    def __init__(self, reset=False, verbose=False):
-        self.gs = GRBLSer(reset=reset, verbose=verbose)
+    def __init__(self, port=None, reset=False, gs=None, verbose=False):
+        if gs is None:
+            if port == "mock":
+                gs = MockGRBLSer(reset=reset, verbose=verbose)
+            else:
+                gs = GRBLSer(port=port, reset=reset, verbose=verbose)
+        self.gs = gs
 
     def qstatus(self):
         """
@@ -375,3 +412,7 @@ class GrblHal(MotionHAL):
 
     def pos(self):
         return self.grbl.qstatus()["MPos"]
+
+
+def get_grbl(port=None, gs=None, reset=False, verbose=False):
+    return GRBL(port=port, gs=gs, reset=reset, verbose=verbose)

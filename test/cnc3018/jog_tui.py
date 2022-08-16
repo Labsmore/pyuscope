@@ -6,6 +6,7 @@ import time
 import sys
 from threading import Thread, Lock
 
+
 def on_press(key):
     mutex.acquire()
     value = getattr(key, "char", None)
@@ -18,6 +19,7 @@ def on_press(key):
         s.write(b'$J=G91 X-1 F100\n')
         s.flush()
     mutex.release()
+
 
 def on_release(key):
     # hack to wait for ok
@@ -40,19 +42,21 @@ def on_release(key):
         return False
     mutex.release()
 
+
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Control X axis with a/d")
-    parser.add_argument("tty", nargs="?", default='/dev/tty.usbserial-1410', help="tty")
+    parser = argparse.ArgumentParser(description="Control X axis with a/d")
+    parser.add_argument("--port",
+                        nargs="?",
+                        default='/dev/tty.usbserial-1410',
+                        help="tty")
     args = parser.parse_args()
 
-    s = serial.Serial(args.tty, 115200)
+    s = serial.Serial(args.port, 115200)
     mutex = Lock()
 
     # Collect events until released
-    with keyboard.Listener(
-            on_press=on_press,
-            on_release=on_release) as listener:
+    with keyboard.Listener(on_press=on_press,
+                           on_release=on_release) as listener:
         listener.join()

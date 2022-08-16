@@ -90,6 +90,9 @@ class GRBLSer:
         return self.serial.readline().decode("ascii").strip()
 
     def txrxs(self, out, nl=True, trim_data=True):
+        """
+        Send a command and return array of lines before ok line
+        """
         self.tx(out, nl=nl)
         ret = []
         while True:
@@ -108,10 +111,16 @@ class GRBLSer:
                     ret.append(l)
 
     def txrx0(self, out, nl=True):
+        """
+        Send a command and expect nothing back before ok
+        """
         ret = self.txrxs(out, nl=nl)
         assert len(ret) == 0
 
     def txrx(self, out, nl=True):
+        """
+        Send a command and expect one line back before ok
+        """
         ret = self.txrxs(out, nl=nl)
         assert len(ret) == 1
         return ret[0]
@@ -242,6 +251,11 @@ class GRBLSer:
         $N1=
         """
         return self.txrxs("$N")
+
+
+    def cancel(self):
+        # From Yusuf
+        self.tx("\x85")
 
 
 class GRBL:

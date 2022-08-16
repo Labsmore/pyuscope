@@ -4,6 +4,7 @@ from pynput import keyboard
 import serial
 import time
 import sys
+from threading import Thread, Lock
 
 if len(sys.argv) == 2:
     p = sys.argv[1]
@@ -12,8 +13,11 @@ else:
 
 s = serial.Serial(p, 115200)
 #s.open()
+mutex = Lock()
+
 
 def on_press(key):
+    mutex.acquire()
     print("")
     value = key.char
     # value = key.value
@@ -23,8 +27,10 @@ def on_press(key):
         s.write(b'$J=G91 X1 F100\n')
     if value == 'a':
         s.write(b'$J=G91 X-1 F100\n')
+    mutex.release()
 
 def on_release(key):
+    mutex.acquire()
     print("")
     s.write(b'\x85')
     # Adding delayed cancel as well, because
@@ -38,6 +44,7 @@ def on_release(key):
     if key == keyboard.Key.esc:
         # Stop listener
         return False
+    mutex.release()
 
 # Collect events until released
 with keyboard.Listener(

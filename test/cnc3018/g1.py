@@ -10,6 +10,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Execute a G1 movement command")
     add_bool_arg(parser, "--verbose", default=False, help="Verbose output")
+    # add_bool_arg(parser, "--reset", default=False, help="Reset controller")
     add_bool_arg(parser,
                  "--status",
                  default=False,

@@ -28,6 +28,7 @@ class TestGUI(QMainWindow):
         self.grbl = grbl
         QMainWindow.__init__(self)
         self.initUI()
+        self.last_send = time.time()
 
     def initUI(self):
         self.setWindowTitle('Demo')
@@ -42,18 +43,25 @@ class TestGUI(QMainWindow):
     def keyPressEvent(self, event):
         k = event.key()
         # Ignore duplicates, want only real presses
-        if event.isAutoRepeat():
+        if 0 and event.isAutoRepeat():
             return
+
+        # spamming too many commands and queing up
+        if time.time() - self.last_send < 0.1:
+            return
+        self.last_send = time.time()
 
         # Focus is sensitive...should step slower?
         # worry sonce focus gets re-integrated
 
         axis = axis_map.get(k, None)
+        print("press %s" % (axis,))
+        # return
         if axis:
             axis, sign = axis
             print("Key jogging %s%c" % (axis, {1: '+', -1: '-'}[sign]))
 
-            cmd = "G91 %s%0.3f" % (axis, sign * 1.0)
+            cmd = "G91 %s%0.3f F100" % (axis, sign * 1.0)
             grbl.gs.j(cmd)
             if 1:
                 mpos = grbl.qstatus()["MPos"]
@@ -70,19 +78,10 @@ class TestGUI(QMainWindow):
             return
 
         axis = axis_map.get(k, None)
+        print("release %s" % (axis,))
+        # return
         if axis:
-            """
-            s.write(b'\x85')
-            # Adding delayed cancel as well, because
-            # there are times when the cancel doesn't
-            # take, possibly a queueing issue.
-            # 0.1 doesn't seem to work. 0.2 is fine.
-            time.sleep(0.2)
-            s.write(b'\x85')
-            """
-            grbl.gs.cancel()
-            time.sleep(0.2)
-            grbl.gs.cancel()
+            grbl.gs.cancel_jog()
 
 if __name__ == '__main__':
     import argparse

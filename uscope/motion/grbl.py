@@ -39,8 +39,9 @@ class GRBLSer:
 
     def __init__(self,
                  port="/dev/ttyUSB0",
-                 ser_timeout=0.5,
-                 reset=True,
+                 # some boards take more than 1 second to reset
+                 ser_timeout=2.0,
+                 reset=False,
                  verbose=False):
         self.verbose = verbose
         self.verbose and print("opening", port)
@@ -82,6 +83,12 @@ class GRBLSer:
         if nl:
             out = out + '\r'
         out = out.encode('ascii')
+        # util.hexdump(out)
+        self.serial.write(out)
+        self.serial.flush()
+
+    def txb(self, out):
+        # self.verbose and print("tx '%s'" % (out, ))
         # util.hexdump(out)
         self.serial.write(out)
         self.serial.flush()
@@ -140,7 +147,7 @@ class GRBLSer:
         l = self.readline().strip()
         assert l == ""
         l = self.readline().strip()
-        assert "Grbl" in l
+        assert "Grbl" in l, l
 
     def dollar(self):
         """
@@ -253,15 +260,15 @@ class GRBLSer:
         return self.txrxs("$N")
 
 
-    def cancel(self):
+    def cancel_jog(self):
         # From Yusuf
-        self.tx("\x85")
+        self.txb(b"\x85")
 
 
 class GRBL:
 
-    def __init__(self, verbose=False):
-        self.gs = GRBLSer(verbose=verbose)
+    def __init__(self, reset=False, verbose=False):
+        self.gs = GRBLSer(reset=reset, verbose=verbose)
 
     def qstatus(self):
         """

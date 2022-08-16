@@ -20,6 +20,9 @@ def on_press(key):
     mutex.release()
 
 def on_release(key):
+    # hack to wait for ok
+    time.sleep(0.3)
+
     mutex.acquire()
     value = getattr(key, "char", None)
     print("")

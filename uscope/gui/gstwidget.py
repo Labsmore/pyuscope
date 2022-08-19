@@ -12,6 +12,9 @@ import signal
 
 import gi
 
+DEFAULT_TOUPCAMSRC_ESIZE = 0
+DEFAULT_V4L2_DEVICE = "/dev/video0"
+
 gi.require_version('Gst', '1.0')
 gi.require_version('GstBase', '1.0')
 gi.require_version('GstVideo', '1.0')
@@ -58,6 +61,7 @@ class GstVideoPipeline:
     """
     Integrates Qt widgets + gstreamer pipelines for easy setup
     Allows teeing off the pipeline for custom post processing
+    (ex: saving an image, evaluating focus)
 
     vidpip = GstVideoPipeline()
     vidpip.setupWidgets()
@@ -69,8 +73,10 @@ class GstVideoPipeline:
                  source=None,
                  full=True,
                  roi=False,
-                 usj=True,
+                 usj=None,
                  nwidgets=None):
+        if usj is None:
+            usj = config.get_usj()
         self.usj = usj
         self.source = None
         self.source_name = None
@@ -90,9 +96,8 @@ class GstVideoPipeline:
 
         if self.usj:
             # TODO: auto calc these or something better
-            usj = config.get_usj()
-            self.camw = usj["imager"]["width"]
-            self.camh = usj["imager"]["height"]
+            self.camw = self.usj["imager"]["width"]
+            self.camh = self.usj["imager"]["height"]
         # maybe just make this required
         else:
             # Could query
@@ -100,7 +105,7 @@ class GstVideoPipeline:
 
         # Must not be initialized until after layout is set
         if source is None:
-            source = usj["imager"].get("source", "auto")
+            source = self.usj["imager"].get("source", "auto")
         if source == "auto":
             source = auto_detect_source()
         self.source_name = source
@@ -256,7 +261,7 @@ class GstVideoPipeline:
         if self.source_name in ('gst-v4l2src', 'gst-v4l2src-mu800'):
             self.source = Gst.ElementFactory.make('v4l2src', None)
             assert self.source is not None
-            self.source.set_property("device", "/dev/video0")
+            self.source.set_property("device", DEFAULT_V4L2_DEVICE)
         elif self.source_name == 'gst-toupcamsrc':
             self.source = Gst.ElementFactory.make('toupcamsrc', None)
             assert self.source is not None, "Failed to load toupcamsrc. Is it in the path?"
@@ -269,8 +274,7 @@ class GstVideoPipeline:
             raise Exception('Unknown source %s' % (self.source_name, ))
 
         if self.usj:
-            usj = config.get_usj()
-            properties = usj["imager"].get("source_properties", {})
+            properties = self.usj["imager"].get("source_properties", {})
             for propk, propv in properties.items():
                 print("Set source %s => %s" % (propk, propv))
                 self.source.set_property(propk, propv)
@@ -340,10 +344,8 @@ class GstVideoPipeline:
             "Setting up gstreamer pipeline w/ full=%u, roi=%u, tees-r %u, tees-vc %u"
             % (self.full, self.roi, len(raw_tees), len(vc_tees)))
 
-        usj = config.get_usj()
-
         if esize is None:
-            esize = usj["imager"].get("esize", None)
+            esize = self.usj["imager"].get("esize", None)
         self.prepareSource(esize=esize)
         self.player.add(self.source)
         """
@@ -357,7 +359,7 @@ class GstVideoPipeline:
         self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")
         self.raw_capsfilter.props.caps = Gst.Caps(
             "video/x-raw,width=%u,height=%u" %
-            (usj["imager"]["width"], usj["imager"]["height"]))
+            (self.usj["imager"]["width"], self.usj["imager"]["height"]))
         self.player.add(self.raw_capsfilter)
 
         if not self.source.link(self.raw_capsfilter):

@@ -15,6 +15,9 @@ from uscope.imager.imager import Imager
 from uscope.gst_util import CaptureSink
 from uscope.util import add_bool_arg
 import threading
+"""
+Stand alone imager that doesn't rely on GUI feed
+"""
 
 
 class GstImager(Imager):
@@ -152,13 +155,20 @@ class GstImager(Imager):
 
 
 def gst_add_args(parser):
+    """
+    Consumed in two ways:
+    -CLI app directly
+    -Converted to usj for simple apps
+    """
+
     # FIXME: some issue with raw, keep default
     add_bool_arg(
         parser,
         "--gst-jpg",
         default=True,
         help="Capture jpg (as opposed to raw) using gstreamer encoder")
-    add_bool_arg(parser, "--show", default=False, help="")
+    # ??? what was this
+    # add_bool_arg(parser, "--show", default=False, help="FIXME remove?")
     parser.add_argument("--gst-wh",
                         default="640,480",
                         help="Image width,height")
@@ -170,6 +180,49 @@ def gst_add_args(parser):
     parser.add_argument("--gst-source",
                         default="videotestsrc",
                         help="videotestsrc, v4l2src, toupcamsrc")
+
+
+def gst_args_to_usj(args):
+    """
+    Convert gst_add_args() args result to usj["imager"] section
+
+
+    "imager": {
+        "engine":"gst-testsrc",
+        "width": 800,
+        "height": 600,
+        "scalar": 0.5
+    },
+    "imager": {
+        "source":"gst-v4l2src",
+        "width": 1280,
+        "height": 720,
+        "source_properties": {
+            "device": "/dev/video1"
+        },
+        "scalar": 0.5
+    },
+    "imager": {
+        "source":"gst-toupcamsrc",
+        "width": 5440,
+        "height": 3648,
+        "!source_properties": {
+            "esize": 0
+        },
+        "scalar": 0.5
+    },
+    """
+    j = {
+        "source_properties": {},
+    }
+    j["source"] = "gst-" + args["gst_source"]
+    w, h = args["gst_wh"].split(",")
+    j["width"], j["height"] = int(w), int(h)
+    if j["source"] == "gst-v4l2src":
+        j["source_properties"]["device"] = args["v4l2src_device"]
+    if j["source"] == "gst-toupcamsrc":
+        j["source_properties"]["esize"] = args["toupcamsrc_esize"]
+    return j
 
 
 def gst_get_args(args):

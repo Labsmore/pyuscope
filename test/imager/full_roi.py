@@ -13,16 +13,18 @@ gst-launch-1.0 toupcamsrc ! tee name=t \
 
 from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main, Gst
 from uscope.gst_util import CbSink
+from uscope.imager import gst
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
 
-class TestGUI(QMainWindow):
+class MainWindow(QMainWindow):
 
-    def __init__(self, source=None):
+    def __init__(self, **args):
         QMainWindow.__init__(self)
-        self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)
+        usj = {"imager": gst.gst_args_to_usj(args)}
+        self.vidpip = GstVideoPipeline(usj=usj, full=True, roi=True)
         self.initUI()
         self.mysink = CbSink()
 
@@ -45,5 +47,15 @@ class TestGUI(QMainWindow):
         self.show()
 
 
+def parse_args():
+    import argparse
+
+    parser = argparse.ArgumentParser(description='')
+    gst.gst_add_args(parser)
+    args = parser.parse_args()
+
+    return vars(args)
+
+
 if __name__ == '__main__':
-    gstwidget_main(TestGUI)
+    gstwidget_main(MainWindow, parse_args=parse_args)

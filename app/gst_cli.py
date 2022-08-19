@@ -18,7 +18,7 @@ v4l
 ================================================================================
 
 Example:
-./app/gst_cli.py --gst-source v4l2src --v4l2src-device /dev/video2 --gst-wh 640,480 --gst-jpg out.jpg
+./app/gst_cli.py --gst-source v4l2src --v4l2src-device /dev/video0 --gst-wh 640,480 --gst-jpg out.jpg
 
 Notes:
 -width/height must match a valid resolution

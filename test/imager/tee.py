@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 Demonstrate splitting a gstreamer stream
 """

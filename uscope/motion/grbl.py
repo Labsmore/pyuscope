@@ -29,6 +29,8 @@ def trim_data_line(l):
 
 
 def trim_status_line(l):
+    if len(l) < 2:
+        raise ValueError("bad line")
     # print("test", l)
     assert l[0] == "<"
     assert l[-1] == ">"

@@ -8,7 +8,7 @@ gst-launch-1.0 toupcamsrc ! tee name=t \
     ! queue ! videoconvert ! videoscale ! ximagesink
 """
 
-from uscope.gstwidget import GstVideoPipeline, gstwidget_main, Gst
+from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main, Gst
 from uscope.gst_util import CbSink
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *

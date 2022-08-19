@@ -22,7 +22,7 @@ defaults = {
         "height": 2448,
         "scalar": 0.5,
     },
-    "cnc": {
+    "motion": {
         # Good for testing and makes usable to systems without CNC
         "engine": "mock",
         "startup_run": False,

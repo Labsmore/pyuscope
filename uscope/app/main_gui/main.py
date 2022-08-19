@@ -58,10 +58,10 @@ def error(msg, code=1):
 
 def get_cnc_hal(log=print):
     try:
-        lcnc_host = usj["cnc"]["lcnc"]["host"]
+        lcnc_host = usj["motion"]["lcnc"]["host"]
     except KeyError:
         lcnc_host = "mk"
-    engine = usj['cnc']['engine']
+    engine = usj['motion']['engine']
     log('get_cnc_hal: %s' % engine)
 
     if engine == 'mock':
@@ -161,7 +161,6 @@ These are disabled right now and movement must be done from X GUI
 """
 
 
-
 class PropertiesWindow(QMainWindow):
 
     def __init__(self, vidpip, show=True, parent=None):
@@ -255,7 +254,7 @@ class MainWindow(QMainWindow):
 
         self.init_imager()
 
-        if self.usj['cnc']['startup_run']:
+        if self.usj['motion']['startup_run']:
             self.run()
 
     def __del__(self):
@@ -589,7 +588,7 @@ class MainWindow(QMainWindow):
         self.pt = None
         self.cnc_thread.hal.dry = False
         self.setControlsEnabled(True)
-        if self.usj['cnc']['startup_run_exit']:
+        if self.usj['motion']['startup_run_exit']:
             print('Planner debug break on completion')
             os._exit(1)
         # Prevent accidental start after done
@@ -812,7 +811,7 @@ class MainWindow(QMainWindow):
 
             layout.addWidget(QLabel('Dry?'))
             self.dry_cb = QCheckBox()
-            self.dry_cb.setChecked(self.usj['cnc']['dry'])
+            self.dry_cb.setChecked(self.usj['motion']['dry'])
             layout.addWidget(self.dry_cb)
 
             self.pb = QProgressBar()

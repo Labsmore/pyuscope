@@ -357,6 +357,10 @@ class GRBL:
             "FS": fs,
         }
 
+    def mpos(self):
+        """Return current absolute position"""
+        return self.qstatus()["MPos"]
+
     def move_absolute(self, moves, f, blocking=True):
         # implies G1
         ax_str = ''.join(

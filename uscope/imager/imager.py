@@ -29,11 +29,11 @@ class Imager:
     def __init__(self, verbose=False):
         self.verbose = verbose
 
-    # Must implement at least one of the following
-
     def wh(self):
         """Return width, height"""
-        raise Exception('Required')
+        raise Exception('Required %s' % type(self))
+
+    # Must implement at least one of the following
 
     def get(self):
         '''Return PIL image object'''
@@ -48,6 +48,9 @@ class MockImager(Imager):
 
     def __init__(self, verbose=False):
         Imager.__init__(self, verbose=verbose)
+
+    def wh(self):
+        return 640, 480
 
     def get(self):
         # Small test image

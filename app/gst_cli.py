@@ -71,7 +71,7 @@ def main():
     parser.add_argument("out", nargs="?", help="File to save to")
     args = parser.parse_args()
 
-    imager = gst.GstImager(gst.gst_get_args(args))
+    imager = gst.GstCLIImager(gst.gst_get_args(args))
 
     def thread(loop):
         if imager.source_name == "toupcamsrc":

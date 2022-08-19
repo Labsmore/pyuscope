@@ -8,10 +8,13 @@ from uscope.config import get_usj, cal_load_all
 from uscope.imager.imager import Imager, MockImager
 from uscope.img_util import get_scaled
 from uscope.benchmark import Benchmark
+
 from uscope.motion import hal as cnc_hal
 from uscope.motion.lcnc import hal as lcnc_hal
 from uscope.motion.lcnc import hal_ar as lcnc_ar
 from uscope.motion.lcnc.client import LCNCRPC
+from uscope.motion.grbl import GrblHal
+
 from uscope.gst_util import Gst, CaptureSink
 
 from uscope.app.main_gui.threads import CncThread, PlannerThread
@@ -83,11 +86,13 @@ def get_cnc_hal(log=print):
         return lcnc_ar.LcncPyHalAr(host=lcnc_host, log=log)
     elif engine == 'lcnc-rsh':
         return lcnc_hal.LcncRshHal(log=log)
+    elif engine == 'grbl':
+        return GrblHal()
     else:
         raise Exception("Unknown CNC engine %s" % engine)
 
 
-class GstImager(Imager):
+class GstGUIImager(Imager):
 
     class Emitter(QObject):
         change_properties = pyqtSignal(dict)
@@ -97,7 +102,12 @@ class GstImager(Imager):
         self.gui = gui
         self.image_ready = threading.Event()
         self.image_id = None
-        self.emitter = GstImager.Emitter()
+        self.emitter = GstGUIImager.Emitter()
+        # FIXME
+        self.width, self.height = (640, 480)
+
+    def wh(self):
+        return self.width, self.height
 
     def next_image(self):
         #self.gui.emit_log('gstreamer imager: taking image to %s' % file_name_out)
@@ -154,6 +164,11 @@ class GstImager(Imager):
             v4lj[k] = int(str(v.text()))
         imagerj["v4l"] = v4lj
         """
+
+
+"""
+Widget that listens for WSAD keys for linear stage movement
+"""
 
 
 class JogListener(QPushButton):
@@ -350,8 +365,8 @@ class MainWindow(QMainWindow):
         self.log_fd = None
         hal = get_cnc_hal(log=self.emit_log)
         hal.progress = self.hal_progress
-        self.cnc_thread = CncThread(hal=hal, cmd_done=self.cmd_done)
-        self.cnc_thread.log_msg.connect(self.log)
+        self.motion_thread = CncThread(hal=hal, cmd_done=self.cmd_done)
+        self.motion_thread.log_msg.connect(self.log)
         self.initUI()
 
         # Special UI initialization
@@ -364,7 +379,9 @@ class MainWindow(QMainWindow):
 
         self.vid_fd = None
 
-        self.cnc_thread.start()
+        self.motion_thread.start()
+        if self.position_poll_timer:
+            self.position_poll_timer.start(200)
 
         # Offload callback to GUI thread so it can do GUI ops
         self.cncProgress.connect(self.processCncProgress)
@@ -381,10 +398,10 @@ class MainWindow(QMainWindow):
 
     def shutdown(self):
         try:
-            self.cnc_thread.hal.ar_stop()
-            if self.cnc_thread:
-                self.cnc_thread.stop()
-                self.cnc_thread = None
+            self.motion_thread.hal.ar_stop()
+            if self.motion_thread:
+                self.motion_thread.stop()
+                self.motion_thread = None
             if self.pt:
                 self.pt.stop()
                 self.pt = None
@@ -412,9 +429,21 @@ class MainWindow(QMainWindow):
         # however, if it hasn't been created yet assume we should log from this thread
         self.log_msg.emit(s)
 
+    def poll_update_pos(self):
+        if not self.motion_widget:
+            return
+        grbl = self.motion_widget.grbl
+        self.update_pos(grbl.mpos())
+        self.position_poll_timer.start(1000)
+
     def update_pos(self, pos):
+        # FIXME: this is causing screen flickering
+        # https://github.com/Labsmore/pyuscope/issues/34
         for axis, axis_pos in pos.items():
-            self.axis_pos_label[axis].pos_value.setText('%0.3f' % axis_pos)
+            # hack...not all systems use z but is included by default
+            if axis == 'z' and axis not in self.axis_pos_label:
+                continue
+            self.axis_pos_label[axis].setText('%0.3f' % axis_pos)
 
     def hal_progress(self, pos):
         # self.pos.emit(pos)
@@ -455,7 +484,7 @@ class MainWindow(QMainWindow):
         if source == 'mock':
             self.imager = MockImager()
         elif source.find("gst-") == 0:
-            self.imager = GstImager(self)
+            self.imager = GstGUIImager(self)
             self.imager.emitter.change_properties.connect(
                 self.control_scroll.set_disp_properties)
         else:
@@ -583,7 +612,7 @@ class MainWindow(QMainWindow):
             os.mkdir(out_dir)
 
         rconfig = {
-            'cnc_hal': self.cnc_thread.hal,
+            'motion': self.motion_thread.hal,
 
             # Will be offloaded to its own thread
             # Operations must be blocking
@@ -607,7 +636,7 @@ class MainWindow(QMainWindow):
         # If user had started some movement before hitting run wait until its done
         dbg("Waiting for previous movement (if any) to cease")
         # TODO: make this not block GUI
-        self.cnc_thread.wait_idle()
+        self.motion_thread.wait_idle()
         """
         {
             //input directly into planner
@@ -705,7 +734,7 @@ class MainWindow(QMainWindow):
         # Cleanup camera objects
         self.log_fd = None
         self.pt = None
-        self.cnc_thread.hal.dry = False
+        self.motion_thread.hal.dry = False
         self.setControlsEnabled(True)
         if self.usj['motion']['startup_run_exit']:
             print('Planner debug break on completion')
@@ -720,15 +749,15 @@ class MainWindow(QMainWindow):
     """
     def stop(self):
         '''Stop operations after the next operation'''
-        self.cnc_thread.stop()
+        self.motion_thread.stop()
 
     def estop(self):
         '''Stop operations immediately.  Position state may become corrupted'''
-        self.cnc_thread.estop()
+        self.motion_thread.estop()
 
     def clear_estop(self):
         '''Stop operations immediately.  Position state may become corrupted'''
-        self.cnc_thread.unestop()
+        self.motion_thread.unestop()
     """
 
     def set_start_pos(self):
@@ -745,7 +774,7 @@ class MainWindow(QMainWindow):
         '''
         # take as upper left corner of view area
         # this is the current XY position
-        pos = self.cnc_thread.pos()
+        pos = self.motion_thread.pos()
         #self.log("Updating start pos w/ %s" % (str(pos)))
         self.plan_x0_le.setText('%0.3f' % pos['x'])
         self.plan_y0_le.setText('%0.3f' % pos['y'])
@@ -753,7 +782,7 @@ class MainWindow(QMainWindow):
     def set_end_pos(self):
         # take as lower right corner of view area
         # this is the current XY position + view size
-        pos = self.cnc_thread.pos()
+        pos = self.motion_thread.pos()
         #self.log("Updating end pos from %s" % (str(pos)))
         x_view = self.obj_config["x_view"]
         y_view = 1.0 * x_view * self.usj['imager']['height'] / self.usj[
@@ -816,12 +845,17 @@ class MainWindow(QMainWindow):
 
         layout = QVBoxLayout()
         layout.addLayout(top())
+        self.motion_widget = None
+        self.position_poll_timer = None
         if 1 or self.usj["motion"]["engine"] == "grbl":
             from uscope.motion.grbl import get_grbl
 
             grbl = get_grbl(port="/dev/ttyUSB0", verbose=False)
             self.motion_widget = MotionWidget(grbl)
             layout.addWidget(self.motion_widget)
+
+            self.position_poll_timer = QTimer()
+            self.position_poll_timer.timeout.connect(self.poll_update_pos)
 
         gb = QGroupBox('Axes')
         gb.setLayout(layout)

@@ -15,12 +15,12 @@ from uscope.imager.imager import Imager
 from uscope.gst_util import CaptureSink
 from uscope.util import add_bool_arg
 import threading
-"""
-Stand alone imager that doesn't rely on GUI feed
-"""
 
 
-class GstImager(Imager):
+class GstCLIImager(Imager):
+    """
+    Stand alone imager that doesn't rely on GUI feed
+    """
 
     def __init__(self, opts={}, verbose=False):
         Imager.__init__(self)

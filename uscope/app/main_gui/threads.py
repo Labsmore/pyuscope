@@ -180,13 +180,12 @@ class PlannerThread(QThread):
             im_scalar = float(rconfig['uscope']['imager']['scalar'])
             obj = rconfig['uscope']['objective'][rconfig['obj']]
             im_w_pix = int(rconfig['uscope']['imager']['width']) * im_scalar
-            im_h_pix = int(rconfig['uscope']['imager']['height']) * im_scalar
-            x_um = float(obj['x_view'])
+            # im_h_pix = int(rconfig['uscope']['imager']['height']) * im_scalar
+            x_mm = float(obj['x_view'])
             self.planner = Planner(scan_config=scan_config,
-                                   hal=rconfig['cnc_hal'],
+                                   motion=rconfig['motion'],
                                    imager=rconfig['imager'],
-                                   img_sz=(im_w_pix, im_h_pix),
-                                   unit_per_pix=(x_um / im_w_pix),
+                                   mm_per_pix=(x_mm / im_w_pix),
                                    out_dir=rconfig['out_dir'],
                                    progress_cb=rconfig['progress_cb'],
                                    dry=rconfig['dry'],

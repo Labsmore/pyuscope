@@ -220,10 +220,6 @@ class MainWindow(QMainWindow):
 
         self.vid_fd = None
 
-        # Must not be initialized until after layout is set
-        self.gstWindowId = None
-        engine_config = self.usj['imager']['engine']
-
         self.cnc_thread.start()
 
         # Offload callback to GUI thread so it can do GUI ops

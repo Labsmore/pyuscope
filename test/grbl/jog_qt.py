@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """
 Jog 3018 CNC using arrow keys
+
+# Apps that interfere with serial ports
+sudo apt-get remove modemmanager brltty
+# Software we need
+sudo apt-get install -y python3-serial python3-pyqt5
+usermod -a -G dialout $USER
 """
 
 from PyQt5.QtGui import *

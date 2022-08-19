@@ -1,7 +1,7 @@
-from uscope.control_scroll import GstControlScroll
-from uscope.imagers.gst_toupcamsrc.widgets import TTControlScroll
-from uscope.imagers.gst_v4l2src.widgets import V4L2GstControlScroll
-from uscope.imagers.gst_v4l2src_mu800.widgets import V4L2MU800ControlScroll
+from uscope.gui.control_scroll import GstControlScroll
+from uscope.gui.imager.gst_toupcamsrc.widgets import TTControlScroll
+from uscope.gui.imager.gst_v4l2src.widgets import V4L2GstControlScroll
+from uscope.gui.imager.gst_v4l2src_mu800.widgets import V4L2MU800ControlScroll
 
 from collections import OrderedDict
 

@@ -23,7 +23,8 @@ def main():
 
     grbl = GRBL(verbose=args.verbose)
     print("Open ok")
-    # Can take up to three times to pop all status info
+    # Can take up to two times to pop all status info
+    # Third print is stable
     for i in range(3):
         print("")
         print("? (%u / %u)" % (i + 1, 3))

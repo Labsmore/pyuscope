@@ -5,7 +5,7 @@ No motion control
 """
 
 from uscope import gstwidget
-from uscope.control_scrolls import get_control_scroll
+from uscope.gui.control_scrolls import get_control_scroll
 from uscope.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gst_util import CbSink
 

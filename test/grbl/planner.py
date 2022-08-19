@@ -21,7 +21,7 @@ cat << EOF >scan.json
 }
 EOF
 
-./test/grbl/planner.py --gst-source videotestsrc --fov-w 456 --no-dry --overwrite scan.json out/
+./test/grbl/planner.py --gst-source videotestsrc --fov-w 1.0 --no-dry --overwrite --scan-json scan.json out/
 
 """
 
@@ -40,30 +40,30 @@ import time
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description='Planner module command line')
+    parser = argparse.ArgumentParser(description="Planner module command line")
     add_bool_arg(parser, "--verbose", default=False, help="Verbose output")
     gst.gst_add_args(parser)
-    parser.add_argument('--host',
-                        default='mk',
-                        help='Host.  Activates remote mode')
-    parser.add_argument('--port', default=22617, type=int, help='Host port')
-    parser.add_argument('--overwrite', action='store_true')
-    parser.add_argument('--fov-w',
+    parser.add_argument("--host",
+                        default="mk",
+                        help="Host.  Activates remote mode")
+    parser.add_argument("--port", default=22617, type=int, help="Host port")
+    parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--fov-w",
                         type=float,
                         required=True,
                         help="field of view width in units (typically mm)")
     add_bool_arg(parser,
                  '--dry',
                  default=True,
-                 help='Must be changed for real operation')
-    parser.add_argument('scan_json',
-                        nargs='?',
-                        default='scan.json',
-                        help='Scan parameters JSON')
+                 help="Must be changed for real operation")
+    parser.add_argument("--xy-max", default=None, help="Input parameters")
+    parser.add_argument("--scan-json",
+                        default=None,
+                        help="Scan parameters JSON")
     parser.add_argument('out',
-                        nargs='?',
-                        default='out/default',
-                        help='Output directory')
+                        nargs="?",
+                        default="out/default",
+                        help="Output directory")
     args = parser.parse_args()
 
     if os.path.exists(args.out):

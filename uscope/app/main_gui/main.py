@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
 
-from uscope.gstwidget import GstVideoPipeline, gstwidget_main
-from uscope.control_scrolls import get_control_scroll
+from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main
+from uscope.gui.control_scrolls import get_control_scroll
 from uscope.util import add_bool_arg
 
 from uscope.config import get_usj, cal_load_all
-from uscope.hal.img.imager import Imager
+from uscope.imager.imager import Imager, MockImager
 from uscope.img_util import get_scaled
 from uscope.benchmark import Benchmark
-from uscope.hal.img.imager import MockImager
-from uscope.hal.cnc import hal as cnc_hal
-from uscope.hal.cnc import lcnc_ar
-from uscope.hal.cnc import lcnc as lcnc_hal
-from uscope.lcnc.client import LCNCRPC
+from uscope.motion import hal as cnc_hal
+from uscope.motion.lcnc import hal as lcnc_hal
+from uscope.motion.lcnc import hal_ar as lcnc_ar
+from uscope.motion.lcnc.client import LCNCRPC
 from uscope.gst_util import Gst, CaptureSink
-from uscope.v4l2_util import ctrl_set
 
-from uscope.main_gui.threads import CncThread, PlannerThread
+from uscope.app.main_gui.threads import CncThread, PlannerThread
 from io import StringIO
 
 from PyQt5 import Qt
@@ -28,8 +26,6 @@ import time
 import datetime
 import os.path
 from PIL import Image
-import re
-import signal
 import socket
 import sys
 import traceback
@@ -70,6 +66,7 @@ def get_cnc_hal(log=print):
 
     if engine == 'mock':
         return cnc_hal.MockHal(log=log)
+    # we are on the actual linuxcnc system and can use the API directly
     elif engine == 'lcnc-py':
         import linuxcnc
 
@@ -163,9 +160,6 @@ Placeholder class
 These are disabled right now and movement must be done from X GUI
 """
 
-
-class LCNCMovement:
-    pass
 
 
 class PropertiesWindow(QMainWindow):

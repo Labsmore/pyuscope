@@ -144,6 +144,8 @@ class GstVideoPipeline:
         assert self.full or self.roi
         w, h, ratio = self.fit_pix(self.camw * self.nwidgets, self.camh)
         w = w / self.nwidgets
+        w = int(w)
+        h = int(h)
         print("%u widgets, cam %uw x %uh => xwidget %uw x %uh %ur" %
               (self.nwidgets, self.camw, self.camh, w, h, ratio))
 
@@ -158,8 +160,8 @@ class GstVideoPipeline:
     def set_full_widget_wh(self, w, h):
         assert self.full_capsfilter is None, "FIXME: handle gst initialized"
 
-        self.full_widget_w = w
-        self.full_widget_h = h
+        self.full_widget_w = int(w)
+        self.full_widget_h = int(h)
 
         if self.full_widget:
             self.full_widget.setMinimumSize(self.full_widget_w,

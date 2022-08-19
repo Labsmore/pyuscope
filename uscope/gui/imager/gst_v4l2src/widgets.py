@@ -3,7 +3,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
-from uscope.control_scroll import GstControlScroll
+from uscope.gui.control_scroll import GstControlScroll
 
 from collections import OrderedDict
 

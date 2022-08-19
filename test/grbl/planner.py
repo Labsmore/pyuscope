@@ -3,6 +3,7 @@
 3018 CNC panoramic imaging demo
 Uses grbl controller w/ touptek camera
 
+sudo apt-get install -y python3-gst-1.0
 
 Setup scan:
 
@@ -20,7 +21,7 @@ cat << EOF >scan.json
 }
 EOF
 
-./test/cnc3018/planner.py --gst-source videotestsrc --gst-wh 456,123 --no-dry --overwrite scan.json out/
+./test/grbl/planner.py --gst-source videotestsrc --fov-w 456 --no-dry --overwrite scan.json out/
 
 """
 

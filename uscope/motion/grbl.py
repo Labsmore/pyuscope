@@ -37,12 +37,13 @@ def trim_status_line(l):
 
 class GRBLSer:
 
-    def __init__(self,
-                 port=None,
-                 # some boards take more than 1 second to reset
-                 ser_timeout=2.0,
-                 reset=False,
-                 verbose=False):
+    def __init__(
+            self,
+            port=None,
+            # some boards take more than 1 second to reset
+            ser_timeout=2.0,
+            flush=True,
+            verbose=False):
         if port is None:
             port = default_port()
         self.verbose = verbose
@@ -59,12 +60,18 @@ class GRBLSer:
             timeout=ser_timeout,
             # Blocking writes
             writeTimeout=None)
-        self.serial.flushInput()
-        self.serial.flushOutput()
-        self.flush()
-        if reset:
-            # Reset which also checks communication
-            self.reset()
+
+        if flush:
+            # Try to abort an in progress command
+            # ^X will also work but resets whole controller
+            # ^C does not work
+            # WARNING: ! will also freeze most commands but not ?
+            # they will buffer into unfrozen
+            self.serial.flushInput()
+            self.serial.flushOutput()
+            self.txb(b"\r")
+            # Try to let any in progress command finish
+            self.flush()
 
     def flush(self):
         """
@@ -229,7 +236,7 @@ class GRBLSer:
         $G
         [GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]
         """
-        return self.txrx0("$")
+        return self.txrx("$G")
 
     def h(self):
         """
@@ -261,25 +268,23 @@ class GRBLSer:
         """
         return self.txrxs("$N")
 
-
     def cancel_jog(self):
         # From Yusuf
         self.txb(b"\x85")
 
 
 class MockGRBLSer(GRBLSer):
-    def __init__(self,
-                 port="/dev/ttyUSB0",
-                 # some boards take more than 1 second to reset
-                 ser_timeout=2.0,
-                 reset=False,
-                 verbose=False):
+
+    def __init__(
+            self,
+            port="/dev/ttyUSB0",
+            # some boards take more than 1 second to reset
+            ser_timeout=2.0,
+            flush=True,
+            verbose=False):
         self.verbose = verbose
         self.verbose and print("MOCK: opening", port)
         self.serial = None
-        if reset:
-            # Reset which also checks communication
-            self.reset()
 
     def txb(self, out):
         self.verbose and print("MOCK: txb", out)
@@ -290,22 +295,46 @@ class MockGRBLSer(GRBLSer):
     def qstatus(self):
         return {
             "status": "Idle",
-            "MPos": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "MPos": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
             "FS": 0.0,
         }
 
     def question(self):
         return "Idle|MPos:0.000,0.000,0.000|FS:0,0"
 
+
 class GRBL:
 
-    def __init__(self, port=None, reset=False, gs=None, verbose=False):
+    def __init__(self,
+                 port=None,
+                 flush=True,
+                 probe=True,
+                 reset=False,
+                 gs=None,
+                 verbose=False):
+        """
+        port: serial port file name
+        gs: supply your own serial port object
+        flush: try to clear old serial port communications before initializing
+        probe: check communications at init to make sure controlelr is working
+        reset: do a full reset at initialization. You will loose position and it will take a while
+        verbose: yell stuff to the screen
+        """
+
         if gs is None:
             if port == "mock":
-                gs = MockGRBLSer(reset=reset, verbose=verbose)
+                gs = MockGRBLSer(flush=flush, verbose=verbose)
             else:
-                gs = GRBLSer(port=port, reset=reset, verbose=verbose)
+                gs = GRBLSer(port=port, flush=flush, verbose=verbose)
         self.gs = gs
+        if reset:
+            self.reset()
+        if probe:
+            self.qstatus()
 
     def qstatus(self):
         """
@@ -350,7 +379,7 @@ class GRBL:
 class GrblHal(MotionHAL):
 
     def __init__(self, log=None, dry=False):
-        self.verbose = 0
+        self.verbose = False
         self.feedrate = None
         self.grbl = GRBL()
         MotionHAL.__init__(self, log, dry)

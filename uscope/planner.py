@@ -652,12 +652,13 @@ class Planner(object):
                                       self.y.actual_delta_pixels())))
                 self.comment("  end: %u x,  %us" %
                              (self.x.actual_end, self.y.actual_end))
-
+            """
             # FIXME
             assert not print_req, ((self.x.requested_delta_pixels(),
                                     self.y.requested_delta_pixels()),
                                    (self.x.actual_delta_pixels(),
                                     self.y.actual_delta_pixels()))
+            """
 
             self.comment("Imager size:")
             self.comment("  mm: %0.3f x,  %0.3f y => %0.1f mm2" %

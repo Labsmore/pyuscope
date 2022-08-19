@@ -22,20 +22,19 @@ def main():
     args = parser.parse_args()
 
     grbl = GRBL(verbose=args.verbose)
-    print("")
-    print("?")
-    print(grbl.gs.question())
-    print("?")
-    print(grbl.gs.question())
-    print("?")
-    print(grbl.gs.question())
+    print("Open ok")
+    # Can take up to three times to pop all status info
+    for i in range(3):
+        print("")
+        print("? (%u / %u)" % (i + 1, 3))
+        print(grbl.gs.question())
     print("")
     print("i")
     print(grbl.gs.i())
-    if 0:
-        print("")
-        print("g")
-        print(grbl.gs.g())
+    # FIXME
+    print("")
+    print("g")
+    print(grbl.gs.g())
     print("")
     print("$")
     print(grbl.gs.dollar())

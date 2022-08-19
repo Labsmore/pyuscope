@@ -9,6 +9,7 @@ import sys
 import traceback
 import os
 import signal
+from collections import OrderedDict
 
 import gi
 
@@ -69,39 +70,73 @@ class GstVideoPipeline:
     vidpip.run()
     """
 
-    def __init__(self,
-                 source=None,
-                 full=True,
-                 roi=False,
-                 usj=None,
-                 nwidgets=None):
+    def __init__(
+        self,
+        # gstreamer video source object
+        source=None,
+        # Enable overview view?
+        overview=True,
+        # Enable overview view?
+        # hack for second tab displaying overview
+        overview2=False,
+        # Enable ROI view?
+        roi=False,
+        # microscope configuration
+        usj=None,
+        # Manually specify how many widgets are expected in widest window
+        # Applicable if you have multiple tabs / windows
+        nwidgets_wide=None):
         if usj is None:
             usj = config.get_usj()
         self.usj = usj
+        assert self.usj, "required"
         self.source = None
         self.source_name = None
 
         # x buffer target
-        self.full = full
-        self.full_widget = None
-        self.full_widget_winid = None
-
+        self.overview = overview
+        self.overview2 = overview2
         # ROI view
         self.roi = roi
-        self.roi_widget = None
-        self.roi_widget_winid = None
+        """
+        key: gst name
+        widget: QWidget
+        winid: during ON_SYNC_MESSAGE give the winid to render to
+        width/height:
+        """
+        self.wigdatas = OrderedDict()
+        if self.overview:
+            self.wigdatas["overview"] = {
+                "type": "overview",
+                "name": "sinkx_overview",
+            }
+        if self.overview2:
+            self.wigdatas["overview2"] = {
+                "type": "overview",
+                "name": "sinkx_overview2",
+            }
+        if self.roi:
+            self.wigdatas["roi"] = {
+                "type": "roi",
+                "name": "sinkx_roi",
+            }
+
+        for wigdata in self.wigdatas.values():
+            wigdata["widget"] = None
+            wigdata["winid"] = None
+            wigdata["width"] = None
+            wigdata["height"] = None
+            # gst elements
+            wigdata["sinkx"] = None
+            wigdata["videoscale"] = None
+            wigdata["capsfilter"] = None
 
         # Must have at least one widget
-        assert self.full or self.roi
+        assert self.overview or self.roi
 
-        if self.usj:
-            # TODO: auto calc these or something better
-            self.camw = self.usj["imager"]["width"]
-            self.camh = self.usj["imager"]["height"]
-        # maybe just make this required
-        else:
-            # Could query
-            assert 0, "fixme?"
+        # TODO: auto calc these or something better
+        self.camw = self.usj["imager"]["width"]
+        self.camh = self.usj["imager"]["height"]
 
         # Must not be initialized until after layout is set
         if source is None:
@@ -117,16 +152,20 @@ class GstVideoPipeline:
         self.screenh = 900
         self.roi_zoom = 1
 
-        if not nwidgets:
-            nwidgets = 2 if self.full and self.roi else 1
-        self.nwidgets = nwidgets
+        if not nwidgets_wide:
+            nwidgets_wide = 2 if self.overview and self.roi else 1
+        self.nwidgets_wide = nwidgets_wide
 
-        self.full_capsfilter = None
-        self.roi_capsfilter = None
         self.size_widgets()
 
         # Needs to be done early so elements can be added before main setup
         self.player = Gst.Pipeline.new("player")
+
+    def get_widget(self, name):
+        """
+        Called by external user to get the widget to render to
+        """
+        return self.wigdatas[name]["widget"]
 
     def size_widgets(self, w=None, h=None, frac=None):
         """
@@ -146,43 +185,29 @@ class GstVideoPipeline:
         if h:
             self.screenh = h
 
-        assert self.full or self.roi
-        w, h, ratio = self.fit_pix(self.camw * self.nwidgets, self.camh)
-        w = w / self.nwidgets
+        assert self.overview or self.roi
+        w, h, ratio = self.fit_pix(self.camw * self.nwidgets_wide, self.camh)
+        w = w / self.nwidgets_wide
         w = int(w)
         h = int(h)
         print("%u widgets, cam %uw x %uh => xwidget %uw x %uh %ur" %
-              (self.nwidgets, self.camw, self.camh, w, h, ratio))
+              (self.nwidgets_wide, self.camw, self.camh, w, h, ratio))
 
-        self.full_widget_ratio = ratio
+        self.overview_widget_ratio = ratio
 
-        if self.full:
-            self.set_full_widget_wh(w, h)
+        for wigdata in self.wigdatas.values():
+            self.set_gst_widget_wh(wigdata, w, h)
 
-        if self.roi:
-            self.set_roi_widget_wh(w, h)
-
-    def set_full_widget_wh(self, w, h):
-        assert self.full_capsfilter is None, "FIXME: handle gst initialized"
-
-        self.full_widget_w = int(w)
-        self.full_widget_h = int(h)
-
-        if self.full_widget:
-            self.full_widget.setMinimumSize(self.full_widget_w,
-                                            self.full_widget_h)
-            self.full_widget.resize(self.full_widget_w, self.full_widget_h)
-
-    def set_roi_widget_wh(self, w, h):
-        assert self.roi_capsfilter is None, "FIXME: handle gst initialized"
-
-        self.roi_widget_w = w
-        self.roi_widget_h = h
-
-        if self.roi_widget:
-            self.roi_widget.setMinimumSize(self.roi_widget_w,
-                                           self.roi_widget_h)
-            self.roi_widget.resize(self.roi_widget_w, self.roi_widget_h)
+    def set_gst_widget_wh(self, wigdata, w, h):
+        assert wigdata["capsfilter"] is None, "FIXME: handle gst initialized"
+        w = int(w)
+        h = int(h)
+        wigdata["width"] = int(w)
+        wigdata["height"] = int(h)
+        # might not be initialized yet
+        if wigdata["widget"]:
+            wigdata["widget"].setMinimumSize(w, h)
+            wigdata["widget"].resize(w, h)
 
     def fit_pix(self, w, h):
         ratio = 1
@@ -192,7 +217,7 @@ class GstVideoPipeline:
             ratio *= 2
         return w, h, ratio
 
-    def set_crop(self):
+    def set_crop(self, wigdata):
         """
         Zoom 2x or something?
 
@@ -209,20 +234,20 @@ class GstVideoPipeline:
         self.roi_videocrop.set_property("left", 1224)
         self.roi_videocrop.set_property("right", 1224)
         """
-        ratio = self.full_widget_ratio * self.roi_zoom
+        ratio = self.overview_widget_ratio * self.roi_zoom
         keepw = self.camw // ratio
         keeph = self.camh // ratio
         print("crop ratio %u => %u, %uw x %uh" %
-              (self.full_widget_ratio, ratio, keepw, keeph))
+              (self.overview_widget_ratio, ratio, keepw, keeph))
 
         # Divide remaining pixels between left and right
         left = right = (self.camw - keepw) // 2
         top = bottom = (self.camh - keeph) // 2
         border = 1
-        self.roi_videocrop.set_property("top", top - border)
-        self.roi_videocrop.set_property("bottom", bottom - border)
-        self.roi_videocrop.set_property("left", left - border)
-        self.roi_videocrop.set_property("right", right - border)
+        wigdata["videocrop"].set_property("top", top - border)
+        wigdata["videocrop"].set_property("bottom", bottom - border)
+        wigdata["videocrop"].set_property("left", left - border)
+        wigdata["videocrop"].set_property("right", right - border)
 
         finalw = self.camw - left - right
         finalh = self.camh - top - bottom
@@ -237,22 +262,14 @@ class GstVideoPipeline:
         # assert 0, self.roi_zoom
 
     def setupWidgets(self, parent=None):
-        if self.full:
+        for wigdata in self.wigdatas.values():
             # Raw X-windows canvas
-            self.full_widget = QWidget(parent=parent)
-            self.full_widget.setMinimumSize(self.full_widget_w,
-                                            self.full_widget_h)
-            self.full_widget.resize(self.full_widget_w, self.full_widget_h)
+            wigdata["widget"] = QWidget(parent=parent)
+            wigdata["widget"].setMinimumSize(wigdata["width"],
+                                             wigdata["height"])
+            wigdata["widget"].resize(wigdata["width"], wigdata["height"])
             policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            self.full_widget.setSizePolicy(policy)
-
-        if self.roi:
-            self.roi_widget = QWidget(parent=parent)
-            self.roi_widget.setMinimumSize(self.roi_widget_w,
-                                           self.roi_widget_h)
-            self.roi_widget.resize(self.roi_widget_w, self.roi_widget_h)
-            policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            self.roi_widget.setSizePolicy(policy)
+            wigdata["widget"].setSizePolicy(policy)
 
     def prepareSource(self, esize=None):
         # Must not be initialized until after layout is set
@@ -325,6 +342,63 @@ class GstVideoPipeline:
                     raise
                 print("tee queue link %s => %s" % (src, dst))
 
+    def wigdata_create(self, src_tee, wigdata):
+        if wigdata["type"] == "overview":
+            wigdata["videoscale"] = Gst.ElementFactory.make("videoscale")
+            assert wigdata["videoscale"] is not None
+            self.player.add(wigdata["videoscale"])
+            src_tee.append(wigdata["videoscale"])
+
+            # Unreliable without this => set widget size explicitly
+            wigdata["capsfilter"] = Gst.ElementFactory.make("capsfilter")
+            wigdata["capsfilter"].props.caps = Gst.Caps(
+                "video/x-raw,width=%u,height=%u" %
+                (wigdata["width"], wigdata["height"]))
+            self.player.add(wigdata["capsfilter"])
+
+            wigdata["sinkx"] = Gst.ElementFactory.make("ximagesink",
+                                                       wigdata["name"])
+            assert wigdata["sinkx"] is not None
+            self.player.add(wigdata["sinkx"])
+        elif wigdata["type"] == "roi":
+            wigdata["videocrop"] = Gst.ElementFactory.make("videocrop")
+            assert wigdata["videocrop"]
+            self.set_crop(wigdata)
+            self.player.add(wigdata["videocrop"])
+
+            wigdata["videoscale"] = Gst.ElementFactory.make("videoscale")
+            assert wigdata["videoscale"]
+            self.player.add(wigdata["videoscale"])
+
+            if 1:
+                wigdata["capsfilter"] = Gst.ElementFactory.make("capsfilter")
+                wigdata["capsfilter"].props.caps = Gst.Caps(
+                    "video/x-raw,width=%u,height=%u" %
+                    (wigdata["width"], wigdata["height"]))
+                self.player.add(wigdata["capsfilter"])
+            else:
+                wigdata["capsfilter"] = None
+
+            wigdata["sinkx"] = Gst.ElementFactory.make("ximagesink",
+                                                       wigdata["name"])
+            assert wigdata["sinkx"]
+            self.player.add(wigdata["sinkx"])
+
+            src_tee.append(wigdata["videocrop"])
+        else:
+            assert 0, wigdata["type"]
+
+    def wigdata_link(self, wigdata):
+        # Used in roi but not full
+        if wigdata["type"] == "roi":
+            assert "videocrop" in wigdata
+            assert wigdata["videocrop"].link(wigdata["videoscale"])
+        if wigdata["capsfilter"]:
+            assert wigdata["videoscale"].link(wigdata["capsfilter"])
+            assert wigdata["capsfilter"].link(wigdata["sinkx"])
+        else:
+            wigdata["scale"].link(wigdata["sinkx"])
+
     def setupGst(self, raw_tees=None, vc_tees=None, esize=None):
         """
         TODO: clean up queue architecture
@@ -342,7 +416,7 @@ class GstVideoPipeline:
 
         print(
             "Setting up gstreamer pipeline w/ full=%u, roi=%u, tees-r %u, tees-vc %u"
-            % (self.full, self.roi, len(raw_tees), len(vc_tees)))
+            % (self.overview, self.roi, len(raw_tees), len(vc_tees)))
 
         if esize is None:
             esize = self.usj["imager"].get("esize", None)
@@ -372,50 +446,8 @@ class GstVideoPipeline:
         self.player.add(self.videoconvert)
 
         our_vc_tees = []
-        self.full_sinkx = None
-        if self.full:
-            self.full_scale = Gst.ElementFactory.make("videoscale")
-            assert self.full_scale is not None
-            self.player.add(self.full_scale)
-            our_vc_tees.append(self.full_scale)
-
-            # Unreliable without this => set widget size explicitly
-            self.full_capsfilter = Gst.ElementFactory.make("capsfilter")
-            self.full_capsfilter.props.caps = Gst.Caps(
-                "video/x-raw,width=%u,height=%u" %
-                (self.full_widget_w, self.full_widget_h))
-            self.player.add(self.full_capsfilter)
-
-            self.full_sinkx = Gst.ElementFactory.make("ximagesink",
-                                                      'sinkx_overview')
-            assert self.full_sinkx is not None
-            self.player.add(self.full_sinkx)
-
-        self.roi_sinkx = None
-        if self.roi:
-            self.roi_videocrop = Gst.ElementFactory.make("videocrop")
-            assert self.roi_videocrop
-            self.set_crop()
-            self.player.add(self.roi_videocrop)
-
-            self.roi_scale = Gst.ElementFactory.make("videoscale")
-            assert self.roi_scale
-            self.player.add(self.roi_scale)
-
-            if 1:
-                self.roi_capsfilter = Gst.ElementFactory.make("capsfilter")
-                self.roi_capsfilter.props.caps = Gst.Caps(
-                    "video/x-raw,width=%u,height=%u" %
-                    (self.roi_widget_w, self.roi_widget_h))
-                self.player.add(self.roi_capsfilter)
-            else:
-                self.roi_capsfilter = None
-
-            self.roi_sinkx = Gst.ElementFactory.make("ximagesink", 'sinkx_roi')
-            assert self.roi_sinkx
-            self.player.add(self.roi_sinkx)
-
-            our_vc_tees.append(self.roi_videocrop)
+        for wigdata in self.wigdatas.values():
+            self.wigdata_create(our_vc_tees, wigdata)
 
         # Note at least one vc tee is garaunteed (either full or roi)
         print("Link raw...")
@@ -430,20 +462,8 @@ class GstVideoPipeline:
 
         # Finish linking post vc_tee
 
-        if self.full:
-            if self.full_capsfilter:
-                assert self.full_scale.link(self.full_capsfilter)
-                assert self.full_capsfilter.link(self.full_sinkx)
-            else:
-                self.full_scale.link(self.full_sinkx)
-
-        if self.roi:
-            assert self.roi_videocrop.link(self.roi_scale)
-            if self.roi_capsfilter:
-                assert self.roi_scale.link(self.roi_capsfilter)
-                assert self.roi_capsfilter.link(self.roi_sinkx)
-            else:
-                self.roi_scale.link(self.roi_sinkx)
+        for wigdata in self.wigdatas.values():
+            self.wigdata_link(wigdata)
 
         bus = self.player.get_bus()
         bus.add_signal_watch()
@@ -455,12 +475,10 @@ class GstVideoPipeline:
         """
         You must have placed widget by now or it will invalidate winid
         """
-        if self.full:
-            self.full_widget_winid = self.full_widget.winId()
-            assert self.full_widget_winid, "Need widget_winid by run"
-        if self.roi:
-            self.roi_widget_winid = self.roi_widget.winId()
-            assert self.roi_widget_winid, "Need widget_winid by run"
+        for wigdata in self.wigdatas.values():
+            wigdata["winid"] = wigdata["widget"].winId()
+            assert wigdata["winid"], "Need widget_winid by run"
+
         print("Starting gstreamer pipeline")
         self.player.set_state(Gst.State.PLAYING)
         if self.source_name == 'gst-toupcamsrc':
@@ -481,21 +499,22 @@ class GstVideoPipeline:
         elif t == Gst.MessageType.STATE_CHANGED:
             pass
 
+    def gstreamer_to_winid(self, want_name):
+        for wigdata in self.wigdatas.values():
+            if wigdata["name"] == want_name:
+                return wigdata["winid"]
+        assert 0, "Failed to match widget winid for ximagesink %s" % want_name
+
     def on_sync_message(self, bus, message):
         if message.get_structure() is None:
             return
         message_name = message.get_structure().get_name()
         if message_name == "prepare-window-handle":
-            print("prepare-window-handle", message.src.get_name(),
-                  self.full_widget_winid, self.roi_widget_winid)
+            # self.verbose and print("prepare-window-handle", message.src.get_name())
             imagesink = message.src
             imagesink.set_property("force-aspect-ratio", True)
-            if message.src.get_name() == 'sinkx_overview':
-                1 and imagesink.set_window_handle(self.full_widget_winid)
-            elif message.src.get_name() == 'sinkx_roi':
-                1 and imagesink.set_window_handle(self.roi_widget_winid)
-            else:
-                assert 0, message.src.get_name()
+            imagesink.set_window_handle(
+                self.gstreamer_to_winid(message.src.get_name()))
 
 
 def excepthook(excType, excValue, tracebackobj):

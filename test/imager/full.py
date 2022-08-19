@@ -25,7 +25,7 @@ class MainWindow(QMainWindow):
         self.vidpip.setupWidgets()
 
         layout = QHBoxLayout()
-        layout.addWidget(self.vidpip.full_widget)
+        layout.addWidget(self.vidpip.get_widget("overview"))
 
         widget = QWidget()
         widget.setLayout(layout)

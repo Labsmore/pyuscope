@@ -155,32 +155,6 @@ class GstImager(Imager):
         """
 
 
-"""
-Placeholder class
-These are disabled right now and movement must be done from X GUI
-"""
-
-
-class PropertiesWindow(QMainWindow):
-
-    def __init__(self, vidpip, show=True, parent=None):
-        super(PropertiesWindow, self).__init__(parent)
-        layout = QHBoxLayout()
-
-        self.control_scroll = get_control_scroll(vidpip)
-        layout.addWidget(self.control_scroll)
-
-        w = QWidget()
-        w.setLayout(layout)
-        self.setCentralWidget(w)
-
-        if show and self.control_scroll:
-            self.show()
-        self.control_scroll.run()
-
-        dbg("initUI done")
-
-
 class MainWindow(QMainWindow):
     cncProgress = pyqtSignal(int, int, str, int)
     snapshotCaptured = pyqtSignal(int)
@@ -193,7 +167,10 @@ class MainWindow(QMainWindow):
         self.usj = usj
         self.objective_name_le = None
 
-        self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)
+        self.vidpip = GstVideoPipeline(source=source,
+                                       overview=True,
+                                       overview2=True,
+                                       roi=True)
         # FIXME: review sizing
         self.vidpip.size_widgets(frac=0.5)
         # self.capture_sink = Gst.ElementFactory.make("capturesink")
@@ -233,11 +210,13 @@ class MainWindow(QMainWindow):
         self.cnc_thread.log_msg.connect(self.log)
         self.initUI()
 
-        self.propwin = None
-        self.propwin = PropertiesWindow(self.vidpip,
-                                        show=controls,
-                                        parent=self)
-        self.activateWindow()
+        # Special UI initialization
+        # Requires video pipeline already setup
+        self.control_scroll = get_control_scroll(self.vidpip)
+        # screws up the original
+        self.imagerTabLayout.addWidget(self.vidpip.get_widget("overview2"))
+        self.imagerTabLayout.addWidget(self.control_scroll)
+        self.control_scroll.run()
 
         self.vid_fd = None
 
@@ -338,7 +317,7 @@ class MainWindow(QMainWindow):
         elif source.find("gst-") == 0:
             self.imager = GstImager(self)
             self.imager.emitter.change_properties.connect(
-                self.propwin.control_scroll.set_disp_properties)
+                self.control_scroll.set_disp_properties)
         else:
             raise Exception('Invalid imager type %s' % source)
 
@@ -365,7 +344,7 @@ class MainWindow(QMainWindow):
         def low_res_layout():
             layout = QVBoxLayout()
             layout.addWidget(QLabel("Overview"))
-            layout.addWidget(self.vidpip.full_widget)
+            layout.addWidget(self.vidpip.get_widget("overview"))
 
             return layout
 
@@ -373,7 +352,7 @@ class MainWindow(QMainWindow):
         def high_res_layout():
             layout = QVBoxLayout()
             layout.addWidget(QLabel("Focus"))
-            layout.addWidget(self.vidpip.roi_widget)
+            layout.addWidget(self.vidpip.get_widget("roi"))
 
             return layout
 
@@ -526,8 +505,8 @@ class MainWindow(QMainWindow):
 
         imagerj = {}
         imagerj["microscope.json"] = usj
-        usj["imager"][
-            "calibration"] = self.propwin.control_scroll.get_disp_properties()
+        usj["imager"]["calibration"] = self.control_scroll.get_disp_properties(
+        )
 
         # not sure if this is the right place to add this
         # imagerj['copyright'] = "&copy; %s John McMaster, CC-BY" % datetime.datetime.today().year
@@ -550,8 +529,8 @@ class MainWindow(QMainWindow):
             # Actively driving properties during operation may cause signal thrashing
             # Only take explicit external updates
             # GUI will continue to update to reflect state though
-            self.propwin.control_scroll.set_push_gui(False)
-            self.propwin.control_scroll.set_push_prop(False)
+            self.control_scroll.set_push_gui(False)
+            self.control_scroll.set_push_prop(False)
 
         self.pt.start()
 
@@ -595,8 +574,8 @@ class MainWindow(QMainWindow):
         self.dry_cb.setChecked(True)
 
         # Return to normal state if HDR was enabled
-        self.propwin.control_scroll.set_push_gui(True)
-        self.propwin.control_scroll.set_push_prop(True)
+        self.control_scroll.set_push_gui(True)
+        self.control_scroll.set_push_prop(True)
 
     """
     def stop(self):
@@ -892,7 +871,7 @@ class MainWindow(QMainWindow):
         self.vidpip.setupWidgets()
         self.setWindowTitle('pr0ncnc')
 
-        def rightLayout():
+        def mainLayout():
             layout = QVBoxLayout()
             dbg("get_config_layout()")
             layout.addLayout(self.get_config_layout())
@@ -904,14 +883,21 @@ class MainWindow(QMainWindow):
             layout.addWidget(self.log_widget)
             return layout
 
-        layout = QHBoxLayout()
-        layout.addLayout(rightLayout())
+        self.tabs = QTabWidget()
+
+        self.mainTab = QWidget()
+        self.tabs.addTab(self.mainTab, "Imaging")
+        self.mainTab.setLayout(mainLayout())
+
+        # Core is filled in after main UI init
+        self.imagerTabLayout = QVBoxLayout()
+        self.imagerTab = QWidget()
+        self.imagerTab.setLayout(self.imagerTabLayout)
+        self.tabs.addTab(self.imagerTab, "Imager")
 
         self.update_obj_config()
 
-        w = QWidget()
-        w.setLayout(layout)
-        self.setCentralWidget(w)
+        self.setCentralWidget(self.tabs)
         self.show()
         dbg("initUI done")
 

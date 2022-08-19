@@ -24,7 +24,7 @@ class MainWindow(QMainWindow):
     def __init__(self, **args):
         QMainWindow.__init__(self)
         usj = {"imager": gst.gst_args_to_usj(args)}
-        self.vidpip = GstVideoPipeline(usj=usj, full=True, roi=True)
+        self.vidpip = GstVideoPipeline(usj=usj, overview=True, roi=True)
         self.initUI()
         self.mysink = CbSink()
 
@@ -36,8 +36,8 @@ class MainWindow(QMainWindow):
         self.vidpip.setupWidgets()
 
         layout = QHBoxLayout()
-        layout.addWidget(self.vidpip.full_widget)
-        layout.addWidget(self.vidpip.roi_widget)
+        layout.addWidget(self.vidpip.get_widget("overview"))
+        layout.addWidget(self.vidpip.get_widget("roi"))
 
         widget = QWidget()
         widget.setLayout(layout)

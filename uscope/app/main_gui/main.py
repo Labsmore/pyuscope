@@ -16,6 +16,7 @@ from uscope.gst_util import Gst, CaptureSink
 
 from uscope.app.main_gui.threads import CncThread, PlannerThread
 from io import StringIO
+import math
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -153,6 +154,149 @@ class GstImager(Imager):
             v4lj[k] = int(str(v.text()))
         imagerj["v4l"] = v4lj
         """
+
+
+class JogListener(QPushButton):
+
+    def __init__(self, label, parent=None):
+        super().__init__(label, parent=parent)
+        self.parent = parent
+
+    def keyPressEvent(self, event):
+        self.parent.keyPressEventCaptured(event)
+
+    def keyReleaseEvent(self, event):
+        self.parent.keyReleaseEventCaptured(event)
+
+    def focusInEvent(self, event):
+        """
+        Clearly indicate movement starting
+        """
+        p = self.palette()
+        p.setColor(self.backgroundRole(), Qt.yellow)
+        self.setPalette(p)
+
+    def focusOutEvent(self, event):
+        """
+        Clearly indicate movement stopping
+        """
+        p = self.palette()
+        p.setColor(self.backgroundRole(), Qt.white)
+        self.setPalette(p)
+
+
+class MotionWidget(QWidget):
+
+    def __init__(self, grbl, parent=None):
+        super().__init__(parent=parent)
+
+        self.axis_map = {
+            # Upper left origin
+            Qt.Key_A: ("X", -1),
+            Qt.Key_D: ("X", 1),
+            Qt.Key_S: ("Y", -1),
+            Qt.Key_W: ("Y", 1),
+            Qt.Key_Q: ("Z", -1),
+            Qt.Key_E: ("Z", 1),
+        }
+
+        # log scaled to slider
+        self.jog_min = 1
+        self.jog_max = 1000
+        self.jog_cur = None
+        # careful hard coded below as 2.0
+        self.slider_min = 1
+        self.slider_max = 100
+
+        self.grbl = grbl
+        self.initUI()
+        self.last_send = time.time()
+
+    def initUI(self):
+        self.setWindowTitle('Demo')
+
+        def labels():
+            layout = QHBoxLayout()
+            layout.addWidget(QLabel("1"))
+            layout.addWidget(QLabel("10"))
+            layout.addWidget(QLabel("100"))
+            layout.addWidget(QLabel("1000"))
+            return layout
+
+        layout = QVBoxLayout()
+        self.listener = JogListener("Jog", self)
+        layout.addWidget(self.listener)
+        layout.addLayout(labels())
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setMinimum(self.slider_min)
+        self.slider.setMaximum(self.slider_max)
+        self.slider.setValue(self.slider_max // 2)
+        self.slider.setTickPosition(QSlider.TicksBelow)
+        self.slider.setTickInterval(33)
+        # Send keyboard events to CNC navigation instead
+        self.slider.setFocusPolicy(Qt.NoFocus)
+        layout.addWidget(self.slider)
+        self.slider.valueChanged.connect(self.sliderChanged)
+        self.sliderChanged()
+
+        self.setLayout(layout)
+
+    def sliderChanged(self):
+        slider_val = float(self.slider.value())
+        v = math.log(slider_val, 10)
+        # Scale in log space
+        log_scalar = (math.log(self.jog_max, 10) -
+                      math.log(self.jog_min, 10)) / 2.0
+        v = math.log(self.jog_min, 10) + v * log_scalar
+        # Convert back to linear space
+        v = 10**v
+        self.jog_cur = max(min(v, self.jog_max), self.jog_min)
+        print("jog: slider %u => jog %u (was %u)" %
+              (slider_val, self.jog_cur, v))
+
+    def keyPressEventCaptured(self, event):
+        k = event.key()
+        # Ignore duplicates, want only real presses
+        if 0 and event.isAutoRepeat():
+            return
+
+        # spamming too many commands and queing up
+        if time.time() - self.last_send < 0.1:
+            return
+        self.last_send = time.time()
+
+        # Focus is sensitive...should step slower?
+        # worry sonce focus gets re-integrated
+
+        axis = self.axis_map.get(k, None)
+        print("press %s" % (axis, ))
+        # return
+        if axis:
+            axis, sign = axis
+            print("Key jogging %s%c" % (axis, {1: '+', -1: '-'}[sign]))
+
+            cmd = "G91 %s%0.3f F%u" % (axis, sign * 1.0, self.jog_cur)
+            print("JOG:", cmd)
+            self.grbl.gs.j(cmd)
+            if 1:
+                mpos = self.grbl.qstatus()["MPos"]
+                print("X%0.3f Y%0.3f Z%0.3F" %
+                      (mpos["x"], mpos["y"], mpos["z"]))
+
+    def keyReleaseEventCaptured(self, event):
+        # Don't move around with moving around text boxes, etc
+        # if not self.video_container.hasFocus():
+        #    return
+        k = event.key()
+        # Ignore duplicates, want only real presses
+        if event.isAutoRepeat():
+            return
+
+        axis = self.axis_map.get(k, None)
+        print("release %s" % (axis, ))
+        # return
+        if axis:
+            self.grbl.gs.cancel_jog()
 
 
 class MainWindow(QMainWindow):
@@ -632,43 +776,55 @@ class MainWindow(QMainWindow):
         start, end should be buttons to snap current position
         """
 
-        gl = QGridLayout()
-        row = 0
+        def top():
+            gl = QGridLayout()
+            row = 0
 
-        gl.addWidget(QLabel("X (mm)"), row, 1)
-        gl.addWidget(QLabel("Y (mm)"), row, 2)
-        row += 1
+            gl.addWidget(QLabel("X (mm)"), row, 1)
+            gl.addWidget(QLabel("Y (mm)"), row, 2)
+            row += 1
 
-        self.axis_pos_label = {}
-        gl.addWidget(QLabel("Current"), row, 0)
-        label = QLabel("?")
-        gl.addWidget(label, row, 1)
-        self.axis_pos_label['x'] = label
-        label = QLabel("?")
-        gl.addWidget(label, row, 2)
-        self.axis_pos_label['y'] = label
-        row += 1
+            self.axis_pos_label = {}
+            gl.addWidget(QLabel("Current"), row, 0)
+            label = QLabel("?")
+            gl.addWidget(label, row, 1)
+            self.axis_pos_label['x'] = label
+            label = QLabel("?")
+            gl.addWidget(label, row, 2)
+            self.axis_pos_label['y'] = label
+            row += 1
 
-        self.plan_start_pb = QPushButton("Start")
-        self.plan_start_pb.clicked.connect(self.set_start_pos)
-        gl.addWidget(self.plan_start_pb, row, 0)
-        self.plan_x0_le = QLineEdit('0.000')
-        gl.addWidget(self.plan_x0_le, row, 1)
-        self.plan_y0_le = QLineEdit('0.000')
-        gl.addWidget(self.plan_y0_le, row, 2)
-        row += 1
+            self.plan_start_pb = QPushButton("Start")
+            self.plan_start_pb.clicked.connect(self.set_start_pos)
+            gl.addWidget(self.plan_start_pb, row, 0)
+            self.plan_x0_le = QLineEdit('0.000')
+            gl.addWidget(self.plan_x0_le, row, 1)
+            self.plan_y0_le = QLineEdit('0.000')
+            gl.addWidget(self.plan_y0_le, row, 2)
+            row += 1
 
-        self.plan_end_pb = QPushButton("End")
-        self.plan_end_pb.clicked.connect(self.set_end_pos)
-        gl.addWidget(self.plan_end_pb, row, 0)
-        self.plan_x1_le = QLineEdit('0.000')
-        gl.addWidget(self.plan_x1_le, row, 1)
-        self.plan_y1_le = QLineEdit('0.000')
-        gl.addWidget(self.plan_y1_le, row, 2)
-        row += 1
+            self.plan_end_pb = QPushButton("End")
+            self.plan_end_pb.clicked.connect(self.set_end_pos)
+            gl.addWidget(self.plan_end_pb, row, 0)
+            self.plan_x1_le = QLineEdit('0.000')
+            gl.addWidget(self.plan_x1_le, row, 1)
+            self.plan_y1_le = QLineEdit('0.000')
+            gl.addWidget(self.plan_y1_le, row, 2)
+            row += 1
+
+            return gl
+
+        layout = QVBoxLayout()
+        layout.addLayout(top())
+        if 1 or self.usj["motion"]["engine"] == "grbl":
+            from uscope.motion.grbl import get_grbl
+
+            grbl = get_grbl(port="/dev/ttyUSB0", verbose=False)
+            self.motion_widget = MotionWidget(grbl)
+            layout.addWidget(self.motion_widget)
 
         gb = QGroupBox('Axes')
-        gb.setLayout(gl)
+        gb.setLayout(layout)
         return gb
 
     def get_snapshot_layout(self):

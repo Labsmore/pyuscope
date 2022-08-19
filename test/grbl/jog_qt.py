@@ -18,20 +18,61 @@ from uscope.motion.grbl import get_grbl
 import time
 import math
 
-axis_map = {
-    # Upper left origin
-    Qt.Key_Left: ("X", -1),
-    Qt.Key_Right: ("X", 1),
-    Qt.Key_Up: ("Y", -1),
-    Qt.Key_Down: ("Y", 1),
-    Qt.Key_PageUp: ("Z", 1),
-    Qt.Key_PageDown: ("Z", -1),
-}
+
+class JogListener(QPushButton):
+
+    def __init__(self, label, parent=None):
+        super().__init__(label, parent=parent)
+        self.parent = parent
+
+    def keyPressEvent(self, event):
+        self.parent.keyPressEventCaptured(event)
+
+    def keyReleaseEvent(self, event):
+        self.parent.keyReleaseEventCaptured(event)
+
+    def focusInEvent(self, event):
+        print("got in", event)
+        p = self.palette()
+        p.setColor(self.backgroundRole(), Qt.yellow)
+        self.setPalette(p)
+        # self.grabKeyboard()
+        # event.accept()
+
+    def focusOutEvent(self, event):
+        print("got out", event)
+        p = self.palette()
+        p.setColor(self.backgroundRole(), Qt.white)
+        self.setPalette(p)
+        # self.releaseKeyboard()
+        # event.accept()
 
 
-class TestGUI(QMainWindow):
+class MotionWidget(QWidget):
 
-    def __init__(self, grbl):
+    def __init__(self, grbl, parent=None):
+        super().__init__(parent=parent)
+        """
+        self.axis_map = {
+            # Upper left origin
+            Qt.Key_Left: ("X", -1),
+            Qt.Key_Right: ("X", 1),
+            Qt.Key_Up: ("Y", -1),
+            Qt.Key_Down: ("Y", 1),
+            Qt.Key_PageDown: ("Z", -1),
+            Qt.Key_PageUp: ("Z", 1),
+        }
+        """
+        self.axis_map = {
+            # Upper left origin
+            Qt.Key_A: ("X", -1),
+            Qt.Key_D: ("X", 1),
+            Qt.Key_S: ("Y", -1),
+            Qt.Key_W: ("Y", 1),
+            Qt.Key_Q: ("Z", -1),
+            Qt.Key_E: ("Z", 1),
+        }
+
         # log scaled to slider
         self.jog_min = 1
         self.jog_max = 1000
@@ -41,7 +82,6 @@ class TestGUI(QMainWindow):
         self.slider_max = 100
 
         self.grbl = grbl
-        QMainWindow.__init__(self)
         self.initUI()
         self.last_send = time.time()
 
@@ -57,7 +97,8 @@ class TestGUI(QMainWindow):
             return layout
 
         layout = QVBoxLayout()
-        # layout.addWidget(QPushButton())
+        self.listener = JogListener("Jog", self)
+        layout.addWidget(self.listener)
         layout.addLayout(labels())
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setMinimum(self.slider_min)
@@ -71,12 +112,7 @@ class TestGUI(QMainWindow):
         self.slider.valueChanged.connect(self.sliderChanged)
         self.sliderChanged()
 
-        widget = QWidget()
-        widget.setLayout(layout)
-        self.setCentralWidget(widget)
-
-        # self.showMaximized()
-        self.show()
+        self.setLayout(layout)
 
     def sliderChanged(self):
         slider_val = float(self.slider.value())
@@ -91,7 +127,7 @@ class TestGUI(QMainWindow):
         print("jog: slider %u => jog %u (was %u)" %
               (slider_val, self.jog_cur, v))
 
-    def keyPressEvent(self, event):
+    def keyPressEventCaptured(self, event):
         k = event.key()
         # Ignore duplicates, want only real presses
         if 0 and event.isAutoRepeat():
@@ -105,7 +141,7 @@ class TestGUI(QMainWindow):
         # Focus is sensitive...should step slower?
         # worry sonce focus gets re-integrated
 
-        axis = axis_map.get(k, None)
+        axis = self.axis_map.get(k, None)
         print("press %s" % (axis, ))
         # return
         if axis:
@@ -114,13 +150,13 @@ class TestGUI(QMainWindow):
 
             cmd = "G91 %s%0.3f F%u" % (axis, sign * 1.0, self.jog_cur)
             print("JOG:", cmd)
-            grbl.gs.j(cmd)
+            self.grbl.gs.j(cmd)
             if 1:
-                mpos = grbl.qstatus()["MPos"]
+                mpos = self.grbl.qstatus()["MPos"]
                 print("X%0.3f Y%0.3f Z%0.3F" %
                       (mpos["x"], mpos["y"], mpos["z"]))
 
-    def keyReleaseEvent(self, event):
+    def keyReleaseEventCaptured(self, event):
         # Don't move around with moving around text boxes, etc
         # if not self.video_container.hasFocus():
         #    return
@@ -129,11 +165,28 @@ class TestGUI(QMainWindow):
         if event.isAutoRepeat():
             return
 
-        axis = axis_map.get(k, None)
+        axis = self.axis_map.get(k, None)
         print("release %s" % (axis, ))
         # return
         if axis:
-            grbl.gs.cancel_jog()
+            self.grbl.gs.cancel_jog()
+
+
+class TestGUI(QMainWindow):
+
+    def __init__(self, grbl):
+        super().__init__()
+        layout = QVBoxLayout()
+        # something to focus off onto
+        # not sure why you can't focus onto slider
+        layout.addWidget(QLineEdit("test"))
+        self.jogger = MotionWidget(grbl=grbl)
+        layout.addWidget(self.jogger)
+        widget = QWidget()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
+        # self.showMaximized()
+        self.show()
 
 
 if __name__ == '__main__':

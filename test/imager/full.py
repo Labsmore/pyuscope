@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 
-from uscope.gstwidget import GstVideoPipeline, gstwidget_main
+"""
+Simple app to dispaly the full video feed
+
+
+"""
+
+from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *

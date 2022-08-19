@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
-from uscope.gstwidget import GstVideoPipeline, gstwidget_main
+"""
+Demonstrate splitting a gstreamer stream
+"""
+
+from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *

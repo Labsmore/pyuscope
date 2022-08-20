@@ -318,6 +318,8 @@ class GRBL:
                  reset=False,
                  gs=None,
                  verbose=False):
+        print("verbose2", verbose)
+        assert verbose
         """
         port: serial port file name
         gs: supply your own serial port object
@@ -327,6 +329,7 @@ class GRBL:
         verbose: yell stuff to the screen
         """
 
+        self.verbose = verbose
         if gs is None:
             if port == "mock":
                 gs = MockGRBLSer(flush=flush, verbose=verbose)
@@ -387,7 +390,7 @@ class GrblHal(MotionHAL):
     def __init__(self, log=None, dry=False):
         self.verbose = False
         self.feedrate = None
-        self.grbl = GRBL()
+        self.grbl = GRBL(verbose=True)
         MotionHAL.__init__(self, log, dry)
 
     def axes(self):
@@ -402,15 +405,7 @@ class GrblHal(MotionHAL):
             time.sleep(sec)
 
     def command(self, cmd):
-        if self.dry:
-            if self.verbose:
-                self.log(cmd)
-        else:
-            self._command(cmd)
-            self.mv_lastt = time.time()
-
-    def _command(self, cmd):
-        raise Exception("Required")
+        return "\n".join(self.grbl.gs.txrxs(cmd))
 
     def move_absolute(self, moves, limit=True):
         if len(moves) == 0:
@@ -448,6 +443,21 @@ class GrblHal(MotionHAL):
     def pos(self):
         return self.grbl.qstatus()["MPos"]
 
+    def jog(self, axes):
+        for axis, sign in axes.items():
+            cmd = "G91 %s%0.3f F%u" % (axis, sign * 1.0, self.jog_rate)
+            self.verbose and print("JOG:", cmd)
+            self.grbl.gs.j(cmd)
+            if self.verbose:
+                mpos = self.grbl.qstatus()["MPos"]
+                print("jog: X%0.3f Y%0.3f Z%0.3F" %
+                      (mpos["x"], mpos["y"], mpos["z"]))
+
+    def cancel_jog(self):
+        self.grbl.gs.cancel_jog()
+
 
 def get_grbl(port=None, gs=None, reset=False, verbose=False):
+    assert verbose
+    print("verbose1", verbose)
     return GRBL(port=port, gs=gs, reset=reset, verbose=verbose)

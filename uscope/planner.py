@@ -17,6 +17,8 @@ import shutil
 import threading
 import time
 
+from uscope.motion.hal import DryHal
+
 
 def drange(start, stop, step, inclusive=False):
     """
@@ -251,12 +253,15 @@ class Planner(object):
         self._log = log
         self.v = verbosity
         self.origin = origin
-        self.motion = motion
+        self.dry = dry
+        if self.dry:
+            self.motion = MockHal()
+        else:
+            self.motion = motion
         assert self.motion, "Required"
         self.imager = imager
         assert self.imager, "Required"
         self.imager_take = imager_take
-        self.dry = dry
         # os.path.join(config['cnc']['out_dir'], self.rconfig.job_name)
         self.out_dir = out_dir
 

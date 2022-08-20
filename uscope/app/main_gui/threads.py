@@ -29,7 +29,7 @@ TODO: should block?
 '''
 
 
-class CncThread(QThread):
+class MotionThread(QThread):
     log_msg = pyqtSignal(str)
 
     def __init__(self, hal, cmd_done):
@@ -67,6 +67,18 @@ class CncThread(QThread):
         ret = self.hal.pos()
         self.lock.clear()
         return ret
+
+    def mdi(self, cmd):
+        self.command("mdi", cmd)
+
+    def jog(self, pos):
+        self.command("jog", pos)
+
+    def set_jog_rate(self, rate):
+        self.command("set_jog_rate", rate)
+
+    def cancel_jog(self):
+        self.command("cancel_jog")
 
     def run(self):
         self.running.set()
@@ -106,24 +118,19 @@ class CncThread(QThread):
                     self.log(str(e))
                 return self.hal.pos()
 
-            def home(axes):
-                self.hal.home(axes)
-                return self.hal.pos()
-
-            def forever(*args):
-                self.hal.forever(*args)
-                return self.hal.pos()
-
             #print 'cnc thread: dispatch %s' % command
             # Maybe I should just always emit the pos
             ret = {
                 'move_absolute': move_absolute,
                 'move_relative': move_relative,
-                'forever': forever,
-                'home': home,
+                'jog': self.hal.jog,
+                'set_jog_rate': self.hal.set_jog_rate,
+                'cancel_jog': self.hal.cancel_jog,
+                'home': self.hal.home,
                 'stop': self.hal.stop,
                 'estop': self.hal.estop,
                 'unestop': self.hal.unestop,
+                'mdi': self.hal.command,
             }.get(command, default)(*args)
             self.cmd_done(command, args, ret)
 

@@ -17,7 +17,7 @@ from uscope.motion.grbl import GrblHal
 
 from uscope.gst_util import Gst, CaptureSink
 
-from uscope.app.main_gui.threads import CncThread, PlannerThread
+from uscope.app.main_gui.threads import MotionThread, PlannerThread
 from io import StringIO
 import math
 
@@ -35,6 +35,8 @@ import sys
 import traceback
 import threading
 import json
+
+from uscope.motion.grbl import get_grbl
 
 usj = get_usj()
 
@@ -202,8 +204,9 @@ class JogListener(QPushButton):
 
 class MotionWidget(QWidget):
 
-    def __init__(self, grbl, parent=None):
+    def __init__(self, motion_thread, parent=None):
         super().__init__(parent=parent)
+        self.motion_thread = motion_thread
 
         self.axis_map = {
             # Upper left origin
@@ -223,7 +226,6 @@ class MotionWidget(QWidget):
         self.slider_min = 1
         self.slider_max = 100
 
-        self.grbl = grbl
         self.initUI()
         self.last_send = time.time()
 
@@ -251,10 +253,24 @@ class MotionWidget(QWidget):
         # Send keyboard events to CNC navigation instead
         self.slider.setFocusPolicy(Qt.NoFocus)
         layout.addWidget(self.slider)
+
+        def mdi():
+            layout = QHBoxLayout()
+            layout.addWidget(QLabel("MDI"))
+            self.mdi_le = QLineEdit()
+            self.mdi_le.returnPressed.connect(self.mdi_process)
+            layout.addWidget(self.mdi_le)
+            return layout
+
+        layout.addLayout(mdi())
+
         self.slider.valueChanged.connect(self.sliderChanged)
         self.sliderChanged()
 
         self.setLayout(layout)
+
+    def mdi_process(self):
+        self.motion_thread.mdi(str(self.mdi_le.text()))
 
     def sliderChanged(self):
         slider_val = float(self.slider.value())
@@ -268,6 +284,7 @@ class MotionWidget(QWidget):
         self.jog_cur = max(min(v, self.jog_max), self.jog_min)
         print("jog: slider %u => jog %u (was %u)" %
               (slider_val, self.jog_cur, v))
+        self.motion_thread.set_jog_rate(self.jog_cur)
 
     def keyPressEventCaptured(self, event):
         k = event.key()
@@ -284,19 +301,12 @@ class MotionWidget(QWidget):
         # worry sonce focus gets re-integrated
 
         axis = self.axis_map.get(k, None)
-        print("press %s" % (axis, ))
+        # print("press %s" % (axis, ))
         # return
         if axis:
             axis, sign = axis
-            print("Key jogging %s%c" % (axis, {1: '+', -1: '-'}[sign]))
-
-            cmd = "G91 %s%0.3f F%u" % (axis, sign * 1.0, self.jog_cur)
-            print("JOG:", cmd)
-            self.grbl.gs.j(cmd)
-            if 1:
-                mpos = self.grbl.qstatus()["MPos"]
-                print("X%0.3f Y%0.3f Z%0.3F" %
-                      (mpos["x"], mpos["y"], mpos["z"]))
+            # print("Key jogging %s%c" % (axis, {1: '+', -1: '-'}[sign]))
+            self.motion_thread.jog({axis: sign})
 
     def keyReleaseEventCaptured(self, event):
         # Don't move around with moving around text boxes, etc
@@ -308,10 +318,10 @@ class MotionWidget(QWidget):
             return
 
         axis = self.axis_map.get(k, None)
-        print("release %s" % (axis, ))
+        # print("release %s" % (axis, ))
         # return
         if axis:
-            self.grbl.gs.cancel_jog()
+            self.motion_thread.cancel_jog()
 
 
 class MainWindow(QMainWindow):
@@ -365,7 +375,7 @@ class MainWindow(QMainWindow):
         self.log_fd = None
         hal = get_cnc_hal(log=self.emit_log)
         hal.progress = self.hal_progress
-        self.motion_thread = CncThread(hal=hal, cmd_done=self.cmd_done)
+        self.motion_thread = MotionThread(hal=hal, cmd_done=self.cmd_done)
         self.motion_thread.log_msg.connect(self.log)
         self.initUI()
 
@@ -430,10 +440,7 @@ class MainWindow(QMainWindow):
         self.log_msg.emit(s)
 
     def poll_update_pos(self):
-        if not self.motion_widget:
-            return
-        grbl = self.motion_widget.grbl
-        self.update_pos(grbl.mpos())
+        self.update_pos(self.motion_thread.pos())
         self.position_poll_timer.start(1000)
 
     def update_pos(self, pos):
@@ -454,7 +461,8 @@ class MainWindow(QMainWindow):
         pass
 
     def cmd_done(self, command, args, ret):
-        print("FIXME: poll position instead of manually querying")
+        # print("FIXME: poll position instead of manually querying")
+        pass
 
     def reload_obj_cb(self):
         '''Re-populate the objective combo box'''
@@ -848,16 +856,13 @@ class MainWindow(QMainWindow):
         self.motion_widget = None
         self.position_poll_timer = None
         if 1 or self.usj["motion"]["engine"] == "grbl":
-            from uscope.motion.grbl import get_grbl
-
-            grbl = get_grbl(port="/dev/ttyUSB0", verbose=False)
-            self.motion_widget = MotionWidget(grbl)
+            self.motion_widget = MotionWidget(motion_thread=self.motion_thread)
             layout.addWidget(self.motion_widget)
 
             self.position_poll_timer = QTimer()
             self.position_poll_timer.timeout.connect(self.poll_update_pos)
 
-        gb = QGroupBox('Axes')
+        gb = QGroupBox('Motion')
         gb.setLayout(layout)
         return gb
 

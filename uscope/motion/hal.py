@@ -45,6 +45,8 @@ class MotionHAL(object):
         self.mv_lastt = time.time()
         self.dry = None
         self.set_dry(dry)
+        # Per axis? Currently is global
+        self.jog_rate = 0
 
     def set_dry(self, dry):
         if dry == self.dry:
@@ -124,13 +126,15 @@ class MotionHAL(object):
         '''Supplementary info to add to run log'''
         return {}
 
-    def forever(self, axes, run, progress):
+    def jog(self, axes):
         '''
-        axes: dict of axis to sign (1 or -1)
-        run: threading.event.  Continue moving as long as set
-        progress: gets position ocassionally to provide updates during move
+        axes: dict of axis with value to move
+        WARNING: under development / unstable API
         '''
         raise Exception("Not supported")
+
+    def set_jog_rate(self, rate):
+        self.jog_rate = rate
 
     def settle(self):
         '''Check last move time and wait if its not safe to take picture'''
@@ -145,6 +149,9 @@ class MotionHAL(object):
         if axes is None:
             axes = self.axes()
         return dict([(axis, (-1000, 1000)) for axis in axes])
+
+    def cancel_jog(self):
+        raise Exception("Required")
 
 
 '''
@@ -200,85 +207,63 @@ class MockHal(MotionHAL):
         # No hardware to let settle
         pass
 
-    #[axis], sign, self.jog_done, lambda: axis.emit_pos())
-    def forever(self, axes, run, progress):
-        while run.is_set():
-            # Axes may be updated
-            # Copy it so that don't crash if its updated during an iteration
-            for axis, sign in dict(axes).items():
-                self._pos[axis] += sign * 1
-                # most of the time is just one axis
-                # quicker gui updates by only updating it
-                progress({axis: self._pos[axis]})
-            time.sleep(0.1)
-
     def ar_stop(self):
         pass
 
-
-'''
-Legacy uscope.mc adapter
-'''
-
-
-class MCHal(MotionHAL):
-
-    def __init__(self, mc, log=None, dry=False):
-        MotionHAL.__init__(self, log, dry)
-        self.mc = mc
-
-    def sleep(self, sec, why):
-        self.log('Sleep %s' % (format_t(sec), why), 3)
-        self.rt_sleep += sec
-
-    def reset_camera(self):
-        # original needed focus button released
-        #self.line('M9')
-        # suspect I don't need anything here
+    def cancel_jog(self):
         pass
 
+
+"""
+Based on a real HAL but does no movement
+Ex: inherits movement
+"""
+
+
+class DryHal(MockHal):
+
+    def __init__(self, hal, log=None, dry=False):
+        MotionHAL.__init__(self, log, dry)
+
+        self.hal = hal
+        self._axes = self.hal._axes
+        self._pos = {}
+        # Assume starting at 0.0 until causes problems
+        for axis in self._axes:
+            self._pos[axis] = 0.0
+
+    def _log(self, msg):
+        if self.dry:
+            self.log('Mock-dry: ' + msg)
+        else:
+            self.log('Mock: ' + msg)
+
+    def axes(self):
+        return self._axes
+
+    def home(self, axes):
+        for axis in axes:
+            self._pos[axis] = 0.0
+
+    def take_picture(self, file_name):
+        self._log('taking picture to %s' % file_name)
+
     def move_absolute(self, pos):
-        # Only one axis can be moved at a time
         for axis, apos in pos.items():
-            if self.dry:
-                self._pos[axis] = apos
-            else:
-                self.mc.axes[axis].move_absolute(apos)
-                self.mv_lastt = time.time()
+            self._pos[axis] = apos
+        self._log(
+            'absolute move to ' +
+            ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
     def move_relative(self, delta):
-        # Only one axis can be moved at a time
         for axis, adelta in delta.items():
-            if self.dry:
-                self._pos[axis] += adelta
-            else:
-                self.mc.axes[axis].move_relative(adelta)
-                self.mv_lastt = time.time()
+            self._pos[axis] += adelta
+        self._log(
+            'relative move to ' +
+            ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
 
-    '''
-    def meta(self):
-        ret = {}
-        
-        # FIXME: time estimator
-        # It didn't really work so I didn't bother porting it over during cleanup
-        self.rt_move = 0.0
-        self.rt_settle = 0.0
-        self.rt_sleep = 0.0
-
-        rt_tot = self.rt_move + self.rt_settle + self.rt_sleep
-        if self.rconfig.dry:
-            rt_k = 'rt_est'
-        else:
-            rt_k = 'rt'
-        ret[rt_k] = {
-                    'total':    rt_tot,
-                    'move':     self.rt_move,
-                    'settle':   self.rt_settle,
-                    'sleep':    self.rt_sleep,
-                    }
-        
-        return ret
-        '''
+    def pos(self):
+        return self._pos
 
 
 class GCodeHalImager(Imager):

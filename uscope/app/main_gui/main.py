@@ -440,7 +440,10 @@ class MainWindow(QMainWindow):
         self.log_msg.emit(s)
 
     def poll_update_pos(self):
-        self.update_pos(self.motion_thread.pos())
+        # FIXME: hack to avoid concurrency issues with planner and motion thread fighting
+        # merge them together?
+        if not self.pt:
+            self.update_pos(self.motion_thread.pos())
         self.position_poll_timer.start(1000)
 
     def update_pos(self, pos):

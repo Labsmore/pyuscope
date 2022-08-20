@@ -387,25 +387,20 @@ class GRBL:
 
 class GrblHal(MotionHAL):
 
-    def __init__(self, log=None, dry=False):
+    def __init__(self, log=None):
         self.verbose = False
         self.feedrate = None
         self.grbl = GRBL(verbose=True)
-        MotionHAL.__init__(self, log, dry)
+        MotionHAL.__init__(self, log)
 
     def axes(self):
         return {'x', 'y', 'z'}
 
-    def sleep(self, sec, why):
-        ts = format_t(sec)
-        s = 'Sleep %s: %s' % (why, ts)
-        self.log(s, 3)
-        self.rt_sleep += sec
-        if not self.dry:
-            time.sleep(sec)
-
     def command(self, cmd):
         return "\n".join(self.grbl.gs.txrxs(cmd))
+
+    def pos(self):
+        return self.grbl.qstatus()["MPos"]
 
     def move_absolute(self, moves, limit=True):
         if len(moves) == 0:
@@ -417,9 +412,6 @@ class GrblHal(MotionHAL):
                     raise AxisExceeded("Axis %c to %s exceeds liimt (%s, %s)" %
                                        (k, v, limit[k][0], limit[k][1]))
 
-        if self.dry:
-            for k, v in moves.items():
-                self._dry_pos[k] = v
         self.grbl.move_absolute(moves, f=1000)
 
     def move_relative(self, moves):
@@ -435,13 +427,7 @@ class GrblHal(MotionHAL):
                     "Axis %c to %s (%s + %s) exceeds liimt (%s, %s)" %
                     (k, dst, pos[k], v, limit[k][0], limit[k][1]))
 
-        if self.dry:
-            for k, v in moves.items():
-                self._dry_pos[k] += v
         self.grbl.move_relative(moves, f=1000)
-
-    def pos(self):
-        return self.grbl.qstatus()["MPos"]
 
     def jog(self, axes):
         for axis, sign in axes.items():

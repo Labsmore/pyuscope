@@ -27,7 +27,7 @@ MotionHAL is not thread safe with exception of the following:
 
 class MotionHAL(object):
 
-    def __init__(self, log, dry):
+    def __init__(self, log):
         if log is None:
 
             def log(msg='', lvl=2):
@@ -43,19 +43,8 @@ class MotionHAL(object):
         self.progress = lambda pos: None
 
         self.mv_lastt = time.time()
-        self.dry = None
-        self.set_dry(dry)
         # Per axis? Currently is global
         self.jog_rate = 0
-
-    def set_dry(self, dry):
-        if dry == self.dry:
-            return
-        if dry:
-            self._dry_pos = self.pos()
-        else:
-            self._dry_pos = None
-        self.dry = dry
 
     def axes(self):
         '''Return supported axes'''
@@ -138,12 +127,9 @@ class MotionHAL(object):
 
     def settle(self):
         '''Check last move time and wait if its not safe to take picture'''
-        if self.dry:
-            self.sleep(self.t_settle, 'settle')
-        else:
-            sleept = self.t_settle + self.mv_lastt - time.time()
-            if sleept > 0.0:
-                self.sleep(sleept, 'settle')
+        sleept = self.t_settle + self.mv_lastt - time.time()
+        if sleept > 0.0:
+            self.sleep(sleept, 'settle')
 
     def limit(self, axes=None):
         if axes is None:
@@ -161,8 +147,8 @@ Has no actual hardware associated with it
 
 class MockHal(MotionHAL):
 
-    def __init__(self, axes='xy', log=None, dry=False):
-        MotionHAL.__init__(self, log, dry)
+    def __init__(self, axes='xy', log=None):
+        MotionHAL.__init__(self, log)
 
         self._axes = list(axes)
         self._pos = {}
@@ -171,10 +157,7 @@ class MockHal(MotionHAL):
             self._pos[axis] = 0.0
 
     def _log(self, msg):
-        if self.dry:
-            self.log('Mock-dry: ' + msg)
-        else:
-            self.log('Mock: ' + msg)
+        self.log('Mock: ' + msg)
 
     def axes(self):
         return self._axes
@@ -220,26 +203,23 @@ Ex: inherits movement
 """
 
 
-class DryHal(MockHal):
+class DryHal(MotionHAL):
 
-    def __init__(self, hal, log=None, dry=False):
-        MotionHAL.__init__(self, log, dry)
+    def __init__(self, hal, log=None):
+        super().__init__(log)
 
         self.hal = hal
-        self._axes = self.hal._axes
+
         self._pos = {}
         # Assume starting at 0.0 until causes problems
-        for axis in self._axes:
+        for axis in self.axes():
             self._pos[axis] = 0.0
 
     def _log(self, msg):
-        if self.dry:
-            self.log('Mock-dry: ' + msg)
-        else:
-            self.log('Mock: ' + msg)
+        self.log('Dry: ' + msg)
 
     def axes(self):
-        return self._axes
+        return self.hal.axes()
 
     def home(self, axes):
         for axis in axes:
@@ -264,6 +244,16 @@ class DryHal(MockHal):
 
     def pos(self):
         return self._pos
+
+    def settle(self):
+        # No hardware to let settle
+        pass
+
+    def ar_stop(self):
+        pass
+
+    def cancel_jog(self):
+        pass
 
 
 class GCodeHalImager(Imager):
@@ -299,8 +289,8 @@ M9 (coolant off): release focus / picture
 
 class GCodeHal(MotionHAL):
 
-    def __init__(self, axes='xy', log=None, dry=False):
-        MotionHAL.__init__(self, log, dry)
+    def __init__(self, axes='xy', log=None):
+        MotionHAL.__init__(self, log)
         self._axes = list(axes)
 
         self._pos = {}

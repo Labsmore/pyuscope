@@ -138,15 +138,21 @@ class MotionThread(QThread):
         self.running.clear()
 
 
-# Sends events to the imaging and movement threads
+"""
+Sends events to the imaging and movement threads
+
+rconfig: misc parmeters including complex objects
+plannerj: planner configuration JSON. Written to disk
+"""
+
+
 class PlannerThread(QThread):
     plannerDone = pyqtSignal()
     log_msg = pyqtSignal(str)
 
-    def __init__(self, parent, rconfig, imagerj={}):
+    def __init__(self, parent, pconfig):
         QThread.__init__(self, parent)
-        self.rconfig = rconfig
-        self.imagerj = imagerj
+        self.pconfig = pconfig
         self.planner = None
 
     def log(self, msg):
@@ -180,25 +186,7 @@ class PlannerThread(QThread):
         try:
             self.log('Initializing planner!')
 
-            scan_config = json.load(open('scan.json'))
-
-            rconfig = self.rconfig
-            # FIXME: ideally should prioritize objective
-            im_scalar = float(rconfig['uscope']['imager']['scalar'])
-            obj = rconfig['uscope']['objective'][rconfig['obj']]
-            im_w_pix = int(rconfig['uscope']['imager']['width']) * im_scalar
-            # im_h_pix = int(rconfig['uscope']['imager']['height']) * im_scalar
-            x_mm = float(obj['x_view'])
-            self.planner = Planner(scan_config=scan_config,
-                                   motion=rconfig['motion'],
-                                   imager=rconfig['imager'],
-                                   mm_per_pix=(x_mm / im_w_pix),
-                                   out_dir=rconfig['out_dir'],
-                                   progress_cb=rconfig['progress_cb'],
-                                   dry=rconfig['dry'],
-                                   log=self.log,
-                                   verbosity=2,
-                                   imagerj=self.imagerj)
+            self.planner = Planner(log=self.log, **self.pconfig)
             self.log('Running planner')
             b = Benchmark()
             self.planner.run()

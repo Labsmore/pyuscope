@@ -9,7 +9,7 @@
 		"height": 600,
 		"scalar": 0.5
     },
-    "!imager": {
+    "imager": {
         "source":"gst-v4l2src",
 		"width": 640,
 		"height": 480,

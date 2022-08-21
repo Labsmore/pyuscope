@@ -34,9 +34,7 @@ import socket
 import sys
 import traceback
 import threading
-import json
-
-from uscope.motion.grbl import get_grbl
+from uscope import util
 
 usj = get_usj()
 
@@ -156,16 +154,6 @@ class GstGUIImager(Imager):
             return self.get_hdr(hdr)
         else:
             return self.get_normal()
-
-    def add_planner_metadata(self, imagerj):
-        """
-        # TODO: instead dump from actual v4l
-        # safer and more comprehensive
-        v4lj = {}
-        for k, v in self.v4ls.iteritems():
-            v4lj[k] = int(str(v.text()))
-        imagerj["v4l"] = v4lj
-        """
 
 
 """
@@ -565,33 +553,28 @@ class MainWindow(QMainWindow):
             self.log('Stop requested')
             self.pt.stop()
 
-    def write_scan_json(self):
-        scan_json = {
-            "overlap": 0.7,
-            "border": 0.1,
-            "start": {
-                "x": None,
-                "y": None
-            },
-            "end": {
-                "x": None,
-                "y": None
-            }
-        }
-
+    def mk_contour_json(self):
         try:
-            # scan_json['overlap'] = float(self.overlap_le.text())
-            # scan_json['border'] = float(self.border_le.text())
+            ret = {
+                "overlap": 0.7,
+                "border": 0.1,
+                "start": {
+                    "x": float(self.plan_x0_le.text()),
+                    "y": float(self.plan_y0_le.text())
+                },
+                "end": {
+                    "x": float(self.plan_x1_le.text()),
+                    "y": float(self.plan_y1_le.text())
+                }
+            }
 
-            scan_json['start']['x'] = float(self.plan_x0_le.text())
-            scan_json['start']['y'] = float(self.plan_y0_le.text())
-            scan_json['end']['x'] = float(self.plan_x1_le.text())
-            scan_json['end']['y'] = float(self.plan_y1_le.text())
+            # ret['overlap'] = float(self.overlap_le.text())
+            # ret['border'] = float(self.border_le.text())
         except ValueError:
-            self.log("Bad position")
-            return False
-        json.dump(scan_json, open('scan.json', 'w'), indent=4, sort_keys=True)
-        return True
+            self.log("Bad scan x/y")
+            return None
+
+        return ret
 
     def go(self):
         if not self.snapshot_pb.isEnabled():
@@ -602,7 +585,8 @@ class MainWindow(QMainWindow):
         if dry:
             dbg('Dry run checked')
 
-        if not self.write_scan_json():
+        contour_json = self.mk_contour_json()
+        if not contour_json:
             return
 
         def emitCncProgress(pictures_to_take, pictures_taken, image, first):
@@ -612,96 +596,77 @@ class MainWindow(QMainWindow):
             self.cncProgress.emit(pictures_to_take, pictures_taken, image,
                                   first)
 
-        if not dry and not os.path.exists(self.usj['out_dir']):
-            os.mkdir(self.usj['out_dir'])
+        if not dry and not os.path.exists(self.usj["out_dir"]):
+            os.mkdir(self.usj["out_dir"])
 
-        out_dir = os.path.join(self.usj['out_dir'], self.getJobName())
+        out_dir = os.path.join(self.usj["out_dir"], self.getJobName())
         if os.path.exists(out_dir):
-            self.log("job name dir %s already exists" % out_dir)
+            self.log("Already exists: %s" % out_dir)
             return
         if not dry:
             os.mkdir(out_dir)
-
-        rconfig = {
-            'motion': self.motion_thread.hal,
-
-            # Will be offloaded to its own thread
-            # Operations must be blocking
-            # We enforce that nothing is running and disable all CNC GUI controls
-            'imager': self.imager,
-
-            # Callback for progress
-            'progress_cb': emitCncProgress,
-            'out_dir': out_dir,
-
-            # Comprehensive config structure
-            'uscope': self.usj,
-            # Which objective to use in above config
-            'obj': self.obj_configi,
-
-            # Set to true if should try to mimimize hardware actions
-            'dry': dry,
-            'overwrite': False,
-        }
 
         # If user had started some movement before hitting run wait until its done
         dbg("Waiting for previous movement (if any) to cease")
         # TODO: make this not block GUI
         self.motion_thread.wait_idle()
-        """
-        {
-            //input directly into planner
-            "params": {
-                x0: 123,
-                y0: 356,
-            }
-            //planner generated parameters
-            "planner": {
-                "mm_width": 2.280666667,
-                "mm_height": 2.232333333,
-                "pix_width": 6842,
-                "pix_height": 6697,
-                "pix_nm": 333.000000,
-            },
-            //source specific parameters 
-            "imager": {
-                "microscope.json": {
-                    ...
-                }
-                "objective": "mit20x",
-                "v4l": {
-                    "rbal": 123,
-                    "bbal": 234,
-                    "gain": 345,
-                    "exposure": 456
-            },
-            "sticher": {
-                "type": "xystitch"
-            },
-            "copyright": "&copy; 2020 John McMaster, CC-BY",
-        }
-        """
-        # obj = rconfig['uscope']['objective'][rconfig['obj']]
 
-        imagerj = {}
-        imagerj["microscope.json"] = usj
-        usj["imager"]["calibration"] = self.control_scroll.get_disp_properties(
-        )
+        planner_json = {
+            # follow git release
+            # "version": USCOPE_VERSION,
+            "imager": {
+                # In the past I just stored i here
+                # lets just list out fall config
+                'objective': self.obj_config,
+                'objectivei': self.obj_configi,
+                "calibration": self.control_scroll.get_disp_properties(),
+            },
+            "motion": {},
+            # full microscope.json
+            "microscope": usj,
+            # was scan.json
+            "contour": contour_json,
+        }
 
         # not sure if this is the right place to add this
-        # imagerj['copyright'] = "&copy; %s John McMaster, CC-BY" % datetime.datetime.today().year
-        imagerj['objective'] = rconfig['obj']
+        # plannerj['copyright'] = "&copy; %s John McMaster, CC-BY" % datetime.datetime.today().year
 
-        self.imager.add_planner_metadata(imagerj)
+        if 1:
+            print("planner_json")
+            util.printj(planner_json)
 
-        self.pt = PlannerThread(self, rconfig, imagerj)
+        # Directly goes into planner constructor
+        # Make sure everything here is thread safe
+        # log param is handled by other thread
+        planner_params = {
+            # Simple settings written to disk, no objects
+            "config": planner_json,
+            "motion": self.motion_thread.hal,
+
+            # Typically GstGUIImager
+            # Will be offloaded to its own thread
+            # Operations must be blocking
+            # We enforce that nothing is running and disable all CNC GUI controls
+            "imager": self.imager,
+
+            # Callback for progress
+            "progress_cb": emitCncProgress,
+            "out_dir": out_dir,
+
+            # Set to true if should try to mimimize hardware actions
+            "dry": dry,
+            # "overwrite": False,
+            "verbosity": 2,
+        }
+
+        self.pt = PlannerThread(self, planner_params)
         self.pt.log_msg.connect(self.log)
         self.pt.plannerDone.connect(self.plannerDone)
         self.setControlsEnabled(False)
         if dry:
             self.log_fd = StringIO()
         else:
-            self.log_fd = open(os.path.join(out_dir, 'log.txt'), 'w')
+            self.log_fd = open(os.path.join(out_dir, "log.txt"), "w")
 
         self.go_pause_pb.setText("Pause")
 
@@ -716,7 +681,7 @@ class MainWindow(QMainWindow):
 
     def get_hdr(self):
         hdr = None
-        source = usj['imager']['source']
+        source = usj["imager"]["source"]
         cal = cal_load_all(source)
         if cal:
             hdr = cal.get("hdr", None)
@@ -745,7 +710,6 @@ class MainWindow(QMainWindow):
         # Cleanup camera objects
         self.log_fd = None
         self.pt = None
-        self.motion_thread.hal.dry = False
         self.setControlsEnabled(True)
         if self.usj['motion']['startup_run_exit']:
             print('Planner debug break on completion')

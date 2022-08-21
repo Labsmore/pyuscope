@@ -213,10 +213,15 @@ class Stop(Exception):
 
 
 class Planner(object):
+    """
+    config: JSON like configuration settings
+    """
 
     def __init__(
             self,
-            scan_config,
+            # JSON like configuration settings affecting produced data
+            # ex: verbosity, dry, objects are not included
+            config,
             # Movement HAL
             motion=None,
 
@@ -226,25 +231,19 @@ class Planner(object):
             imager=None,
             # Supply one of the following
             # Most users should supply mm_per_pix
-            mm_per_pix=None,
+            # mm_per_pix=None,
             # (w, h) in movement units
-            image_wh_mm=None,
+            # image_wh_mm=None,
             out_dir=None,
             # Progress callback
             progress_cb=None,
             # No movement without setting true
             dry=False,
             # Log message callback
+            # Inteded for main GUI log window
             # Defaults to printing to stdout
             log=None,
-            verbosity=2,
-            # Override image taking
-            # Intended for out of band imaging (ex: snap a remote camera)
-            # where image is not saved here
-            imager_take=None,
-            # advanced, do not use
-            origin="ul",
-            imagerj={}):
+            verbosity=2):
         if log is None:
 
             def log(msg='', verbosity=None):
@@ -252,34 +251,40 @@ class Planner(object):
 
         self._log = log
         self.v = verbosity
-        self.origin = origin
+        self.out_dir = out_dir
+
         self.dry = dry
         if self.dry:
             self.motion = DryHal(motion)
         else:
             self.motion = motion
         assert self.motion, "Required"
+
         self.imager = imager
         assert self.imager, "Required"
-        self.imager_take = imager_take
-        # os.path.join(config['cnc']['out_dir'], self.rconfig.job_name)
-        self.out_dir = out_dir
 
         # polarity such that can wait on being set
         self.unpaused = threading.Event()
         self.unpaused.set()
 
-        self.running = True
-
         # FIXME: this is better than before but CTypes pickle error from deepcopy
-        self.config = scan_config
+        self.config = config
         self.progress_cb = progress_cb
 
-        self.imagerj = imagerj
+        start, end = self.init_contour()
+        self.init_axes(start, end)
+        self.init_stacking()
+        self.init_images()
 
-        ideal_overlap = 0.7
-        if 'overlap' in scan_config:
-            ideal_overlap = float(scan_config['overlap'])
+        self.running = True
+        self.notify_progress(None, True)
+
+    def init_contour(self):
+        contour = self.config["contour"]
+
+        self.ideal_overlap = 0.7
+        if 'overlap' in contour:
+            self.ideal_overlap = float(contour['overlap'])
         # Maximum allowable overlap proportion error when trying to fit number of snapshots
         #overlap_max_error = 0.05
         '''
@@ -287,38 +292,51 @@ class Planner(object):
         plane calibration corner ended at 0.0000, 0.2674, -0.0129
         '''
 
-        start = [
-            float(scan_config['start']['x']),
-            float(scan_config['start']['y'])
-        ]
-        end = [float(scan_config['end']['x']), float(scan_config['end']['y'])]
-        border = None
-        if 'border' in scan_config:
-            border = float(scan_config['border'])
-            start[0] -= border
-            start[1] -= border
-            end[0] += border
-            end[1] += border
+        start = [float(contour['start']['x']), float(contour['start']['y'])]
+        end = [float(contour['end']['x']), float(contour['end']['y'])]
 
-        if image_wh_mm is None:
-            assert mm_per_pix is not None, "If image_wh_mm is None mm_per_pix is required"
-            image_wh_mm = (self.imager.wh()[0] * mm_per_pix,
-                           self.imager.wh()[1] * mm_per_pix)
+        self.border = float(contour.get('border', 0.0))
+        start[0] -= self.border
+        start[1] -= self.border
+        end[0] += self.border
+        end[1] += self.border
+
+        return start, end
+
+    def image_scalar(self):
+        """Multiplier to go from Imager image size to output image size"""
+        return float(self.config['microscope']['imager']['scalar'])
+
+    def image_wh(self):
+        """Final snapshot image width, height after scaling"""
+        w = int(
+            int(self.config['microscope']['imager']['width']) /
+            self.image_scalar())
+        h = int(
+            int(self.config['microscope']['imager']['height']) /
+            self.image_scalar())
+        return w, h
+
+    def init_axes(self, start, end):
+        x_mm = float(self.config["imager"]["objective"]['x_view'])
+        image_wh = self.image_wh()
+        mm_per_pix = x_mm / image_wh[0]
+        image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
 
         self.axes = OrderedDict([
             ('x',
              PlannerAxis('X',
-                         ideal_overlap,
+                         self.ideal_overlap,
                          image_wh_mm[0],
-                         self.imager.wh()[0],
+                         image_wh[0],
                          start[0],
                          end[0],
                          log=self.log)),
             ('y',
              PlannerAxis('Y',
-                         ideal_overlap,
+                         self.ideal_overlap,
                          image_wh_mm[1],
-                         self.imager.wh()[1],
+                         image_wh[1],
                          start[1],
                          end[1],
                          log=self.log)),
@@ -326,18 +344,26 @@ class Planner(object):
         self.x = self.axes['x']
         self.y = self.axes['y']
 
-        self.stack_init()
+    def init_stacking(self):
+        """Focus stacking initialization"""
+        if 'stack' in self.config:
+            stack = self.config['stack']
+            self.num_stack = int(stack['num'])
+            self.stack_step_size = int(stack['step_size'])
+        else:
+            self.num_stack = None
+            self.stack_step_size = None
 
+    def init_images(self):
         for axisc, axis in self.axes.items():
             self.log('Axis %s' % axisc)
             self.log('  %f to %f' % (axis.start, axis.actual_end), 2)
             self.log(
                 '  Ideal overlap: %f, actual %g' %
-                (ideal_overlap, axis.step_percent()), 2)
+                (self.ideal_overlap, axis.step_percent()), 2)
             self.log('  full delta: %f' % (self.x.requested_delta_mm()), 2)
             self.log('  view: %d pix' % (axis.view_pixels, ), 2)
-            if border:
-                self.log('  border: %f' % border)
+            self.log('  border: %f' % self.border)
 
         # A true useful metric of efficieny loss is how many extra pictures we had to take
         # Maybe overhead is a better way of reporting it
@@ -372,8 +398,6 @@ class Planner(object):
 
         self.img_ext = '.jpg'
 
-        self.notify_progress(None, True)
-
     def check_running(self):
         if not self.running:
             raise Stop()
@@ -381,15 +405,6 @@ class Planner(object):
     def log(self, msg='', verbosity=2):
         if verbosity <= self.v:
             self._log(msg)
-
-    def stack_init(self):
-        if 'stack' in self.config:
-            stack = self.config['stack']
-            self.num_stack = int(stack['num'])
-            self.stack_step_size = int(stack['step_size'])
-        else:
-            self.num_stack = None
-            self.stack_step_size = None
 
     def notify_progress(self, image_file_name, first=False):
         if self.progress_cb:
@@ -421,6 +436,8 @@ class Planner(object):
     def write_meta(self):
         # Copy config for reference
         def dumpj(j, fn):
+            if self.dry:
+                return
             open(os.path.join(self.out_dir, fn), 'w').write(
                 json.dumps(j, sort_keys=True, indent=4,
                            separators=(',', ': ')))
@@ -439,18 +456,25 @@ class Planner(object):
             os.mkdir(self.out_dir)
 
     def img_fn(self, stack_suffix=''):
+        # Override image taking
+        # Intended for out of band imaging (ex: snap a remote camera)
+        # where image is not saved here
+        # imager_take=None,
+        # advanced, do not use
+        origin = self.config.get("origin", "ul")
+
         # XXX: quick hack, look into something more proper
-        if self.origin == "ul":
+        if origin == "ul":
             return os.path.join(
                 self.out_dir,
                 'c%03d_r%03d%s' % (self.cur_col, self.cur_row, stack_suffix))
-        elif self.origin == "ll":
+        elif origin == "ll":
             return os.path.join(
                 self.out_dir,
                 'c%03d_r%03d%s' % (self.cur_col, self.y.images_actual() -
                                    self.cur_row - 1, stack_suffix))
         else:
-            assert 0, self.origin
+            assert 0, origin
 
     def take_picture(self, fn_base):
 
@@ -461,12 +485,16 @@ class Planner(object):
             else:
                 image.save(fn_full)
 
+        # FIXME
+        if not self.dry:
+            time.sleep(1.2)
         self.motion.settle()
         if not self.dry:
-            if self.imager_take:
-                self.imager_take.take(fn_base)
+            if self.imager.remote():
+                self.imager_take.take()
             else:
                 images = self.imager.get()
+                # HDR, focus stack, etc may give more than one image
                 if len(images) == 1:
                     image = list(images.values())[0]
                     save(image, fn_base, self.img_ext)
@@ -573,6 +601,10 @@ class Planner(object):
             yield (x, y)
 
     def gen_xycr(self):
+        """
+        Return all image coordinates we'll visit
+        ((x, y), (col, row))
+        """
         for p in self.gen_xycr_serp():
             self.validate_point(p)
             if self.exclude(p):
@@ -599,13 +631,7 @@ class Planner(object):
             active, nexts = nexts, active
             row += 1
 
-    def run(self):
-        self.check_running()
-        self.start_time = time.time()
-        self.log()
-        self.log()
-        self.log()
-        self.max_move = {'x': 0, 'y': 0}
+    def print_run_header(self):
         self.comment('Generated by pyuscope on %s' %
                      (time.strftime("%d/%m/%Y %H:%M:%S"), ))
 
@@ -619,12 +645,19 @@ class Planner(object):
             else:
                 return "%0.1f MP" % (pixels, )
 
-        # Print separate if small pano forces adjusting bounds
-        print_req = (self.x.requested_delta_pixels(),
-                     self.y.requested_delta_pixels()) != (
-                         self.x.actual_delta_pixels(),
-                         self.y.actual_delta_pixels())
-        if print_req:
+        """
+        Print separate if small pano forces adjusting bounds
+        This is rare as panos are usually significantly larger than the image sensor
+
+        Pano size (requested/actual):
+           mm: 112.200 x,  75.306 y => 8449.3 mm2
+           pix: 2725 x,  1829 y => 5.0 MP
+        """
+        complex_pano_size = (self.x.requested_delta_pixels(),
+                             self.y.requested_delta_pixels()) != (
+                                 self.x.actual_delta_pixels(),
+                                 self.y.actual_delta_pixels())
+        if complex_pano_size:
             self.comment("Pano requested size:")
         else:
             self.comment("Pano size (requested/actual):")
@@ -637,11 +670,11 @@ class Planner(object):
             (self.x.requested_delta_pixels(), self.y.requested_delta_pixels(),
              pix_str(self.x.requested_delta_pixels() *
                      self.y.requested_delta_pixels())))
-        if print_req:
+        if complex_pano_size:
             self.comment("  end: %u x,  %us" %
                          (self.x.requested_end, self.y.requested_end))
 
-        if print_req:
+        if complex_pano_size:
             self.comment("Pano actual size:")
             self.comment("  mm: %0.3f x,  %0.3f y => %0.1f mm2" %
                          (self.x.actual_delta_mm(), self.y.actual_delta_mm(),
@@ -653,13 +686,9 @@ class Planner(object):
                          self.y.actual_delta_pixels())))
             self.comment("  end: %u x,  %us" %
                          (self.x.actual_end, self.y.actual_end))
-        """
-        # FIXME
-        assert not print_req, ((self.x.requested_delta_pixels(),
-                                self.y.requested_delta_pixels()),
-                               (self.x.actual_delta_pixels(),
-                                self.y.actual_delta_pixels()))
-        """
+
+        print("Backlash: %0.3f x, %0.3f y" %
+              (self.x.backlash, self.y.backlash))
 
         self.comment("Imager size:")
         self.comment(
@@ -678,12 +707,18 @@ class Planner(object):
         self.comment('  Generated positions: %u' % self.pictures_to_take)
         self.comment('  step: %0.3f x, %0.3f y' %
                      (self.x.step(), self.y.step()))
+
+    def run(self):
+        self.check_running()
+        self.start_time = time.time()
+        self.max_move = {'x': 0, 'y': 0}
+        self.log()
+        self.log()
+        self.log()
+        self.print_run_header()
         self.comment()
-
         self.prepare_image_output()
-
         self.motion.begin()
-
         # Do initial backlash compensation
         self.backlash_init()
 
@@ -714,8 +749,10 @@ class Planner(object):
             self.last_col = self.cur_col
 
         self.move_absolute_backlash({
-            'x': float(self.config['start']['x']),
-            'y': float(self.config['start']['y'])
+            'x':
+            float(self.config["contour"]['start']['x']),
+            'y':
+            float(self.config["contour"]['start']['y'])
         })
         self.end_program()
         self.end_time = time.time()
@@ -756,11 +793,14 @@ class Planner(object):
 
         ret = {}
         # User scan parameters
-        ret['params'] = self.config
+        ret['config'] = self.config
         # Calculated scan parameters
         ret['planner'] = plannerj
-        # Misc system metadata
-        ret['imager'] = self.imagerj
+
+        ret["images"] = OrderedDict()
+        for (x, y), (c, r) in self.gen_xycr():
+            k = "%uc_%ur" % (c, r)
+            ret["images"][k] = {"x": x, "y": y, "c": c, "r": r}
         return ret
 
     def backlash_init(self):

@@ -139,6 +139,9 @@ class MotionHAL(object):
     def cancel_jog(self):
         raise Exception("Required")
 
+    def command(self, s):
+        raise Exception("Required")
+
 
 '''
 Has no actual hardware associated with it

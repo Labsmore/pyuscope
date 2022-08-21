@@ -1,5 +1,3 @@
-from .img_util import get_scaled
-
 import os
 from PIL import Image
 import io

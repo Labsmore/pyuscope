@@ -211,5 +211,9 @@ def writej(fn, j):
         json.dumps(j, sort_keys=True, indent=4, separators=(',', ': ')))
 
 
+def printj(j):
+    print(json.dumps(j, sort_keys=True, indent=4, separators=(',', ': ')))
+
+
 def readj(fn):
     return json.load(open(fn, 'r'))

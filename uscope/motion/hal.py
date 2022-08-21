@@ -1,5 +1,6 @@
 import time
 from uscope.imager.imager import Imager
+import os
 
 
 class AxisExceeded(ValueError):
@@ -27,11 +28,14 @@ MotionHAL is not thread safe with exception of the following:
 
 class MotionHAL(object):
 
-    def __init__(self, log):
+    def __init__(self, log, verbose=None):
         if log is None:
 
             def log(msg='', lvl=2):
                 print(msg)
+
+        self.verbose = verbose if verbose is not None else bool(
+            int(os.getenv("MOTION_VERBOSE", "0")))
 
         self.log = log
         # seconds to wait before snapping picture

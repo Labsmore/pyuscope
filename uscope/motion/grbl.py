@@ -12,6 +12,7 @@ import termios
 import serial
 import time
 import os
+import threading
 
 
 class Timeout(Exception):
@@ -52,12 +53,17 @@ class GRBLSer:
             # so this should be plenty of margin for now
             ser_timeout=0.2,
             flush=True,
-            verbose=False):
+            verbose=None):
         if port is None:
             port = default_port()
-        self.verbose = verbose
+        self.verbose = verbose if verbose is not None else bool(
+            int(os.getenv("GRBLSER_VERBOSE", "0")))
+        # For debugging concurrency issue
+        self.poison_threads = False
+        self.last_thread = None
 
-        self.verbose and print("opening", port)
+        self.verbose and print("opening %s in thread %s" %
+                               (port, threading.get_ident()))
 
         # workaround for pyserial toggling flow control lines on open
         # https://github.com/pyserial/pyserial/issues/124
@@ -116,6 +122,15 @@ class GRBLSer:
 
     def tx(self, out, nl=True):
         self.verbose and print("tx '%s'" % (out, ))
+
+        if self.poison_threads:
+            if self.last_thread:
+                assert self.last_thread == threading.get_ident(), (
+                    self.last_thread, threading.get_ident())
+            else:
+                self.last_thread = threading.get_ident()
+            print("grbl thread: %s" % threading.get_ident())
+
         if nl:
             out = out + '\r'
         out = out.encode('ascii')
@@ -318,8 +333,9 @@ class MockGRBLSer(GRBLSer):
             # some boards take more than 1 second to reset
             ser_timeout=3.0,
             flush=True,
-            verbose=False):
-        self.verbose = verbose
+            verbose=None):
+        self.verbose = verbose if verbose is not None else bool(
+            int(os.getenv("GRBLSER_VERBOSE", "0")))
         self.verbose and print("MOCK: opening", port)
         self.serial = None
 
@@ -352,7 +368,7 @@ class GRBL:
                  probe=True,
                  reset=False,
                  gs=None,
-                 verbose=False):
+                 verbose=None):
         """
         port: serial port file name
         gs: supply your own serial port object
@@ -362,7 +378,8 @@ class GRBL:
         verbose: yell stuff to the screen
         """
 
-        self.verbose = verbose
+        self.verbose = verbose if verbose is not None else bool(
+            int(os.getenv("GRBL_VERBOSE", "0")))
         if gs is None:
             if port == "mock":
                 gs = MockGRBLSer(verbose=verbose)
@@ -442,19 +459,28 @@ class GRBL:
         Idle|MPos:8.000,0.000,0.000|FS:0,0|WCO:0.000,0.000,0.000
         Idle|MPos:8.000,0.000,0.000|FS:0,0|Ov:100,100,100
         Idle|MPos:8.000,0.000,0.000|FS:0,0
+
+        noisy example:
+        rx '<Idle|MPos:-72.425,-25.634,0.000FS:0,0>'
         """
-        raw = self.gs.question()
-        parts = raw.split("|")
-        # FIXME: extra
-        ij, mpos, fs = parts[0:3]
-        mpos = (float(x) for x in mpos.split(":")[1].split(","))
-        mpos = dict([(k, v) for k, v in zip("xyz", mpos)])
-        return {
-            # Idle, Jog
-            "status": ij,
-            "MPos": mpos,
-            "FS": fs,
-        }
+        for i in range(3):
+            try:
+                raw = self.gs.question()
+                parts = raw.split("|")
+                # FIXME: extra
+                ij, mpos, fs = parts[0:3]
+                mpos = (float(x) for x in mpos.split(":")[1].split(","))
+                mpos = dict([(k, v) for k, v in zip("xyz", mpos)])
+                return {
+                    # Idle, Jog
+                    "status": ij,
+                    "MPos": mpos,
+                    "FS": fs,
+                }
+            except Exception as e:
+                self.verbose and print("WARNING: bad qstatus")
+                continue
+        raise e
 
     def mpos(self):
         """Return current absolute position"""
@@ -483,11 +509,10 @@ class GRBL:
 
 class GrblHal(MotionHAL):
 
-    def __init__(self, log=None):
-        self.verbose = False
+    def __init__(self, log=None, verbose=None):
         self.feedrate = None
-        self.grbl = GRBL(verbose=True)
-        MotionHAL.__init__(self, log)
+        self.grbl = GRBL(verbose=verbose)
+        MotionHAL.__init__(self, log, verbose=verbose)
 
     def axes(self):
         return {'x', 'y', 'z'}

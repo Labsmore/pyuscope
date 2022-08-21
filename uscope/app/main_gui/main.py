@@ -318,8 +318,9 @@ class MainWindow(QMainWindow):
     log_msg = pyqtSignal(str)
     pos = pyqtSignal(int)
 
-    def __init__(self, source=None, controls=True):
+    def __init__(self, source=None, verbose=False):
         QMainWindow.__init__(self)
+        self.verbose = verbose
         self.showMaximized()
         self.usj = usj
         self.objective_name_le = None
@@ -428,11 +429,14 @@ class MainWindow(QMainWindow):
         self.log_msg.emit(s)
 
     def poll_update_pos(self):
+        last_pos = self.motion_thread.pos_cache
+        if last_pos:
+            self.update_pos(last_pos)
         # FIXME: hack to avoid concurrency issues with planner and motion thread fighting
         # merge them together?
         if not self.pt:
-            self.update_pos(self.motion_thread.pos())
-        self.position_poll_timer.start(1000)
+            self.motion_thread.update_pos_cache()
+        self.position_poll_timer.start(400)
 
     def update_pos(self, pos):
         # FIXME: this is causing screen flickering
@@ -1069,9 +1073,12 @@ def parse_args():
     import argparse
 
     parser = argparse.ArgumentParser(description='')
-    add_bool_arg(parser, '--controls', default=True)
+    add_bool_arg(parser, '--verbose', default=None)
     parser.add_argument('source', nargs="?", default=None)
     args = parser.parse_args()
+
+    args.verbose and print("Parsing args in thread %s" %
+                           (threading.get_ident(), ))
 
     return vars(args)
 

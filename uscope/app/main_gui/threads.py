@@ -43,6 +43,9 @@ class MotionThread(QThread):
         self.normal_running.set()
         self.cmd_done = cmd_done
         self.lock = threading.Event()
+        # Let main gui get the last position from a different thread
+        # It can request updates
+        self.pos_cache = None
 
     def log(self, msg):
         self.log_msg.emit(msg)
@@ -80,7 +83,11 @@ class MotionThread(QThread):
     def cancel_jog(self):
         self.command("cancel_jog")
 
+    def update_pos_cache(self):
+        self.command("update_pos_cache")
+
     def run(self):
+        print("Motion thread started: %s" % (threading.get_ident(), ))
         self.running.set()
         self.idle.clear()
         self.hal.on()
@@ -118,9 +125,13 @@ class MotionThread(QThread):
                     self.log(str(e))
                 return self.hal.pos()
 
+            def update_pos_cache():
+                self.pos_cache = self.hal.pos()
+
             #print 'cnc thread: dispatch %s' % command
             # Maybe I should just always emit the pos
             ret = {
+                'update_pos_cache': update_pos_cache,
                 'move_absolute': move_absolute,
                 'move_relative': move_relative,
                 'jog': self.hal.jog,
@@ -185,6 +196,7 @@ class PlannerThread(QThread):
     def run(self):
         try:
             self.log('Initializing planner!')
+            print("Planner thread started: %s" % (threading.get_ident(), ))
 
             self.planner = Planner(log=self.log, **self.pconfig)
             self.log('Running planner')

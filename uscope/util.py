@@ -25,6 +25,25 @@ def add_bool_arg(parser, yes_arg, default=False, **kwargs):
                         **kwargs)
 
 
+def tobytes(buff):
+    if type(buff) is str:
+        #return bytearray(buff, 'ascii')
+        return bytearray([ord(c) for c in buff])
+    elif type(buff) is bytearray or type(buff) is bytes:
+        return buff
+    else:
+        assert 0, type(buff)
+
+
+def tostr(buff):
+    if type(buff) is str:
+        return buff
+    elif type(buff) is bytearray or type(buff) is bytes:
+        return ''.join([chr(b) for b in buff])
+    else:
+        assert 0, type(buff)
+
+
 def hexdump(data, label=None, indent='', address_width=8, f=sys.stdout):
 
     def isprint(c):
@@ -64,16 +83,9 @@ def hexdump(data, label=None, indent='', address_width=8, f=sys.stdout):
 
         f.write(''.join([
             c if isprint(c) else '.'
-            for c in str(data[row_start:row_start + real_data])
+            for c in tostr(data[row_start:row_start + real_data])
         ]))
         f.write((" " * (bytes_per_row - real_data)) + "|\n")
-
-
-'''
-    (
-    "\x08\x84\xA4\x06\x02\x00\x26\x00\x43\x00\xC0\x03\x00\x08\x10\x24"
-    "\x00\x00\xC0\x1E\x00\x00\x85\x00")
-'''
 
 
 def str2hex(buff, prefix='', terse=True):

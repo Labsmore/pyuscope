@@ -8,6 +8,7 @@ Case insensitive best I can tell
 from uscope.motion.hal import MotionHAL, format_t, AxisExceeded
 
 from uscope import util
+import termios
 import serial
 import time
 import os
@@ -30,11 +31,16 @@ def trim_data_line(l):
 
 def trim_status_line(l):
     if len(l) < 2:
-        raise ValueError("bad line")
+        raise ValueError("bad status line, len=%u" % len(l))
     # print("test", l)
     assert l[0] == "<"
     assert l[-1] == ">"
     return l[1:-1]
+
+
+"""
+https://www.sainsmart.com/blogs/news/grbl-v1-1-quick-reference
+"""
 
 
 class GRBLSer:
@@ -42,26 +48,40 @@ class GRBLSer:
     def __init__(
             self,
             port=None,
-            # some boards take more than 1 second to reset
-            ser_timeout=2.0,
+            # All commands I've seen so far complete responses in < 10 ms
+            # so this should be plenty of margin for now
+            ser_timeout=0.2,
             flush=True,
             verbose=False):
         if port is None:
             port = default_port()
         self.verbose = verbose
+
         self.verbose and print("opening", port)
-        self.serial = serial.Serial(
-            port,
-            baudrate=115200,
-            bytesize=serial.EIGHTBITS,
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE,
-            rtscts=False,
-            dsrdtr=False,
-            xonxoff=False,
-            timeout=ser_timeout,
-            # Blocking writes
-            writeTimeout=None)
+
+        # workaround for pyserial toggling flow control lines on open
+        # https://github.com/pyserial/pyserial/issues/124
+        f = open(port)
+        attrs = termios.tcgetattr(f)
+        """
+       HUPCL  Lower modem control lines after last process closes the
+              device (hang up).
+
+       TCSAFLUSH
+              the change occurs after all output written to the object
+              referred by fd has been transmitted, and all input that
+              has been received but not read will be discarded before
+        """
+        attrs[2] = attrs[2] & ~termios.HUPCL
+        termios.tcsetattr(f, termios.TCSAFLUSH, attrs)
+        f.close()
+
+        # Now carefuly do an open
+        self.serial = serial.Serial()
+        self.serial.baudrate = 115200
+        self.serial.timeout = ser_timeout
+        self.serial.port = port
+        self.serial.open()
 
         if flush:
             # Try to abort an in progress command
@@ -71,8 +91,6 @@ class GRBLSer:
             # they will buffer into unfrozen
             self.serial.flushInput()
             self.serial.flushOutput()
-            self.txb(b"\r")
-            # Try to let any in progress command finish
             self.flush()
 
     def flush(self):
@@ -105,7 +123,14 @@ class GRBLSer:
         self.serial.flush()
 
     def readline(self):
-        return self.serial.readline().decode("ascii").strip()
+        tstart = time.time()
+        b = self.serial.readline()
+        if self.verbose:
+            tend = time.time()
+            print("rx %u bytes in %0.3f sec" % (len(b), tend - tstart))
+            from uscope import util
+            util.hexdump(b)
+        return b.decode("ascii").strip()
 
     def txrxs(self, out, nl=True, trim_data=True):
         """
@@ -155,10 +180,13 @@ class GRBLSer:
         Grbl 1.1f ['$' for help]
         """
         self.tx("\x18", nl=False)
+        # Leave recovery to higher level logic
+        """
         l = self.readline().strip()
         assert l == ""
         l = self.readline().strip()
         assert "Grbl" in l, l
+        """
 
     def dollar(self):
         """
@@ -281,7 +309,7 @@ class MockGRBLSer(GRBLSer):
             self,
             port="/dev/ttyUSB0",
             # some boards take more than 1 second to reset
-            ser_timeout=2.0,
+            ser_timeout=3.0,
             flush=True,
             verbose=False):
         self.verbose = verbose
@@ -318,8 +346,6 @@ class GRBL:
                  reset=False,
                  gs=None,
                  verbose=False):
-        print("verbose2", verbose)
-        assert verbose
         """
         port: serial port file name
         gs: supply your own serial port object
@@ -332,14 +358,77 @@ class GRBL:
         self.verbose = verbose
         if gs is None:
             if port == "mock":
-                gs = MockGRBLSer(flush=flush, verbose=verbose)
+                gs = MockGRBLSer(verbose=verbose)
             else:
-                gs = GRBLSer(port=port, flush=flush, verbose=verbose)
+                gs = GRBLSer(port=port, verbose=verbose)
         self.gs = gs
+        if flush:
+            pass
+        if probe:
+            self.reset_probe()
+        # WARNING: probe issue makes this unsafe to use first
+        # CPU must be safely brought out of reset
         if reset:
             self.reset()
-        if probe:
-            self.qstatus()
+
+    def reset(self):
+        self.gs.reset()
+        self.reset_recover()
+
+    def reset_probe(self):
+        """
+        Try to establish communications as a reset may be occurring
+        Workaround for poorly understood issue (see below)
+        Takes about 1.5 seconds typically to get response
+
+        Weird connection startup issue
+        Connecting serial port may reset the device (???)
+        Workaround: probe will try to establish connection
+        If can't get response, try to get the sync message back
+
+        rx 2 bytes in 1.379 sec
+        00000000  0D 0A
+
+        typical resposne is < 0.05 sec
+        """
+        tbegin = time.time()
+
+        self.gs.tx("?", nl=False)
+        l = self.gs.readline()
+        # print("got", len(l), l)
+        # Line shoudl be quite long and have markers
+        if len(l) > 4 and "<" in l and ">" in l:
+            # Connection ok, no need to
+            return
+
+        print("grbl WARNING: failed to respond, attempting recovery")
+        self.reset_recover(tbegin=tbegin, verbose=True)
+
+        # Run full status command to be sure
+        self.qstatus()
+        # grbl: recovered after 1.388 sec
+        print("grbl: recovered after %0.3f sec" % (time.time() - tbegin, ))
+
+    def reset_recover(self):
+        # Prompt should come in about 1.5 seconds from start
+        tbegin = time.time()
+        while time.time() - tbegin < 2.0:
+            l = self.gs.readline()
+            if len(l):
+                break
+        else:
+            raise Exception("Timed out reestablishing communications")
+
+        # Initial response should be newline
+        # Wait until grbl reset prompt
+        tstart = time.time()
+        while time.time() - tstart < 1.0:
+            # Grbl 1.1f ['$' for help]
+            if "Grbl" in l:
+                break
+            # Normal timeout here?
+            # Should be moving quickly now
+            l = self.gs.readline()
 
     def qstatus(self):
         """
@@ -444,6 +533,4 @@ class GrblHal(MotionHAL):
 
 
 def get_grbl(port=None, gs=None, reset=False, verbose=False):
-    assert verbose
-    print("verbose1", verbose)
     return GRBL(port=port, gs=gs, reset=reset, verbose=verbose)

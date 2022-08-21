@@ -559,24 +559,29 @@ class MainWindow(QMainWindow):
 
     def mk_contour_json(self):
         try:
-            ret = {
-                "overlap": 0.7,
-                "border": 0.1,
-                "start": {
-                    "x": float(self.plan_x0_le.text()),
-                    "y": float(self.plan_y0_le.text())
-                },
-                "end": {
-                    "x": float(self.plan_x1_le.text()),
-                    "y": float(self.plan_y1_le.text())
-                }
-            }
-
-            # ret['overlap'] = float(self.overlap_le.text())
-            # ret['border'] = float(self.border_le.text())
+            x0 = float(self.plan_x0_le.text())
+            y0 = float(self.plan_y0_le.text())
+            x1 = float(self.plan_x1_le.text())
+            y1 = float(self.plan_y1_le.text())
         except ValueError:
             self.log("Bad scan x/y")
             return None
+
+        ret = {
+            "overlap": 0.7,
+            "border": 0.1,
+            "start": {
+                "x": x0,
+                "y": y0,
+            },
+            "end": {
+                "x": x1,
+                "y": y1,
+            }
+        }
+
+        # ret['overlap'] = float(self.overlap_le.text())
+        # ret['border'] = float(self.border_le.text())
 
         return ret
 
@@ -802,7 +807,7 @@ class MainWindow(QMainWindow):
             self.axis_pos_label['y'] = label
             row += 1
 
-            self.plan_start_pb = QPushButton("Start")
+            self.plan_start_pb = QPushButton("Origin")
             self.plan_start_pb.clicked.connect(self.set_start_pos)
             gl.addWidget(self.plan_start_pb, row, 0)
             self.plan_x0_le = QLineEdit('0.000')

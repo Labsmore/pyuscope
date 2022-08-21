@@ -295,6 +295,13 @@ class Planner(object):
         start = [float(contour['start']['x']), float(contour['start']['y'])]
         end = [float(contour['end']['x']), float(contour['end']['y'])]
 
+        # Planner coordinates must be increasing
+        # Normalize them
+        if start[0] > end[0]:
+            start[0], end[0] = end[0], start[0]
+        if start[1] > end[1]:
+            start[1], end[1] = end[1], start[1]
+
         self.border = float(contour.get('border', 0.0))
         start[0] -= self.border
         start[1] -= self.border

@@ -77,11 +77,18 @@ class GRBLSer:
         f.close()
 
         # Now carefuly do an open
-        self.serial = serial.Serial()
-        self.serial.baudrate = 115200
-        self.serial.timeout = ser_timeout
-        self.serial.port = port
-        self.serial.open()
+        self.serial = serial.Serial(
+            port,
+            baudrate=115200,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            rtscts=False,
+            dsrdtr=False,
+            xonxoff=False,
+            timeout=ser_timeout,
+            # Blocking writes
+            writeTimeout=None)
 
         if flush:
             # Try to abort an in progress command
@@ -401,8 +408,8 @@ class GRBL:
             # Connection ok, no need to
             return
 
-        print("grbl WARNING: failed to respond, attempting recovery")
-        self.reset_recover(tbegin=tbegin, verbose=True)
+        print("grbl WARNING: failed to respond, attempting reset recovery")
+        self.reset_recover()
 
         # Run full status command to be sure
         self.qstatus()

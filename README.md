@@ -75,6 +75,28 @@ You may need to use a program like "cheese" to see what the options are
 python3 main_gui/main.py
 ```
 
+# Installation
+
+To install:
+
+```
+sudo python3 setup.py install
+```
+
+Or for development:
+
+```
+sudo python3 setup.py develop
+```
+
+Setup environment before running:
+
+```
+export PYTHONPATH=$PYTHONPATH:$PWD
+export GST_PLUGIN_PATH=~/gst-plugin-toupcam/src/.libs/:$PWD
+python3 main_gui/main.py
+```
+
 # Why?
 
 Originally I needed to support specialized hardware and had a burning hated for Java

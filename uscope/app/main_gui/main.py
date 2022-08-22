@@ -567,6 +567,12 @@ class MainWindow(QMainWindow):
             self.log("Bad scan x/y")
             return None
 
+        # Planner coordinates must be increasing
+        if x0 > x1:
+            self.log("X0 must be less than X1")
+        if y0 > y1:
+            self.log("X0 must be less than X1")
+
         ret = {
             "overlap": 0.7,
             "border": 0.1,
@@ -807,7 +813,7 @@ class MainWindow(QMainWindow):
             self.axis_pos_label['y'] = label
             row += 1
 
-            self.plan_start_pb = QPushButton("Origin")
+            self.plan_start_pb = QPushButton("Upper right")
             self.plan_start_pb.clicked.connect(self.set_start_pos)
             gl.addWidget(self.plan_start_pb, row, 0)
             self.plan_x0_le = QLineEdit('0.000')
@@ -816,7 +822,7 @@ class MainWindow(QMainWindow):
             gl.addWidget(self.plan_y0_le, row, 2)
             row += 1
 
-            self.plan_end_pb = QPushButton("End")
+            self.plan_end_pb = QPushButton("Lower left")
             self.plan_end_pb.clicked.connect(self.set_end_pos)
             gl.addWidget(self.plan_end_pb, row, 0)
             self.plan_x1_le = QLineEdit('0.000')

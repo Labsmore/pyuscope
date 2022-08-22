@@ -325,6 +325,12 @@ class Planner(object):
         return w, h
 
     def init_axes(self, start, end):
+        # CNC convention is origin should be in lower left of sample
+        # Increases up and to the right
+        # pr0nscope has ul origin though
+        self.origin = self.config.get("origin", "ll")
+        assert self.origin in ("ll", "ul"), "Invalid coordinate origin"
+
         x_mm = float(self.config["imager"]["objective"]['x_view'])
         image_wh = self.image_wh()
         mm_per_pix = x_mm / image_wh[0]
@@ -462,26 +468,24 @@ class Planner(object):
             self.log('Creating output directory %s' % self.out_dir)
             os.mkdir(self.out_dir)
 
-    def img_fn(self, stack_suffix=''):
-        # Override image taking
-        # Intended for out of band imaging (ex: snap a remote camera)
-        # where image is not saved here
-        # imager_take=None,
-        # advanced, do not use
-        origin = self.config.get("origin", "ul")
+    def img_fn(self, suffix=''):
+        """
+        Return filename basename excluding extension
+        ex: c001_r004
+        """
 
         # XXX: quick hack, look into something more proper
-        if origin == "ul":
+        if self.origin == "ll":
             return os.path.join(
                 self.out_dir,
-                'c%03d_r%03d%s' % (self.cur_col, self.cur_row, stack_suffix))
-        elif origin == "ll":
+                'c%03u_r%03u%s' % (self.cur_col, self.y.images_actual() -
+                                   self.cur_row - 1, suffix))
+        elif self.origin == "ul":
             return os.path.join(
                 self.out_dir,
-                'c%03d_r%03d%s' % (self.cur_col, self.y.images_actual() -
-                                   self.cur_row - 1, stack_suffix))
+                'c%03u_r%03u%s' % (self.cur_col, self.cur_row, suffix))
         else:
-            assert 0, origin
+            assert 0, self.origin
 
     def take_picture(self, fn_base):
 

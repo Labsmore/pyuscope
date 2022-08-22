@@ -112,9 +112,15 @@ However, I've been using this workflow for years now, and will probably continue
 2.2.0
  * Enforce output file naming convention
  
- 2.3.0 (WIP
+3.0.0 (WIP)
+ * GRBL support
+ * GRBL jog support
+ * Coordiante system defaults to lower left instead of upper left
+ * Move imager controls from floating window into tab
+ * Major API restructure
+ * microscope.json small changes
+ * planner.json major changes
  * Drop obsolete "Controller" motion control API (including Axis object)
  * Drop obsolete pr0ndexer motion control support
  * Drop obsolete MC motion control support
- * GRBL support
 

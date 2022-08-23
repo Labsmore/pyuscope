@@ -222,7 +222,7 @@ class Planner(object):
             self,
             # JSON like configuration settings affecting produced data
             # ex: verbosity, dry, objects are not included
-            config,
+            pconfig,
             # Movement HAL
             motion=None,
 
@@ -269,7 +269,7 @@ class Planner(object):
         self.unpaused.set()
 
         # FIXME: this is better than before but CTypes pickle error from deepcopy
-        self.config = config
+        self.pconfig = pconfig
         self.progress_cb = progress_cb
 
         start, end = self.init_contour()
@@ -281,7 +281,7 @@ class Planner(object):
         self.notify_progress(None, True)
 
     def init_contour(self):
-        contour = self.config["contour"]
+        contour = self.pconfig["contour"]
 
         self.ideal_overlap = 0.7
         if 'overlap' in contour:
@@ -313,15 +313,15 @@ class Planner(object):
 
     def image_scalar(self):
         """Multiplier to go from Imager image size to output image size"""
-        return float(self.config['microscope']['imager']['scalar'])
+        return float(self.pconfig['microscope']['imager']['scalar'])
 
     def image_wh(self):
         """Final snapshot image width, height after scaling"""
         w = int(
-            int(self.config['microscope']['imager']['width']) /
+            int(self.pconfig['microscope']['imager']['width']) /
             self.image_scalar())
         h = int(
-            int(self.config['microscope']['imager']['height']) /
+            int(self.pconfig['microscope']['imager']['height']) /
             self.image_scalar())
         return w, h
 
@@ -329,15 +329,15 @@ class Planner(object):
         # CNC convention is origin should be in lower left of sample
         # Increases up and to the right
         # pr0nscope has ul origin though
-        self.origin = self.config["motion"].get("origin", "ll")
+        self.origin = self.pconfig["microscope"]["motion"].get("origin", "ll")
         assert self.origin in ("ll", "ul"), "Invalid coordinate origin"
 
-        x_mm = float(self.config["imager"]["objective"]['x_view'])
+        x_mm = float(self.pconfig["imager"]["objective"]['x_view'])
         image_wh = self.image_wh()
         mm_per_pix = x_mm / image_wh[0]
         image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
 
-        backlash = self.config["motion"].get("backlash", 0.1)
+        backlash = self.pconfig["motion"].get("backlash", 0.1)
 
         self.axes = OrderedDict([
             ('x',
@@ -364,8 +364,8 @@ class Planner(object):
 
     def init_stacking(self):
         """Focus stacking initialization"""
-        if 'stack' in self.config:
-            stack = self.config['stack']
+        if 'stack' in self.pconfig:
+            stack = self.pconfig['stack']
             self.num_stack = int(stack['num'])
             self.stack_step_size = int(stack['step_size'])
         else:
@@ -396,7 +396,7 @@ class Planner(object):
 
         # Try actually generating the points and see if it matches how many we thought we were going to get
         self.pictures_to_take = self.n_xy()
-        if self.config.get('exclude', []):
+        if self.pconfig.get('exclude', []):
             self.log('Suppressing picture take check on exclusions')
         elif self.pictures_to_take != expected_n_pictures:
             self.log(
@@ -590,7 +590,7 @@ class Planner(object):
 
     def exclude(self, p):
         (_xy, (cur_row, cur_col)) = p
-        for exclusion in self.config.get('exclude', []):
+        for exclusion in self.pconfig.get('exclude', []):
             '''
             If neither limit is specified don't exclude
             maybe later: if one limit is specified but not the other take it as the single bound
@@ -723,6 +723,7 @@ class Planner(object):
         self.comment('  Generated positions: %u' % self.pictures_to_take)
         self.comment('  step: %0.3f x, %0.3f y' %
                      (self.x.step(), self.y.step()))
+        self.comment("Origin: %s" % self.origin)
 
     def run(self):
         self.check_running()
@@ -766,9 +767,9 @@ class Planner(object):
 
         self.move_absolute_backlash({
             'x':
-            float(self.config["contour"]['start']['x']),
+            float(self.pconfig["contour"]['start']['x']),
             'y':
-            float(self.config["contour"]['start']['y'])
+            float(self.pconfig["contour"]['start']['y'])
         })
         self.end_program()
         self.end_time = time.time()
@@ -783,7 +784,7 @@ class Planner(object):
         self.log('  G0 X%0.3f Y%0.3f' %
                  (self.max_move['x'], self.max_move['y']))
         if self.xy_imgs != self.pictures_to_take:
-            if self.config.get('exclude', []):
+            if self.pconfig.get('exclude', []):
                 self.log(
                     'Suppressing for exclusion: pictures taken mismatch (taken: %d, to take: %d)'
                     % (self.pictures_to_take, self.xy_imgs))
@@ -809,7 +810,7 @@ class Planner(object):
 
         ret = {}
         # User scan parameters
-        ret['config'] = self.config
+        ret['pconfig'] = self.pconfig
         # Calculated scan parameters
         ret['planner'] = plannerj
 

@@ -518,7 +518,7 @@ class MainWindow(QMainWindow):
         # TODO: make this not block GUI
         self.motion_thread.wait_idle()
 
-        planner_json = {
+        pconfig = {
             # follow git release
             # "version": USCOPE_VERSION,
             "imager": {
@@ -540,14 +540,14 @@ class MainWindow(QMainWindow):
 
         if 1:
             print("planner_json")
-            util.printj(planner_json)
+            util.printj(pconfig)
 
         # Directly goes into planner constructor
         # Make sure everything here is thread safe
         # log param is handled by other thread
         planner_params = {
             # Simple settings written to disk, no objects
-            "config": planner_json,
+            "pconfig": pconfig,
             "motion": self.motion_thread.hal,
 
             # Typically GstGUIImager

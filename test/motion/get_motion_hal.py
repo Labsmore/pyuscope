@@ -19,4 +19,3 @@ if __name__ == "__main__":
     usj = get_usj()
     # linuxcnc = LCNCRPC(args.host, args.port)
     hal = get_cnc_hal(usj)
-

@@ -12,6 +12,8 @@ from uscope.motion.lcnc import hal_ar as lcnc_ar
 from uscope.motion.lcnc.client import LCNCRPC
 from uscope.motion.grbl import GrblHal
 from uscope.imager.imager import Imager, MockImager
+from uscope.img_util import get_scaled
+from uscope.config import cal_load_all
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -20,8 +22,9 @@ from PyQt5.QtWidgets import *
 
 import socket
 import threading
+import time
+from PIL import Image
 
-from uscope.config import get_usj, cal_load_all
 
 class GstGUIImager(Imager):
 
@@ -87,6 +90,7 @@ class GstGUIImager(Imager):
         else:
             return self.get_normal()
 
+
 def get_gui_imager(source, gui):
     if source == 'mock':
         return MockImager()
@@ -97,6 +101,7 @@ def get_gui_imager(source, gui):
         return ret
     else:
         raise Exception('Invalid imager type %s' % source)
+
 
 def get_cnc_hal(usj, log=print):
     try:

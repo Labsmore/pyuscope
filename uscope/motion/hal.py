@@ -13,8 +13,10 @@ def format_t(dt):
     hr = int(dt / 60 / 60)
     return '%02d:%02d:%02d' % (hr, m, s)
 
-class NotSupported:
+
+class NotSupported(Exception):
     pass
+
 
 '''
 Planner hardware abstraction layer (HAL)
@@ -28,7 +30,7 @@ MotionHAL is not thread safe with exception of the following:
 '''
 
 
-class MotionHAL(object):
+class MotionHAL:
 
     def __init__(self, log, verbose=None):
         if log is None:
@@ -76,7 +78,6 @@ class MotionHAL(object):
     In modern systems the first is almost always used
     The second is supported for now while porting legacy code
     '''
-
     """
     def img_get(self):
         '''Take a picture and return a PIL image'''
@@ -149,7 +150,6 @@ class MotionHAL(object):
         if axes is None:
             axes = self.axes()
         return dict([(axis, (-1000, 1000)) for axis in axes])
-
 
     def command(self, s):
         """MDI

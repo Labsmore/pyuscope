@@ -107,7 +107,6 @@ class LcncPyHalAr(LcncPyHal):
               local_ini=None,
               remote_ini=None,
               log=None,
-              dry=False,
               username='machinekit',
               password='machinekit',
               update_server=False,
@@ -166,7 +165,7 @@ class LcncPyHalAr(LcncPyHal):
         self.wait_local_port(PORT)
 
         linuxcnc = LCNCRPC('localhost')
-        LcncPyHal.__init__(self, linuxcnc=linuxcnc, log=log, dry=dry)
+        LcncPyHal.__init__(self, linuxcnc=linuxcnc, log=log)
 
     def local_port_up(self, port):
         rc = subprocess.call('exec 6<>/dev/tcp/127.0.0.1/%s' % port,

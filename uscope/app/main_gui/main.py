@@ -9,7 +9,6 @@ from uscope.img_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
 
-
 from uscope.gst_util import Gst, CaptureSink
 
 from uscope.app.main_gui.threads import MotionThread, PlannerThread
@@ -52,10 +51,6 @@ def error(msg, code=1):
         prefix = '\33[91m' + prefix + '\33[0m'
     print('{} {}'.format(prefix, msg))
     exit(code)
-
-
-
-
 
 
 """
@@ -387,8 +382,8 @@ class MainWindow(QMainWindow):
         source = self.vidpip.source_name
         self.log('Loading imager %s...' % source)
         # Gst is pretty ingrained for the GUI
-        # 
-        self.iamger = plugin.get_gui_imager(source, self)
+        #
+        self.imager = plugin.get_gui_imager(source, self)
 
     def get_config_layout(self):
         cl = QGridLayout()
@@ -714,12 +709,12 @@ class MainWindow(QMainWindow):
             self.axis_pos_label['z'] = label
             row += 1
 
-            self.origin = self.config["motion"].get("origin", "ll")
+            self.origin = self.usj["motion"].get("origin", "ll")
             assert self.origin in ("ll", "ul"), "Invalid coordinate origin"
             start_label, end_label = {
                 "ll": ("Lower left", "Upper right"),
                 "ul": ("Upper left", "Lower right"),
-                }[self.origin]
+            }[self.origin]
 
             self.plan_start_pb = QPushButton(start_label)
             self.plan_start_pb.clicked.connect(self.set_start_pos)
@@ -950,7 +945,7 @@ class MainWindow(QMainWindow):
 
     def initUI(self):
         self.vidpip.setupWidgets()
-        self.setWindowTitle('pr0ncnc')
+        self.setWindowTitle('pyuscope')
 
         def mainLayout():
             layout = QVBoxLayout()

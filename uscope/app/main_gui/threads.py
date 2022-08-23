@@ -130,7 +130,7 @@ class MotionThread(QThread):
 
             #print 'cnc thread: dispatch %s' % command
             # Maybe I should just always emit the pos
-            ret = {
+            f = {
                 'update_pos_cache': update_pos_cache,
                 'move_absolute': move_absolute,
                 'move_relative': move_relative,
@@ -142,7 +142,16 @@ class MotionThread(QThread):
                 'estop': self.hal.estop,
                 'unestop': self.hal.unestop,
                 'mdi': self.hal.command,
-            }.get(command, default)(*args)
+            }.get(command, default)
+            try:
+                ret = f(*args)
+            except Exception as e:
+                print("")
+                print("WARNING: motion thread crashed")
+                print(traceback.format_exc())
+                self.cmd_done(command, args, e)
+                continue
+
             self.cmd_done(command, args, ret)
 
     def stop(self):

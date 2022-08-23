@@ -13,6 +13,8 @@ def format_t(dt):
     hr = int(dt / 60 / 60)
     return '%02d:%02d:%02d' % (hr, m, s)
 
+class NotSupported:
+    pass
 
 '''
 Planner hardware abstraction layer (HAL)
@@ -56,7 +58,7 @@ class MotionHAL(object):
 
     def home(self, axes):
         '''Set current position to 0.0'''
-        raise Exception("Required")
+        raise Exception("Required for tuning")
 
     def ret0(self):
         '''Return to origin'''
@@ -64,17 +66,18 @@ class MotionHAL(object):
 
     def move_absolute(self, pos):
         '''Absolute move to positions specified by pos dict'''
-        raise Exception("Required")
+        raise NotSupported("Required for planner")
 
     def move_relative(self, delta):
         '''Relative move to positions specified by delta dict'''
-        raise Exception("Required")
+        raise NotSupported("Required for planner")
 
     '''
     In modern systems the first is almost always used
     The second is supported for now while porting legacy code
     '''
 
+    """
     def img_get(self):
         '''Take a picture and return a PIL image'''
         raise Exception("Required")
@@ -82,10 +85,11 @@ class MotionHAL(object):
     def img_take(self):
         '''Take a picture and save it to internal.  File name is generated automatically'''
         raise Exception("Unsupported")
+    """
 
     def pos(self):
         '''Return current position for all axes'''
-        raise Exception("Required")
+        raise NotSupported("Required for planner")
 
     def on(self):
         '''Call at start of MDI phase, before planner starts'''
@@ -124,7 +128,10 @@ class MotionHAL(object):
         axes: dict of axis with value to move
         WARNING: under development / unstable API
         '''
-        raise Exception("Not supported")
+        raise NotSupported("Required for jogging")
+
+    def cancel_jog(self):
+        raise NotSupported("Required for jogging")
 
     def set_jog_rate(self, rate):
         self.jog_rate = rate
@@ -136,15 +143,21 @@ class MotionHAL(object):
             self.sleep(sleept, 'settle')
 
     def limit(self, axes=None):
+        # FIXME: why were dummy values put here?
+        # is this even currently used?
+        raise NotSupported("")
         if axes is None:
             axes = self.axes()
         return dict([(axis, (-1000, 1000)) for axis in axes])
 
-    def cancel_jog(self):
-        raise Exception("Required")
 
     def command(self, s):
-        raise Exception("Required")
+        """MDI
+
+        Machine dependent definition, but generally a single line of g-code
+        Some machines only support binary => may be not supported
+        """
+        raise NotSupported("")
 
 
 '''

@@ -1,7 +1,8 @@
 {
     "motion": {
         "!engine": "mock",
-        "engine": "grbl"
+        "engine": "grbl",
+        "backlash": 0.1
     },
     "!imager": {
         "engine":"gst-testsrc",

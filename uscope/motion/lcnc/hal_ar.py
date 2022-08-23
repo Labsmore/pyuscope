@@ -109,6 +109,7 @@ class LcncPyHalAr(LcncPyHal):
               log=None,
               dry=False,
               username='machinekit',
+              password='machinekit',
               update_server=False,
               launch_lcnc=False,
               launch_server=False):
@@ -125,7 +126,7 @@ class LcncPyHalAr(LcncPyHal):
                          username=username,
                          key_filename=None,
                          look_for_keys=True,
-                         password=None)
+                         password=password)
 
         self.remote_tmp = '/tmp/lcnc_ar'
         self.remote_server_py = os.path.join(self.remote_tmp, 'server.py')

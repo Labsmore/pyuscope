@@ -5,15 +5,10 @@ from uscope.gui.control_scrolls import get_control_scroll
 from uscope.util import add_bool_arg
 
 from uscope.config import get_usj, cal_load_all
-from uscope.imager.imager import Imager, MockImager
 from uscope.img_util import get_scaled
 from uscope.benchmark import Benchmark
+from uscope.gui import plugin
 
-from uscope.motion import hal as cnc_hal
-from uscope.motion.lcnc import hal as lcnc_hal
-from uscope.motion.lcnc import hal_ar as lcnc_ar
-from uscope.motion.lcnc.client import LCNCRPC
-from uscope.motion.grbl import GrblHal
 
 from uscope.gst_util import Gst, CaptureSink
 
@@ -30,7 +25,6 @@ import time
 import datetime
 import os.path
 from PIL import Image
-import socket
 import sys
 import traceback
 import threading
@@ -60,100 +54,8 @@ def error(msg, code=1):
     exit(code)
 
 
-def get_cnc_hal(log=print):
-    try:
-        lcnc_host = usj["motion"]["lcnc"]["host"]
-    except KeyError:
-        lcnc_host = "mk"
-    engine = usj['motion']['engine']
-    log('get_cnc_hal: %s' % engine)
-
-    if engine == 'mock':
-        return cnc_hal.MockHal(log=log)
-    # we are on the actual linuxcnc system and can use the API directly
-    elif engine == 'lcnc-py':
-        import linuxcnc
-
-        return lcnc_hal.LcncPyHal(linuxcnc=linuxcnc, log=log)
-    elif engine == 'lcnc-rpc':
-        try:
-            return lcnc_hal.LcncPyHal(linuxcnc=LCNCRPC(host=lcnc_host),
-                                      log=log)
-        except socket.error:
-            raise
-            raise Exception("Failed to connect to LCNCRPC %s" % lcnc_host)
-    elif engine == 'lcnc-arpc':
-        return lcnc_ar.LcncPyHalAr(host=lcnc_host, log=log)
-    elif engine == 'lcnc-rsh':
-        return lcnc_hal.LcncRshHal(log=log)
-    elif engine == 'grbl':
-        return GrblHal()
-    else:
-        raise Exception("Unknown CNC engine %s" % engine)
 
 
-class GstGUIImager(Imager):
-
-    class Emitter(QObject):
-        change_properties = pyqtSignal(dict)
-
-    def __init__(self, gui):
-        Imager.__init__(self)
-        self.gui = gui
-        self.image_ready = threading.Event()
-        self.image_id = None
-        self.emitter = GstGUIImager.Emitter()
-        # FIXME
-        self.width, self.height = (640, 480)
-
-    def wh(self):
-        return self.width, self.height
-
-    def next_image(self):
-        #self.gui.emit_log('gstreamer imager: taking image to %s' % file_name_out)
-        def got_image(image_id):
-            self.gui.emit_log('Image captured reported: %s' % image_id)
-            self.image_id = image_id
-            self.image_ready.set()
-
-        self.image_id = None
-        self.image_ready.clear()
-        self.gui.capture_sink.request_image(got_image)
-        self.gui.emit_log('Waiting for next image...')
-        self.image_ready.wait()
-        self.gui.emit_log('Got image %s' % self.image_id)
-        return self.gui.capture_sink.pop_image(self.image_id)
-
-    def get_normal(self):
-        image = self.next_image()
-        factor = float(usj['imager']['scalar'])
-        scaled = get_scaled(image, factor, Image.ANTIALIAS)
-        return {"0": scaled}
-
-    def get_hdr(self, hdr):
-        ret = {}
-        factor = float(usj['imager']['scalar'])
-        for hdri, hdrv in enumerate(hdr["properties"]):
-            print("hdr: set %u %s" % (hdri, hdrv))
-            self.emitter.change_properties.emit(hdrv)
-            # Wait for setting to take effect
-            time.sleep(hdr["tsleep"])
-            image = self.next_image()
-            scaled = get_scaled(image, factor, Image.ANTIALIAS)
-            ret["%u" % hdri] = scaled
-        return ret
-
-    def get(self):
-        # FIXME: cache at beginning of scan somehow
-        hdr = None
-        source = usj['imager']['source']
-        cal = cal_load_all(source)
-        if cal:
-            hdr = cal.get("hdr", None)
-        if hdr:
-            return self.get_hdr(hdr)
-        else:
-            return self.get_normal()
 
 
 """
@@ -362,7 +264,7 @@ class MainWindow(QMainWindow):
 
         self.pt = None
         self.log_fd = None
-        hal = get_cnc_hal(log=self.emit_log)
+        hal = plugin.get_cnc_hal(self.usj, log=self.emit_log)
         hal.progress = self.hal_progress
         self.motion_thread = MotionThread(hal=hal, cmd_done=self.cmd_done)
         self.motion_thread.log_msg.connect(self.log)
@@ -484,14 +386,9 @@ class MainWindow(QMainWindow):
     def init_imager(self):
         source = self.vidpip.source_name
         self.log('Loading imager %s...' % source)
-        if source == 'mock':
-            self.imager = MockImager()
-        elif source.find("gst-") == 0:
-            self.imager = GstGUIImager(self)
-            self.imager.emitter.change_properties.connect(
-                self.control_scroll.set_disp_properties)
-        else:
-            raise Exception('Invalid imager type %s' % source)
+        # Gst is pretty ingrained for the GUI
+        # 
+        self.iamger = plugin.get_gui_imager(source, self)
 
     def get_config_layout(self):
         cl = QGridLayout()
@@ -801,6 +698,7 @@ class MainWindow(QMainWindow):
 
             gl.addWidget(QLabel("X (mm)"), row, 1)
             gl.addWidget(QLabel("Y (mm)"), row, 2)
+            gl.addWidget(QLabel("Z (mm)"), row, 3)
             row += 1
 
             self.axis_pos_label = {}
@@ -811,9 +709,19 @@ class MainWindow(QMainWindow):
             label = QLabel("?")
             gl.addWidget(label, row, 2)
             self.axis_pos_label['y'] = label
+            label = QLabel("?")
+            gl.addWidget(label, row, 3)
+            self.axis_pos_label['z'] = label
             row += 1
 
-            self.plan_start_pb = QPushButton("Upper right")
+            self.origin = self.config["motion"].get("origin", "ll")
+            assert self.origin in ("ll", "ul"), "Invalid coordinate origin"
+            start_label, end_label = {
+                "ll": ("Lower left", "Upper right"),
+                "ul": ("Upper left", "Lower right"),
+                }[self.origin]
+
+            self.plan_start_pb = QPushButton(start_label)
             self.plan_start_pb.clicked.connect(self.set_start_pos)
             gl.addWidget(self.plan_start_pb, row, 0)
             self.plan_x0_le = QLineEdit('0.000')
@@ -822,7 +730,7 @@ class MainWindow(QMainWindow):
             gl.addWidget(self.plan_y0_le, row, 2)
             row += 1
 
-            self.plan_end_pb = QPushButton("Lower left")
+            self.plan_end_pb = QPushButton(end_label)
             self.plan_end_pb.clicked.connect(self.set_end_pos)
             gl.addWidget(self.plan_end_pb, row, 0)
             self.plan_x1_le = QLineEdit('0.000')

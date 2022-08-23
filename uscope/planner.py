@@ -77,6 +77,7 @@ class PlannerAxis(object):
             # Inclusive such that 0:0 means image at position 0 only
             start,
             end,
+            backlash,
             log=None):
         if log is None:
 
@@ -111,7 +112,7 @@ class PlannerAxis(object):
 
         # Its actually less than this but it seems it takes some stepping
         # to get it out of the system
-        self.backlash = 0.050
+        self.backlash = backlash
         # sort out later
         #self.backlash = None
         '''
@@ -328,13 +329,15 @@ class Planner(object):
         # CNC convention is origin should be in lower left of sample
         # Increases up and to the right
         # pr0nscope has ul origin though
-        self.origin = self.config.get("origin", "ll")
+        self.origin = self.config["motion"].get("origin", "ll")
         assert self.origin in ("ll", "ul"), "Invalid coordinate origin"
 
         x_mm = float(self.config["imager"]["objective"]['x_view'])
         image_wh = self.image_wh()
         mm_per_pix = x_mm / image_wh[0]
         image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
+
+        backlash = self.config["motion"].get("backlash", 0.1)
 
         self.axes = OrderedDict([
             ('x',
@@ -344,6 +347,7 @@ class Planner(object):
                          image_wh[0],
                          start[0],
                          end[0],
+                         backlash=backlash,
                          log=self.log)),
             ('y',
              PlannerAxis('Y',
@@ -352,6 +356,7 @@ class Planner(object):
                          image_wh[1],
                          start[1],
                          end[1],
+                         backlash=backlash,
                          log=self.log)),
         ])
         self.x = self.axes['x']

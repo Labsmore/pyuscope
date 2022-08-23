@@ -75,6 +75,28 @@ You may need to use a program like "cheese" to see what the options are
 python3 main_gui/main.py
 ```
 
+# Installation
+
+To install:
+
+```
+sudo python3 setup.py install
+```
+
+Or for development:
+
+```
+sudo python3 setup.py develop
+```
+
+Setup environment before running:
+
+```
+export PYTHONPATH=$PYTHONPATH:$PWD
+export GST_PLUGIN_PATH=~/gst-plugin-toupcam/src/.libs/:$PWD
+python3 main_gui/main.py
+```
+
 # Why?
 
 Originally I needed to support specialized hardware and had a burning hated for Java
@@ -112,7 +134,14 @@ However, I've been using this workflow for years now, and will probably continue
 2.2.0
  * Enforce output file naming convention
  
- 2.3.0 (WIP
+3.0.0 (WIP)
+ * GRBL support
+ * GRBL jog support
+ * Coordiante system defaults to lower left instead of upper left
+ * Move imager controls from floating window into tab
+ * Major API restructure
+ * microscope.json small changes
+ * planner.json major changes
  * Drop obsolete "Controller" motion control API (including Axis object)
  * Drop obsolete pr0ndexer motion control support
  * Drop obsolete MC motion control support

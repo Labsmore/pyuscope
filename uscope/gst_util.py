@@ -1,5 +1,3 @@
-from .img_util import get_scaled
-
 import os
 from PIL import Image
 import io
@@ -7,6 +5,7 @@ import threading
 import traceback
 
 import gi
+
 gi.require_version('Gst', '1.0')
 gi.require_version('GstBase', '1.0')
 gi.require_version('GstVideo', '1.0')
@@ -16,6 +15,7 @@ gi.require_version('GstVideo', '1.0')
 # fortunately its not needed
 # from gi.repository import GdkX11, GstVideo
 from gi.repository import Gst
+
 Gst.init(None)
 from gi.repository import GstBase, GObject
 
@@ -53,6 +53,7 @@ class CbSink(GstBase.BaseSink):
     """
 
     def do_render(self, buffer):
+        # print("do_render()")
         (result, mapinfo) = buffer.map(Gst.MapFlags.READ)
         assert result
 
@@ -70,7 +71,7 @@ class CbSink(GstBase.BaseSink):
 class CaptureSink(CbSink):
     """
     Multi-threaded capture sink
-    Queues images on request
+    Queues images_actual on request
     """
 
     # FIXME: get width/height from stream
@@ -79,7 +80,7 @@ class CaptureSink(CbSink):
 
         self.image_requested = threading.Event()
         self.next_image_id = 0
-        self.images = {}
+        self.images_actual = {}
         self.cb = self.render_cb
         self.user_cb = None
         self.width = width
@@ -96,16 +97,17 @@ class CaptureSink(CbSink):
 
     def get_image(self, image_id):
         '''Fetch the image but keep it in the buffer'''
-        return self.images[image_id]
+        return self.images_actual[image_id]
 
     def del_image(self, image_id):
         '''Delete image in buffer'''
-        del self.images[image_id]
+        del self.images_actual[image_id]
 
     def pop_image(self, image_id):
         '''Fetch the image and delete it form the buffer'''
-        buf, width, height, raw_input = self.images[image_id]
-        del self.images[image_id]
+        buf, width, height, raw_input = self.images_actual[image_id]
+        del self.images_actual[image_id]
+        print("bytes", len(buf), 'w', width, 'h', height)
         # Arbitrarily convert to PIL here
         # TODO: should pass rawer/lossless image to PIL instead of jpg?
         # open("tmp.bin", "wb").write(ret)
@@ -120,7 +122,7 @@ class CaptureSink(CbSink):
     '''
 
     def render_cb(self, buffer):
-        #print 'Capture sink buffer in'
+        # print("render_cb()")
         try:
             '''
             Two major circumstances:
@@ -146,9 +148,10 @@ class CaptureSink(CbSink):
                     assert 0, "FIXME"
                 """
 
-                self.images[self.next_image_id] = (bytearray(buffer),
-                                                   self.width, self.height,
-                                                   self.raw_input)
+                self.images_actual[self.next_image_id] = (bytearray(buffer),
+                                                          self.width,
+                                                          self.height,
+                                                          self.raw_input)
                 # Clear before emitting signal so that it can be re-requested in response
                 self.image_requested.clear()
                 #print 'Emitting capture event'

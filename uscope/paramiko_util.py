@@ -16,6 +16,7 @@ class ForwardServer(socketserver.ThreadingTCPServer):
 
 
 class Handler(socketserver.BaseRequestHandler):
+
     def __init__(self, *args, **kwargs):
         self.verbose = False
         socketserver.BaseRequestHandler.__init__(self, *args, **kwargs)

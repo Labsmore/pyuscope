@@ -182,9 +182,9 @@ def gst_add_args(parser):
                         help="videotestsrc, v4l2src, toupcamsrc")
 
 
-def gst_args_to_usj(args):
+def gstcliimager_args_to_usj(args):
     """
-    Convert gst_add_args() args result to usj["imager"] section
+    Convert GstCLIImager's gst_add_args() args result to usj["imager"] section
 
 
     "imager": {
@@ -212,17 +212,44 @@ def gst_args_to_usj(args):
         "scalar": 0.5
     },
     """
-    j = {
+    imager = {
         "source_properties": {},
     }
-    j["source"] = "gst-" + args["gst_source"]
+    imager["source"] = "gst-" + args["gst_source"]
     w, h = args["gst_wh"].split(",")
-    j["width"], j["height"] = int(w), int(h)
-    if j["source"] == "gst-v4l2src":
-        j["source_properties"]["device"] = args["v4l2src_device"]
-    if j["source"] == "gst-toupcamsrc":
-        j["source_properties"]["esize"] = args["toupcamsrc_esize"]
-    return j
+    imager["width"], imager["height"] = int(w), int(h)
+    if imager["source"] == "gst-v4l2src":
+        imager["source_properties"]["device"] = args["v4l2src_device"]
+    if imager["source"] == "gst-toupcamsrc":
+        imager["source_properties"]["esize"] = args["toupcamsrc_esize"]
+    return imager
+
+
+def gst_usj_to_gstcliimager_args(imager=None, usj=None):
+    """
+    Convert usj's imager section to GstCLIImager's args
+    """
+    if imager is None:
+        imager = usj["imager"]
+    source = imager["source"]
+    if not "gst-" in source:
+        raise Exception("require gst- source")
+    source = source.replace("gst-", "")
+    args = {
+        "source": source,
+        "wh": (imager["width"], imager["height"]),
+    }
+    source_properties = imager.get("source_properties", {})
+    if imager["source"] == "v4l2src":
+        device = source_properties.get("device")
+        if device:
+            args["v4l2src_device"] = device
+    if imager["source"] == "toupcamsrc":
+        esize = source_properties.get("esize")
+        if esize:
+            args["toupcamsrc_esize"] = esize
+
+    return args
 
 
 def gst_get_args(args):

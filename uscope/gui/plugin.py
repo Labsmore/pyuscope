@@ -6,11 +6,6 @@ Imager HAL
 Control Scroll (imager GUI controls)
 """
 
-from uscope.motion import hal as cnc_hal
-from uscope.motion.lcnc import hal as lcnc_hal
-from uscope.motion.lcnc import hal_ar as lcnc_ar
-from uscope.motion.lcnc.client import LCNCRPC
-from uscope.motion.grbl import GrblHal
 from uscope.imager.imager import Imager, MockImager
 from uscope.img_util import get_scaled
 from uscope.config import cal_load_all
@@ -20,10 +15,19 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
-import socket
 import threading
 import time
 from PIL import Image
+"""
+WARNING: early on there was some variety in maybe different imagers
+for now GUI pretty solidly assumes Gst
+This is the intended direction in general
+ie if you want something to show up in the GUI write a gstreamer plugin for it
+
+However we might consider some flexibility allowing not to render...TBD
+ex: if you are using DSLR with own screen no strict requirement to render here
+although could still have a method to snap pictures
+"""
 
 
 class GstGUIImager(Imager):
@@ -67,7 +71,7 @@ class GstGUIImager(Imager):
 
     def get_hdr(self, hdr):
         ret = {}
-        factor = float(usj['imager']['scalar'])
+        factor = float(self.usj['imager']['scalar'])
         for hdri, hdrv in enumerate(hdr["properties"]):
             print("hdr: set %u %s" % (hdri, hdrv))
             self.emitter.change_properties.emit(hdrv)
@@ -101,36 +105,3 @@ def get_gui_imager(source, gui):
         return ret
     else:
         raise Exception('Invalid imager type %s' % source)
-
-
-def get_cnc_hal(usj, log=print):
-    try:
-        lcnc_host = usj["motion"]["lcnc"]["host"]
-    except KeyError:
-        lcnc_host = "mk"
-
-    engine = usj['motion']['engine']
-    log('get_cnc_hal: %s' % engine)
-
-    if engine == 'mock':
-        return cnc_hal.MockHal(log=log)
-    # we are on the actual linuxcnc system and can use the API directly
-    elif engine == 'lcnc-py':
-        import linuxcnc
-
-        return lcnc_hal.LcncPyHal(linuxcnc=linuxcnc, log=log)
-    elif engine == 'lcnc-rpc':
-        try:
-            return lcnc_hal.LcncPyHal(linuxcnc=LCNCRPC(host=lcnc_host),
-                                      log=log)
-        except socket.error:
-            raise
-            raise Exception("Failed to connect to LCNCRPC %s" % lcnc_host)
-    elif engine == 'lcnc-arpc':
-        return lcnc_ar.LcncPyHalAr(host=lcnc_host, log=log)
-    elif engine == 'lcnc-rsh':
-        return lcnc_hal.LcncRshHal(log=log)
-    elif engine == 'grbl':
-        return GrblHal()
-    else:
-        raise Exception("Unknown CNC engine %s" % engine)

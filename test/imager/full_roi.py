@@ -23,7 +23,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, **args):
         QMainWindow.__init__(self)
-        usj = {"imager": gst.gst_args_to_usj(args)}
+        usj = {"imager": gst.gstcliimager_args_to_usj(args)}
         self.vidpip = GstVideoPipeline(usj=usj, overview=True, roi=True)
         self.initUI()
         self.mysink = CbSink()

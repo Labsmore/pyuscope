@@ -36,16 +36,22 @@ defaults = {
 
 # microscope.json
 usj = None
+config_dir = None
 
 
-def get_usj(config_dir=None):
+def get_usj(config_dir=None, name=None):
     global usj
 
     if usj is not None:
         return usj
 
-    if config_dir is None:
+    if config_dir:
+        pass
+    elif name:
+        config_dir = "configs/" + name
+    else:
         config_dir = "config"
+    globals()["config_dir"] = config_dir
     j = json.load(open(os.path.join(config_dir, "microscope.json")),
                   object_pairs_hook=OrderedDict)
 
@@ -67,14 +73,10 @@ Ideally we'd also match on S/N or something like that
 """
 
 
-def config_dir():
-    return "config"
-
-
 def cal_fn(mkdir=False):
-    if mkdir and not os.path.exists(config_dir()):
-        os.mkdir(config_dir())
-    return os.path.join(config_dir(), "imager_calibration.json")
+    if mkdir and not os.path.exists(config_dir):
+        os.mkdir(config_dir)
+    return os.path.join(config_dir, "imager_calibration.json")
 
 
 def cal_load(source):

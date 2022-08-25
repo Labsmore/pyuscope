@@ -523,7 +523,7 @@ class GrblHal(MotionHAL):
     def pos(self):
         return self.grbl.qstatus()["MPos"]
 
-    def move_absolute(self, moves, limit=True):
+    def move_absolute(self, moves, limit=False):
         if len(moves) == 0:
             return
         if limit:

@@ -259,7 +259,7 @@ class MainWindow(QMainWindow):
 
         self.pt = None
         self.log_fd = None
-        hal = plugin.get_cnc_hal(self.usj, log=self.emit_log)
+        hal = plugin.get_motion_hal(self.usj, log=self.emit_log)
         hal.progress = self.hal_progress
         self.motion_thread = MotionThread(hal=hal, cmd_done=self.cmd_done)
         self.motion_thread.log_msg.connect(self.log)

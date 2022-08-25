@@ -1,3 +1,7 @@
+/*
+Labsmore Imaging Platform (LIP) series A revision 1 (LIP-A1)
+An inspection microscope loosely based on the 3018 CNC platform
+*/
 {
     "motion": {
         "hal": "grbl-ser",

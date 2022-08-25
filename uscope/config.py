@@ -1,4 +1,4 @@
-import json
+import json5
 import os
 from collections import OrderedDict
 from uscope.util import writej, readj
@@ -33,7 +33,7 @@ defaults = {
     }
 }
 
-# microscope.json
+# microscope.j5
 usj = None
 config_dir = None
 
@@ -51,7 +51,7 @@ def get_usj(config_dir=None, name=None):
     else:
         config_dir = "config"
     globals()["config_dir"] = config_dir
-    j = json.load(open(os.path.join(config_dir, "microscope.json")),
+    j = json5.load(open(os.path.join(config_dir, "microscope.j5")),
                   object_pairs_hook=OrderedDict)
 
     def default(rootj, rootd):
@@ -75,7 +75,7 @@ Ideally we'd also match on S/N or something like that
 def cal_fn(mkdir=False):
     if mkdir and not os.path.exists(config_dir):
         os.mkdir(config_dir)
-    return os.path.join(config_dir, "imager_calibration.json")
+    return os.path.join(config_dir, "imager_calibration.j5")
 
 
 def cal_load(source):

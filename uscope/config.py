@@ -11,9 +11,7 @@ A few general assumptions:
 '''
 
 defaults = {
-    "live_video": True,
-    "objective_json": "objective.json",
-    "scan_json": "scan.json",
+    # "live_video": True,
     "out_dir": "out",
     "imager": {
         "engine": 'mock',
@@ -25,12 +23,13 @@ defaults = {
     "motion": {
         # Good for testing and makes usable to systems without CNC
         "engine": "mock",
-        "startup_run": False,
-        "startup_run_exit": False,
-        "overwrite": False,
+        # "startup_run": False,
+        # "startup_run_exit": False,
+        # "overwrite": False,
         # Default to no action, make movement explicit
         # Note that GUI can override this
-        "dry": True,
+        # "dry": True,
+        "backlash": 0.0,
     }
 }
 

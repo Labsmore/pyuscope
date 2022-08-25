@@ -273,6 +273,13 @@ def gst_get_args(args):
 def easy_run(imager, target):
     imager.player.set_state(Gst.State.PLAYING)
     loop = GLib.MainLoop()
-    thread = threading.Thread(target=target, args=(loop, ))
+
+    def wrapper(args):
+        try:
+            target(loop)
+        finally:
+            loop.quit()
+
+    thread = threading.Thread(target=wrapper, args=(loop, ))
     thread.start()
     loop.run()

@@ -535,18 +535,19 @@ class GrblHal(MotionHAL):
 
         self.grbl.move_absolute(moves, f=1000)
 
-    def move_relative(self, moves):
+    def move_relative(self, moves, limit=False):
         if len(moves) == 0:
             return
 
-        limit = self.limit()
-        pos = self.pos()
-        for k, v in moves.items():
-            dst = pos[k] + v
-            if dst < limit[k][0] or dst > limit[k][1]:
-                raise AxisExceeded(
-                    "Axis %c to %s (%s + %s) exceeds liimt (%s, %s)" %
-                    (k, dst, pos[k], v, limit[k][0], limit[k][1]))
+        if limit:
+            limit = self.limit()
+            pos = self.pos()
+            for k, v in moves.items():
+                dst = pos[k] + v
+                if dst < limit[k][0] or dst > limit[k][1]:
+                    raise AxisExceeded(
+                        "Axis %c to %s (%s + %s) exceeds liimt (%s, %s)" %
+                        (k, dst, pos[k], v, limit[k][0], limit[k][1]))
 
         self.grbl.move_relative(moves, f=1000)
 

@@ -14,6 +14,7 @@ from gi.repository import GLib
 from uscope.imager.imager import Imager
 from uscope.gst_util import CaptureSink
 from uscope.util import add_bool_arg
+from uscope import config
 import threading
 
 
@@ -27,6 +28,8 @@ class GstCLIImager(Imager):
         self.image_ready = threading.Event()
         self.image_id = None
 
+        # gst source name
+        # does not have gst- prefix
         source_name = opts.get("source", None)
         if source_name is None:
             source_name = "videotestsrc"
@@ -106,14 +109,6 @@ class GstCLIImager(Imager):
         else:
             raise Exception('Unknown source %s' % (self.source_name, ))
         assert self.source is not None
-        """
-        if self.usj:
-            usj = config.get_usj()
-            properties = usj["imager"].get("source_properties", {})
-            for propk, propv in properties.items():
-                print("Set source %s => %s" % (propk, propv))
-                self.source.set_property(propk, propv)
-        """
 
     def get(self):
 
@@ -283,3 +278,18 @@ def easy_run(imager, target):
     thread = threading.Thread(target=wrapper, args=(loop, ))
     thread.start()
     loop.run()
+
+
+def apply_imager_cal(imager, verbose=False):
+    usj_source = "gst-" + imager.source_name
+    properties = config.cal_load(source=usj_source)
+    for propk, propv in properties.items():
+        verbose and print("Set source %s => %s" % (propk, propv))
+        imager.source.set_property(propk, propv)
+
+
+def get_cli_imager_by_config(usj, verbose=False):
+    opts = gst_usj_to_gstcliimager_args(usj=usj)
+    imager = GstCLIImager(opts=opts)
+    apply_imager_cal(imager, verbose=verbose)
+    return imager

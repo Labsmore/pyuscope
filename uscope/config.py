@@ -23,12 +23,12 @@ defaults = {
     "motion": {
         # Good for testing and makes usable to systems without CNC
         "engine": "mock",
-        # "startup_run": False,
-        # "startup_run_exit": False,
-        # "overwrite": False,
+        "startup_run": False,
+        "startup_run_exit": False,
+        "overwrite": False,
         # Default to no action, make movement explicit
         # Note that GUI can override this
-        # "dry": True,
+        "dry": True,
         "backlash": 0.0,
     }
 }
@@ -81,7 +81,7 @@ def cal_fn(mkdir=False):
 def cal_load(source):
     fn = cal_fn()
     if not os.path.exists(fn):
-        return
+        return None
     configj = readj(fn)
     configs = configj["configs"]
     for config in configs:

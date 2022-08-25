@@ -4,6 +4,7 @@ from uscope.motion.plugins import get_motion_hal
 from uscope.config import get_usj
 from uscope.util import add_bool_arg
 from uscope.imager import gst
+from uscope.imager.gst import apply_imager_cal
 import time
 import argparse
 import random
@@ -12,6 +13,7 @@ import os
 
 
 def run(microscope=None,
+        passes=0,
         axes={"x", "y", "z"},
         scalars={
             "x": 1.0,
@@ -21,35 +23,40 @@ def run(microscope=None,
     out_dir = "torture"
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
-    origin = {"x": 0.0, "y": 0.0, "z": 0.0}
+
+    def filter_moves(moves):
+        ret = {}
+        if "x" in axes:
+            ret["x"] = moves["x"]
+        if "y" in axes:
+            ret["y"] = moves["y"]
+        if "z" in axes:
+            ret["z"] = moves["z"]
+        return ret
+
+    origin = filter_moves({"x": 0.0, "y": 0.0, "z": 0.0})
     usj = get_usj(name=microscope)
-    print(usj)
     print("Initializing imager...")
-    opts = gst.gst_usj_to_gstcliimager_args(usj=usj)
-    print(opts)
-    imager = gst.GstCLIImager(opts=opts)
+    imager = gst.get_cli_imager_by_config(usj)
     print("Initializing motion...")
     motion = get_motion_hal(usj)
-    print(motion)
     print("System ready")
 
     # Consider planner for movement? aware of things like backlash
     backlash = usj["motion"].get("backlash", 0.0)
-
-    def filter_moves(moves):
-        ret = {}
-        if "x" in "axes":
-            ret["x"] = moves["x"]
-        if "y" in "axes":
-            ret["y"] = moves["y"]
-        if "z" in "axes":
-            ret["z"] = moves["z"]
-        return ret
+    print("Backlash: %0.3f" % backlash)
 
     mpos = {}
 
     def move_str(moves):
-        return "X%+0.3f Y%+0.3f Z%+0.3f" % (moves["x"], moves["y"], moves["z"])
+        ret = ""
+        for axis in "xyz":
+            if not axis in axes:
+                continue
+            if ret:
+                ret += " "
+            ret += "%s%+0.3f" % (axis.upper(), moves[axis])
+        return ret
 
     def move_relative(moves):
         nonlocal mpos
@@ -65,7 +72,12 @@ def run(microscope=None,
         TODO: check if need to compensate
         """
         if comp:
-            move_relative({"x": backlash, "y": backlash, "z": backlash})
+            move_relative(
+                filter_moves({
+                    "x": backlash,
+                    "y": backlash,
+                    "z": backlash
+                }))
         for axis, pos in moves.items():
             assert abs(pos) < scalars[axis] + 0.01
         motion.move_absolute(filter_moves(moves))
@@ -85,8 +97,10 @@ def run(microscope=None,
     def thread(loop):
         passi = 0
         while True:
-            print("")
             passi += 1
+            if passes and passi > passes:
+                break
+            print("")
             print("Pass %u" % passi)
             print(datetime.datetime.utcnow().isoformat())
 
@@ -112,7 +126,7 @@ def run(microscope=None,
                 for axis in axes:
                     moves[axis] = rand_move(axis)
                 print("move %s" % (move_str(moves), ))
-                move_absolute(moves, comp=True)
+                move_absolute(moves, comp=False)
 
             print("Moving to origin")
             # Snap back to origin to verify no drift
@@ -135,6 +149,10 @@ def main():
     parser = argparse.ArgumentParser(
         description="Move testing axes using microscope.json configuration")
     parser.add_argument("--microscope", help="Select configuration directory")
+    parser.add_argument("--passes",
+                        type=int,
+                        default=0,
+                        help="Number of loops to run")
     add_bool_arg(parser, "--x", default=True, help="Move X axis")
     parser.add_argument("--x-mag",
                         type=float,
@@ -167,7 +185,10 @@ def main():
         axes.add("z")
         scalars["z"] = args.z_mag
 
-    run(microscope=args.microscope, axes=axes, scalars=scalars)
+    run(microscope=args.microscope,
+        axes=axes,
+        scalars=scalars,
+        passes=args.passes)
 
 
 if __name__ == "__main__":

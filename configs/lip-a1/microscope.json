@@ -1,7 +1,7 @@
 {
     "motion": {
         "hal": "grbl-ser",
-        "backlash": 0.1
+        "backlash": 5.0
     },
     "imager": {
         "source":"gst-toupcamsrc",

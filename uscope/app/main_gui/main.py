@@ -3,17 +3,14 @@
 from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gui.control_scrolls import get_control_scroll
 from uscope.util import add_bool_arg
-
 from uscope.config import get_usj, cal_load_all
 from uscope.img_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
-
 from uscope.gst_util import Gst, CaptureSink
-
+from uscope.motion.plugins import get_motion_hal
 from uscope.app.main_gui.threads import MotionThread, PlannerThread
-from io import StringIO
-import math
+from uscope import util
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -27,7 +24,8 @@ from PIL import Image
 import sys
 import traceback
 import threading
-from uscope import util
+from io import StringIO
+import math
 
 usj = get_usj()
 
@@ -259,7 +257,7 @@ class MainWindow(QMainWindow):
 
         self.pt = None
         self.log_fd = None
-        hal = plugin.get_motion_hal(self.usj, log=self.emit_log)
+        hal = get_motion_hal(self.usj, log=self.emit_log)
         hal.progress = self.hal_progress
         self.motion_thread = MotionThread(hal=hal, cmd_done=self.cmd_done)
         self.motion_thread.log_msg.connect(self.log)

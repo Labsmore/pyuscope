@@ -27,7 +27,7 @@
 		"esize": 1,
 		"scalar": 0.5
     },
-    "objective": [
+    "objectives": [
 		{
 			"name":"Mitutoyo Apo 20X",
 			"suffix": "mit20x2",

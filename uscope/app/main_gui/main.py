@@ -10,6 +10,7 @@ from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
 from uscope.motion.plugins import get_motion_hal
 from uscope.app.main_gui.threads import MotionThread, PlannerThread
+from uscope.planner import microscope_to_planner
 from uscope import util
 
 from PyQt5 import Qt
@@ -26,8 +27,6 @@ import traceback
 import threading
 from io import StringIO
 import math
-
-usj = get_usj()
 
 debug = 1
 
@@ -215,7 +214,7 @@ class MainWindow(QMainWindow):
         QMainWindow.__init__(self)
         self.verbose = verbose
         self.showMaximized()
-        self.usj = usj
+        self.usj = get_usj()
         self.objective_name_le = None
 
         self.vidpip = GstVideoPipeline(source=source,
@@ -514,27 +513,14 @@ class MainWindow(QMainWindow):
         # TODO: make this not block GUI
         self.motion_thread.wait_idle()
 
-        pconfig = {
-            # follow git release
-            # "version": USCOPE_VERSION,
-            "imager": {
-                # In the past I just stored i here
-                # lets just list out fall config
-                'objective': self.obj_config,
-                'objectivei': self.obj_configi,
-                "calibration": self.control_scroll.get_disp_properties(),
-            },
-            "motion": {},
-            # full microscope.json
-            "microscope": usj,
-            # was scan.json
-            "contour": contour_json,
-        }
+        pconfig = microscope_to_planner(self.usj,
+                                        objective=self.obj_config,
+                                        contour=contour_json)
 
         # not sure if this is the right place to add this
         # plannerj['copyright'] = "&copy; %s John McMaster, CC-BY" % datetime.datetime.today().year
 
-        if 1:
+        if 0:
             print("planner_json")
             util.printj(pconfig)
 
@@ -584,7 +570,7 @@ class MainWindow(QMainWindow):
 
     def get_hdr(self):
         hdr = None
-        source = usj["imager"]["source"]
+        source = self.usj["imager"]["source"]
         cal = cal_load_all(source)
         if cal:
             hdr = cal.get("hdr", None)

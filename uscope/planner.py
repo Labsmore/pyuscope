@@ -863,3 +863,34 @@ class Planner(object):
                 axis.comp = -1
             self.motion.move_absolute(blsh_mv)
         self.motion.move_absolute(move_to)
+
+
+def microscope_to_planner(usj, objective=None, objectivei=None, contour=None):
+    if objective is None:
+        objective = usj["objectives"][objectivei]
+    ret = {
+        "imager": {
+            "x_view": objective["x_view"],
+        },
+        "motion": {},
+        # was scan.json
+        "contour": contour,
+    }
+
+    tsettle = usj.get("tsettle")
+    if tsettle:
+        ret["tsettle"] = tsettle
+
+    scalar = usj["imager"].get("scalar")
+    if scalar:
+        ret["imager"]["scalar"] = float(scalar)
+
+    origin = usj["motion"].get("origin")
+    if origin:
+        ret["motion"]["origin"] = origin
+
+    backlash = usj["motion"].get("backlash")
+    if origin:
+        ret["motion"]["backlash"] = backlash
+
+    return ret

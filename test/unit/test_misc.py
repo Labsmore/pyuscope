@@ -7,7 +7,9 @@ from uscope.motion.hal import MockHal
 from uscope.imager.imager import MockImager
 from uscope.imager import gst
 import uscope.planner
+from uscope.config import get_usj
 from uscope.util import printj
+from uscope.planner import microscope_to_planner
 import shutil
 import time
 
@@ -136,6 +138,20 @@ class PlannerTestCase(unittest.TestCase):
         pconfig = self.simple_config()
         pconfig["exclude"] = [{"r0": 0, "c0": 0, "r1": 1, "c1": 1}]
         self.simple_planner(pconfig=pconfig)
+
+    def test_microscope_to_planner(self):
+        usj = get_usj(name="mock")
+        contour = {
+            "start": {
+                "x": 0.0,
+                "y": 0.0,
+            },
+            "end": {
+                "x": 2.0,
+                "y": 1.0,
+            }
+        }
+        microscope_to_planner(usj, objectivei=0, contour=contour)
 
 
 if __name__ == "__main__":

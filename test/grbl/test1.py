@@ -35,7 +35,6 @@ def trim_status_line(l):
 
 
 class GRBLSer:
-
     def __init__(self, port="/dev/ttyUSB0", ser_timeout=0.1, verbose=False):
         self.verbose = verbose
         self.verbose and print("opening", port)
@@ -224,7 +223,6 @@ class GRBLSer:
 
 
 class GRBL:
-
     def __init__(self):
         self.gs = GRBLSer()
         pass

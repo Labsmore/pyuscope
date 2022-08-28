@@ -31,7 +31,6 @@ although could still have a method to snap pictures
 
 
 class GstGUIImager(Imager):
-
     class Emitter(QObject):
         change_properties = pyqtSignal(dict)
 

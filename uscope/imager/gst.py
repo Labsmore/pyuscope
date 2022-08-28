@@ -22,7 +22,6 @@ class GstCLIImager(Imager):
     """
     Stand alone imager that doesn't rely on GUI feed
     """
-
     def __init__(self, opts={}, verbose=False):
         Imager.__init__(self)
         self.image_ready = threading.Event()
@@ -111,7 +110,6 @@ class GstCLIImager(Imager):
         assert self.source is not None
 
     def get(self):
-
         def got_image(image_id):
             print('Image captured reported: %s' % image_id)
             self.image_id = image_id

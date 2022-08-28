@@ -4,7 +4,6 @@ from uscope.motion.plugins import get_motion_hal
 from uscope.config import get_usj
 from uscope.util import add_bool_arg
 from uscope.imager import gst
-from uscope.imager.gst import apply_imager_cal
 import time
 import argparse
 import random

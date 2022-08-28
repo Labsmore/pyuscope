@@ -61,24 +61,23 @@ def drange_tol(start, stop, step, delta=None):
 
 
 class PlannerAxis(object):
-
     def __init__(
-            self,
-            name,
-            # Desired image overlap
-            # Actual may be greater if there is more area
-            # than minimum number of pictures would support
-            req_overlap,
-            # How much the imager can see (in mm)
-            view_mm,
-            # How much the imager can see (in pixels)
-            view_pix,
-            # start and actual_end absolute positions (in um)
-            # Inclusive such that 0:0 means image at position 0 only
-            start,
-            end,
-            backlash,
-            log=None):
+        self,
+        name,
+        # Desired image overlap
+        # Actual may be greater if there is more area
+        # than minimum number of pictures would support
+        req_overlap,
+        # How much the imager can see (in mm)
+        view_mm,
+        # How much the imager can see (in pixels)
+        view_pix,
+        # start and actual_end absolute positions (in um)
+        # Inclusive such that 0:0 means image at position 0 only
+        start,
+        end,
+        backlash,
+        log=None):
         if log is None:
 
             def log(s=''):
@@ -217,34 +216,33 @@ class Planner(object):
     """
     config: JSON like configuration settings
     """
-
     def __init__(
-            self,
-            # JSON like configuration settings affecting produced data
-            # ex: verbosity, dry, objects are not included
-            pconfig,
-            # Movement HAL
-            motion=None,
+        self,
+        # JSON like configuration settings affecting produced data
+        # ex: verbosity, dry, objects are not included
+        pconfig,
+        # Movement HAL
+        motion=None,
 
-            # Image parameters
-            # Imaging HAL
-            # Takes pictures but doesn't know about physical world
-            imager=None,
-            # Supply one of the following
-            # Most users should supply mm_per_pix
-            # mm_per_pix=None,
-            # (w, h) in movement units
-            # image_wh_mm=None,
-            out_dir=None,
-            # Progress callback
-            progress_cb=None,
-            # No movement without setting true
-            dry=False,
-            # Log message callback
-            # Inteded for main GUI log window
-            # Defaults to printing to stdout
-            log=None,
-            verbosity=2):
+        # Image parameters
+        # Imaging HAL
+        # Takes pictures but doesn't know about physical world
+        imager=None,
+        # Supply one of the following
+        # Most users should supply mm_per_pix
+        # mm_per_pix=None,
+        # (w, h) in movement units
+        # image_wh_mm=None,
+        out_dir=None,
+        # Progress callback
+        progress_cb=None,
+        # No movement without setting true
+        dry=False,
+        # Log message callback
+        # Inteded for main GUI log window
+        # Defaults to printing to stdout
+        log=None,
+        verbosity=2):
         if log is None:
 
             def log(msg='', verbosity=None):
@@ -493,7 +491,6 @@ class Planner(object):
             assert 0, self.origin
 
     def take_picture(self, fn_base):
-
         def save(image, fn_base, img_ext):
             fn_full = fn_base + img_ext
             if img_ext == ".jpg":
@@ -833,7 +830,6 @@ class Planner(object):
 
     def move_absolute_backlash(self, move_to):
         '''Do an absolute move with backlash compensation'''
-
         def fmt_axis(c):
             if c in move_to:
                 self.max_move[c] = max(self.max_move[c], move_to[c])

@@ -44,7 +44,6 @@ def excepthook(excType, excValue, tracebackobj):
 
 
 class Server(object):
-
     def __init__(self, bind='localhost', port=22617, verbose=False):
         self.server = None
         self.bind = bind

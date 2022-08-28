@@ -31,7 +31,6 @@ MotionHAL is not thread safe with exception of the following:
 
 
 class MotionHAL:
-
     def __init__(self, log, verbose=None):
         if log is None:
 
@@ -166,7 +165,6 @@ Has no actual hardware associated with it
 
 
 class MockHal(MotionHAL):
-
     def __init__(self, axes='xy', log=None):
         MotionHAL.__init__(self, log)
 
@@ -224,7 +222,6 @@ Ex: inherits movement
 
 
 class DryHal(MotionHAL):
-
     def __init__(self, hal, log=None):
         super().__init__(log)
 
@@ -277,7 +274,6 @@ class DryHal(MotionHAL):
 
 
 class GCodeHalImager(Imager):
-
     def __init__(self, hal):
         self.hal = hal
 
@@ -308,7 +304,6 @@ M9 (coolant off): release focus / picture
 
 
 class GCodeHal(MotionHAL):
-
     def __init__(self, axes='xy', log=None):
         MotionHAL.__init__(self, log)
         self._axes = list(axes)

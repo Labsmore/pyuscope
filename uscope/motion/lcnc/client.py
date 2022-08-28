@@ -6,7 +6,6 @@ PORT = 22617
 
 
 class LCNCRPCStat:
-
     def __init__(self, server):
         self.server = server
         self.poll()
@@ -17,12 +16,10 @@ class LCNCRPCStat:
 
 
 class LCNCRPCCommand:
-
     def __init__(self, server):
         self.server = server
 
         def func(server, f):
-
             def wrap(*args, **kwargs):
                 return getattr(server, 'c_' + f)(*args, **kwargs)
 
@@ -33,7 +30,6 @@ class LCNCRPCCommand:
 
 
 class LCNCRPC:
-
     def __init__(self, host='localhost', port=PORT):
         url = 'http://%s:%d' % (host, port)
         print(url)

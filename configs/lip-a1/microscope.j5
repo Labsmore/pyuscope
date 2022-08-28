@@ -1,6 +1,8 @@
 /*
 Labsmore Imaging Platform (LIP) series A revision 1 (LIP-A1)
 An inspection microscope loosely based on the 3018 CNC platform
+AMA100 relay lens
+No barlow lens
 */
 {
     "motion": {
@@ -9,18 +11,33 @@ An inspection microscope loosely based on the 3018 CNC platform
     },
     "imager": {
         "source":"gst-toupcamsrc",
-		"width": 5440,
-		"height": 3648,
+        "width": 5440,
+        "height": 3648,
         "source_properties": {
             "esize": 0
         },
-		"scalar": 0.5
+        "scalar": 0.5
     },
+    /*
+    See knob at right
+    There is a notch indicating current zoom level
+    */
     "objective": [
-		{
-			"name":"Min",
-			"suffix":"mit20x2",
-			"x_view": 112.0
-		}
+        {
+            "name":"0.7",
+            "suffix":"mit20x2",
+            "x_view": 112.0
+        },
+        /*
+        TODO: check estimated scale
+        quick test a little less than 3 mm actual => 15 mm scaled
+        think 0.2 mm was estimated backlash
+        think that was scaled => 0.04 mm real
+        {
+            "name":"4.5",
+            "suffix":"mit20x2",
+            "x_view": 17.4
+        },
+        */
     ]
 }

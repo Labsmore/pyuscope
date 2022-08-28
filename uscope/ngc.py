@@ -12,7 +12,6 @@ cnc = None
 
 
 class CNC(object):
-
     def __init__(self, em=-1, rpm=None, fr=2.0, fr_z=1.0, verbose=False):
         # was default 1./8
         # for drilling?

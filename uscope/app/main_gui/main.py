@@ -57,7 +57,6 @@ Widget that listens for WSAD keys for linear stage movement
 
 
 class JogListener(QPushButton):
-
     def __init__(self, label, parent=None):
         super().__init__(label, parent=parent)
         self.parent = parent
@@ -86,7 +85,6 @@ class JogListener(QPushButton):
 
 
 class MotionWidget(QWidget):
-
     def __init__(self, motion_thread, parent=None):
         super().__init__(parent=parent)
         self.motion_thread = motion_thread
@@ -684,7 +682,6 @@ class MainWindow(QMainWindow):
         
         start, end should be buttons to snap current position
         """
-
         def top():
             gl = QGridLayout()
             row = 0
@@ -850,7 +847,6 @@ class MainWindow(QMainWindow):
         """
         Line up Go/Stop w/ "Job name" to make visually appealing
         """
-
         def getProgressLayout():
             layout = QHBoxLayout()
 

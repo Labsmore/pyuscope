@@ -20,7 +20,6 @@ def get_lcnc_host(mj):
 
 
 def register_plugins():
-
     def mock_hal(mj, log):
         return cnc_hal.MockHal(log=log)
 

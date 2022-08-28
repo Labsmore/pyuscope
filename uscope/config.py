@@ -52,7 +52,7 @@ def get_usj(config_dir=None, name=None):
         config_dir = "config"
     globals()["config_dir"] = config_dir
     j = json5.load(open(os.path.join(config_dir, "microscope.j5")),
-                  object_pairs_hook=OrderedDict)
+                   object_pairs_hook=OrderedDict)
 
     def default(rootj, rootd):
         for k, v in rootd.items():

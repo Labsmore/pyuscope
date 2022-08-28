@@ -20,7 +20,6 @@ from PyQt5.QtWidgets import *
 
 
 class MainWindow(QMainWindow):
-
     def __init__(self, **args):
         QMainWindow.__init__(self)
         usj = {"imager": gst.gstcliimager_args_to_usj(args)}

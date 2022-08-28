@@ -20,7 +20,6 @@ import math
 
 
 class JogListener(QPushButton):
-
     def __init__(self, label, parent=None):
         super().__init__(label, parent=parent)
         self.parent = parent
@@ -49,7 +48,6 @@ class JogListener(QPushButton):
 
 
 class MotionWidget(QWidget):
-
     def __init__(self, grbl, parent=None):
         super().__init__(parent=parent)
         """
@@ -173,7 +171,6 @@ class MotionWidget(QWidget):
 
 
 class TestGUI(QMainWindow):
-
     def __init__(self, grbl):
         super().__init__()
         layout = QVBoxLayout()

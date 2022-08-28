@@ -24,7 +24,6 @@ def camera_in_use():
 
 
 class Imager:
-
     def __init__(self, verbose=False):
         self.verbose = verbose
 
@@ -52,7 +51,6 @@ class Imager:
 
 
 class MockImager(Imager):
-
     def __init__(self, verbose=False):
         Imager.__init__(self, verbose=verbose)
 

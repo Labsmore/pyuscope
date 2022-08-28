@@ -69,7 +69,6 @@ class GstVideoPipeline:
     vidpip.setupGst()
     vidpip.run()
     """
-
     def __init__(
         self,
         # gstreamer video source object

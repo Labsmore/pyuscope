@@ -45,15 +45,14 @@ https://www.sainsmart.com/blogs/news/grbl-v1-1-quick-reference
 
 
 class GRBLSer:
-
     def __init__(
-            self,
-            port=None,
-            # All commands I've seen so far complete responses in < 10 ms
-            # so this should be plenty of margin for now
-            ser_timeout=0.2,
-            flush=True,
-            verbose=None):
+        self,
+        port=None,
+        # All commands I've seen so far complete responses in < 10 ms
+        # so this should be plenty of margin for now
+        ser_timeout=0.2,
+        flush=True,
+        verbose=None):
         if port is None:
             port = default_port()
         self.verbose = verbose if verbose is not None else bool(
@@ -326,14 +325,13 @@ class GRBLSer:
 
 
 class MockGRBLSer(GRBLSer):
-
     def __init__(
-            self,
-            port="/dev/ttyUSB0",
-            # some boards take more than 1 second to reset
-            ser_timeout=3.0,
-            flush=True,
-            verbose=None):
+        self,
+        port="/dev/ttyUSB0",
+        # some boards take more than 1 second to reset
+        ser_timeout=3.0,
+        flush=True,
+        verbose=None):
         self.verbose = verbose if verbose is not None else bool(
             int(os.getenv("GRBLSER_VERBOSE", "0")))
         self.verbose and print("MOCK: opening", port)
@@ -361,7 +359,6 @@ class MockGRBLSer(GRBLSer):
 
 
 class GRBL:
-
     def __init__(self,
                  port=None,
                  flush=True,
@@ -508,7 +505,6 @@ class GRBL:
 
 
 class GrblHal(MotionHAL):
-
     def __init__(self, log=None, verbose=None):
         self.feedrate = None
         self.grbl = GRBL(verbose=verbose)

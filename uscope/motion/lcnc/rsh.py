@@ -27,7 +27,6 @@ import time
 
 
 class Rsh(object):
-
     def __init__(self,
                  host='localhost',
                  port=5007,

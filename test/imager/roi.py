@@ -16,7 +16,6 @@ from PyQt5.QtWidgets import *
 
 
 class TestGUI(QMainWindow):
-
     def __init__(self, source=None):
         QMainWindow.__init__(self)
         self.vidpip = GstVideoPipeline(source=source, full=True, roi=True)

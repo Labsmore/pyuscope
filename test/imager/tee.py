@@ -19,7 +19,6 @@ from gi.repository import GstBase, GObject
 
 
 class TestGUI(QMainWindow):
-
     def __init__(self, source=None):
         QMainWindow.__init__(self)
         self.vidpip = GstVideoPipeline(source=source)

@@ -1,5 +1,7 @@
 #!/usr/bin/python
 """
+See PLANNER.md for configuration info
+
 pr0ncnc: IC die image scan
 Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
@@ -311,7 +313,7 @@ class Planner(object):
 
     def image_scalar(self):
         """Multiplier to go from Imager image size to output image size"""
-        return float(self.pconfig['imager']['scalar'])
+        return float(self.pconfig.get("imager", {}).get("scalar", 1.0))
 
     def image_wh(self):
         """Final snapshot image width, height after scaling"""
@@ -324,7 +326,7 @@ class Planner(object):
         # CNC convention is origin should be in lower left of sample
         # Increases up and to the right
         # pr0nscope has ul origin though
-        self.origin = self.pconfig["motion"].get("origin", "ll")
+        self.origin = self.pconfig.get("motion", {}).get("origin", "ll")
         assert self.origin in ("ll", "ul"), "Invalid coordinate origin"
 
         x_mm = float(self.pconfig["imager"]["x_view"])
@@ -332,7 +334,7 @@ class Planner(object):
         mm_per_pix = x_mm / image_wh[0]
         image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
 
-        backlash = self.pconfig["motion"].get("backlash", 0.1)
+        backlash = self.pconfig.get("motion", {}).get("backlash", 0.1)
 
         self.axes = OrderedDict([
             ('x',
@@ -451,9 +453,12 @@ class Planner(object):
         def dumpj(j, fn):
             if self.dry:
                 return
-            open(os.path.join(self.out_dir, fn), 'w').write(
-                json.dumps(j, sort_keys=True, indent=4,
-                           separators=(',', ': ')))
+            with open(os.path.join(self.out_dir, fn), 'w') as f:
+                f.write(
+                    json.dumps(j,
+                               sort_keys=True,
+                               indent=4,
+                               separators=(',', ': ')))
 
         meta = self.gen_meta()
         dumpj(meta, 'out.json')
@@ -495,9 +500,8 @@ class Planner(object):
             else:
                 image.save(fn_full)
 
-        # FIXME
         if not self.dry:
-            time.sleep(1.2)
+            time.sleep(self.pconfig.get("tsettle", 0.0))
         self.motion.settle()
         if not self.dry:
             if self.imager.remote():
@@ -697,8 +701,8 @@ class Planner(object):
             self.comment("  end: %u x,  %us" %
                          (self.x.actual_end, self.y.actual_end))
 
-        print("Backlash: %0.3f x, %0.3f y" %
-              (self.x.backlash, self.y.backlash))
+        self.log("Backlash: %0.3f x, %0.3f y" %
+                 (self.x.backlash, self.y.backlash))
 
         self.comment("Imager size:")
         self.comment(

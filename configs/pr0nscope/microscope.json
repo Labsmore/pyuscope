@@ -1,4 +1,5 @@
 {
+    "tsettle": 1.2,
     "motion": {
         "engine": "lcnc-arpc",
         "mock":0,

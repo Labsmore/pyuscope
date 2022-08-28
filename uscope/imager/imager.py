@@ -51,15 +51,17 @@ class Imager:
 
 
 class MockImager(Imager):
-    def __init__(self, verbose=False):
+    def __init__(self, verbose=False, width=640, height=480):
         Imager.__init__(self, verbose=verbose)
+        self.width = width
+        self.height = height
 
     def wh(self):
-        return 640, 480
+        return self.width, self.height
 
     def get(self):
         # Small test image
-        return {"0": Image.new("RGB", (16, 16), 'white')}
+        return {"0": Image.new("RGB", (self.width, self.height), 'white')}
 
 
 """

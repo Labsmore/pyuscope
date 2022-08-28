@@ -254,7 +254,7 @@ class Planner(object):
 
         self.dry = dry
         if self.dry:
-            self.motion = DryHal(motion)
+            self.motion = DryHal(motion, log=log)
         else:
             self.motion = motion
         assert self.motion, "Required"
@@ -311,26 +311,23 @@ class Planner(object):
 
     def image_scalar(self):
         """Multiplier to go from Imager image size to output image size"""
-        return float(self.pconfig['microscope']['imager']['scalar'])
+        return float(self.pconfig['imager']['scalar'])
 
     def image_wh(self):
         """Final snapshot image width, height after scaling"""
-        w = int(
-            int(self.pconfig['microscope']['imager']['width']) /
-            self.image_scalar())
-        h = int(
-            int(self.pconfig['microscope']['imager']['height']) /
-            self.image_scalar())
+        raww, rawh = self.imager.wh()
+        w = int(raww / self.image_scalar())
+        h = int(rawh / self.image_scalar())
         return w, h
 
     def init_axes(self, start, end):
         # CNC convention is origin should be in lower left of sample
         # Increases up and to the right
         # pr0nscope has ul origin though
-        self.origin = self.pconfig["microscope"]["motion"].get("origin", "ll")
+        self.origin = self.pconfig["motion"].get("origin", "ll")
         assert self.origin in ("ll", "ul"), "Invalid coordinate origin"
 
-        x_mm = float(self.pconfig["imager"]["objective"]['x_view'])
+        x_mm = float(self.pconfig["imager"]["x_view"])
         image_wh = self.image_wh()
         mm_per_pix = x_mm / image_wh[0]
         image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
@@ -377,7 +374,7 @@ class Planner(object):
             self.log(
                 '  Ideal overlap: %f, actual %g' %
                 (self.ideal_overlap, axis.step_percent()), 2)
-            self.log('  full delta: %f' % (self.x.requested_delta_mm()), 2)
+            self.log('  full delta: %f' % (axis.requested_delta_mm()), 2)
             self.log('  view: %d pix' % (axis.view_pixels, ), 2)
             self.log('  border: %f' % self.border)
 
@@ -458,9 +455,9 @@ class Planner(object):
                 json.dumps(j, sort_keys=True, indent=4,
                            separators=(',', ': ')))
 
-        dumpj(self.gen_meta(), 'out.json')
-
-        # TODO: write out coordinate map
+        meta = self.gen_meta()
+        dumpj(meta, 'out.json')
+        return meta
 
     def prepare_image_output(self):
         if self.dry:
@@ -789,7 +786,7 @@ class Planner(object):
                 raise Exception(
                     'pictures taken mismatch (taken: %d, to take: %d)' %
                     (self.pictures_to_take, self.xy_imgs))
-        self.write_meta()
+        return self.write_meta()
 
     def gen_meta(self):
         '''Can only be called after run'''

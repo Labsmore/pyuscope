@@ -1,6 +1,7 @@
 /*
 Labsmore Imaging Platform (LIP) series A revision 1 (LIP-A1)
 An inspection microscope loosely based on the 3018 CNC platform
+5:1 gearboxes on all axes
 AMA100 relay lens
 No barlow lens
 */
@@ -29,8 +30,9 @@ No barlow lens
     */
     "objective": [
         {
+            //0.7 mag setting w/o barlow lens
             "name":"0.7",
-            "suffix":"mit20x2",
+            "suffix":"0.7x",
             "x_view": 112.0
         },
         /*

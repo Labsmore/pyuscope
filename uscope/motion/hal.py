@@ -31,7 +31,8 @@ MotionHAL is not thread safe with exception of the following:
 
 
 class MotionHAL:
-    def __init__(self, log, verbose=None):
+    def __init__(self, scalars=None, log=None, verbose=None):
+        self.scalars = scalars
         if log is None:
 
             def log(msg='', lvl=2):
@@ -65,11 +66,31 @@ class MotionHAL:
         '''Return to origin'''
         self.move_absolute(dict([(k, 0.0) for k in self.axes()]))
 
+    def rescale(self, pos):
+        if not self.scalars:
+            return pos
+        ret = {}
+        for k, v in pos.items():
+            ret[k] = v * self.scalars.get(k, 1.0)
+        return ret
+
     def move_absolute(self, pos):
         '''Absolute move to positions specified by pos dict'''
+        if len(pos) == 0:
+            return
+        return self._move_absolute(self.rescale(pos))
+
+    def _move_absolute(self, pos):
+        '''Absolute move to positions specified by pos dict'''
+        if len(pos) == 0:
+            return
         raise NotSupported("Required for planner")
 
-    def move_relative(self, delta):
+    def move_relative(self, pos):
+        '''Absolute move to positions specified by pos dict'''
+        return self._move_relative(self.rescale(pos))
+
+    def _move_relative(self, delta):
         '''Relative move to positions specified by delta dict'''
         raise NotSupported("Required for planner")
 
@@ -187,14 +208,14 @@ class MockHal(MotionHAL):
     def take_picture(self, file_name):
         self._log('taking picture to %s' % file_name)
 
-    def move_absolute(self, pos):
+    def _move_absolute(self, pos):
         for axis, apos in pos.items():
             self._pos[axis] = apos
         self._log(
             'absolute move to ' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
-    def move_relative(self, delta):
+    def _move_relative(self, delta):
         for axis, adelta in delta.items():
             self._pos[axis] += adelta
         self._log(
@@ -245,14 +266,14 @@ class DryHal(MotionHAL):
     def take_picture(self, file_name):
         self._log('taking picture to %s' % file_name)
 
-    def move_absolute(self, pos):
+    def _move_absolute(self, pos):
         for axis, apos in pos.items():
             self._pos[axis] = apos
         self._log(
             'absolute move to ' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
-    def move_relative(self, delta):
+    def _move_relative(self, delta):
         for axis, adelta in delta.items():
             self._pos[axis] += adelta
         self._log(
@@ -317,14 +338,14 @@ class GCodeHal(MotionHAL):
     def imager(self):
         return GCodeHalImager(self)
 
-    def move_absolute(self, pos):
+    def _move_absolute(self, pos):
         for axis, apos in pos.items():
             self._pos[axis] = apos
         self._line(
             'G90 G0' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
-    def move_relative(self, pos):
+    def _move_relative(self, pos):
         for axis, delta in pos.items():
             self._pos[axis] += delta
         self._line(

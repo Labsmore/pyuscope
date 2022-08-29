@@ -7,7 +7,12 @@ No barlow lens
 {
     "motion": {
         "hal": "grbl-ser",
-        "backlash": 5.0
+        "backlash": 5.0,
+        "scalars": {
+            "x": 5.0,
+            "y": 5.0,
+            "z": 5.0,
+        },
     },
     "imager": {
         "source":"gst-toupcamsrc",

@@ -20,22 +20,22 @@ def get_lcnc_host(mj):
 
 
 def register_plugins():
-    def mock_hal(mj, log):
-        return cnc_hal.MockHal(log=log)
+    def mock_hal(mj, kwargs):
+        return cnc_hal.MockHal(**kwargs)
 
     register_plugin("mock", mock_hal)
 
-    def lcnc_py(mj, log):
+    def lcnc_py(mj, kwargs):
         import linuxcnc
 
-        return lcnc_hal.LcncPyHal(linuxcnc=linuxcnc, log=log)
+        return lcnc_hal.LcncPyHal(linuxcnc=linuxcnc, **kwargs)
 
     register_plugin("lcnc-py", lcnc_py)
 
-    def lcnc_rpc(mj, log):
+    def lcnc_rpc(mj, kwargs):
         try:
             return lcnc_hal.LcncPyHal(linuxcnc=LCNCRPC(host=get_lcnc_host(mj)),
-                                      log=log)
+                                      **kwargs)
         except socket.error:
             raise
             raise Exception("Failed to connect to LCNCRPC %s" %
@@ -43,18 +43,18 @@ def register_plugins():
 
     register_plugin("lcnc-rpc", lcnc_rpc)
 
-    def lcnc_arpc(mj, log):
-        return lcnc_ar.LcncPyHalAr(host=get_lcnc_host(mj), log=log)
+    def lcnc_arpc(mj, kwargs):
+        return lcnc_ar.LcncPyHalAr(host=get_lcnc_host(mj), **kwargs)
 
     register_plugin("lcnc-arpc", lcnc_rpc)
 
-    def lcnc_rsh(mj, log):
-        return lcnc_hal.LcncRshHal(log=log)
+    def lcnc_rsh(mj, kwargs):
+        return lcnc_hal.LcncRshHal(**kwargs)
 
     register_plugin("lcnc-rsh", lcnc_rsh)
 
-    def grbl_ser(mj, log):
-        return GrblHal()
+    def grbl_ser(mj, kwargs):
+        return GrblHal(**kwargs)
 
     register_plugin("grbl-ser", grbl_ser)
     # XXX: look into the network protocols
@@ -68,8 +68,10 @@ def get_motion_hal(usj=None, mj=None, log=print):
     if mj is None:
         mj = usj["motion"]
     name = mj["hal"]
+    scalars = mj.get("scalars", None)
     log("get_motion_hal: %s" % name)
     ctor = plugins.get(name)
     if ctor is None:
         raise Exception("Unknown motion HAL %s" % name)
-    return ctor(mj, log)
+    kwargs = {"scalars": scalars, "log": log}
+    return ctor(mj, kwargs)

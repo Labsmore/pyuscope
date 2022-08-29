@@ -365,6 +365,7 @@ class GRBL:
                  probe=True,
                  reset=False,
                  gs=None,
+                 scalar=None,
                  verbose=None):
         """
         port: serial port file name
@@ -505,10 +506,10 @@ class GRBL:
 
 
 class GrblHal(MotionHAL):
-    def __init__(self, log=None, verbose=None):
+    def __init__(self, verbose=None, **kwargs):
         self.feedrate = None
         self.grbl = GRBL(verbose=verbose)
-        MotionHAL.__init__(self, log, verbose=verbose)
+        MotionHAL.__init__(self, verbose=verbose, **kwargs)
 
     def axes(self):
         return {'x', 'y', 'z'}
@@ -519,33 +520,11 @@ class GrblHal(MotionHAL):
     def pos(self):
         return self.grbl.qstatus()["MPos"]
 
-    def move_absolute(self, moves, limit=False):
-        if len(moves) == 0:
-            return
-        if limit:
-            limit = self.limit()
-            for k, v in moves.items():
-                if v < limit[k][0] or v > limit[k][1]:
-                    raise AxisExceeded("Axis %c to %s exceeds liimt (%s, %s)" %
-                                       (k, v, limit[k][0], limit[k][1]))
+    def _move_absolute(self, pos):
+        self.grbl.move_absolute(pos, f=1000)
 
-        self.grbl.move_absolute(moves, f=1000)
-
-    def move_relative(self, moves, limit=False):
-        if len(moves) == 0:
-            return
-
-        if limit:
-            limit = self.limit()
-            pos = self.pos()
-            for k, v in moves.items():
-                dst = pos[k] + v
-                if dst < limit[k][0] or dst > limit[k][1]:
-                    raise AxisExceeded(
-                        "Axis %c to %s (%s + %s) exceeds liimt (%s, %s)" %
-                        (k, dst, pos[k], v, limit[k][0], limit[k][1]))
-
-        self.grbl.move_relative(moves, f=1000)
+    def _move_relative(self, pos):
+        self.grbl.move_relative(pos, f=1000)
 
     def jog(self, axes):
         for axis, sign in axes.items():

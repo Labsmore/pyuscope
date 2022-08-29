@@ -154,5 +154,23 @@ class PlannerTestCase(unittest.TestCase):
         microscope_to_planner(usj, objectivei=0, contour=contour)
 
 
+class GstTestCase(unittest.TestCase):
+    def setUp(self):
+        """Call before every test case."""
+        self.verbose = int(os.getenv("VERBOSE", "0"))
+        self.planner_dir = "/tmp/pyuscope/planner"
+        if os.path.exists("/tmp/pyuscope"):
+            shutil.rmtree("/tmp/pyuscope")
+        os.mkdir("/tmp/pyuscope")
+
+    def tearDown(self):
+        """Call after every test case."""
+        pass
+
+    def test_mock(self):
+        usj = get_usj(name="mock")
+        gst.get_cli_imager_by_config(usj)
+
+
 if __name__ == "__main__":
     unittest.main()

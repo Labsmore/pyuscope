@@ -1,0 +1,20 @@
+/*
+A minimal configuration to do basic testing
+*/
+{
+    "motion": {
+        "engine": "mock"
+    },
+    "imager": {
+        "source":"gst-videotestsrc",
+		"width": 150,
+		"height": 50
+    },
+    "objectives": [
+		{
+			"name":"Objective",
+			"suffix":"suffix",
+			"x_view": 100.0
+		}
+    ]
+}

@@ -51,7 +51,12 @@ def get_usj(config_dir=None, name=None):
     else:
         config_dir = "config"
     globals()["config_dir"] = config_dir
-    with open(os.path.join(config_dir, "microscope.j5")) as f:
+    fn = os.path.join(config_dir, "microscope.j5")
+    if not os.path.exists(fn):
+        fn = os.path.join(config_dir, "microscope.json")
+        if not os.path.exists(fn):
+            raise Exception("couldn't find microscope.j5 in %s" % config_dir)
+    with open(fn) as f:
         j = json5.load(f, object_pairs_hook=OrderedDict)
 
     def default(rootj, rootd):
@@ -81,13 +86,13 @@ def cal_fn(mkdir=False):
 def cal_load(source):
     fn = cal_fn()
     if not os.path.exists(fn):
-        return None
+        return {}
     configj = readj(fn)
     configs = configj["configs"]
     for config in configs:
         if config["source"] == source:
             return config["properties"]
-    return None
+    return {}
 
 
 def cal_load_all(source):

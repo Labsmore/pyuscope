@@ -23,7 +23,7 @@ class GstCLIImager(Imager):
     Stand alone imager that doesn't rely on GUI feed
     """
     def __init__(self, opts={}, verbose=False):
-        Imager.__init__(self)
+        Imager.__init__(self, verbose=verbose)
         self.image_ready = threading.Event()
         self.image_id = None
 
@@ -103,7 +103,7 @@ class GstCLIImager(Imager):
             if touptek_esize is not None:
                 self.source.set_property("esize", touptek_esize)
         elif self.source_name == "videotestsrc":
-            print('WARNING: using test source')
+            # print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)
         else:
             raise Exception('Unknown source %s' % (self.source_name, ))
@@ -286,7 +286,9 @@ def apply_imager_cal(imager, verbose=False):
         imager.source.set_property(propk, propv)
 
 
-def get_cli_imager_by_config(usj, verbose=False):
+def get_cli_imager_by_config(usj=None, verbose=False):
+    if usj is None:
+        usj = config.get_usj()
     opts = gst_usj_to_gstcliimager_args(usj=usj)
     imager = GstCLIImager(opts=opts)
     apply_imager_cal(imager, verbose=verbose)

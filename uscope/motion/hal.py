@@ -117,6 +117,23 @@ class MotionHAL:
         '''Relative move to positions specified by delta dict'''
         raise NotSupported("Required for planner")
 
+    def jog(self, scalars):
+        """
+        scalars: generally either +1 or -1 per axis to jog
+        Final value is globally multiplied by the jog_rate and individually by the axis scalar
+        """
+        self._jog(self.scale_e2i(scalars))
+
+    def _jog(self, axes):
+        '''
+        axes: dict of axis with value to move
+        WARNING: under development / unstable API
+        '''
+        raise NotSupported("Required for jogging")
+
+    def set_jog_rate(self, rate):
+        self.jog_rate = rate
+
     '''
     In modern systems the first is almost always used
     The second is supported for now while porting legacy code
@@ -162,19 +179,6 @@ class MotionHAL:
     def meta(self):
         '''Supplementary info to add to run log'''
         return {}
-
-    def jog(self, axes):
-        '''
-        axes: dict of axis with value to move
-        WARNING: under development / unstable API
-        '''
-        raise NotSupported("Required for jogging")
-
-    def cancel_jog(self):
-        raise NotSupported("Required for jogging")
-
-    def set_jog_rate(self, rate):
-        self.jog_rate = rate
 
     def settle(self):
         '''Check last move time and wait if its not safe to take picture'''
@@ -251,9 +255,6 @@ class MockHal(MotionHAL):
     def ar_stop(self):
         pass
 
-    def cancel_jog(self):
-        pass
-
 
 """
 Based on a real HAL but does no movement
@@ -308,9 +309,6 @@ class DryHal(MotionHAL):
         pass
 
     def ar_stop(self):
-        pass
-
-    def cancel_jog(self):
         pass
 
 

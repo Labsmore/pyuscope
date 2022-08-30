@@ -50,7 +50,7 @@ class GRBLSer:
         port=None,
         # All commands I've seen so far complete responses in < 10 ms
         # so this should be plenty of margin for now
-        ser_timeout=0.2,
+        ser_timeout=0.15,
         flush=True,
         verbose=None):
         if port is None:
@@ -101,14 +101,14 @@ class GRBLSer:
             # ^C does not work
             # WARNING: ! will also freeze most commands but not ?
             # they will buffer into unfrozen
-            self.serial.flushInput()
-            self.serial.flushOutput()
             self.flush()
 
     def flush(self):
         """
         Wait to see if there is anything in progress
         """
+        self.serial.flushInput()
+        self.serial.flushOutput()
         timeout = self.serial.timeout
         try:
             self.serial.timeout = 0.1
@@ -208,6 +208,14 @@ class GRBLSer:
         l = self.readline().strip()
         assert "Grbl" in l, l
         """
+
+    def tilda(self):
+        """Cycle Start/Resume from Feed Hold, Door or Program pause"""
+        self.tx("~", nl=False)
+
+    def exclamation(self):
+        """Feed Hold – Stop all motion"""
+        self.tx("!", nl=False)
 
     def dollar(self):
         """
@@ -393,6 +401,12 @@ class GRBL:
         if reset:
             self.reset()
 
+    def __del__(self):
+        self.stop()
+
+    def stop(self):
+        self.cancel_jog()
+
     def reset(self):
         self.gs.reset()
         self.reset_recover()
@@ -431,6 +445,25 @@ class GRBL:
         # grbl: recovered after 1.388 sec
         print("grbl: recovered after %0.3f sec" % (time.time() - tbegin, ))
 
+    def general_recover(self):
+        """
+        Recover after communication issue when not in reset
+        """
+        tries = 3
+        for tryi in range(tries):
+            try:
+                self.verbose and print("WARNING: recovering")
+                # might have been put into hold
+                self.gs.tilda()
+                # Clear any commands in progress
+                self.gs.flush()
+                # Try a simple command
+                self.qstatus()
+            except Exception:
+                if tryi == tries - 2:
+                    raise
+                continue
+
     def reset_recover(self):
         # Prompt should come in about 1.5 seconds from start
         tbegin = time.time()
@@ -461,7 +494,8 @@ class GRBL:
         noisy example:
         rx '<Idle|MPos:-72.425,-25.634,0.000FS:0,0>'
         """
-        for i in range(3):
+        tries = 3
+        for i in range(tries):
             try:
                 raw = self.gs.question()
                 parts = raw.split("|")
@@ -475,22 +509,32 @@ class GRBL:
                     "MPos": mpos,
                     "FS": fs,
                 }
-            except Exception as e:
+            except Exception:
                 self.verbose and print("WARNING: bad qstatus")
-                continue
-        raise e
+                if i == tries - 1:
+                    raise
+                self.general_recover()
+        assert 0
 
     def mpos(self):
         """Return current absolute position"""
         return self.qstatus()["MPos"]
 
     def move_absolute(self, moves, f, blocking=True):
-        # implies G1
-        ax_str = ''.join(
-            [' %c%0.3f' % (k.upper(), v) for k, v in moves.items()])
-        self.gs.j("G90 %s F%u" % (ax_str, f))
-        if blocking:
-            self.wait_idle()
+        tries = 3
+        for i in range(tries):
+            try:
+                # implies G1
+                ax_str = ''.join(
+                    [' %c%0.3f' % (k.upper(), v) for k, v in moves.items()])
+                self.gs.j("G90 %s F%u" % (ax_str, f))
+                if blocking:
+                    self.wait_idle()
+            except Exception:
+                self.verbose and print("WARNING: bad absolute move")
+                if i == tries - 1:
+                    raise
+                self.general_recover()
 
     def move_relative(self, moves, f, blocking=True):
         # implies G1
@@ -503,6 +547,40 @@ class GRBL:
     def wait_idle(self):
         while self.qstatus()["status"] != "Idle":
             time.sleep(0.1)
+
+    def jog(self, scalars, rate):
+        try:
+            for axis, scalar in scalars.items():
+                cmd = "G91 %s%0.3f F%u" % (axis, scalar, rate)
+                self.verbose and print("JOG:", cmd)
+                self.gs.j(cmd)
+                if 0 and self.verbose:
+                    mpos = self.qstatus()["MPos"]
+                    print("jog: X%0.3f Y%0.3f Z%0.3F" %
+                          (mpos["x"], mpos["y"], mpos["z"]))
+        except Timeout:
+            # Better to under jog than retry and over jog
+            self.verbose and print("WARNING: dropping jog")
+            self.general_recover()
+
+    def cancel_jog(self):
+        tries = 3
+        timeout = 0.5
+        for i in range(tries):
+            try:
+                tstart = time.time()
+                while True:
+                    if time.time() - tstart > timeout:
+                        raise Timeout("Failed to cancel jog")
+                    self.gs.cancel_jog()
+                    if self.qstatus()["status"] == "Idle":
+                        return
+                    self.verbose and print("cancel: not idle yet")
+            except Exception:
+                self.verbose and print("WARNING: bad cancel jog")
+                if i == tries - 1:
+                    raise
+                self.general_recover()
 
 
 class GrblHal(MotionHAL):
@@ -520,24 +598,17 @@ class GrblHal(MotionHAL):
     def _pos(self):
         return self.grbl.qstatus()["MPos"]
 
-    def _move_absolute(self, pos):
+    def _move_absolute(self, pos, tries=3):
         self.grbl.move_absolute(pos, f=1000)
 
     def _move_relative(self, pos):
         self.grbl.move_relative(pos, f=1000)
 
-    def jog(self, axes):
-        for axis, sign in axes.items():
-            cmd = "G91 %s%0.3f F%u" % (axis, sign * 1.0, self.jog_rate)
-            self.verbose and print("JOG:", cmd)
-            self.grbl.gs.j(cmd)
-            if self.verbose:
-                mpos = self.grbl.qstatus()["MPos"]
-                print("jog: X%0.3f Y%0.3f Z%0.3F" %
-                      (mpos["x"], mpos["y"], mpos["z"]))
+    def _jog(self, scalars):
+        self.grbl.jog(scalars, self.jog_rate)
 
-    def cancel_jog(self):
-        self.grbl.gs.cancel_jog()
+    def stop(self):
+        self.grbl.stop()
 
 
 def get_grbl(port=None, gs=None, reset=False, verbose=False):

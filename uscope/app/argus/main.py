@@ -149,6 +149,8 @@ class JogSlider(QWidget):
         self.slider.setFocusPolicy(Qt.NoFocus)
         self.layout.addWidget(self.slider)
 
+        self.setLayout(self.layout)
+
     def get_val(self):
         slider_val = float(self.slider.value())
         v = math.log(slider_val, 10)
@@ -259,7 +261,12 @@ class MotionWidget(QWidget):
         if axis:
             axis, sign = axis
             # print("Key jogging %s%c" % (axis, {1: '+', -1: '-'}[sign]))
-            self.motion_thread.jog({axis: sign})
+            # don't spam events if its not done processing
+            if self.motion_thread.qsize() <= 1:
+                self.motion_thread.jog({axis: sign})
+            else:
+                # print("qsize drop jog")
+                pass
 
     def keyReleaseEventCaptured(self, event):
         # Don't move around with moving around text boxes, etc
@@ -274,7 +281,8 @@ class MotionWidget(QWidget):
         # print("release %s" % (axis, ))
         # return
         if axis:
-            self.motion_thread.cancel_jog()
+            # print("cancel jog on release")
+            self.motion_thread.stop()
 
 
 class SimpleNameWidget(QWidget):
@@ -393,7 +401,7 @@ class MainWindow(QMainWindow):
                                        overview2=True,
                                        roi=True)
         # FIXME: review sizing
-        self.vidpip.size_widgets(frac=0.5)
+        self.vidpip.size_widgets(frac=0.2)
         # self.capture_sink = Gst.ElementFactory.make("capturesink")
 
         # TODO: some pipelines output jpeg directly
@@ -462,7 +470,7 @@ class MainWindow(QMainWindow):
         try:
             self.motion_thread.hal.ar_stop()
             if self.motion_thread:
-                self.motion_thread.stop()
+                self.motion_thread.thread_stop()
                 self.motion_thread = None
             if self.pt:
                 self.pt.stop()

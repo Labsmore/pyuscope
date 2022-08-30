@@ -3,7 +3,7 @@ A minimal configuration to do basic testing
 */
 {
     "motion": {
-        "engine": "mock"
+        "hal": "mock"
     },
     "imager": {
         "source":"gst-videotestsrc",

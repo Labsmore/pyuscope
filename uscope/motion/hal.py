@@ -186,8 +186,8 @@ Has no actual hardware associated with it
 
 
 class MockHal(MotionHAL):
-    def __init__(self, axes='xy', log=None):
-        MotionHAL.__init__(self, log)
+    def __init__(self, axes='xy', **kwargs):
+        MotionHAL.__init__(self, **kwargs)
 
         self._axes = list(axes)
         self._pos = {}

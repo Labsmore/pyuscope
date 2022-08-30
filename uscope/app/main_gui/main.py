@@ -210,14 +210,14 @@ class MainWindow(QMainWindow):
     log_msg = pyqtSignal(str)
     pos = pyqtSignal(int)
 
-    def __init__(self, source=None, verbose=False):
+    def __init__(self, microscope=None, verbose=False):
         QMainWindow.__init__(self)
         self.verbose = verbose
         self.showMaximized()
-        self.usj = get_usj()
+        self.usj = get_usj(name=microscope)
         self.objective_name_le = None
 
-        self.vidpip = GstVideoPipeline(source=source,
+        self.vidpip = GstVideoPipeline(usj=self.usj,
                                        overview=True,
                                        overview2=True,
                                        roi=True)
@@ -356,13 +356,13 @@ class MainWindow(QMainWindow):
         self.obj_cb.clear()
         self.obj_config = None
         self.obj_configi = None
-        for objective in self.usj['objective']:
+        for objective in self.usj["objectives"]:
             self.obj_cb.addItem(objective['name'])
 
     def update_obj_config(self):
         '''Make resolution display reflect current objective'''
         self.obj_configi = self.obj_cb.currentIndex()
-        self.obj_config = self.usj['objective'][self.obj_configi]
+        self.obj_config = self.usj['objectives'][self.obj_configi]
         self.log('Selected objective %s' % self.obj_config['name'])
 
         im_w_pix = int(self.usj['imager']['width'])
@@ -967,8 +967,8 @@ def parse_args():
     import argparse
 
     parser = argparse.ArgumentParser(description='')
+    parser.add_argument('--microscope', help="Which microscope config to use")
     add_bool_arg(parser, '--verbose', default=None)
-    parser.add_argument('source', nargs="?", default=None)
     args = parser.parse_args()
 
     args.verbose and print("Parsing args in thread %s" %

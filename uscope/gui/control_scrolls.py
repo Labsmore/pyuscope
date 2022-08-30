@@ -17,7 +17,7 @@ class DummyGstControlScroll(GstControlScroll):
     def __init__(self, vidpip, parent=None):
         GstControlScroll.__init__(self,
                                   vidpip=vidpip,
-                                  prop_layout=prop_layout,
+                                  groups_gst=prop_layout,
                                   parent=parent)
 
 

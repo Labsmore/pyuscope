@@ -8,7 +8,11 @@ No barlow lens
 {
     "motion": {
         "hal": "grbl-ser",
+        //FIXME: what is the actual value?
         "backlash": 5.0,
+        //5:1 gearboxes
+        //Commands must be 5x larger than advertised
+        //Considering firmware update
         "scalars": {
             "x": 5.0,
             "y": 5.0,
@@ -28,12 +32,14 @@ No barlow lens
     See knob at right
     There is a notch indicating current zoom level
     */
-    "objective": [
+    "objectives": [
         {
+            //FIXME: fill these out to nicer values
+
             //0.7 mag setting w/o barlow lens
             "name":"0.7",
             "suffix":"0.7x",
-            "x_view": 112.0
+            "x_view": 22.4
         },
         /*
         TODO: check estimated scale

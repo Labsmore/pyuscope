@@ -283,9 +283,8 @@ class Planner(object):
     def init_contour(self):
         contour = self.pconfig["contour"]
 
-        self.ideal_overlap = 0.7
-        if 'overlap' in contour:
-            self.ideal_overlap = float(contour['overlap'])
+        self.ideal_overlap = self.pconfig.get("step") if self.pconfig.get(
+            "step") else 0.7
         # Maximum allowable overlap proportion error when trying to fit number of snapshots
         #overlap_max_error = 0.05
         '''
@@ -334,7 +333,7 @@ class Planner(object):
         mm_per_pix = x_mm / image_wh[0]
         image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
 
-        backlash = self.pconfig.get("motion", {}).get("backlash", 0.1)
+        backlash = self.pconfig.get("motion", {}).get("backlash", 0.0)
 
         self.axes = OrderedDict([
             ('x',
@@ -877,20 +876,21 @@ def microscope_to_planner(usj, objective=None, objectivei=None, contour=None):
         "contour": contour,
     }
 
-    tsettle = usj.get("tsettle")
-    if tsettle:
-        ret["tsettle"] = tsettle
+    v = usj["imager"].get("scalar")
+    if v:
+        ret["imager"]["scalar"] = float(v)
 
-    scalar = usj["imager"].get("scalar")
-    if scalar:
-        ret["imager"]["scalar"] = float(scalar)
+    v = usj["motion"].get("origin")
+    if v:
+        ret["motion"]["origin"] = v
 
-    origin = usj["motion"].get("origin")
-    if origin:
-        ret["motion"]["origin"] = origin
+    v = usj["motion"].get("backlash")
+    if v:
+        ret["motion"]["backlash"] = v
 
-    backlash = usj["motion"].get("backlash")
-    if origin:
-        ret["motion"]["backlash"] = backlash
+    # By definition anything in planner section is planner config
+    # give more thought to precedence at some point
+    for k, v in usj.get("planner", {}).items():
+        ret[k] = v
 
     return ret

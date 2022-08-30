@@ -146,4 +146,6 @@ However, I've been using this workflow for years now, and will probably continue
  * Drop obsolete pr0ndexer motion control support
  * Drop obsolete MC motion control support
  * Motion HAL plugin architecture
+ * main_gui is now "argus"
+ * Axis scalar support (gearbox workaround)
 

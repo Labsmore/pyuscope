@@ -129,3 +129,18 @@ def cal_save(source, j):
 
     print("Saving cal to %s" % fn)
     writej(fn, configj)
+
+
+def get_planner_step(usj):
+    """
+    ideal faction of image to move between images
+    Default: 0.7 => only overlap adjacent image by 30%
+    """
+    return float(usj.get("planner", {}).get("overlap", 0.7))
+
+
+def get_planner_border(usj):
+    """
+    Automatically add this many mm to the edges of a panorama
+    """
+    return float(usj.get("planner", {}).get("border", 0.0))

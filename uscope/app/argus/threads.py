@@ -77,6 +77,12 @@ class MotionThread(QThread):
     def jog(self, pos):
         self.command("jog", pos)
 
+    def move_absolute(self, move_absolute):
+        self.command("move_absolute", move_absolute)
+
+    def move_relative(self, pos):
+        self.command("move_relative", pos)
+
     def set_jog_rate(self, rate):
         self.command("set_jog_rate", rate)
 
@@ -118,9 +124,9 @@ class MotionThread(QThread):
                     self.log(str(e))
                 return self.hal.pos()
 
-            def move_relative(delta):
+            def move_relative(pos):
                 try:
-                    self.hal.move_relative(delta)
+                    self.hal.move_relative(pos)
                 except AxisExceeded as e:
                     self.log(str(e))
                 return self.hal.pos()

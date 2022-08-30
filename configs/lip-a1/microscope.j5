@@ -9,7 +9,7 @@ No barlow lens
     "motion": {
         "hal": "grbl-ser",
         //FIXME: what is the actual value?
-        "backlash": 5.0,
+        "backlash": 1.0,
         //5:1 gearboxes
         //Commands must be 5x larger than advertised
         //Considering firmware update

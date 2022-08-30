@@ -517,7 +517,7 @@ class GrblHal(MotionHAL):
     def command(self, cmd):
         return "\n".join(self.grbl.gs.txrxs(cmd))
 
-    def pos(self):
+    def _pos(self):
         return self.grbl.qstatus()["MPos"]
 
     def _move_absolute(self, pos):

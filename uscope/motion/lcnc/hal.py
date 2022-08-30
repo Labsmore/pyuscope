@@ -192,7 +192,7 @@ class LcncPyHal(LcncHal):
     def axes(self):
         return list(self.ax_c2i.keys())
 
-    def pos(self):
+    def _pos(self):
         self.stat.poll()
         ret = {}
         for axis in self.axes():

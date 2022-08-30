@@ -30,7 +30,7 @@ List of parameters
       * Default: 1.0
       * Makes displayed pano information correct if you are post processing the image
       * Currently planner itself doesn't apply scaling but rather returns the raw image
-  * contour
+  * contour: defines the scan area
     * start
       * Default: none / required
       * x: x minimum position imaged 
@@ -41,6 +41,9 @@ List of parameters
       * y: y maximum position imaged
   * tsettle: how long to wait between motion and image
     * Default: 0.0
+  * step: ideal faction of image to move between images
+    Default: 0.7 => only overlap adjacent image by 30%
+  * border: automatically add this many mm to the edges of the contour (panorama)
   * motion
     * backlash: how much is requires to compensate for consistent motion
        * Currently all axes are assumed the same backlash
@@ -55,5 +58,4 @@ List of parameters
     * Advanced / not well supported
     * Intended for resuming a scan to correct a bad area
     * items: {"r0": r0, "r1": r1, "c0": c0, "c1": c1}
-
 

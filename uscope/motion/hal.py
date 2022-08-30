@@ -66,7 +66,11 @@ class MotionHAL:
         '''Return to origin'''
         self.move_absolute(dict([(k, 0.0) for k in self.axes()]))
 
-    def rescale(self, pos):
+    def scale_e2i(self, pos):
+        """
+        Scale an external coordinate system to an internal coordinate system
+        Fixup layer for gearboxes and such
+        """
         if not self.scalars:
             return pos
         ret = {}
@@ -74,11 +78,30 @@ class MotionHAL:
             ret[k] = v * self.scalars.get(k, 1.0)
         return ret
 
+    def scale_i2e(self, pos):
+        """
+        Opposite of scale_e2i
+        """
+        if not self.scalars:
+            return pos
+        ret = {}
+        for k, v in pos.items():
+            ret[k] = v / self.scalars.get(k, 1.0)
+        return ret
+
+    def pos(self):
+        '''Return current position for all axes'''
+        return self.scale_i2e(self._pos())
+
+    def _pos(self):
+        '''Return current position for all axes'''
+        raise NotSupported("Required for planner")
+
     def move_absolute(self, pos):
         '''Absolute move to positions specified by pos dict'''
         if len(pos) == 0:
             return
-        return self._move_absolute(self.rescale(pos))
+        return self._move_absolute(self.scale_e2i(pos))
 
     def _move_absolute(self, pos):
         '''Absolute move to positions specified by pos dict'''
@@ -88,7 +111,7 @@ class MotionHAL:
 
     def move_relative(self, pos):
         '''Absolute move to positions specified by pos dict'''
-        return self._move_relative(self.rescale(pos))
+        return self._move_relative(self.scale_e2i(pos))
 
     def _move_relative(self, delta):
         '''Relative move to positions specified by delta dict'''
@@ -107,10 +130,6 @@ class MotionHAL:
         '''Take a picture and save it to internal.  File name is generated automatically'''
         raise Exception("Unsupported")
     """
-
-    def pos(self):
-        '''Return current position for all axes'''
-        raise NotSupported("Required for planner")
 
     def on(self):
         '''Call at start of MDI phase, before planner starts'''
@@ -222,7 +241,7 @@ class MockHal(MotionHAL):
             'relative move to ' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
 
-    def pos(self):
+    def _pos(self):
         return self._pos
 
     def settle(self):
@@ -247,6 +266,7 @@ class DryHal(MotionHAL):
         super().__init__(log)
 
         self.hal = hal
+        self.scalars = hal.scalars
 
         self._pos = {}
         # Assume starting at 0.0 until causes problems
@@ -280,7 +300,7 @@ class DryHal(MotionHAL):
             'relative move to ' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
 
-    def pos(self):
+    def _pos(self):
         return self._pos
 
     def settle(self):

@@ -142,7 +142,3 @@ def get_planner_border(usj):
     Automatically add this many mm to the edges of a panorama
     """
     return float(usj.get("planner", {}).get("border", 0.0))
-
-
-def get_out_dir(usj):
-    return usj.get("out_dir", "out")

@@ -90,6 +90,14 @@ def argus_jog_max(usj=None):
     return int(usj.get("argus", {}).get("jog_max", 1000))
 
 
+def get_out_dir(usj):
+    return usj.get("argus", {}).get("out_dir", "out")
+
+
+def get_snapshot_dir(usj):
+    return usj.get("argus", {}).get("snapshot_dir", "snapshot")
+
+
 class JogListener(QPushButton):
     """
     Widget that listens for WSAD keys for linear stage movement
@@ -682,7 +690,7 @@ class MainWindow(QMainWindow):
             self.cncProgress.emit(pictures_to_take, pictures_taken, image,
                                   first)
 
-        base_out_dir = config.get_out_dir(self.usj)
+        base_out_dir = get_out_dir(self.usj)
         if not dry and not os.path.exists(base_out_dir):
             os.mkdir(base_out_dir)
 
@@ -924,7 +932,7 @@ class MainWindow(QMainWindow):
         gb = QGroupBox('Snapshot')
         layout = QGridLayout()
 
-        snapshot_dir = self.usj['imager']['snapshot_dir']
+        snapshot_dir = get_snapshot_dir(self.usj)
         if not os.path.isdir(snapshot_dir):
             self.log('Snapshot dir %s does not exist' % snapshot_dir)
             if os.path.exists(snapshot_dir):

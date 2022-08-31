@@ -6,6 +6,9 @@ AMA100 relay lens
 No barlow lens
 */
 {
+    "argus": {
+        "!jog_name_widget": "sipr0n",
+    },
     "motion": {
         "hal": "grbl-ser",
         //FIXME: what is the actual value?

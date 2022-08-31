@@ -1,4 +1,7 @@
 {
+    "argus": {
+        "jog_name_widget": "sipr0n",
+    },
     "planner": {
         "border": 0.1,
         "tsettle": 1.2,

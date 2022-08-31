@@ -27,7 +27,6 @@ class DryCheckpoint(Exception):
 
 
 class XrayImager(Imager):
-
     def __init__(self, dry=False, verbose=False):
         Imager.__init__(self)
         self.dry = dry
@@ -67,7 +66,6 @@ class XrayImager(Imager):
 # TODO: planner needs to support more image types
 # something like this needs to be rolled into the core more
 class MyPlanner(uscope.planner.Planner):
-
     def take_picture(self, fn_base):
         planner.hal.settle()
         img_dec = planner.imager.get()

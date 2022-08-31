@@ -3,17 +3,17 @@
 from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gui.control_scrolls import get_control_scroll
 from uscope.util import add_bool_arg
-
 from uscope.config import get_usj, cal_load_all
 from uscope.img_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
-
 from uscope.gst_util import Gst, CaptureSink
-
-from uscope.app.main_gui.threads import MotionThread, PlannerThread
-from io import StringIO
-import math
+from uscope.motion.plugins import get_motion_hal
+from uscope.app.argus.threads import MotionThread, PlannerThread
+from uscope.planner import microscope_to_planner
+from uscope import util
+from uscope import config
+from uscope.motion import motion_util
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -27,9 +27,8 @@ from PIL import Image
 import sys
 import traceback
 import threading
-from uscope import util
-
-usj = get_usj()
+from io import StringIO
+import math
 
 debug = 1
 
@@ -53,13 +52,48 @@ def error(msg, code=1):
     exit(code)
 
 
+# XXX: maybe UI preferences should be in different config file?
+# need some way to apply preferences while easily pulling in core updates
+
+
+def argus_job_name_widget(usj=None):
+    return usj.get("argus", {}).get("jog_name_widget", "simple")
+
+
+def argus_show_mdi(usj=None):
+    """
+    Should argus GUI show MDI?
+    For advanced users only
+    """
+    if not usj:
+        usj = get_usj()
+    val = os.getenv("ARGUS_MDI", None)
+    if val is not None:
+        return bool(val)
+    return bool(usj.get("argus", {}).get("mdi", 0))
+
+
+def argus_jog_min(usj=None):
+    return int(usj.get("argus", {}).get("jog_min", 1))
+
+
 """
-Widget that listens for WSAD keys for linear stage movement
+GRBL / 3018 stock vlaues
+$110=1000.000
+$111=1000.000
+$112=600.000
 """
+
+
+# FIXME: default should be actual max jog rate
+def argus_jog_max(usj=None):
+    return int(usj.get("argus", {}).get("jog_max", 1000))
 
 
 class JogListener(QPushButton):
-
+    """
+    Widget that listens for WSAD keys for linear stage movement
+    """
     def __init__(self, label, parent=None):
         super().__init__(label, parent=parent)
         self.parent = parent
@@ -87,10 +121,68 @@ class JogListener(QPushButton):
         self.setPalette(p)
 
 
-class MotionWidget(QWidget):
-
-    def __init__(self, motion_thread, parent=None):
+class JogSlider(QWidget):
+    def __init__(self, usj, parent=None):
         super().__init__(parent=parent)
+
+        self.usj = usj
+
+        # log scaled to slider
+        self.jog_min = argus_jog_min(self.usj)
+        self.jog_max = argus_jog_max(self.usj)
+        self.jog_cur = None
+
+        self.slider_min = 1
+        self.slider_max = 100
+
+        self.layout = QVBoxLayout()
+
+        def labels():
+            layout = QHBoxLayout()
+            layout.addWidget(QLabel("1"))
+            layout.addWidget(QLabel("10"))
+            layout.addWidget(QLabel("100"))
+            layout.addWidget(QLabel("1000"))
+            return layout
+
+        self.layout.addLayout(labels())
+
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setMinimum(self.slider_min)
+        self.slider.setMaximum(self.slider_max)
+        self.slider.setValue(self.slider_max // 2)
+        self.slider.setTickPosition(QSlider.TicksBelow)
+        self.slider.setTickInterval(33)
+        # Send keyboard events to CNC navigation instead
+        self.slider.setFocusPolicy(Qt.NoFocus)
+        self.layout.addWidget(self.slider)
+
+        self.setLayout(self.layout)
+
+    def get_val(self):
+        verbose = 0
+        slider_val = float(self.slider.value())
+        v = math.log(slider_val, 10)
+        log_delta = math.log(self.slider_max, 10) - math.log(
+            self.slider_min, 10)
+        verbose and print('delta', log_delta, math.log(self.jog_max, 10),
+                          math.log(self.jog_min, 10))
+        # Scale in log space
+        log_scalar = (math.log(self.jog_max, 10) -
+                      math.log(self.jog_min, 10)) / log_delta
+        v = math.log(self.jog_min, 10) + v * log_scalar
+        # Convert back to linear space
+        v = 10**v
+        ret = max(min(v, self.jog_max), self.jog_min)
+        verbose and print("jog: slider %u => jog %u (was %u)" %
+                          (slider_val, ret, v))
+        return ret
+
+
+class MotionWidget(QWidget):
+    def __init__(self, motion_thread, usj, parent=None):
+        super().__init__(parent=parent)
+        self.usj = usj
         self.motion_thread = motion_thread
 
         self.axis_map = {
@@ -103,72 +195,63 @@ class MotionWidget(QWidget):
             Qt.Key_E: ("Z", 1),
         }
 
-        # log scaled to slider
-        self.jog_min = 1
-        self.jog_max = 1000
-        self.jog_cur = None
-        # careful hard coded below as 2.0
-        self.slider_min = 1
-        self.slider_max = 100
-
         self.initUI()
         self.last_send = time.time()
 
     def initUI(self):
         self.setWindowTitle('Demo')
 
-        def labels():
-            layout = QHBoxLayout()
-            layout.addWidget(QLabel("1"))
-            layout.addWidget(QLabel("10"))
-            layout.addWidget(QLabel("100"))
-            layout.addWidget(QLabel("1000"))
-            return layout
-
         layout = QVBoxLayout()
         self.listener = JogListener("Jog", self)
         layout.addWidget(self.listener)
-        layout.addLayout(labels())
-        self.slider = QSlider(Qt.Horizontal)
-        self.slider.setMinimum(self.slider_min)
-        self.slider.setMaximum(self.slider_max)
-        self.slider.setValue(self.slider_max // 2)
-        self.slider.setTickPosition(QSlider.TicksBelow)
-        self.slider.setTickInterval(33)
-        # Send keyboard events to CNC navigation instead
-        self.slider.setFocusPolicy(Qt.NoFocus)
+        self.slider = JogSlider(usj=self.usj)
         layout.addWidget(self.slider)
+
+        def move_abs():
+            layout = QHBoxLayout()
+            layout.addWidget(QLabel("Absolute move"))
+            self.move_abs_le = QLineEdit()
+            self.move_abs_le.returnPressed.connect(self.move_abs_le_process)
+            layout.addWidget(self.move_abs_le)
+            return layout
 
         def mdi():
             layout = QHBoxLayout()
             layout.addWidget(QLabel("MDI"))
             self.mdi_le = QLineEdit()
-            self.mdi_le.returnPressed.connect(self.mdi_process)
+            self.mdi_le.returnPressed.connect(self.mdi_le_process)
             layout.addWidget(self.mdi_le)
             return layout
 
-        layout.addLayout(mdi())
+        layout.addLayout(move_abs())
 
-        self.slider.valueChanged.connect(self.sliderChanged)
+        self.mdi_le = None
+        if argus_show_mdi(self.usj):
+            layout.addLayout(mdi())
+
+        # XXX: make this a proper signal emitting changed value
+        self.slider.slider.valueChanged.connect(self.sliderChanged)
         self.sliderChanged()
 
         self.setLayout(layout)
 
-    def mdi_process(self):
-        self.motion_thread.mdi(str(self.mdi_le.text()))
+    def move_abs_le_process(self):
+        s = str(self.move_abs_le.text())
+        try:
+            pos = motion_util.parse_move(s)
+        except ValueError:
+            self.log("Failed to parse move. Need like: X1.0 Y2.4")
+        self.motion_thread.move_absolute(pos)
 
+    def mdi_le_process(self):
+        if self.mdi_le:
+            s = str(self.mdi_le.text())
+            self.log("Sending MDI: %s" % s)
+            self.motion_thread.mdi(s)
+
+    # XXX: make this a proper signal emitting changed value
     def sliderChanged(self):
-        slider_val = float(self.slider.value())
-        v = math.log(slider_val, 10)
-        # Scale in log space
-        log_scalar = (math.log(self.jog_max, 10) -
-                      math.log(self.jog_min, 10)) / 2.0
-        v = math.log(self.jog_min, 10) + v * log_scalar
-        # Convert back to linear space
-        v = 10**v
-        self.jog_cur = max(min(v, self.jog_max), self.jog_min)
-        print("jog: slider %u => jog %u (was %u)" %
-              (slider_val, self.jog_cur, v))
+        self.jog_cur = self.slider.get_val()
         self.motion_thread.set_jog_rate(self.jog_cur)
 
     def keyPressEventCaptured(self, event):
@@ -191,7 +274,12 @@ class MotionWidget(QWidget):
         if axis:
             axis, sign = axis
             # print("Key jogging %s%c" % (axis, {1: '+', -1: '-'}[sign]))
-            self.motion_thread.jog({axis: sign})
+            # don't spam events if its not done processing
+            if self.motion_thread.qsize() <= 1:
+                self.motion_thread.jog({axis: sign})
+            else:
+                # print("qsize drop jog")
+                pass
 
     def keyReleaseEventCaptured(self, event):
         # Don't move around with moving around text boxes, etc
@@ -206,7 +294,106 @@ class MotionWidget(QWidget):
         # print("release %s" % (axis, ))
         # return
         if axis:
-            self.motion_thread.cancel_jog()
+            # print("cancel jog on release")
+            self.motion_thread.stop()
+
+
+class SimpleNameWidget(QWidget):
+    """
+    Job name is whatever the user wants
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+
+        layout = QHBoxLayout()
+
+        layout.addWidget(QLabel("Job name"))
+        self.le = QLineEdit("unknown")
+        layout.addWidget(self.le)
+
+        self.setLayout(layout)
+
+    def getName(self):
+        return str(self.le.text())
+
+
+'''
+FIXME: implement
+class DatetimeWidget(QWidget):
+    """
+    Job name is prefixed with current date and time
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+
+        layout = QHBoxLayout()
+
+        layout.addWidget(QLabel("Job name"))
+        self.le = QLineEdit("unknown")
+        layout.addWidget(self.le )
+
+        self.setLayout(layout)
+
+    def getName(self):
+        return str(self.le.text())
+'''
+
+
+class SiPr0nJobNameWidget(QWidget):
+    """
+    Force a name compatible with siliconpr0n.org naming convention
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+
+        layout = QHBoxLayout()
+
+        # old: freeform
+        # layout.addWidget(QLabel('Job name'), 0, 0, 1, 2)
+        # self.job_name_le = QLineEdit('default')
+        # layout.addWidget(self.job_name_le)
+
+        # Will add _ between elements to make final name
+
+        layout.addWidget(QLabel('Vendor'))
+        self.vendor_name_le = QLineEdit('unknown')
+        layout.addWidget(self.vendor_name_le)
+
+        layout.addWidget(QLabel('Product'))
+        self.product_name_le = QLineEdit('unknown')
+        layout.addWidget(self.product_name_le)
+
+        layout.addWidget(QLabel('Layer'))
+        self.layer_name_le = QLineEdit('mz')
+        layout.addWidget(self.layer_name_le)
+
+        layout.addWidget(QLabel('Ojbective'))
+        self.objective_name_le = QLineEdit('unkx')
+        layout.addWidget(self.objective_name_le)
+
+        self.setLayout(layout)
+
+    def getName(self):
+        # old: freeform
+        # return str(self.job_name_le.text())
+        vendor = str(self.vendor_name_le.text())
+        if not vendor:
+            vendor = "unknown"
+
+        product = str(self.product_name_le.text())
+        if not product:
+            product = "unknown"
+
+        layer = str(self.layer_name_le.text())
+        if not layer:
+            layer = "unknown"
+
+        objective = str(self.objective_name_le.text())
+        if not objective:
+            objective = "unkx"
+
+        return vendor + "_" + product + "_" + layer + "_" + objective
 
 
 class MainWindow(QMainWindow):
@@ -215,19 +402,19 @@ class MainWindow(QMainWindow):
     log_msg = pyqtSignal(str)
     pos = pyqtSignal(int)
 
-    def __init__(self, source=None, verbose=False):
+    def __init__(self, microscope=None, verbose=False):
         QMainWindow.__init__(self)
         self.verbose = verbose
         self.showMaximized()
-        self.usj = usj
+        self.usj = get_usj(name=microscope)
         self.objective_name_le = None
 
-        self.vidpip = GstVideoPipeline(source=source,
+        self.vidpip = GstVideoPipeline(usj=self.usj,
                                        overview=True,
                                        overview2=True,
                                        roi=True)
         # FIXME: review sizing
-        self.vidpip.size_widgets(frac=0.5)
+        self.vidpip.size_widgets(frac=0.2)
         # self.capture_sink = Gst.ElementFactory.make("capturesink")
 
         # TODO: some pipelines output jpeg directly
@@ -259,7 +446,7 @@ class MainWindow(QMainWindow):
 
         self.pt = None
         self.log_fd = None
-        hal = plugin.get_cnc_hal(self.usj, log=self.emit_log)
+        hal = get_motion_hal(self.usj, log=self.emit_log)
         hal.progress = self.hal_progress
         self.motion_thread = MotionThread(hal=hal, cmd_done=self.cmd_done)
         self.motion_thread.log_msg.connect(self.log)
@@ -296,7 +483,7 @@ class MainWindow(QMainWindow):
         try:
             self.motion_thread.hal.ar_stop()
             if self.motion_thread:
-                self.motion_thread.stop()
+                self.motion_thread.thread_stop()
                 self.motion_thread = None
             if self.pt:
                 self.pt.stop()
@@ -361,13 +548,13 @@ class MainWindow(QMainWindow):
         self.obj_cb.clear()
         self.obj_config = None
         self.obj_configi = None
-        for objective in self.usj['objective']:
+        for objective in self.usj["objectives"]:
             self.obj_cb.addItem(objective['name'])
 
     def update_obj_config(self):
         '''Make resolution display reflect current objective'''
         self.obj_configi = self.obj_cb.currentIndex()
-        self.obj_config = self.usj['objective'][self.obj_configi]
+        self.obj_config = self.usj['objectives'][self.obj_configi]
         self.log('Selected objective %s' % self.obj_config['name'])
 
         im_w_pix = int(self.usj['imager']['width'])
@@ -466,8 +653,6 @@ class MainWindow(QMainWindow):
             self.log("X0 must be less than X1")
 
         ret = {
-            "overlap": 0.7,
-            "border": 0.1,
             "start": {
                 "x": x0,
                 "y": y0,
@@ -506,7 +691,7 @@ class MainWindow(QMainWindow):
         if not dry and not os.path.exists(self.usj["out_dir"]):
             os.mkdir(self.usj["out_dir"])
 
-        out_dir = os.path.join(self.usj["out_dir"], self.getJobName())
+        out_dir = os.path.join(self.usj["out_dir"], self.jobName.getName())
         if os.path.exists(out_dir):
             self.log("Already exists: %s" % out_dir)
             return
@@ -518,27 +703,14 @@ class MainWindow(QMainWindow):
         # TODO: make this not block GUI
         self.motion_thread.wait_idle()
 
-        pconfig = {
-            # follow git release
-            # "version": USCOPE_VERSION,
-            "imager": {
-                # In the past I just stored i here
-                # lets just list out fall config
-                'objective': self.obj_config,
-                'objectivei': self.obj_configi,
-                "calibration": self.control_scroll.get_disp_properties(),
-            },
-            "motion": {},
-            # full microscope.json
-            "microscope": usj,
-            # was scan.json
-            "contour": contour_json,
-        }
+        pconfig = microscope_to_planner(self.usj,
+                                        objective=self.obj_config,
+                                        contour=contour_json)
 
         # not sure if this is the right place to add this
         # plannerj['copyright'] = "&copy; %s John McMaster, CC-BY" % datetime.datetime.today().year
 
-        if 1:
+        if 0:
             print("planner_json")
             util.printj(pconfig)
 
@@ -588,7 +760,7 @@ class MainWindow(QMainWindow):
 
     def get_hdr(self):
         hdr = None
-        source = usj["imager"]["source"]
+        source = self.usj["imager"]["source"]
         cal = cal_load_all(source)
         if cal:
             hdr = cal.get("hdr", None)
@@ -686,7 +858,6 @@ class MainWindow(QMainWindow):
         
         start, end should be buttons to snap current position
         """
-
         def top():
             gl = QGridLayout()
             row = 0
@@ -741,7 +912,8 @@ class MainWindow(QMainWindow):
         self.motion_widget = None
         self.position_poll_timer = None
         if 1 or self.usj["motion"]["engine"] == "grbl":
-            self.motion_widget = MotionWidget(motion_thread=self.motion_thread)
+            self.motion_widget = MotionWidget(motion_thread=self.motion_thread,
+                                              usj=self.usj)
             layout.addWidget(self.motion_widget)
 
             self.position_poll_timer = QTimer()
@@ -852,7 +1024,6 @@ class MainWindow(QMainWindow):
         """
         Line up Go/Stop w/ "Job name" to make visually appealing
         """
-
         def getProgressLayout():
             layout = QHBoxLayout()
 
@@ -874,61 +1045,22 @@ class MainWindow(QMainWindow):
 
             return layout
 
-        def getNameLayout():
-            layout = QHBoxLayout()
-
-            # old: freeform
-            # layout.addWidget(QLabel('Job name'), 0, 0, 1, 2)
-            # self.job_name_le = QLineEdit('default')
-            # layout.addWidget(self.job_name_le)
-
-            # Will add _ between elements to make final name
-
-            layout.addWidget(QLabel('Vendor'))
-            self.vendor_name_le = QLineEdit('unknown')
-            layout.addWidget(self.vendor_name_le)
-
-            layout.addWidget(QLabel('Product'))
-            self.product_name_le = QLineEdit('unknown')
-            layout.addWidget(self.product_name_le)
-
-            layout.addWidget(QLabel('Layer'))
-            self.layer_name_le = QLineEdit('mz')
-            layout.addWidget(self.layer_name_le)
-
-            layout.addWidget(QLabel('Ojbective'))
-            self.objective_name_le = QLineEdit('unkx')
-            layout.addWidget(self.objective_name_le)
-
-            return layout
+        def getJobNameWidget():
+            name = argus_job_name_widget(usj=self.usj)
+            if name == "simple":
+                return SimpleNameWidget()
+            elif name == "sipr0n":
+                return SiPr0nJobNameWidget()
+            else:
+                raise ValueError(name)
 
         layout = QVBoxLayout()
         gb = QGroupBox('Scan')
-        layout.addLayout(getNameLayout())
+        self.jobName = getJobNameWidget()
+        layout.addWidget(self.jobName)
         layout.addLayout(getProgressLayout())
         gb.setLayout(layout)
         return gb
-
-    def getJobName(self):
-        # old: freeform
-        # return str(self.job_name_le.text())
-        vendor = str(self.vendor_name_le.text())
-        if not vendor:
-            vendor = "unknown"
-
-        product = str(self.product_name_le.text())
-        if not product:
-            product = "unknown"
-
-        layer = str(self.layer_name_le.text())
-        if not layer:
-            layer = "unknown"
-
-        objective = str(self.objective_name_le.text())
-        if not objective:
-            objective = "unkx"
-
-        return vendor + "_" + product + "_" + layer + "_" + objective
 
     def get_bottom_layout(self):
         layout = QHBoxLayout()
@@ -987,8 +1119,8 @@ def parse_args():
     import argparse
 
     parser = argparse.ArgumentParser(description='')
+    parser.add_argument('--microscope', help="Which microscope config to use")
     add_bool_arg(parser, '--verbose', default=None)
-    parser.add_argument('source', nargs="?", default=None)
     args = parser.parse_args()
 
     args.verbose and print("Parsing args in thread %s" %

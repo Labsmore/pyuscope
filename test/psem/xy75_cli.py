@@ -52,7 +52,6 @@ Takes about 9.0 seconds to move 10 mm
 
 
 class XY75:
-
     def __init__(self, port='/dev/ttyUSB0', init=True, verbose=False):
         self.verbose = verbose
         self.serial = serial.Serial(

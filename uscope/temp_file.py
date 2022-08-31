@@ -15,7 +15,6 @@ PREFIX_BASE = "/tmp/uvtemp_"
 
 
 class TempFile:
-
     @staticmethod
     def default_prefix():
         global g_default_prefix_dir
@@ -84,7 +83,6 @@ class ManagedTempFile:
 
 
 class ManagedTempDir(ManagedTempFile):
-
     def __init__(self, temp_dir):
         ManagedTempFile.__init__(self, temp_dir)
 

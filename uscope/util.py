@@ -4,24 +4,26 @@ import os
 import shutil
 import sys
 import json
+import glob
+import errno
 
 
 def print_debug(s=None):
     if False:
-        print('DEBUG: %s' % s)
+        print("DEBUG: %s" % s)
 
 
 def add_bool_arg(parser, yes_arg, default=False, **kwargs):
-    dashed = yes_arg.replace('--', '')
-    dest = dashed.replace('-', '_')
+    dashed = yes_arg.replace("--", "")
+    dest = dashed.replace("-", "_")
     parser.add_argument(yes_arg,
                         dest=dest,
-                        action='store_true',
+                        action="store_true",
                         default=default,
                         **kwargs)
-    parser.add_argument('--no-' + dashed,
+    parser.add_argument("--no-" + dashed,
                         dest=dest,
-                        action='store_false',
+                        action="store_false",
                         **kwargs)
 
 
@@ -45,7 +47,6 @@ def tostr(buff):
 
 
 def hexdump(data, label=None, indent='', address_width=8, f=sys.stdout):
-
     def isprint(c):
         return c >= ' ' and c <= '~'
 
@@ -119,7 +120,6 @@ def where(pos=1):
 
 # Print timestamps in front of all output messages
 class IOTimestamp(object):
-
     def __init__(self, obj=sys, name='stdout'):
         self.obj = obj
         self.name = name
@@ -153,7 +153,6 @@ class IOTimestamp(object):
 
 # Log file descriptor to file
 class IOLog(object):
-
     def __init__(self,
                  obj=sys,
                  name='stdout',
@@ -208,12 +207,47 @@ class IOLog(object):
 
 def writej(fn, j):
     open(fn, 'w').write(
-        json.dumps(j, sort_keys=True, indent=4, separators=(',', ': ')))
+        json.dumps(j, sort_keys=True, indent=4, separators=(",", ": ")))
 
 
 def printj(j):
-    print(json.dumps(j, sort_keys=True, indent=4, separators=(',', ': ')))
+    print(json.dumps(j, sort_keys=True, indent=4, separators=(",", ": ")))
 
 
 def readj(fn):
-    return json.load(open(fn, 'r'))
+    return json.load(open(fn, "r"))
+
+
+def default_date_dir(root, prefix, postfix):
+    """
+    root: directory to place dir in
+    prefix: something to put in front of date
+    postfix: something to put after date
+    """
+
+    datestr = datetime.datetime.now().isoformat()[0:10]
+
+    if prefix:
+        prefix = prefix + '_'
+    else:
+        prefix = ''
+
+    n = 1
+    while True:
+        fn = os.path.join(root, "%s%s_%02u" % (prefix, datestr, n))
+        if len(glob.glob(fn + "*")) == 0:
+            if postfix:
+                return fn + "_" + postfix
+            else:
+                return fn
+        n += 1
+
+
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:  # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise

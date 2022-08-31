@@ -6,3 +6,5 @@ config
 # some local junk
 env.sh
 archive
+
+pyuscope.egg-info/

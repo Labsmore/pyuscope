@@ -9,6 +9,7 @@ from PyQt5.QtCore import *
 import time
 import os
 import json
+import datetime
 
 
 def dbg(*args):
@@ -34,6 +35,7 @@ class MotionThread(QThread):
 
     def __init__(self, hal, cmd_done):
         QThread.__init__(self)
+        self.verbose = False
         self.queue = queue.Queue()
         self.hal = hal
         self.running = threading.Event()
@@ -46,6 +48,8 @@ class MotionThread(QThread):
         # Let main gui get the last position from a different thread
         # It can request updates
         self.pos_cache = None
+        self._stop = False
+        self._estop = False
 
     def log(self, msg):
         self.log_msg.emit(msg)
@@ -77,14 +81,35 @@ class MotionThread(QThread):
     def jog(self, pos):
         self.command("jog", pos)
 
+    def stop(self):
+        # self.command("stop")
+        self._stop = True
+
+    def estop(self):
+        # self.command("estop")
+        self._estop = True
+
+    def move_absolute(self, move_absolute):
+        self.command("move_absolute", move_absolute)
+
+    def move_relative(self, pos):
+        self.command("move_relative", pos)
+
     def set_jog_rate(self, rate):
         self.command("set_jog_rate", rate)
 
-    def cancel_jog(self):
-        self.command("cancel_jog")
-
     def update_pos_cache(self):
         self.command("update_pos_cache")
+
+    def qsize(self):
+        return self.queue.qsize()
+
+    def queue_clear(self):
+        while True:
+            try:
+                self.queue.get(block=False)
+            except queue.Empty:
+                break
 
     def run(self):
         print("Motion thread started: %s" % (threading.get_ident(), ))
@@ -92,69 +117,88 @@ class MotionThread(QThread):
         self.idle.clear()
         self.hal.on()
 
-        while self.running.is_set():
-            self.lock.set()
-            if not self.normal_running.isSet():
-                self.normal_running.wait(0.1)
-                continue
-            try:
-                self.lock.clear()
-                (command, args) = self.queue.get(True, 0.1)
-            except queue.Empty:
-                self.idle.set()
-                continue
-            finally:
+        try:
+            while self.running.is_set():
                 self.lock.set()
 
-            self.idle.clear()
+                if self._estop:
+                    self.hal.estop()
+                    self.queue_clear()
+                    self._estop = False
+                    continue
 
-            def default(*args):
-                raise Exception("Bad command %s" % (command, ))
+                if self._stop:
+                    self.hal.stop()
+                    self.queue_clear()
+                    self._stop = False
+                    continue
 
-            def move_absolute(pos):
+                if not self.normal_running.isSet():
+                    self.normal_running.wait(0.1)
+                    continue
                 try:
-                    self.hal.move_absolute(pos)
-                except AxisExceeded as e:
-                    self.log(str(e))
-                return self.hal.pos()
+                    self.lock.clear()
+                    (command, args) = self.queue.get(True, 0.1)
+                except queue.Empty:
+                    self.idle.set()
+                    continue
+                finally:
+                    self.lock.set()
 
-            def move_relative(delta):
+                self.idle.clear()
+
+                def default(*args):
+                    raise Exception("Bad command %s" % (command, ))
+
+                def move_absolute(pos):
+                    try:
+                        self.hal.move_absolute(pos)
+                    except AxisExceeded as e:
+                        self.log(str(e))
+                    return self.hal.pos()
+
+                def move_relative(pos):
+                    try:
+                        self.hal.move_relative(pos)
+                    except AxisExceeded as e:
+                        self.log(str(e))
+                    return self.hal.pos()
+
+                def update_pos_cache():
+                    self.pos_cache = self.hal.pos()
+
+                self.verbose and print("")
+                self.verbose and print(
+                    "process @ %s" % datetime.datetime.utcnow().isoformat())
+                #print 'cnc thread: dispatch %s' % command
+                # Maybe I should just always emit the pos
+                f = {
+                    'update_pos_cache': update_pos_cache,
+                    'move_absolute': move_absolute,
+                    'move_relative': move_relative,
+                    'jog': self.hal.jog,
+                    'set_jog_rate': self.hal.set_jog_rate,
+                    'home': self.hal.home,
+                    # 'stop': self.hal.stop,
+                    # 'estop': self.hal.estop,
+                    'unestop': self.hal.unestop,
+                    'mdi': self.hal.command,
+                }.get(command, default)
                 try:
-                    self.hal.move_relative(delta)
-                except AxisExceeded as e:
-                    self.log(str(e))
-                return self.hal.pos()
+                    ret = f(*args)
+                except Exception as e:
+                    print("")
+                    print("WARNING: motion thread crashed")
+                    print(traceback.format_exc())
+                    self.cmd_done(command, args, e)
+                    continue
 
-            def update_pos_cache():
-                self.pos_cache = self.hal.pos()
+                self.cmd_done(command, args, ret)
 
-            #print 'cnc thread: dispatch %s' % command
-            # Maybe I should just always emit the pos
-            f = {
-                'update_pos_cache': update_pos_cache,
-                'move_absolute': move_absolute,
-                'move_relative': move_relative,
-                'jog': self.hal.jog,
-                'set_jog_rate': self.hal.set_jog_rate,
-                'cancel_jog': self.hal.cancel_jog,
-                'home': self.hal.home,
-                'stop': self.hal.stop,
-                'estop': self.hal.estop,
-                'unestop': self.hal.unestop,
-                'mdi': self.hal.command,
-            }.get(command, default)
-            try:
-                ret = f(*args)
-            except Exception as e:
-                print("")
-                print("WARNING: motion thread crashed")
-                print(traceback.format_exc())
-                self.cmd_done(command, args, e)
-                continue
+        finally:
+            self.hal.stop()
 
-            self.cmd_done(command, args, ret)
-
-    def stop(self):
+    def thread_stop(self):
         self.running.clear()
 
 

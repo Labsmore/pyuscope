@@ -1,8 +1,10 @@
 {
+    "planner": {
+        "border": 0.1,
+        "tsettle": 1.2,
+    },
     "motion": {
-        "engine": "lcnc-arpc",
-        "mock":0,
-        "out_dir":"out",
+        "hal": "lcnc-arpc",
         "overwrite":0,
         "lcnc": {
             "host": "mk"    
@@ -26,7 +28,7 @@
 		"esize": 1,
 		"scalar": 0.5
     },
-    "objective": [
+    "objectives": [
 		{
 			"name":"Mitutoyo Apo 20X",
 			"suffix": "mit20x2",

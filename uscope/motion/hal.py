@@ -31,8 +31,8 @@ MotionHAL is not thread safe with exception of the following:
 
 
 class MotionHAL:
-
-    def __init__(self, log, verbose=None):
+    def __init__(self, scalars=None, log=None, verbose=None):
+        self.scalars = scalars
         if log is None:
 
             def log(msg='', lvl=2):
@@ -66,13 +66,73 @@ class MotionHAL:
         '''Return to origin'''
         self.move_absolute(dict([(k, 0.0) for k in self.axes()]))
 
-    def move_absolute(self, pos):
-        '''Absolute move to positions specified by pos dict'''
+    def scale_e2i(self, pos):
+        """
+        Scale an external coordinate system to an internal coordinate system
+        Fixup layer for gearboxes and such
+        """
+        if not self.scalars:
+            return pos
+        ret = {}
+        for k, v in pos.items():
+            ret[k] = v * self.scalars.get(k, 1.0)
+        return ret
+
+    def scale_i2e(self, pos):
+        """
+        Opposite of scale_e2i
+        """
+        if not self.scalars:
+            return pos
+        ret = {}
+        for k, v in pos.items():
+            ret[k] = v / self.scalars.get(k, 1.0)
+        return ret
+
+    def pos(self):
+        '''Return current position for all axes'''
+        return self.scale_i2e(self._pos())
+
+    def _pos(self):
+        '''Return current position for all axes'''
         raise NotSupported("Required for planner")
 
-    def move_relative(self, delta):
+    def move_absolute(self, pos):
+        '''Absolute move to positions specified by pos dict'''
+        if len(pos) == 0:
+            return
+        return self._move_absolute(self.scale_e2i(pos))
+
+    def _move_absolute(self, pos):
+        '''Absolute move to positions specified by pos dict'''
+        if len(pos) == 0:
+            return
+        raise NotSupported("Required for planner")
+
+    def move_relative(self, pos):
+        '''Absolute move to positions specified by pos dict'''
+        return self._move_relative(self.scale_e2i(pos))
+
+    def _move_relative(self, delta):
         '''Relative move to positions specified by delta dict'''
         raise NotSupported("Required for planner")
+
+    def jog(self, scalars):
+        """
+        scalars: generally either +1 or -1 per axis to jog
+        Final value is globally multiplied by the jog_rate and individually by the axis scalar
+        """
+        self._jog(self.scale_e2i(scalars))
+
+    def _jog(self, axes):
+        '''
+        axes: dict of axis with value to move
+        WARNING: under development / unstable API
+        '''
+        raise NotSupported("Required for jogging")
+
+    def set_jog_rate(self, rate):
+        self.jog_rate = rate
 
     '''
     In modern systems the first is almost always used
@@ -87,10 +147,6 @@ class MotionHAL:
         '''Take a picture and save it to internal.  File name is generated automatically'''
         raise Exception("Unsupported")
     """
-
-    def pos(self):
-        '''Return current position for all axes'''
-        raise NotSupported("Required for planner")
 
     def on(self):
         '''Call at start of MDI phase, before planner starts'''
@@ -124,19 +180,6 @@ class MotionHAL:
         '''Supplementary info to add to run log'''
         return {}
 
-    def jog(self, axes):
-        '''
-        axes: dict of axis with value to move
-        WARNING: under development / unstable API
-        '''
-        raise NotSupported("Required for jogging")
-
-    def cancel_jog(self):
-        raise NotSupported("Required for jogging")
-
-    def set_jog_rate(self, rate):
-        self.jog_rate = rate
-
     def settle(self):
         '''Check last move time and wait if its not safe to take picture'''
         sleept = self.t_settle + self.mv_lastt - time.time()
@@ -166,9 +209,8 @@ Has no actual hardware associated with it
 
 
 class MockHal(MotionHAL):
-
-    def __init__(self, axes='xy', log=None):
-        MotionHAL.__init__(self, log)
+    def __init__(self, axes='xy', **kwargs):
+        MotionHAL.__init__(self, **kwargs)
 
         self._axes = list(axes)
         self._pos = {}
@@ -189,21 +231,21 @@ class MockHal(MotionHAL):
     def take_picture(self, file_name):
         self._log('taking picture to %s' % file_name)
 
-    def move_absolute(self, pos):
+    def _move_absolute(self, pos):
         for axis, apos in pos.items():
             self._pos[axis] = apos
         self._log(
             'absolute move to ' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
-    def move_relative(self, delta):
+    def _move_relative(self, delta):
         for axis, adelta in delta.items():
             self._pos[axis] += adelta
         self._log(
             'relative move to ' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
 
-    def pos(self):
+    def _pos(self):
         return self._pos
 
     def settle(self):
@@ -211,9 +253,6 @@ class MockHal(MotionHAL):
         pass
 
     def ar_stop(self):
-        pass
-
-    def cancel_jog(self):
         pass
 
 
@@ -224,11 +263,11 @@ Ex: inherits movement
 
 
 class DryHal(MotionHAL):
-
     def __init__(self, hal, log=None):
         super().__init__(log)
 
         self.hal = hal
+        self.scalars = hal.scalars
 
         self._pos = {}
         # Assume starting at 0.0 until causes problems
@@ -248,21 +287,21 @@ class DryHal(MotionHAL):
     def take_picture(self, file_name):
         self._log('taking picture to %s' % file_name)
 
-    def move_absolute(self, pos):
+    def _move_absolute(self, pos):
         for axis, apos in pos.items():
             self._pos[axis] = apos
         self._log(
             'absolute move to ' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
-    def move_relative(self, delta):
+    def _move_relative(self, delta):
         for axis, adelta in delta.items():
             self._pos[axis] += adelta
         self._log(
             'relative move to ' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
 
-    def pos(self):
+    def _pos(self):
         return self._pos
 
     def settle(self):
@@ -272,12 +311,8 @@ class DryHal(MotionHAL):
     def ar_stop(self):
         pass
 
-    def cancel_jog(self):
-        pass
-
 
 class GCodeHalImager(Imager):
-
     def __init__(self, hal):
         self.hal = hal
 
@@ -308,7 +343,6 @@ M9 (coolant off): release focus / picture
 
 
 class GCodeHal(MotionHAL):
-
     def __init__(self, axes='xy', log=None):
         MotionHAL.__init__(self, log)
         self._axes = list(axes)
@@ -322,14 +356,14 @@ class GCodeHal(MotionHAL):
     def imager(self):
         return GCodeHalImager(self)
 
-    def move_absolute(self, pos):
+    def _move_absolute(self, pos):
         for axis, apos in pos.items():
             self._pos[axis] = apos
         self._line(
             'G90 G0' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
-    def move_relative(self, pos):
+    def _move_relative(self, pos):
         for axis, delta in pos.items():
             self._pos[axis] += delta
         self._line(

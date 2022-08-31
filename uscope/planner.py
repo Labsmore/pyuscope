@@ -1,5 +1,7 @@
 #!/usr/bin/python
 """
+See PLANNER.md for configuration info
+
 pr0ncnc: IC die image scan
 Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
@@ -61,24 +63,23 @@ def drange_tol(start, stop, step, delta=None):
 
 
 class PlannerAxis(object):
-
     def __init__(
-            self,
-            name,
-            # Desired image overlap
-            # Actual may be greater if there is more area
-            # than minimum number of pictures would support
-            req_overlap,
-            # How much the imager can see (in mm)
-            view_mm,
-            # How much the imager can see (in pixels)
-            view_pix,
-            # start and actual_end absolute positions (in um)
-            # Inclusive such that 0:0 means image at position 0 only
-            start,
-            end,
-            backlash,
-            log=None):
+        self,
+        name,
+        # Desired image overlap
+        # Actual may be greater if there is more area
+        # than minimum number of pictures would support
+        req_overlap,
+        # How much the imager can see (in mm)
+        view_mm,
+        # How much the imager can see (in pixels)
+        view_pix,
+        # start and actual_end absolute positions (in um)
+        # Inclusive such that 0:0 means image at position 0 only
+        start,
+        end,
+        backlash,
+        log=None):
         if log is None:
 
             def log(s=''):
@@ -217,34 +218,33 @@ class Planner(object):
     """
     config: JSON like configuration settings
     """
-
     def __init__(
-            self,
-            # JSON like configuration settings affecting produced data
-            # ex: verbosity, dry, objects are not included
-            pconfig,
-            # Movement HAL
-            motion=None,
+        self,
+        # JSON like configuration settings affecting produced data
+        # ex: verbosity, dry, objects are not included
+        pconfig,
+        # Movement HAL
+        motion=None,
 
-            # Image parameters
-            # Imaging HAL
-            # Takes pictures but doesn't know about physical world
-            imager=None,
-            # Supply one of the following
-            # Most users should supply mm_per_pix
-            # mm_per_pix=None,
-            # (w, h) in movement units
-            # image_wh_mm=None,
-            out_dir=None,
-            # Progress callback
-            progress_cb=None,
-            # No movement without setting true
-            dry=False,
-            # Log message callback
-            # Inteded for main GUI log window
-            # Defaults to printing to stdout
-            log=None,
-            verbosity=2):
+        # Image parameters
+        # Imaging HAL
+        # Takes pictures but doesn't know about physical world
+        imager=None,
+        # Supply one of the following
+        # Most users should supply mm_per_pix
+        # mm_per_pix=None,
+        # (w, h) in movement units
+        # image_wh_mm=None,
+        out_dir=None,
+        # Progress callback
+        progress_cb=None,
+        # No movement without setting true
+        dry=False,
+        # Log message callback
+        # Inteded for main GUI log window
+        # Defaults to printing to stdout
+        log=None,
+        verbosity=2):
         if log is None:
 
             def log(msg='', verbosity=None):
@@ -256,7 +256,7 @@ class Planner(object):
 
         self.dry = dry
         if self.dry:
-            self.motion = DryHal(motion)
+            self.motion = DryHal(motion, log=log)
         else:
             self.motion = motion
         assert self.motion, "Required"
@@ -283,9 +283,8 @@ class Planner(object):
     def init_contour(self):
         contour = self.pconfig["contour"]
 
-        self.ideal_overlap = 0.7
-        if 'overlap' in contour:
-            self.ideal_overlap = float(contour['overlap'])
+        self.ideal_overlap = self.pconfig.get("step") if self.pconfig.get(
+            "step") else 0.7
         # Maximum allowable overlap proportion error when trying to fit number of snapshots
         #overlap_max_error = 0.05
         '''
@@ -313,31 +312,28 @@ class Planner(object):
 
     def image_scalar(self):
         """Multiplier to go from Imager image size to output image size"""
-        return float(self.pconfig['microscope']['imager']['scalar'])
+        return float(self.pconfig.get("imager", {}).get("scalar", 1.0))
 
     def image_wh(self):
         """Final snapshot image width, height after scaling"""
-        w = int(
-            int(self.pconfig['microscope']['imager']['width']) /
-            self.image_scalar())
-        h = int(
-            int(self.pconfig['microscope']['imager']['height']) /
-            self.image_scalar())
+        raww, rawh = self.imager.wh()
+        w = int(raww / self.image_scalar())
+        h = int(rawh / self.image_scalar())
         return w, h
 
     def init_axes(self, start, end):
         # CNC convention is origin should be in lower left of sample
         # Increases up and to the right
         # pr0nscope has ul origin though
-        self.origin = self.pconfig["microscope"]["motion"].get("origin", "ll")
+        self.origin = self.pconfig.get("motion", {}).get("origin", "ll")
         assert self.origin in ("ll", "ul"), "Invalid coordinate origin"
 
-        x_mm = float(self.pconfig["imager"]["objective"]['x_view'])
+        x_mm = float(self.pconfig["imager"]["x_view"])
         image_wh = self.image_wh()
         mm_per_pix = x_mm / image_wh[0]
         image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
 
-        backlash = self.pconfig["motion"].get("backlash", 0.1)
+        backlash = self.pconfig.get("motion", {}).get("backlash", 0.0)
 
         self.axes = OrderedDict([
             ('x',
@@ -379,7 +375,7 @@ class Planner(object):
             self.log(
                 '  Ideal overlap: %f, actual %g' %
                 (self.ideal_overlap, axis.step_percent()), 2)
-            self.log('  full delta: %f' % (self.x.requested_delta_mm()), 2)
+            self.log('  full delta: %f' % (axis.requested_delta_mm()), 2)
             self.log('  view: %d pix' % (axis.view_pixels, ), 2)
             self.log('  border: %f' % self.border)
 
@@ -456,13 +452,16 @@ class Planner(object):
         def dumpj(j, fn):
             if self.dry:
                 return
-            open(os.path.join(self.out_dir, fn), 'w').write(
-                json.dumps(j, sort_keys=True, indent=4,
-                           separators=(',', ': ')))
+            with open(os.path.join(self.out_dir, fn), 'w') as f:
+                f.write(
+                    json.dumps(j,
+                               sort_keys=True,
+                               indent=4,
+                               separators=(',', ': ')))
 
-        dumpj(self.gen_meta(), 'out.json')
-
-        # TODO: write out coordinate map
+        meta = self.gen_meta()
+        dumpj(meta, 'out.json')
+        return meta
 
     def prepare_image_output(self):
         if self.dry:
@@ -493,7 +492,6 @@ class Planner(object):
             assert 0, self.origin
 
     def take_picture(self, fn_base):
-
         def save(image, fn_base, img_ext):
             fn_full = fn_base + img_ext
             if img_ext == ".jpg":
@@ -501,9 +499,8 @@ class Planner(object):
             else:
                 image.save(fn_full)
 
-        # FIXME
         if not self.dry:
-            time.sleep(1.2)
+            time.sleep(self.pconfig.get("tsettle", 0.0))
         self.motion.settle()
         if not self.dry:
             if self.imager.remote():
@@ -703,8 +700,8 @@ class Planner(object):
             self.comment("  end: %u x,  %us" %
                          (self.x.actual_end, self.y.actual_end))
 
-        print("Backlash: %0.3f x, %0.3f y" %
-              (self.x.backlash, self.y.backlash))
+        self.log("Backlash: %0.3f x, %0.3f y" %
+                 (self.x.backlash, self.y.backlash))
 
         self.comment("Imager size:")
         self.comment(
@@ -792,7 +789,7 @@ class Planner(object):
                 raise Exception(
                     'pictures taken mismatch (taken: %d, to take: %d)' %
                     (self.pictures_to_take, self.xy_imgs))
-        self.write_meta()
+        return self.write_meta()
 
     def gen_meta(self):
         '''Can only be called after run'''
@@ -833,7 +830,6 @@ class Planner(object):
 
     def move_absolute_backlash(self, move_to):
         '''Do an absolute move with backlash compensation'''
-
         def fmt_axis(c):
             if c in move_to:
                 self.max_move[c] = max(self.max_move[c], move_to[c])
@@ -866,3 +862,35 @@ class Planner(object):
                 axis.comp = -1
             self.motion.move_absolute(blsh_mv)
         self.motion.move_absolute(move_to)
+
+
+def microscope_to_planner(usj, objective=None, objectivei=None, contour=None):
+    if objective is None:
+        objective = usj["objectives"][objectivei]
+    ret = {
+        "imager": {
+            "x_view": objective["x_view"],
+        },
+        "motion": {},
+        # was scan.json
+        "contour": contour,
+    }
+
+    v = usj["imager"].get("scalar")
+    if v:
+        ret["imager"]["scalar"] = float(v)
+
+    v = usj["motion"].get("origin")
+    if v:
+        ret["motion"]["origin"] = v
+
+    v = usj["motion"].get("backlash")
+    if v:
+        ret["motion"]["backlash"] = v
+
+    # By definition anything in planner section is planner config
+    # give more thought to precedence at some point
+    for k, v in usj.get("planner", {}).items():
+        ret[k] = v
+
+    return ret

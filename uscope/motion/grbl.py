@@ -43,17 +43,105 @@ def trim_status_line(l):
 https://www.sainsmart.com/blogs/news/grbl-v1-1-quick-reference
 """
 
+error_i2s = {
+    1: "GCode Command letter was not found",
+    2: "GCode Command value invalid or missing",
+    3: "Grbl '$' not recognized or supported",
+    4: "Negative value for an expected positive value",
+    5: "Homing fail. Homing not enabled in settings",
+    6: "Min step pulse must be greater than 3usec",
+    7: "EEPROM read failed. Default values used",
+    8: "Grbl '$' command Only valid when Idle",
+    9: "GCode commands invalid in alarm or jog state",
+    10: "Soft limits require homing to be enabled",
+    11: "Max characters per line exceeded. Ignored",
+    12: "Grbl '$' setting exceeds the maximum step rate",
+    13: "Safety door opened and door state initiated",
+    14: "Build info or start-up line > EEPROM line length",
+    15: "Jog target exceeds machine travel, ignored",
+    16: "Jog Cmd missing '=' or has prohibited GCode",
+    17: "Laser mode requires PWM output",
+    20: "Unsupported or invalid GCode command",
+    21: "> 1 GCode command in a modal group in block",
+    22: "Feed rate has not yet been set or is undefined",
+    23: "GCode command requires an integer value",
+    24: "> 1 GCode command using axis words found",
+    25: "Repeated GCode word found in block",
+    26: "No axis words found in command block",
+    27: "Line number value is invalid",
+    28: "GCode Cmd missing a required value word",
+    29: "G59.x WCS are not supported",
+    30: "G53 only valid with G0 and G1 motion modes",
+    31: "Unneeded Axis words found in block",
+    32: "G2/G3 arcs need >= 1 in-plane axis word",
+    33: "Motion command target is invalid",
+    34: "Arc radius value is invalid",
+    35: "G2/G3 arcs need >= 1 in-plane offset word",
+    36: "Unused value words found in block",
+    37: "G43.1 offset not assigned to tool length axis",
+    38: "Tool number greater than max value",
+}
+
+alarm_i2s = {
+    1: "Hard limit triggered. Position Lost",
+    2: "Soft limit alarm, position kept. Unlock is Safe",
+    3: "Reset while in motion. Position lost",
+    4: "Probe fail. Probe not in expected initial state",
+    5: "Probe fail. Probe did not contact the work",
+    6: "Homing fail. The active homing cycle was reset",
+    7: "Homing fail. Door opened during homing cycle",
+    8: "Homing fail. Pull off failed to clear limit switch",
+    9: "Homing fail. Could not find limit switch",
+}
+
+config_i2s = {
+    0: "Step pulse, microseconds",
+    1: "Step idle delay, milliseconds",
+    2: "Step port invert, XYZmask*",
+    3: "Direction port invert, XYZmask*",
+    4: "Step enable invert, (0=Disable, 1=Invert)",
+    5: "Limit pins invert, (0=N-Open. 1=N-Close)",
+    6: "Probe pin invert, (0=N-Open. 1=N-Close)",
+    10:
+    "Status report, ‘?’ status.  0=WCS position, 1=Machine position, 2= plan/buffer and WCS position, 3=plan/buffer and Machine position",
+    11: "Junction deviation, mm",
+    12: "Arc tolerance, mm",
+    13: "Report in inches, (0=mm. 1=Inches)**",
+    20: "Soft limits, (0=Disable. 1=Enable, Homing must be enabled)",
+    21: "Hard limits, (0=Disable. 1=Enable)",
+    22: "Homing cycle, (0=Disable. 1=Enable)",
+    23: "Homing direction invert, XYZmask* Sets which corner it homes to",
+    24: "Homing feed, mm/min",
+    25: "Homing seek, mm/min",
+    26: "Homing debounce, milliseconds",
+    27: "Homing pull-off, mm",
+    30: "Max spindle speed, RPM",
+    31: "Min spindle speed, RPM",
+    32: "Laser mode, (0=Off, 1=On)",
+    100: "Number of X steps to move 1mm",
+    101: "Number of Y steps to move 1mm",
+    102: "Number of Z steps to move 1mm",
+    110: "X Max rate, mm/min",
+    111: "Y Max rate, mm/min",
+    112: "Z Max rate, mm/min",
+    120: "X Acceleration, mm/sec^2",
+    121: "Y Acceleration, mm/sec^2",
+    122: "Z Acceleration, mm/sec^2",
+    130: "X Max travel, mm Only for Homing and Soft Limits",
+    131: "Y Max travel, mm Only for Homing and Soft Limits",
+    132: "Z Max travel, mm Only for Homing and Soft Limits",
+}
+
 
 class GRBLSer:
-
     def __init__(
-            self,
-            port=None,
-            # All commands I've seen so far complete responses in < 10 ms
-            # so this should be plenty of margin for now
-            ser_timeout=0.2,
-            flush=True,
-            verbose=None):
+        self,
+        port=None,
+        # All commands I've seen so far complete responses in < 10 ms
+        # so this should be plenty of margin for now
+        ser_timeout=0.15,
+        flush=True,
+        verbose=None):
         if port is None:
             port = default_port()
         self.verbose = verbose if verbose is not None else bool(
@@ -102,14 +190,14 @@ class GRBLSer:
             # ^C does not work
             # WARNING: ! will also freeze most commands but not ?
             # they will buffer into unfrozen
-            self.serial.flushInput()
-            self.serial.flushOutput()
             self.flush()
 
     def flush(self):
         """
         Wait to see if there is anything in progress
         """
+        self.serial.flushInput()
+        self.serial.flushOutput()
         timeout = self.serial.timeout
         try:
             self.serial.timeout = 0.1
@@ -209,6 +297,14 @@ class GRBLSer:
         l = self.readline().strip()
         assert "Grbl" in l, l
         """
+
+    def tilda(self):
+        """Cycle Start/Resume from Feed Hold, Door or Program pause"""
+        self.tx("~", nl=False)
+
+    def exclamation(self):
+        """Feed Hold – Stop all motion"""
+        self.tx("!", nl=False)
 
     def dollar(self):
         """
@@ -326,14 +422,13 @@ class GRBLSer:
 
 
 class MockGRBLSer(GRBLSer):
-
     def __init__(
-            self,
-            port="/dev/ttyUSB0",
-            # some boards take more than 1 second to reset
-            ser_timeout=3.0,
-            flush=True,
-            verbose=None):
+        self,
+        port="/dev/ttyUSB0",
+        # some boards take more than 1 second to reset
+        ser_timeout=3.0,
+        flush=True,
+        verbose=None):
         self.verbose = verbose if verbose is not None else bool(
             int(os.getenv("GRBLSER_VERBOSE", "0")))
         self.verbose and print("MOCK: opening", port)
@@ -361,13 +456,13 @@ class MockGRBLSer(GRBLSer):
 
 
 class GRBL:
-
     def __init__(self,
                  port=None,
                  flush=True,
                  probe=True,
                  reset=False,
                  gs=None,
+                 scalar=None,
                  verbose=None):
         """
         port: serial port file name
@@ -394,6 +489,12 @@ class GRBL:
         # CPU must be safely brought out of reset
         if reset:
             self.reset()
+
+    def __del__(self):
+        self.stop()
+
+    def stop(self):
+        self.cancel_jog()
 
     def reset(self):
         self.gs.reset()
@@ -433,6 +534,25 @@ class GRBL:
         # grbl: recovered after 1.388 sec
         print("grbl: recovered after %0.3f sec" % (time.time() - tbegin, ))
 
+    def general_recover(self):
+        """
+        Recover after communication issue when not in reset
+        """
+        tries = 3
+        for tryi in range(tries):
+            try:
+                self.verbose and print("WARNING: recovering")
+                # might have been put into hold
+                self.gs.tilda()
+                # Clear any commands in progress
+                self.gs.flush()
+                # Try a simple command
+                self.qstatus()
+            except Exception:
+                if tryi == tries - 2:
+                    raise
+                continue
+
     def reset_recover(self):
         # Prompt should come in about 1.5 seconds from start
         tbegin = time.time()
@@ -463,7 +583,8 @@ class GRBL:
         noisy example:
         rx '<Idle|MPos:-72.425,-25.634,0.000FS:0,0>'
         """
-        for i in range(3):
+        tries = 3
+        for i in range(tries):
             try:
                 raw = self.gs.question()
                 parts = raw.split("|")
@@ -477,22 +598,32 @@ class GRBL:
                     "MPos": mpos,
                     "FS": fs,
                 }
-            except Exception as e:
+            except Exception:
                 self.verbose and print("WARNING: bad qstatus")
-                continue
-        raise e
+                if i == tries - 1:
+                    raise
+                self.general_recover()
+        assert 0
 
     def mpos(self):
         """Return current absolute position"""
         return self.qstatus()["MPos"]
 
     def move_absolute(self, moves, f, blocking=True):
-        # implies G1
-        ax_str = ''.join(
-            [' %c%0.3f' % (k.upper(), v) for k, v in moves.items()])
-        self.gs.j("G90 %s F%u" % (ax_str, f))
-        if blocking:
-            self.wait_idle()
+        tries = 3
+        for i in range(tries):
+            try:
+                # implies G1
+                ax_str = ''.join(
+                    [' %c%0.3f' % (k.upper(), v) for k, v in moves.items()])
+                self.gs.j("G90 %s F%u" % (ax_str, f))
+                if blocking:
+                    self.wait_idle()
+            except Exception:
+                self.verbose and print("WARNING: bad absolute move")
+                if i == tries - 1:
+                    raise
+                self.general_recover()
 
     def move_relative(self, moves, f, blocking=True):
         # implies G1
@@ -506,13 +637,46 @@ class GRBL:
         while self.qstatus()["status"] != "Idle":
             time.sleep(0.1)
 
+    def jog(self, scalars, rate):
+        try:
+            for axis, scalar in scalars.items():
+                cmd = "G91 %s%0.3f F%u" % (axis, scalar, rate)
+                self.verbose and print("JOG:", cmd)
+                self.gs.j(cmd)
+                if 0 and self.verbose:
+                    mpos = self.qstatus()["MPos"]
+                    print("jog: X%0.3f Y%0.3f Z%0.3F" %
+                          (mpos["x"], mpos["y"], mpos["z"]))
+        except Timeout:
+            # Better to under jog than retry and over jog
+            self.verbose and print("WARNING: dropping jog")
+            self.general_recover()
+
+    def cancel_jog(self):
+        tries = 3
+        timeout = 0.5
+        for i in range(tries):
+            try:
+                tstart = time.time()
+                while True:
+                    if time.time() - tstart > timeout:
+                        raise Timeout("Failed to cancel jog")
+                    self.gs.cancel_jog()
+                    if self.qstatus()["status"] == "Idle":
+                        return
+                    self.verbose and print("cancel: not idle yet")
+            except Exception:
+                self.verbose and print("WARNING: bad cancel jog")
+                if i == tries - 1:
+                    raise
+                self.general_recover()
+
 
 class GrblHal(MotionHAL):
-
-    def __init__(self, log=None, verbose=None):
+    def __init__(self, verbose=None, **kwargs):
         self.feedrate = None
         self.grbl = GRBL(verbose=verbose)
-        MotionHAL.__init__(self, log, verbose=verbose)
+        MotionHAL.__init__(self, verbose=verbose, **kwargs)
 
     def axes(self):
         return {'x', 'y', 'z'}
@@ -520,48 +684,20 @@ class GrblHal(MotionHAL):
     def command(self, cmd):
         return "\n".join(self.grbl.gs.txrxs(cmd))
 
-    def pos(self):
+    def _pos(self):
         return self.grbl.qstatus()["MPos"]
 
-    def move_absolute(self, moves, limit=True):
-        if len(moves) == 0:
-            return
-        if limit:
-            limit = self.limit()
-            for k, v in moves.items():
-                if v < limit[k][0] or v > limit[k][1]:
-                    raise AxisExceeded("Axis %c to %s exceeds liimt (%s, %s)" %
-                                       (k, v, limit[k][0], limit[k][1]))
+    def _move_absolute(self, pos, tries=3):
+        self.grbl.move_absolute(pos, f=1000)
 
-        self.grbl.move_absolute(moves, f=1000)
+    def _move_relative(self, pos):
+        self.grbl.move_relative(pos, f=1000)
 
-    def move_relative(self, moves):
-        if len(moves) == 0:
-            return
+    def _jog(self, scalars):
+        self.grbl.jog(scalars, self.jog_rate)
 
-        limit = self.limit()
-        pos = self.pos()
-        for k, v in moves.items():
-            dst = pos[k] + v
-            if dst < limit[k][0] or dst > limit[k][1]:
-                raise AxisExceeded(
-                    "Axis %c to %s (%s + %s) exceeds liimt (%s, %s)" %
-                    (k, dst, pos[k], v, limit[k][0], limit[k][1]))
-
-        self.grbl.move_relative(moves, f=1000)
-
-    def jog(self, axes):
-        for axis, sign in axes.items():
-            cmd = "G91 %s%0.3f F%u" % (axis, sign * 1.0, self.jog_rate)
-            self.verbose and print("JOG:", cmd)
-            self.grbl.gs.j(cmd)
-            if self.verbose:
-                mpos = self.grbl.qstatus()["MPos"]
-                print("jog: X%0.3f Y%0.3f Z%0.3F" %
-                      (mpos["x"], mpos["y"], mpos["z"]))
-
-    def cancel_jog(self):
-        self.grbl.gs.cancel_jog()
+    def stop(self):
+        self.grbl.stop()
 
 
 def get_grbl(port=None, gs=None, reset=False, verbose=False):

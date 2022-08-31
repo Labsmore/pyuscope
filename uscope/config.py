@@ -1,4 +1,4 @@
-import json
+import json5
 import os
 from collections import OrderedDict
 from uscope.util import writej, readj
@@ -11,9 +11,7 @@ A few general assumptions:
 '''
 
 defaults = {
-    "live_video": True,
-    "objective_json": "objective.json",
-    "scan_json": "scan.json",
+    # "live_video": True,
     "out_dir": "out",
     "imager": {
         "engine": 'mock',
@@ -31,23 +29,35 @@ defaults = {
         # Default to no action, make movement explicit
         # Note that GUI can override this
         "dry": True,
+        "backlash": 0.0,
     }
 }
 
-# microscope.json
+# microscope.j5
 usj = None
+config_dir = None
 
 
-def get_usj(config_dir=None):
+def get_usj(config_dir=None, name=None):
     global usj
 
     if usj is not None:
         return usj
 
-    if config_dir is None:
+    if config_dir:
+        pass
+    elif name:
+        config_dir = "configs/" + name
+    else:
         config_dir = "config"
-    j = json.load(open(os.path.join(config_dir, "microscope.json")),
-                  object_pairs_hook=OrderedDict)
+    globals()["config_dir"] = config_dir
+    fn = os.path.join(config_dir, "microscope.j5")
+    if not os.path.exists(fn):
+        fn = os.path.join(config_dir, "microscope.json")
+        if not os.path.exists(fn):
+            raise Exception("couldn't find microscope.j5 in %s" % config_dir)
+    with open(fn) as f:
+        j = json5.load(f, object_pairs_hook=OrderedDict)
 
     def default(rootj, rootd):
         for k, v in rootd.items():
@@ -67,26 +77,22 @@ Ideally we'd also match on S/N or something like that
 """
 
 
-def config_dir():
-    return "config"
-
-
 def cal_fn(mkdir=False):
-    if mkdir and not os.path.exists(config_dir()):
-        os.mkdir(config_dir())
-    return os.path.join(config_dir(), "imager_calibration.json")
+    if mkdir and not os.path.exists(config_dir):
+        os.mkdir(config_dir)
+    return os.path.join(config_dir, "imager_calibration.j5")
 
 
 def cal_load(source):
     fn = cal_fn()
     if not os.path.exists(fn):
-        return
+        return {}
     configj = readj(fn)
     configs = configj["configs"]
     for config in configs:
         if config["source"] == source:
             return config["properties"]
-    return None
+    return {}
 
 
 def cal_load_all(source):
@@ -123,3 +129,18 @@ def cal_save(source, j):
 
     print("Saving cal to %s" % fn)
     writej(fn, configj)
+
+
+def get_planner_step(usj):
+    """
+    ideal faction of image to move between images
+    Default: 0.7 => only overlap adjacent image by 30%
+    """
+    return float(usj.get("planner", {}).get("overlap", 0.7))
+
+
+def get_planner_border(usj):
+    """
+    Automatically add this many mm to the edges of a panorama
+    """
+    return float(usj.get("planner", {}).get("border", 0.0))

@@ -14,6 +14,7 @@ from gi.repository import GLib
 from uscope.imager.imager import Imager
 from uscope.gst_util import CaptureSink
 from uscope.util import add_bool_arg
+from uscope import config
 import threading
 
 
@@ -21,12 +22,13 @@ class GstCLIImager(Imager):
     """
     Stand alone imager that doesn't rely on GUI feed
     """
-
     def __init__(self, opts={}, verbose=False):
-        Imager.__init__(self)
+        Imager.__init__(self, verbose=verbose)
         self.image_ready = threading.Event()
         self.image_id = None
 
+        # gst source name
+        # does not have gst- prefix
         source_name = opts.get("source", None)
         if source_name is None:
             source_name = "videotestsrc"
@@ -101,22 +103,13 @@ class GstCLIImager(Imager):
             if touptek_esize is not None:
                 self.source.set_property("esize", touptek_esize)
         elif self.source_name == "videotestsrc":
-            print('WARNING: using test source')
+            # print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)
         else:
             raise Exception('Unknown source %s' % (self.source_name, ))
         assert self.source is not None
-        """
-        if self.usj:
-            usj = config.get_usj()
-            properties = usj["imager"].get("source_properties", {})
-            for propk, propv in properties.items():
-                print("Set source %s => %s" % (propk, propv))
-                self.source.set_property(propk, propv)
-        """
 
     def get(self):
-
         def got_image(image_id):
             print('Image captured reported: %s' % image_id)
             self.image_id = image_id
@@ -182,9 +175,9 @@ def gst_add_args(parser):
                         help="videotestsrc, v4l2src, toupcamsrc")
 
 
-def gst_args_to_usj(args):
+def gstcliimager_args_to_usj(args):
     """
-    Convert gst_add_args() args result to usj["imager"] section
+    Convert GstCLIImager's gst_add_args() args result to usj["imager"] section
 
 
     "imager": {
@@ -212,17 +205,44 @@ def gst_args_to_usj(args):
         "scalar": 0.5
     },
     """
-    j = {
+    imager = {
         "source_properties": {},
     }
-    j["source"] = "gst-" + args["gst_source"]
+    imager["source"] = "gst-" + args["gst_source"]
     w, h = args["gst_wh"].split(",")
-    j["width"], j["height"] = int(w), int(h)
-    if j["source"] == "gst-v4l2src":
-        j["source_properties"]["device"] = args["v4l2src_device"]
-    if j["source"] == "gst-toupcamsrc":
-        j["source_properties"]["esize"] = args["toupcamsrc_esize"]
-    return j
+    imager["width"], imager["height"] = int(w), int(h)
+    if imager["source"] == "gst-v4l2src":
+        imager["source_properties"]["device"] = args["v4l2src_device"]
+    if imager["source"] == "gst-toupcamsrc":
+        imager["source_properties"]["esize"] = args["toupcamsrc_esize"]
+    return imager
+
+
+def gst_usj_to_gstcliimager_args(imager=None, usj=None):
+    """
+    Convert usj's imager section to GstCLIImager's args
+    """
+    if imager is None:
+        imager = usj["imager"]
+    source = imager["source"]
+    if not "gst-" in source:
+        raise Exception("require gst- source")
+    source = source.replace("gst-", "")
+    args = {
+        "source": source,
+        "wh": (imager["width"], imager["height"]),
+    }
+    source_properties = imager.get("source_properties", {})
+    if imager["source"] == "v4l2src":
+        device = source_properties.get("device")
+        if device:
+            args["v4l2src_device"] = device
+    if imager["source"] == "toupcamsrc":
+        esize = source_properties.get("esize")
+        if esize:
+            args["toupcamsrc_esize"] = esize
+
+    return args
 
 
 def gst_get_args(args):
@@ -246,6 +266,30 @@ def gst_get_args(args):
 def easy_run(imager, target):
     imager.player.set_state(Gst.State.PLAYING)
     loop = GLib.MainLoop()
-    thread = threading.Thread(target=target, args=(loop, ))
+
+    def wrapper(args):
+        try:
+            target(loop)
+        finally:
+            loop.quit()
+
+    thread = threading.Thread(target=wrapper, args=(loop, ))
     thread.start()
     loop.run()
+
+
+def apply_imager_cal(imager, verbose=False):
+    usj_source = "gst-" + imager.source_name
+    properties = config.cal_load(source=usj_source)
+    for propk, propv in properties.items():
+        verbose and print("Set source %s => %s" % (propk, propv))
+        imager.source.set_property(propk, propv)
+
+
+def get_cli_imager_by_config(usj=None, verbose=False):
+    if usj is None:
+        usj = config.get_usj()
+    opts = gst_usj_to_gstcliimager_args(usj=usj)
+    imager = GstCLIImager(opts=opts)
+    apply_imager_cal(imager, verbose=verbose)
+    return imager

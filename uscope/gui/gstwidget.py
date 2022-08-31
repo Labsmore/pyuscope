@@ -69,11 +69,8 @@ class GstVideoPipeline:
     vidpip.setupGst()
     vidpip.run()
     """
-
     def __init__(
         self,
-        # gstreamer video source object
-        source=None,
         # Enable overview view?
         overview=True,
         # Enable overview view?
@@ -139,8 +136,7 @@ class GstVideoPipeline:
         self.camh = self.usj["imager"]["height"]
 
         # Must not be initialized until after layout is set
-        if source is None:
-            source = self.usj["imager"].get("source", "auto")
+        source = self.usj["imager"].get("source", "auto")
         if source == "auto":
             source = auto_detect_source()
         self.source_name = source

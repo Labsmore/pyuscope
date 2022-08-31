@@ -134,18 +134,22 @@ However, I've been using this workflow for years now, and will probably continue
 2.2.0
  * Enforce output file naming convention
  
-3.0.0 (WIP)
+3.0.0
  * GRBL support
- * GRBL jog support
+ * Jog support (GRBL only)
  * Coordiante system defaults to lower left instead of upper left
  * Move imager controls from floating window into tab
  * Major API restructure
- * microscope.json small changes
+ * microscope.json changes and moved to microscope.j5
  * planner.json major changes
  * Drop obsolete "Controller" motion control API (including Axis object)
  * Drop obsolete pr0ndexer motion control support
  * Drop obsolete MC motion control support
  * Motion HAL plugin architecture
  * main_gui is now "argus"
+ * Options for argus output file naming
+ * --microscope command line argument
  * Axis scalar support (gearbox workaround)
-
+ * Test suite
+ * Expanded CLI programs
+ * Expanded microscope calibration suite (namely fiducial tracking)

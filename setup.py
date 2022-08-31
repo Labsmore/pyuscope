@@ -41,7 +41,7 @@ for script in scripts:
 
 setup(
     name="pyuscope",
-    version="2.1.0",
+    version="3.0.0",
     author="John McMaster",
     author_email='JohnDMcMaster@gmail.com',
     description=("Microscope panorama GUI"),

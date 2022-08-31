@@ -240,6 +240,7 @@ class Planner(object):
         progress_cb=None,
         # No movement without setting true
         dry=False,
+        meta_base=None,
         # Log message callback
         # Inteded for main GUI log window
         # Defaults to printing to stdout
@@ -263,6 +264,11 @@ class Planner(object):
 
         self.imager = imager
         assert self.imager, "Required"
+
+        if not meta_base:
+            self.meta_base = {}
+        else:
+            self.meta_base = meta_base
 
         # polarity such that can wait on being set
         self.unpaused = threading.Event()
@@ -302,7 +308,7 @@ class Planner(object):
         if start[1] > end[1]:
             start[1], end[1] = end[1], start[1]
 
-        self.border = float(contour.get('border', 0.0))
+        self.border = float(self.pconfig.get("border", 0.0))
         start[0] -= self.border
         start[1] -= self.border
         end[0] += self.border
@@ -429,7 +435,9 @@ class Planner(object):
         if len(s) == 0:
             self.log(verbosity=verbosity)
         else:
-            self.log('# %s' % s, verbosity=verbosity)
+            # self.log('# %s' % s, verbosity=verbosity)
+            # really comments should go to the HAL since only raw g-code output matters here
+            self.log('%s' % s, verbosity=verbosity)
 
     def end_program(self):
         pass
@@ -805,7 +813,7 @@ class Planner(object):
         plannerj['pictures_to_take'] = self.pictures_to_take
         plannerj['pictures_taken'] = self.xy_imgs
 
-        ret = {}
+        ret = self.meta_base
         # User scan parameters
         ret['pconfig'] = self.pconfig
         # Calculated scan parameters

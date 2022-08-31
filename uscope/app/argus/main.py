@@ -473,9 +473,6 @@ class MainWindow(QMainWindow):
 
         self.init_imager()
 
-        if self.usj['motion']['startup_run']:
-            self.run()
-
     def __del__(self):
         self.shutdown()
 
@@ -663,9 +660,6 @@ class MainWindow(QMainWindow):
             }
         }
 
-        # ret['overlap'] = float(self.overlap_le.text())
-        # ret['border'] = float(self.border_le.text())
-
         return ret
 
     def go(self):
@@ -688,10 +682,11 @@ class MainWindow(QMainWindow):
             self.cncProgress.emit(pictures_to_take, pictures_taken, image,
                                   first)
 
-        if not dry and not os.path.exists(self.usj["out_dir"]):
-            os.mkdir(self.usj["out_dir"])
+        base_out_dir = config.get_out_dir(self.usj)
+        if not dry and not os.path.exists(base_out_dir):
+            os.mkdir(base_out_dir)
 
-        out_dir = os.path.join(self.usj["out_dir"], self.jobName.getName())
+        out_dir = os.path.join(base_out_dir, self.jobName.getName())
         if os.path.exists(out_dir):
             self.log("Already exists: %s" % out_dir)
             return
@@ -731,6 +726,11 @@ class MainWindow(QMainWindow):
             # Callback for progress
             "progress_cb": emitCncProgress,
             "out_dir": out_dir,
+
+            # Includes microscope.json in the output
+            "meta_base": {
+                "microscope": self.usj
+            },
 
             # Set to true if should try to mimimize hardware actions
             "dry": dry,
@@ -790,9 +790,6 @@ class MainWindow(QMainWindow):
         self.log_fd = None
         self.pt = None
         self.setControlsEnabled(True)
-        if self.usj['motion']['startup_run_exit']:
-            print('Planner debug break on completion')
-            os._exit(1)
         # Prevent accidental start after done
         self.dry_cb.setChecked(True)
 
@@ -828,7 +825,7 @@ class MainWindow(QMainWindow):
         '''
         # take as upper left corner of view area
         # this is the current XY position
-        pos = self.motion_thread.pos()
+        pos = self.motion_thread.pos_cache
         #self.log("Updating start pos w/ %s" % (str(pos)))
         self.plan_x0_le.setText('%0.3f' % pos['x'])
         self.plan_y0_le.setText('%0.3f' % pos['y'])
@@ -836,7 +833,7 @@ class MainWindow(QMainWindow):
     def set_end_pos(self):
         # take as lower right corner of view area
         # this is the current XY position + view size
-        pos = self.motion_thread.pos()
+        pos = self.motion_thread.pos_cache
         #self.log("Updating end pos from %s" % (str(pos)))
         x_view = self.obj_config["x_view"]
         y_view = 1.0 * x_view * self.usj['imager']['height'] / self.usj[
@@ -1037,7 +1034,7 @@ class MainWindow(QMainWindow):
 
             layout.addWidget(QLabel('Dry?'))
             self.dry_cb = QCheckBox()
-            self.dry_cb.setChecked(self.usj['motion']['dry'])
+            self.dry_cb.setChecked(self.usj.get("motion", {}).get("dry", True))
             layout.addWidget(self.dry_cb)
 
             self.pb = QProgressBar()

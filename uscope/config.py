@@ -9,12 +9,11 @@ A few general assumptions:
     They cannot changed during a scan
     They can be changed in the GUI
 '''
-
+"""
 defaults = {
-    # "live_video": True,
     "out_dir": "out",
     "imager": {
-        "engine": 'mock',
+        "hal": 'mock',
         "snapshot_dir": "snapshot",
         "width": 3264,
         "height": 2448,
@@ -22,16 +21,15 @@ defaults = {
     },
     "motion": {
         # Good for testing and makes usable to systems without CNC
-        "engine": "mock",
+        "hal": "mock",
         "startup_run": False,
         "startup_run_exit": False,
         "overwrite": False,
-        # Default to no action, make movement explicit
-        # Note that GUI can override this
-        "dry": True,
         "backlash": 0.0,
     }
 }
+"""
+defaults = {}
 
 # microscope.j5
 usj = None
@@ -144,3 +142,7 @@ def get_planner_border(usj):
     Automatically add this many mm to the edges of a panorama
     """
     return float(usj.get("planner", {}).get("border", 0.0))
+
+
+def get_out_dir(usj):
+    return usj.get("out_dir", "out")

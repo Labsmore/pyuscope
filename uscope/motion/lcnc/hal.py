@@ -5,10 +5,10 @@ import time
 
 # Camera always local
 class LcncHal(MotionHAL):
-    def __init__(self, log=None):
+    def __init__(self, **kwargs):
         self.verbose = 0
         self.feedrate = None
-        MotionHAL.__init__(self, log)
+        MotionHAL.__init__(self, **kwargs)
 
     def sleep(self, sec, why):
         ts = format_t(sec)
@@ -69,7 +69,7 @@ class LcncHal(MotionHAL):
 # Currently the rpc version emulates stat and command channels
 # making these identical for the time being
 class LcncPyHal(LcncHal):
-    def __init__(self, linuxcnc, log=None):
+    def __init__(self, linuxcnc, **kwargs):
         self.ax_c2i = {'x': 0, 'y': 1}
         self.ax_i2c = {0: 'x', 1: 'y'}
 
@@ -104,7 +104,7 @@ class LcncPyHal(LcncHal):
             self._limit[axisc] = (axis['min_position_limit'],
                                   axis['max_position_limit'])
 
-        LcncHal.__init__(self, log=log)
+        LcncHal.__init__(self, **kwargs)
 
     def home(self, axes=None):
         if axes is None:

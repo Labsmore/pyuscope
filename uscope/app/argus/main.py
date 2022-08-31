@@ -77,6 +77,14 @@ def argus_jog_min(usj=None):
     return int(usj.get("argus", {}).get("jog_min", 1))
 
 
+"""
+GRBL / 3018 stock vlaues
+$110=1000.000
+$111=1000.000
+$112=600.000
+"""
+
+
 # FIXME: default should be actual max jog rate
 def argus_jog_max(usj=None):
     return int(usj.get("argus", {}).get("jog_max", 1000))
@@ -152,9 +160,13 @@ class JogSlider(QWidget):
         self.setLayout(self.layout)
 
     def get_val(self):
+        verbose = 0
         slider_val = float(self.slider.value())
         v = math.log(slider_val, 10)
-        log_delta = math.log(self.jog_max, 10) - math.log(self.jog_min, 10)
+        log_delta = math.log(self.slider_max, 10) - math.log(
+            self.slider_min, 10)
+        verbose and print('delta', log_delta, math.log(self.jog_max, 10),
+                          math.log(self.jog_min, 10))
         # Scale in log space
         log_scalar = (math.log(self.jog_max, 10) -
                       math.log(self.jog_min, 10)) / log_delta
@@ -162,7 +174,8 @@ class JogSlider(QWidget):
         # Convert back to linear space
         v = 10**v
         ret = max(min(v, self.jog_max), self.jog_min)
-        0 and print("jog: slider %u => jog %u (was %u)" % (slider_val, ret, v))
+        verbose and print("jog: slider %u => jog %u (was %u)" %
+                          (slider_val, ret, v))
         return ret
 
 

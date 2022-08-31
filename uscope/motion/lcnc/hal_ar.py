@@ -48,7 +48,7 @@ class LcncPyHalAr(LcncPyHal):
                            'server.py')
         self.sftp.put(src, self.remote_server_py)
 
-    def lcnc_launch(self, local_ini=None):
+    def lcnc_launch(self, local_ini=None, remote_ini=None):
         print('linuxcnc: launching')
 
         if local_ini:
@@ -105,12 +105,12 @@ class LcncPyHalAr(LcncPyHal):
               host,
               local_ini=None,
               remote_ini=None,
-              log=None,
               username='machinekit',
               password='machinekit',
               update_server=False,
               launch_lcnc=False,
-              launch_server=False):
+              launch_server=False,
+              **kwargs):
         self.running = True
         self.tunnel = None
         self.verbose = 0
@@ -144,7 +144,7 @@ class LcncPyHalAr(LcncPyHal):
             # Complain loudly if I trigger this code path
             if not launch_lcnc:
                 raise Exception("LCNC not running")
-            self.lcnc_launch(local_ini)
+            self.lcnc_launch(local_ini, remote_ini)
 
         if port_up:
             print('Remote agent: appears to be already running')
@@ -164,7 +164,7 @@ class LcncPyHalAr(LcncPyHal):
         self.wait_local_port(PORT)
 
         linuxcnc = LCNCRPC('localhost')
-        LcncPyHal.__init__(self, linuxcnc=linuxcnc, log=log)
+        LcncPyHal.__init__(self, linuxcnc=linuxcnc, **kwargs)
 
     def local_port_up(self, port):
         rc = subprocess.call('exec 6<>/dev/tcp/127.0.0.1/%s' % port,

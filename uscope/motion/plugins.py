@@ -46,7 +46,7 @@ def register_plugins():
     def lcnc_arpc(mj, kwargs):
         return lcnc_ar.LcncPyHalAr(host=get_lcnc_host(mj), **kwargs)
 
-    register_plugin("lcnc-arpc", lcnc_rpc)
+    register_plugin("lcnc-arpc", lcnc_arpc)
 
     def lcnc_rsh(mj, kwargs):
         return lcnc_hal.LcncRshHal(**kwargs)

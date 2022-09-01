@@ -42,12 +42,14 @@ def get_usj(config_dir=None, name=None):
     if usj is not None:
         return usj
 
-    if config_dir:
-        pass
-    elif name:
-        config_dir = "configs/" + name
-    else:
-        config_dir = "config"
+    if not config_dir:
+        if not name:
+            name = os.getenv("PYUSCOPE_MICROSCOPE")
+        if name:
+            config_dir = "configs/" + name
+        # Maybe just throw an exception at this point?
+        else:
+            config_dir = "config"
     globals()["config_dir"] = config_dir
     fn = os.path.join(config_dir, "microscope.j5")
     if not os.path.exists(fn):

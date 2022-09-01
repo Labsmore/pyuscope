@@ -64,6 +64,7 @@ def argus_show_mdi(usj=None):
     """
     Should argus GUI show MDI?
     For advanced users only
+    Bypasses things like gearbox correction
     """
     if not usj:
         usj = get_usj()
@@ -991,7 +992,7 @@ class MainWindow(QMainWindow):
             mod_str = ''
             if mod:
                 mod_str = '_%u' % mod
-            fn_full = os.path.join(self.usj['imager']['snapshot_dir'],
+            fn_full = os.path.join(get_snapshot_dir(self.usj),
                                    prefix + user + mod_str + extension)
             if os.path.exists(fn_full):
                 if mod is None:

@@ -69,7 +69,7 @@ def get_motion_hal(usj=None, mj=None, log=print):
         mj = usj["motion"]
     name = mj["hal"]
     scalars = mj.get("scalars", None)
-    log("get_motion_hal: %s" % name)
+    # log("get_motion_hal: %s" % name)
     ctor = plugins.get(name)
     if ctor is None:
         raise Exception("Unknown motion HAL %s" % name)

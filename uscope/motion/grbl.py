@@ -13,6 +13,7 @@ import serial
 import time
 import os
 import threading
+import glob
 
 
 class Timeout(Exception):
@@ -20,7 +21,18 @@ class Timeout(Exception):
 
 
 def default_port():
-    return "/dev/ttyUSB0"
+    port = os.getenv("GRBL_PORT", None)
+    if port:
+        return port
+    # https://github.com/Labsmore/pyuscope/issues/62
+    # /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
+    # When two are plugged in only one shows up
+    ports = glob.glob("/dev/serial/by-id/usb-1a86_USB_Serial-*")
+    if len(ports) == 0:
+        raise Exception("Failed to auto detect any GRBL serial ports")
+    if len(ports) == 1:
+        return ports[0]
+    raise Exception("Need explicit GRBL serial port (ie GRBL_PORT=/dev/blah)")
 
 
 def trim_data_line(l):
@@ -490,6 +502,10 @@ class GRBL:
         if reset:
             self.reset()
 
+        # See move_relative
+        self.use_soft_move_relative = int(os.getenv("GRBL_SOFT_RELATIVE", "1"))
+        self.pos_cache = None
+
     def __del__(self):
         self.stop()
 
@@ -574,6 +590,12 @@ class GRBL:
             # Should be moving quickly now
             l = self.gs.readline()
 
+    def set_pos_cache(self, pos):
+        self.pos_cache = dict(pos)
+
+    def update_pos_cache(self):
+        self.qstatus()
+
     def qstatus(self):
         """
         Idle|MPos:8.000,0.000,0.000|FS:0,0|WCO:0.000,0.000,0.000
@@ -592,6 +614,7 @@ class GRBL:
                 ij, mpos, fs = parts[0:3]
                 mpos = (float(x) for x in mpos.split(":")[1].split(","))
                 mpos = dict([(k, v) for k, v in zip("xyz", mpos)])
+                self.set_pos_cache(mpos)
                 return {
                     # Idle, Jog
                     "status": ij,
@@ -609,13 +632,13 @@ class GRBL:
         """Return current absolute position"""
         return self.qstatus()["MPos"]
 
-    def move_absolute(self, moves, f, blocking=True):
+    def move_absolute(self, pos, f, blocking=True):
         tries = 3
         for i in range(tries):
             try:
                 # implies G1
                 ax_str = ''.join(
-                    [' %c%0.3f' % (k.upper(), v) for k, v in moves.items()])
+                    [' %c%0.3f' % (k.upper(), v) for k, v in pos.items()])
                 self.gs.j("G90 %s F%u" % (ax_str, f))
                 if blocking:
                     self.wait_idle()
@@ -625,19 +648,41 @@ class GRBL:
                     raise
                 self.general_recover()
 
-    def move_relative(self, moves, f, blocking=True):
-        # implies G1
-        ax_str = ''.join(
-            [' %c%0.3f' % (k.upper(), v) for k, v in moves.items()])
-        self.gs.j("G91 %s F%u" % (ax_str, f))
-        if blocking:
-            self.wait_idle()
+    def soft_move_relative(self, pos, f, blocking=True):
+        # Could use old cache but probably an over optimization
+        self.update_pos_cache()
+        apos = {}
+        for k, v in pos.items():
+            apos[k] = self.pos_cache[k] + v
+        self.move_absolute(apos, f=f, blocking=blocking)
+
+    def move_relative(self, pos, f, blocking=True):
+        """
+        WARNING: if a command errors its easy to move position
+        You will need to deal with raised exceptions (which can be frequent)
+        and recover based on whether or not the move happened
+        Use soft_move_relative instead
+        """
+
+        if self.use_soft_move_relative:
+            return self.soft_move_relative(pos, f, blocking=blocking)
+        else:
+            # implies G1
+            ax_str = ''.join(
+                [' %c%0.3f' % (k.upper(), v) for k, v in pos.items()])
+            self.gs.j("G91 %s F%u" % (ax_str, f))
+            if blocking:
+                self.wait_idle()
 
     def wait_idle(self):
         while self.qstatus()["status"] != "Idle":
             time.sleep(0.1)
 
     def jog(self, scalars, rate):
+        """
+        Note: jog is skipped in the case of command error
+        """
+
         try:
             for axis, scalar in scalars.items():
                 cmd = "G91 %s%0.3f F%u" % (axis, scalar, rate)

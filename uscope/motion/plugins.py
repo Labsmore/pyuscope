@@ -74,4 +74,17 @@ def get_motion_hal(usj=None, mj=None, log=print):
     if ctor is None:
         raise Exception("Unknown motion HAL %s" % name)
     kwargs = {"scalars": scalars, "log": log}
+
+    slj = mj.get("soft_limits", None)
+    if slj:
+        soft_limits = {}
+        for axis in "xyz":
+            axmin = slj.get(axis + "min")
+            axmax = slj.get(axis + "max")
+            if axmin is not None or axmax is not None:
+                axmin = axmin if axmin else 0.0
+                axmax = axmax if axmax else 0.0
+                soft_limits[axis] = (axmin, axmax)
+        kwargs["soft_limits"] = soft_limits
+
     return ctor(mj, kwargs)

@@ -31,8 +31,10 @@ MotionHAL is not thread safe with exception of the following:
 
 
 class MotionHAL:
-    def __init__(self, scalars=None, log=None, verbose=None):
+    def __init__(self, scalars=None, soft_limits=None, log=None, verbose=None):
         self.scalars = scalars
+        # dict containing (min, min) for each axis
+        self.soft_limits = soft_limits
         if log is None:
 
             def log(msg='', lvl=2):
@@ -53,6 +55,12 @@ class MotionHAL:
         self.mv_lastt = time.time()
         # Per axis? Currently is global
         self.jog_rate = 0
+        self.stop_on_del = True
+
+    def __del__(self):
+        # Most users want system to idle if they lose control
+        if self.stop_on_del:
+            self.stop()
 
     def axes(self):
         '''Return supported axes'''
@@ -101,16 +109,38 @@ class MotionHAL:
         '''Absolute move to positions specified by pos dict'''
         if len(pos) == 0:
             return
+        if self.soft_limits:
+            for axis, axpos in pos.items():
+                limit = self.soft_limits.get(axis)
+                if not limit:
+                    continue
+                axmin, axmax = limit
+                if axpos < axmin or axpos > axmax:
+                    raise AxisExceeded(
+                        "axis %s: absolute violates %0.3f <= new pos %0.3f <= %0.3f"
+                        % (axis, axmin, axpos, axmax))
         return self._move_absolute(self.scale_e2i(pos))
 
     def _move_absolute(self, pos):
         '''Absolute move to positions specified by pos dict'''
-        if len(pos) == 0:
-            return
         raise NotSupported("Required for planner")
 
     def move_relative(self, pos):
         '''Absolute move to positions specified by pos dict'''
+        if self.soft_limits:
+            cur_pos = self.pos()
+            for axis, axdelta in pos.items():
+                limit = self.soft_limits.get(axis)
+                if not limit:
+                    continue
+                axmin, axmax = limit
+                axpos = cur_pos[axis] + axdelta
+                # New position under min and making worse?
+                # New position above max and making worse?
+                if axpos < axmin and axpos < 0 or axpos > axmax and axpos > 0:
+                    raise AxisExceeded(
+                        "axis %s: delta %+0.3f violates %0.3f <= new pos %0.3f <= %0.3f"
+                        % (axis, axdelta, axmin, axpos, axmax))
         return self._move_relative(self.scale_e2i(pos))
 
     def _move_relative(self, delta):
@@ -122,6 +152,23 @@ class MotionHAL:
         scalars: generally either +1 or -1 per axis to jog
         Final value is globally multiplied by the jog_rate and individually by the axis scalar
         """
+        # Try to estimate if jog would go over limit
+        # Always allow moving away from the bad area though if we are already in there
+        if self.soft_limits:
+            cur_pos = self.pos()
+            for axis, scalar in scalars.items():
+                limit = self.soft_limits.get(axis)
+                if not limit:
+                    continue
+                axmin, axmax = limit
+                axpos = cur_pos[axis] + scalar
+                # New position under min and making worse?
+                # New position above max and making worse?
+                if axpos < axmin and scalar < 0 or axpos > axmax and scalar > 0:
+                    raise AxisExceeded(
+                        "axis %s: jog %+0.3f violates %0.3f <= new pos %0.3f <= %0.3f"
+                        % (axis, scalar, axmin, axpos, axmax))
+
         self._jog(self.scale_e2i(scalars))
 
     def _jog(self, axes):

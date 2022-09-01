@@ -41,13 +41,13 @@ for script in scripts:
 
 setup(
     name="pyuscope",
-    version="3.0.0",
+    version="3.1.0",
     author="John McMaster",
     author_email='JohnDMcMaster@gmail.com',
     description=("Microscope panorama GUI"),
     license="BSD",
     keywords="microscope touptek",
-    url='https://github.com/JohnDMcMaster/pyuscope',
+    url='https://github.com/Labsmore/pyuscope',
     packages=find_packages(exclude=['build']),
     scripts=scripts_dist,
     # FIXME

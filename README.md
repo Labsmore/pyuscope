@@ -153,3 +153,11 @@ However, I've been using this workflow for years now, and will probably continue
  * Test suite
  * Expanded CLI programs
  * Expanded microscope calibration suite (namely fiducial tracking)
+
+ 3.1.0
+ * Soft axis limit support
+ * lip-a1 real machine values
+ * Planner end_at option
+ * Add PYUSCOPE_MICROSCOPE
+ * Better GRBL automatic serial port selection
+ * Misc fixes

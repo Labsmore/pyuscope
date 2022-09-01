@@ -429,7 +429,10 @@ class GRBLSer:
         return self.txrxs("$N")
 
     def cancel_jog(self):
-        # From Yusuf
+        """
+        Immediately cancels the current jog state by a feed hold and
+        automatically flushing any remaining jog commands in the buffer.
+        """
         self.txb(b"\x85")
 
 
@@ -506,9 +509,6 @@ class GRBL:
         self.use_soft_move_relative = int(os.getenv("GRBL_SOFT_RELATIVE", "1"))
         self.pos_cache = None
 
-    def __del__(self):
-        self.stop()
-
     def stop(self):
         self.cancel_jog()
 
@@ -564,6 +564,8 @@ class GRBL:
                 self.gs.flush()
                 # Try a simple command
                 self.qstatus()
+                # Success!
+                return
             except Exception:
                 if tryi == tries - 2:
                     raise
@@ -697,7 +699,7 @@ class GRBL:
             self.verbose and print("WARNING: dropping jog")
             self.general_recover()
 
-    def cancel_jog(self):
+    def do_cancel_jog(self):
         tries = 3
         timeout = 0.5
         for i in range(tries):
@@ -715,6 +717,11 @@ class GRBL:
                 if i == tries - 1:
                     raise
                 self.general_recover()
+
+    def cancel_jog(self):
+        self.do_cancel_jog()
+        # Remove the feed hold a jog cancel causes
+        self.gs.tilda()
 
 
 class GrblHal(MotionHAL):

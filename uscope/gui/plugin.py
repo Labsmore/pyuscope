@@ -95,6 +95,8 @@ class GstGUIImager(Imager):
 
 
 def get_gui_imager(source, gui):
+    # WARNING: only gst- sources are supported
+    # This indirection may be eliminated
     if source == 'mock':
         return MockImager()
     elif source.find("gst-") == 0:

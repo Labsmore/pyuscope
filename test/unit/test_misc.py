@@ -17,7 +17,7 @@ import time
 class PlannerTestCase(unittest.TestCase):
     def setUp(self):
         """Call before every test case."""
-        self.verbose = int(os.getenv("VERBOSE", "0"))
+        self.verbose = int(os.getenv("TEST_VERBOSE", "0"))
         self.planner_dir = "/tmp/pyuscope/planner"
         if os.path.exists("/tmp/pyuscope"):
             shutil.rmtree("/tmp/pyuscope")
@@ -157,7 +157,7 @@ class PlannerTestCase(unittest.TestCase):
 class GstTestCase(unittest.TestCase):
     def setUp(self):
         """Call before every test case."""
-        self.verbose = int(os.getenv("VERBOSE", "0"))
+        self.verbose = int(os.getenv("TEST_VERBOSE", "0"))
         self.planner_dir = "/tmp/pyuscope/planner"
         if os.path.exists("/tmp/pyuscope"):
             shutil.rmtree("/tmp/pyuscope")

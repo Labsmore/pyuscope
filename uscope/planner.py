@@ -770,12 +770,18 @@ class Planner(object):
             self.last_row = self.cur_row
             self.last_col = self.cur_col
 
-        self.move_absolute_backlash({
-            'x':
-            float(self.pconfig["contour"]['start']['x']),
-            'y':
-            float(self.pconfig["contour"]['start']['y'])
-        })
+        # Return to end position
+        end_at = self.pconfig.get("end_at", "start")
+        if end_at == "start":
+            retx = float(self.pconfig["contour"]['start']['x'])
+            rety = float(self.pconfig["contour"]['start']['y'])
+        elif end_at == "zero":
+            retx = 0.0
+            rety = 0.0
+        else:
+            raise Exception("Unknown end_at: %s" % end_at)
+        self.move_absolute_backlash({'x': retx, 'y': rety})
+
         self.end_program()
         self.end_time = time.time()
 

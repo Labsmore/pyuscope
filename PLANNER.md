@@ -44,6 +44,9 @@ List of parameters
   * step: ideal faction of image to move between images
     Default: 0.7 => only overlap adjacent image by 30%
   * border: automatically add this many mm to the edges of the contour (panorama)
+  * end_at: where to return at the end of a job
+    * zero: return to 0, 0
+    * start: return to start coordinate (default)
   * motion
     * backlash: how much is requires to compensate for consistent motion
        * Currently all axes are assumed the same backlash

@@ -569,7 +569,10 @@ class MainWindow(QMainWindow):
         im_h_um = im_w_um * im_h_pix / im_w_pix
         self.obj_view.setText('View : %0.3fx %0.3fy' % (im_w_um, im_h_um))
         if self.objective_name_le:
-            self.objective_name_le.setText(self.obj_config["suffix"])
+            suffix = self.obj_config.get("suffix")
+            if not suffix:
+                suffix = self.obj_config.get("name")
+            self.objective_name_le.setText(suffix)
 
     def init_imager(self):
         source = self.vidpip.source_name

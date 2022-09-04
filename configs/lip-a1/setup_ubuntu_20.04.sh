@@ -5,14 +5,21 @@
 
 set -ex
 
-sudo apt-get install python3-serial python3-pip
+if [ \! -d configs ] ; then
+    echo "Must be run from the root dir"
+    exit 1
+fi
+
+sudo apt-get update
+sudo apt-get install -y python3-serial python3-pip
 sudo pip3 install json5
 
 install_toupcam_sdk() {
-    if [ /opt/toupcamsdk ] ; then
+    if [  -d /opt/toupcamsdk ] ; then
         echo "toupcamsdk: already installed"
     else
         echo "toupcamsdk: installing"
+        mkdir -p download
         pushd download
         wget -c http://www.touptek.com/upload/download/toupcamsdk.zip
         mkdir toupcamsdk
@@ -37,7 +44,7 @@ install_gst_plugin_toupcam() {
     else
         echo "gst-plugin-toupcam: installing"
         git submodule update --remote
-        cd gst-plugin-toupcam
+        pushd gst-plugin-toupcam
         sudo apt-get install -y autoconf libtool dpkg-dev devscripts gstreamer1.0-tools libgstreamer-plugins-base1.0-dev
 
         install_toupcam_sdk
@@ -47,6 +54,7 @@ install_gst_plugin_toupcam() {
 
         sudo make install
         echo "export GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0" >> ~/.profile
+        popd
     fi
 }
 
@@ -68,10 +76,11 @@ install_pyuscope() {
     sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb
     sudo python3 setup.py develop
     # Set default configuration
-    if [ config ] ; then
+    if [ -d "config" ] ; then
         echo "Default config already set, skipping"
     else
         ln -s configs/lip-a1 config
+        echo "export PYUSCOPE_MICROSCOPE=lip-a1" >> ~/.profile
     fi
 }
 
@@ -84,5 +93,7 @@ install_pyuscope
 
 # usermod is finicky requires login / logout
 # GST_PLUGIN_PATH can be similar
+echo ""
+echo "Installation complete"
 echo "Please restart system to have changes take effect"
 

@@ -2,3 +2,6 @@
 	path = gst-plugin-toupcam
 	url = https://github.com/JohnDMcMaster/gst-plugin-toupcam.git
 	branch = main
+[submodule "xystitch"]
+	path = xystitch
+	url = https://github.com/JohnDMcMaster/xystitch.git

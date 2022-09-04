@@ -11,8 +11,7 @@ if [ \! -d configs ] ; then
 fi
 
 sudo apt-get update
-sudo apt-get install -y python3-serial python3-pip
-sudo pip3 install json5
+sudo apt-get install -y python3-pip
 
 install_toupcam_sdk() {
     if [  -d /opt/toupcamsdk ] ; then
@@ -73,7 +72,8 @@ install_stitching() {
 }
 
 install_pyuscope() {
-    sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb
+    sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb python3-opencv python3-serial
+    sudo pip3 install json5
     sudo python3 setup.py develop
     # Set default configuration
     if [ -d "config" ] ; then

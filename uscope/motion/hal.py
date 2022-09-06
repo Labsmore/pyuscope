@@ -109,6 +109,7 @@ class MotionHAL:
         '''Absolute move to positions specified by pos dict'''
         if len(pos) == 0:
             return
+        self.validate_axes(pos.keys())
         if self.soft_limits:
             for axis, axpos in pos.items():
                 limit = self.soft_limits.get(axis)
@@ -127,6 +128,9 @@ class MotionHAL:
 
     def move_relative(self, pos):
         '''Absolute move to positions specified by pos dict'''
+        if len(pos) == 0:
+            return
+        self.validate_axes(pos.keys())
         if self.soft_limits:
             cur_pos = self.pos()
             for axis, axdelta in pos.items():
@@ -147,6 +151,11 @@ class MotionHAL:
         '''Relative move to positions specified by delta dict'''
         raise NotSupported("Required for planner")
 
+    def validate_axes(self, axes):
+        for axis in axes:
+            if axis not in self.axes():
+                raise ValueError("Got axis %s but expect axis in %s" % (axis, self.axes()))
+
     def jog(self, scalars):
         """
         scalars: generally either +1 or -1 per axis to jog
@@ -154,6 +163,9 @@ class MotionHAL:
         """
         # Try to estimate if jog would go over limit
         # Always allow moving away from the bad area though if we are already in there
+        if len(scalars) == 0:
+            return
+        self.validate_axes(scalars.keys())
         if self.soft_limits:
             cur_pos = self.pos()
             for axis, scalar in scalars.items():

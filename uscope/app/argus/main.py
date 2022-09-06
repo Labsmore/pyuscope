@@ -196,12 +196,12 @@ class MotionWidget(QWidget):
 
         self.axis_map = {
             # Upper left origin
-            Qt.Key_A: ("X", -1),
-            Qt.Key_D: ("X", 1),
-            Qt.Key_S: ("Y", -1),
-            Qt.Key_W: ("Y", 1),
-            Qt.Key_Q: ("Z", -1),
-            Qt.Key_E: ("Z", 1),
+            Qt.Key_A: ("x", -1),
+            Qt.Key_D: ("x", 1),
+            Qt.Key_S: ("y", -1),
+            Qt.Key_W: ("y", 1),
+            Qt.Key_Q: ("z", -1),
+            Qt.Key_E: ("z", 1),
         }
 
         self.initUI()

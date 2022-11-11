@@ -1,0 +1,62 @@
+/*
+Labsmore Imaging Platform (LIP) series A revision 1 (LIP-A1)
+An inspection microscope loosely based on the 3018 CNC platform
+5:1 gearboxes on all axes
+AMA100 relay lens
+*/
+{
+    "planner": {
+        "border": 0.1,
+        "tsettle": 1.2,
+    },
+    "motion": {
+        "hal": "grbl-ser",
+        //FIXME: what is the actual value?
+        "backlash": 1.0,
+        //5:1 gearboxes
+        //Commands must be 5x larger than advertised
+        //Considering firmware update
+        "scalars": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 5.0,
+        },
+        //Currently enforced via MotionHAL
+        //Eventually via limits in GRBL controller and/or homing switches
+        "!soft_limits": {
+            //Conservative limits for now
+            //360 mm w/ 60 mm for stage
+            //Each end: ~10 mm
+            //2022-09-01: offset 15.0 mm. Marked reference
+            "xmax": 280.0,
+            //290 mm w/ 110 mm for stage
+            //Each end: ~10 mm
+            //2022-09-01: marked reference
+            "ymax": 160.0,
+            //90 mm w/ 40 mm for stage => 50 mm theoretical max
+            //actually less...maybe about 30 mm usable
+            //coupler eats up a lot hmm. Opened ECO on gearbox to fix
+            //Each end: ~5 mm
+            //2022-09-01: tune to 25
+            "zmax": 25.0,
+        },
+    },
+    "imager": {
+        "source":"gst-toupcamsrc",
+        "width": 5440,
+        "height": 3648,
+        "source_properties": {
+            "esize": 0
+        },
+        "scalar": 0.5
+    },
+    "objectives": [
+		{
+			"name":"L Plan 20x",
+			"suffix": "lp20x",
+			"scalar": 0.5,
+			"x_view": 0.499
+		},
+   ]
+}
+

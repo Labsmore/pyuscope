@@ -1,0 +1,88 @@
+{
+    "argus": {
+        "jog_name_widget": "sipr0n",
+    },
+    "planner": {
+        "border": 0.1,
+        "tsettle": 1.2,
+    },
+
+    "motion": {
+        "hal": "grbl-ser",
+        "backlash": 0.05,
+        "origin": "ul",
+        //FIXME: not calibrated
+        /*
+        lcnc
+        1024000
+        1024 * 1000
+        3018 threads are T8 lead screw => 8 mm diameter, 2 mm pitch
+        These appear to be 1 mm pitch
+        */
+        "scalars": {
+            "x": -4.0,
+            "y": -4.0,
+        },
+        //FIXME: once calibrated
+        "!soft_limits": {
+            "xmin": -5.0,
+            "xmax": 40.0,
+            "ymin": -5.0,
+            "ymax": 40.0,
+        },
+    },
+
+    "imager": {
+        "source":"gst-toupcamsrc",
+        "snapshot_dir":"snapshot",
+		"width": 5440,
+		"height": 3648,
+		"esize": 0,
+		"scalar": 0.50
+    },
+    "objectives": [
+		{
+			"name":"Mitutoyo Apo 20X",
+			"suffix": "mit20x2",
+			"scalar": 0.5,
+			"x_view": 0.820
+		},
+		{
+			"name":"Mitutoyo Apo 2X",
+			"suffix": "mit2x2",
+			"scalar": 0.5,
+			"x_view": 8.20
+		},
+		{
+			"name":"Mitutoyo Apo 5X",
+			"suffix": "mit5x2",
+			"scalar": 0.5,
+			"x_view": 3.280
+		},
+		{
+			"name":"Mitutoyo Apo 10X",
+			"suffix": "mit10x2",
+			"scalar": 0.5,
+			"x_view": 1.64
+		},
+		{
+			"name":"Mitutoyo Apo 50X",
+			"suffix": "mit50x2",
+			"scalar": 0.5,
+			"x_view": 0.328
+		},
+		{
+			"name":"VC 60X",
+			"suffix": "vc60x2",
+			"scalar": 0.5,
+			"x_view": 0.273
+		},
+		{
+			"name":"Mitutoyo Apo 100X",
+			"suffix": "mit100x2",
+			"scalar": 0.5,
+			"x_view": 0.164
+		}
+    ]
+}
+

@@ -154,10 +154,19 @@ However, I've been using this workflow for years now, and will probably continue
  * Expanded CLI programs
  * Expanded microscope calibration suite (namely fiducial tracking)
 
- 3.1.0
+3.1.0
  * Soft axis limit support
  * lip-a1 real machine values
  * Planner end_at option
  * Add PYUSCOPE_MICROSCOPE
  * Better GRBL automatic serial port selection
  * Misc fixes
+
+3.2.0 (WIP)
+  * gst-plugin-toupcam: v0.3.0 (WIP)
+  * Config: add imager.source_properties_mod
+   * ex: reduce exposure time to practical range)
+  * Config: add imager.crop
+   * Use an oversized sensor by cropping it down
+  * Add lip-m1-beta support
+  * Reduce verbosity

@@ -4,41 +4,20 @@ Comprehensive image acquisition test GUI
 No motion control
 """
 
-from uscope.gui import gstwidget
-from uscope.gui.control_scrolls import get_control_scroll
-
 from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main
-from uscope.gst_util import CbSink
+from uscope.gui.control_scrolls import get_control_scroll
+from uscope.imager import gst
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
-import gi
 
-gi.require_version('Gst', '1.0')
-gi.require_version('GstBase', '1.0')
-gi.require_version('GstVideo', '1.0')
-
-from gi.repository import GstVideo
-
-from gi.repository import Gst
-
-Gst.init(None)
-from gi.repository import GstBase, GObject
-"""
-Initialization constraints:
--Gst initialization needs
-"""
-
-import datetime
-import os
-
-
-class TestGUI(QMainWindow):
-    def __init__(self, source=None):
+class MainWindow(QMainWindow):
+    def __init__(self, **args):
         QMainWindow.__init__(self)
         self.showMaximized()
-        self.vidpip = GstVideoPipeline(source=source)
+        self.usj = {"imager": gst.gstcliimager_args_to_usj(args)}
+        self.vidpip = GstVideoPipeline(usj=self.usj)
         self.vidpip.size_widgets(frac=0.5)
 
         self.vidpip.setupGst()
@@ -50,10 +29,10 @@ class TestGUI(QMainWindow):
         self.vidpip.setupWidgets()
 
         layout = QHBoxLayout()
-        self.control_scroll = get_control_scroll(self.vidpip)
+        self.control_scroll = get_control_scroll(self.vidpip, usj=self.usj)
         if self.control_scroll:
             layout.addWidget(self.control_scroll)
-        layout.addWidget(self.vidpip.full_widget)
+        layout.addWidget(self.vidpip.get_widget("overview"))
 
         centralWidget = QWidget()
         centralWidget.setLayout(layout)
@@ -62,5 +41,15 @@ class TestGUI(QMainWindow):
         self.control_scroll.run()
 
 
+def parse_args():
+    import argparse
+
+    parser = argparse.ArgumentParser(description='')
+    gst.gst_add_args(parser)
+    args = parser.parse_args()
+
+    return vars(args)
+
+
 if __name__ == '__main__':
-    gstwidget_main(TestGUI)
+    gstwidget_main(MainWindow, parse_args=parse_args)

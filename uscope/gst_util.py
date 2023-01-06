@@ -87,6 +87,7 @@ class CaptureSink(CbSink):
         self.width = width
         self.height = height
         self.raw_input = raw_input
+        self.verbose = False
 
     def request_image(self, cb):
         '''Request that the next image be saved'''
@@ -108,7 +109,7 @@ class CaptureSink(CbSink):
         '''Fetch the image and delete it form the buffer'''
         buf, width, height, raw_input = self.images_actual[image_id]
         del self.images_actual[image_id]
-        print("bytes", len(buf), 'w', width, 'h', height)
+        self.verbose and print("bytes", len(buf), 'w', width, 'h', height)
         # Arbitrarily convert to PIL here
         # TODO: should pass rawer/lossless image to PIL instead of jpg?
         # open("tmp.bin", "wb").write(ret)
@@ -133,7 +134,7 @@ class CaptureSink(CbSink):
             '''
             # print('Got image')
             if self.image_requested.is_set():
-                print('Processing image request')
+                self.verbose and print('Processing image request')
                 # Does this need to be locked?
                 # Copy buffer so that even as object is reused we don't lose it
                 # is there a difference between str(buffer) and buffer.data?

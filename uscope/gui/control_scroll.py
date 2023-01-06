@@ -11,10 +11,12 @@ from uscope import config
 
 
 class ImagerControlScroll(QScrollArea):
-    def __init__(self, groups, parent=None):
+    def __init__(self, groups, usj, verbose=False, parent=None):
         QScrollArea.__init__(self, parent=parent)
+        #self.usj = usj
+        self.verbose = verbose
 
-        print("init", groups)
+        self.verbose and print("init", groups)
 
         self.disp2widgets = {}
 
@@ -80,7 +82,7 @@ class ImagerControlScroll(QScrollArea):
                 except ValueError:
                     pass
                 else:
-                    print('%s (%s) req => %d, allowed %d' %
+                    self.verbose and print('%s (%s) req => %d, allowed %d' %
                           (prop["disp_name"], prop["prop_name"], val,
                            prop["push_gui"]))
                     assert type(prop["push_gui"]) is bool
@@ -109,7 +111,7 @@ class ImagerControlScroll(QScrollArea):
     def _assemble_bool(self, prop, layoutg, row):
         def gui_changed(prop):
             def f(val):
-                print('%s (%s) req => %d, allowed %d' %
+                self.verbose and print('%s (%s) req => %d, allowed %d' %
                       (prop["disp_name"], prop["prop_name"], val,
                        prop["push_gui"]))
                 if prop["push_gui"]:
@@ -127,7 +129,7 @@ class ImagerControlScroll(QScrollArea):
         return row
 
     def _prop_defaults(self, prop):
-        print("prop", type(prop))
+        self.verbose and print("prop", type(prop))
         if type(prop) is dict:
             ret = dict(prop)
         else:
@@ -178,7 +180,7 @@ class ImagerControlScroll(QScrollArea):
         range_str = ""
         if "min" in prop:
             range_str = ", range %s to %s" % (prop["min"], prop["max"])
-        print("add disp %s prop %s, type %s, default %s%s" %
+        self.verbose and print("add disp %s prop %s, type %s, default %s%s" %
               (disp_name, prop_name, prop["type"], prop["default"], range_str))
 
         if prop["type"] == "int":
@@ -313,15 +315,103 @@ class ImagerControlScroll(QScrollArea):
             self.disp2prop[disp_name]["push_prop"] = val
 
 
+"""
+Had these in the class but really fragile pre-init
+"""
+
+
+def template_property(vidpip, usj, prop_entry):
+    if type(prop_entry) == str:
+        prop_name = prop_entry
+        defaults = {}
+    elif type(prop_entry) == dict:
+        prop_name = prop_entry["prop_name"]
+        defaults = prop_entry
+    else:
+        assert 0, type(prop_entry)
+
+    ps = vidpip.source.find_property(prop_name)
+    ret = {}
+    ret["prop_name"] = prop_name
+    ret["default"] = ps.default_value
+
+    if ps.value_type.name == "gint":
+
+        def override(which, default):
+            if not usj:
+                return default
+            imager = usj["imager"]
+            """
+            Ex:
+            prop_name: expotime
+            which: max
+
+            "source_properties_mod": {
+                //In us. Can go up to 15 sec which is impractical for typical usage
+                "expotime": {
+                    "max": 200000
+                },
+            },
+            """
+            spm = imager.get("source_properties_mod")
+            if not spm:
+                return default
+            pconfig = spm.get(prop_name)
+            if not pconfig:
+                return default
+            return pconfig.get(which, default)
+
+        minimum = override("min", ps.minimum)
+        maximum = override("max", ps.maximum)
+        ret["min"] = minimum
+        ret["max"] = maximum
+        ret["type"] = "int"
+    elif ps.value_type.name == "gboolean":
+        ret["type"] = "bool"
+    else:
+        assert 0, ps.value_type.name
+
+    ret.update(defaults)
+    return ret
+
+
+def flatten_groups(vidpip, groups_gst, usj):
+    """
+    Convert a high level gst property description to something usable by widget API
+    """
+    groups = OrderedDict()
+    for group_name, gst_properties in groups_gst.items():
+        propdict = OrderedDict()
+        for prop_entry in gst_properties:
+            val = template_property(vidpip=vidpip,
+                                    prop_entry=prop_entry,
+                                    usj=usj)
+            # NOTE: added source_properties_mod. Maybe leave this at actual max?
+            # Log scale would also work well
+            if val["prop_name"] == "expotime":
+                # Despite max 15e3 exposure max, reporting 5e6
+                # actually this is us?
+                # Even so limit to 1 sec
+                val["max"] = min(1000000, val["max"])
+                # print("override", val)
+            propdict[val["prop_name"]] = val
+        groups[group_name] = propdict
+    # print("groups", groups)
+    # import sys; sys.exit(1)
+    return groups
+
+
 class GstControlScroll(ImagerControlScroll):
     """
     Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
     """
-    def __init__(self, vidpip, groups_gst, parent=None):
-        self.vidpip = vidpip
+    def __init__(self, vidpip, groups_gst, usj, parent=None):
+        groups = flatten_groups(vidpip=vidpip, groups_gst=groups_gst, usj=usj)
         ImagerControlScroll.__init__(self,
-                                     groups=self.flatten_groups(groups_gst),
+                                     groups=groups,
+                                     usj=usj,
                                      parent=parent)
+        self.vidpip = vidpip
 
         layout = QVBoxLayout()
         layout.addLayout(self.buttonLayout())
@@ -339,51 +429,3 @@ class GstControlScroll(ImagerControlScroll):
         ps = self.vidpip.source.find_property(name)
         return ps.default_value
     """
-
-    def template_property(self, prop_entry):
-        if type(prop_entry) == str:
-            prop_name = prop_entry
-            defaults = {}
-        elif type(prop_entry) == dict:
-            prop_name = prop_entry["prop_name"]
-            defaults = prop_entry
-        else:
-            assert 0, type(prop_entry)
-
-        ps = self.vidpip.source.find_property(prop_name)
-        ret = {}
-        ret["prop_name"] = prop_name
-        ret["default"] = ps.default_value
-
-        if ps.value_type.name == "gint":
-            ret["min"] = ps.minimum
-            ret["max"] = ps.maximum
-            ret["type"] = "int"
-        elif ps.value_type.name == "gboolean":
-            ret["type"] = "bool"
-        else:
-            assert 0, ps.value_type.name
-
-        ret.update(defaults)
-        return ret
-
-    def flatten_groups(self, groups_gst):
-        """
-        Convert a high level gst property description to something usable by widget API
-        """
-        groups = OrderedDict()
-        for group_name, gst_properties in groups_gst.items():
-            propdict = OrderedDict()
-            for propk in gst_properties:
-                val = self.template_property(propk)
-                if val["prop_name"] == "expotime":
-                    # Despite max 15e3 exposure max, reporting 5e6
-                    # actually this is us?
-                    # Even so limit to 1 sec
-                    val["max"] = min(1000000, val["max"])
-                    print("override", val)
-                propdict[val["prop_name"]] = val
-            groups[group_name] = propdict
-        print("groups", groups)
-        # import sys; sys.exit(1)
-        return groups

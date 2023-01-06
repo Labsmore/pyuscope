@@ -49,8 +49,9 @@ class TTControlScroll(GstControlScroll):
     """
     Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
     """
-    def __init__(self, vidpip, parent=None):
+    def __init__(self, vidpip, usj, parent=None):
         GstControlScroll.__init__(self,
                                   vidpip=vidpip,
                                   groups_gst=groups_gst,
+                                  usj=usj,
                                   parent=parent)

@@ -21,15 +21,15 @@ class DummyGstControlScroll(GstControlScroll):
                                   parent=parent)
 
 
-def get_control_scroll(vidpip):
+def get_control_scroll(vidpip, usj):
     # Need to hide this when not needed
     if vidpip.source_name == "gst-toupcamsrc":
-        return TTControlScroll(vidpip)
+        return TTControlScroll(vidpip, usj=usj)
     elif vidpip.source_name == "gst-v4l2src":
-        return V4L2GstControlScroll(vidpip)
+        return V4L2GstControlScroll(vidpip, usj=usj)
     elif vidpip.source_name == "gst-v4l2src-mu800":
-        return V4L2MU800ControlScroll(vidpip)
+        return V4L2MU800ControlScroll(vidpip, usj=usj)
     else:
         print("WARNING: no control layout for source %s" %
               (vidpip.source_name, ))
-        return DummyGstControlScroll(vidpip)
+        return DummyGstControlScroll(vidpip, usj=usj)

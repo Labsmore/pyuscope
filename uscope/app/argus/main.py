@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main
+from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main, get_raw_wh
 from uscope.gui.control_scrolls import get_control_scroll
 from uscope.util import add_bool_arg
 from uscope.config import get_usj, cal_load_all
@@ -30,7 +30,7 @@ import threading
 from io import StringIO
 import math
 
-debug = 1
+debug = os.getenv("ARGUS_VERBOSE") == "Y"
 
 
 def dbg(*args):
@@ -429,9 +429,9 @@ class MainWindow(QMainWindow):
         # TODO: some pipelines output jpeg directly
         # May need to tweak this
         raw_input = True
-        self.capture_sink = CaptureSink(width=int(self.usj['imager']['width']),
-                                        height=int(
-                                            self.usj['imager']['height']),
+        raw_width, raw_height = get_raw_wh(self.usj)
+        self.capture_sink = CaptureSink(width=raw_width,
+                                        height=raw_height,
                                         raw_input=raw_input)
         assert self.capture_sink
         self.vidpip.player.add(self.capture_sink)
@@ -463,7 +463,7 @@ class MainWindow(QMainWindow):
 
         # Special UI initialization
         # Requires video pipeline already setup
-        self.control_scroll = get_control_scroll(self.vidpip)
+        self.control_scroll = get_control_scroll(self.vidpip, usj=self.usj)
         # screws up the original
         self.imagerTabLayout.addWidget(self.vidpip.get_widget("overview2"))
         self.imagerTabLayout.addWidget(self.control_scroll)

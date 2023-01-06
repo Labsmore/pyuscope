@@ -112,7 +112,7 @@ class MotionThread(QThread):
                 break
 
     def run(self):
-        print("Motion thread started: %s" % (threading.get_ident(), ))
+        self.verbose and print("Motion thread started: %s" % (threading.get_ident(), ))
         self.running.set()
         self.idle.clear()
         self.hal.on()

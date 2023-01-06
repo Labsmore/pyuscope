@@ -78,6 +78,8 @@ Ideally we'd also match on S/N or something like that
 
 
 def cal_fn(mkdir=False):
+    if not config_dir:
+        return None
     if mkdir and not os.path.exists(config_dir):
         os.mkdir(config_dir)
     return os.path.join(config_dir, "imager_calibration.j5")
@@ -85,7 +87,7 @@ def cal_fn(mkdir=False):
 
 def cal_load(source):
     fn = cal_fn()
-    if not os.path.exists(fn):
+    if fn is None or not os.path.exists(fn):
         return {}
     configj = readj(fn)
     configs = configj["configs"]

@@ -58,6 +58,23 @@ else:
         return int(width), int(height)
 
 
+def get_raw_wh(usj):
+    """
+    raw as opposed to jpg
+    The unprocessed stream coming out of the camera
+    Usually we use the full sensor but sometimes its cropped
+    """
+    w = int(usj['imager']['width'])
+    h = int(usj['imager']['height'])
+
+    if "crop" in usj["imager"]:
+        crop = usj["imager"]["crop"]
+        w = w - crop["left"] - crop["right"]
+        h = h - crop["top"] - crop["bottom"]
+
+    return w, h
+
+
 class GstVideoPipeline:
     """
     Integrates Qt widgets + gstreamer pipelines for easy setup
@@ -152,10 +169,7 @@ class GstVideoPipeline:
         self.widget_h = 900
         self.roi_zoom = 1
 
-        if "crop" in self.usj["imager"]:
-            crop = self.usj["imager"]["crop"]
-            self.raww = self.camw - crop["left"] - crop["right"]
-            self.rawh = self.camh - crop["top"] - crop["bottom"]
+        self.raww, self.rawh = get_raw_wh(self.usj)
 
         if not nwidgets_wide:
             nwidgets_wide = 2 if self.overview and self.roi else 1

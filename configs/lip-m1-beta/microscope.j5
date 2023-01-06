@@ -23,7 +23,14 @@
     "motion": {
         "hal": "grbl-ser",
         //FIXME: what is the actual value?
-        "backlash": 1.0,
+        "backlash": {
+            //raw about 0.040
+            "x": 0.080,
+            //raw about 0.011
+            "y": 0.025,
+            //raw about 0.115
+            "y": 0.250,
+        },
         "scalars": {
             //4 mm => 1 mm pitch
             "x": 4.0,

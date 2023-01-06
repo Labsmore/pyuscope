@@ -58,23 +58,6 @@ else:
         return int(width), int(height)
 
 
-def get_raw_wh(usj):
-    """
-    raw as opposed to jpg
-    The unprocessed stream coming out of the camera
-    Usually we use the full sensor but sometimes its cropped
-    """
-    w = int(usj['imager']['width'])
-    h = int(usj['imager']['height'])
-
-    if "crop" in usj["imager"]:
-        crop = usj["imager"]["crop"]
-        w = w - crop["left"] - crop["right"]
-        h = h - crop["top"] - crop["bottom"]
-
-    return w, h
-
-
 class GstVideoPipeline:
     """
     Integrates Qt widgets + gstreamer pipelines for easy setup
@@ -97,13 +80,13 @@ class GstVideoPipeline:
         roi=False,
         # microscope configuration
         usj=None,
+        usc=None,
         # Manually specify how many widgets are expected in widest window
         # Applicable if you have multiple tabs / windows
         nwidgets_wide=None):
-        if usj is None:
-            usj = config.get_usj()
-        self.usj = usj
-        assert self.usj, "required"
+        if usc is None:
+            usc = config.get_usc(usj=usj)
+        self.usc = usc
         self.source = None
         self.source_name = None
         self.verbose = os.getenv("USCOPE_GSTWIDGET_VERBOSE") == "Y"
@@ -149,27 +132,21 @@ class GstVideoPipeline:
         # Must have at least one widget
         assert self.overview or self.roi
 
-        # TODO: auto calc these or something better
-        self.camw = self.usj["imager"]["width"]
-        self.camh = self.usj["imager"]["height"]
-        # Input image may be cropped
-        self.raww = self.camw
-        self.rawh = self.camh
-
         # Must not be initialized until after layout is set
-        source = self.usj["imager"].get("source", "auto")
+        source = self.usc.imager.source()
         if source == "auto":
             source = auto_detect_source()
         self.source_name = source
         self.verbose and print("vidpip source %s" % source)
+        # Input image may be cropped, don't use the raw w/h for anything
+        # XXX: would be nice if we could detect these
+        self.cropped_w, self.cropped_h = usc.imager.cropped_wh()
 
         # Usable area, not total area
         # XXX: probably should maximize window and take window size
         self.widget_w = 1920
         self.widget_h = 900
         self.roi_zoom = 1
-
-        self.raww, self.rawh = get_raw_wh(self.usj)
 
         if not nwidgets_wide:
             nwidgets_wide = 2 if self.overview and self.roi else 1
@@ -206,13 +183,14 @@ class GstVideoPipeline:
             self.widget_h = h
 
         assert self.overview or self.roi
-        w, h, ratio = self.fit_pix(self.raww * self.nwidgets_wide, self.rawh)
+        w, h, ratio = self.fit_pix(self.cropped_w * self.nwidgets_wide,
+                                   self.cropped_h)
         w = w / self.nwidgets_wide
         w = int(w)
         h = int(h)
         self.verbose and print(
             "%u widgets, cam %uw x %uh => xwidget %uw x %uh %ur" %
-            (self.nwidgets_wide, self.raww, self.rawh, w, h, ratio))
+            (self.nwidgets_wide, self.cropped_w, self.cropped_h, w, h, ratio))
 
         self.overview_widget_ratio = ratio
 
@@ -256,32 +234,33 @@ class GstVideoPipeline:
         self.roi_videocrop.set_property("right", 1224)
         """
         ratio = self.overview_widget_ratio * self.roi_zoom
-        keepw = self.raww // ratio
-        keeph = self.rawh // ratio
+        keepw = self.cropped_w // ratio
+        keeph = self.cropped_h // ratio
         self.verbose and print(
             "crop ratio %u => %u, %uw x %uh" %
             (self.overview_widget_ratio, ratio, keepw, keeph))
 
         # Divide remaining pixels between left and right
-        left = right = (self.raww - keepw) // 2
-        top = bottom = (self.rawh - keeph) // 2
+        left = right = (self.cropped_w - keepw) // 2
+        top = bottom = (self.cropped_h - keeph) // 2
         border = 1
         wigdata["videocrop"].set_property("top", top - border)
         wigdata["videocrop"].set_property("bottom", bottom - border)
         wigdata["videocrop"].set_property("left", left - border)
         wigdata["videocrop"].set_property("right", right - border)
 
-        finalw = self.raww - left - right
-        finalh = self.rawh - top - bottom
+        finalw = self.cropped_w - left - right
+        finalh = self.cropped_h - top - bottom
         if self.verbose:
             print("crop: %u l %u r => %u w" % (left, right, finalw))
             print("crop: %u t %u b => %u h" % (top, bottom, finalh))
             print("crop image ratio: %0.3f" % (finalw / finalh, ))
-            print("cam image ratio: %0.3f" % (self.raww / self.rawh, ))
+            print("cam image ratio: %0.3f" %
+                  (self.cropped_w / self.cropped_h, ))
             print(
                 "cam %uw x %uh %0.1fr => crop (x2) %uw x %uh => %uw x %uh %0.1fr"
-                % (self.raww, self.rawh, self.raww / self.rawh, left, top,
-                   finalw, finalh, finalw / finalh))
+                % (self.cropped_w, self.cropped_h, self.cropped_w /
+                   self.cropped_h, left, top, finalw, finalh, finalw / finalh))
         # assert 0, self.roi_zoom
 
     def setupWidgets(self, parent=None):
@@ -313,11 +292,9 @@ class GstVideoPipeline:
         else:
             raise Exception('Unknown source %s' % (self.source_name, ))
 
-        if self.usj:
-            properties = self.usj["imager"].get("source_properties", {})
-            for propk, propv in properties.items():
-                self.verbose and print("Set source %s => %s" % (propk, propv))
-                self.source.set_property(propk, propv)
+        for propk, propv in self.usc.imager.source_properties().items():
+            self.verbose and print("Set source %s => %s" % (propk, propv))
+            self.source.set_property(propk, propv)
 
     def link_tee(self, src, dsts, add=0):
         """
@@ -445,8 +422,9 @@ class GstVideoPipeline:
             "Setting up gstreamer pipeline w/ full=%u, roi=%u, tees-r %u, tees-vc %u"
             % (self.overview, self.roi, len(raw_tees), len(vc_tees)))
 
-        if esize is None:
-            esize = self.usj["imager"].get("esize", None)
+        # FIXME: is this needed? seems broken anyway
+        #if esize is None:
+        #    esize = self.usj["imager"].get("esize", None)
         self.prepareSource(esize=esize)
         self.player.add(self.source)
         """
@@ -458,9 +436,11 @@ class GstVideoPipeline:
         update: toupcamsrc failed due to bad config file setting incorrect caps negotation
         """
         self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")
+        # Select the correct resolution from the camera
+        # This is pre-crop so it must be the actual resolution
+        raw_w, raw_h = self.usc.imager.raw_wh()
         self.raw_capsfilter.props.caps = Gst.Caps(
-            "video/x-raw,width=%u,height=%u" %
-            (self.usj["imager"]["width"], self.usj["imager"]["height"]))
+            "video/x-raw,width=%u,height=%u" % (raw_w, raw_h))
         self.player.add(self.raw_capsfilter)
 
         if not self.source.link(self.raw_capsfilter):
@@ -468,9 +448,8 @@ class GstVideoPipeline:
 
         # Hack to use a larger than needed camera sensor
         # Crop out the unused sensor area
-        if "crop" in self.usj["imager"]:
-            crop = self.usj["imager"]["crop"]
-
+        crop = self.usc.imager.crop_tblr()
+        if crop:
             self.videocrop = Gst.ElementFactory.make("videocrop")
             assert self.videocrop
             self.videocrop.set_property("top", crop["top"])
@@ -481,6 +460,7 @@ class GstVideoPipeline:
             self.raw_capsfilter.link(self.videocrop)
             raw_element = self.videocrop
         else:
+            self.videocrop = None
             raw_element = self.raw_capsfilter
 
         # This either will be directly forwarded or put into a queue

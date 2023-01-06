@@ -3,9 +3,11 @@ John McMaster main microscope
 Original "pr0nscope" mk2 BH2 CNC microscope
 */
 {
-    "argus": {
-        "jog_name_widget": "sipr0n",
-    },
+    "app": {
+        "argus": {
+            "jog_name_widget": "sipr0n",
+        },
+    }
     "planner": {
         "border": 0.1,
         "tsettle": 1.2,

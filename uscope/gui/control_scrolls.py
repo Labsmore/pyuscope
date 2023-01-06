@@ -14,22 +14,23 @@ prop_layout = OrderedDict([
 
 
 class DummyGstControlScroll(GstControlScroll):
-    def __init__(self, vidpip, parent=None):
+    def __init__(self, vidpip, usc=None, parent=None):
         GstControlScroll.__init__(self,
                                   vidpip=vidpip,
                                   groups_gst=prop_layout,
+                                  usc=usc,
                                   parent=parent)
 
 
-def get_control_scroll(vidpip, usj):
+def get_control_scroll(vidpip, usc):
     # Need to hide this when not needed
     if vidpip.source_name == "gst-toupcamsrc":
-        return TTControlScroll(vidpip, usj=usj)
+        return TTControlScroll(vidpip, usc=usc)
     elif vidpip.source_name == "gst-v4l2src":
-        return V4L2GstControlScroll(vidpip, usj=usj)
+        return V4L2GstControlScroll(vidpip, usc=usc)
     elif vidpip.source_name == "gst-v4l2src-mu800":
-        return V4L2MU800ControlScroll(vidpip, usj=usj)
+        return V4L2MU800ControlScroll(vidpip, usc=usc)
     else:
         print("WARNING: no control layout for source %s" %
               (vidpip.source_name, ))
-        return DummyGstControlScroll(vidpip, usj=usj)
+        return DummyGstControlScroll(vidpip, usc=usc)

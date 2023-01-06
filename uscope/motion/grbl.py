@@ -448,6 +448,10 @@ class MockGRBLSer(GRBLSer):
             int(os.getenv("GRBLSER_VERBOSE", "0")))
         self.verbose and print("MOCK: opening", port)
         self.serial = None
+        self.poison_threads = False
+
+    def tx(self, out, nl=True):
+        self.verbose and print("MOCK: tx", out)
 
     def txb(self, out):
         self.verbose and print("MOCK: txb", out)
@@ -725,10 +729,11 @@ class GRBL:
 
 
 class GrblHal(MotionHAL):
-    def __init__(self, verbose=None, **kwargs):
-        self.feedrate = None
-        self.grbl = GRBL(verbose=verbose)
+    def __init__(self, verbose=None, port=None, **kwargs):
+        self.grbl = None
         MotionHAL.__init__(self, verbose=verbose, **kwargs)
+        self.feedrate = None
+        self.grbl = GRBL(port=port, verbose=verbose)
 
     def axes(self):
         return {'x', 'y', 'z'}
@@ -749,7 +754,9 @@ class GrblHal(MotionHAL):
         self.grbl.jog(scalars, self.jog_rate)
 
     def stop(self):
-        self.grbl.stop()
+        # May be called during unclean shutdown
+        if self.grbl:
+            self.grbl.stop()
 
 
 def get_grbl(port=None, gs=None, reset=False, verbose=False):

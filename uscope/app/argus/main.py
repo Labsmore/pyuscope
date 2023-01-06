@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main, get_raw_wh
+from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gui.control_scrolls import get_control_scroll
 from uscope.util import add_bool_arg
-from uscope.config import get_usj, cal_load_all
+from uscope.config import get_usj, cal_load_all, USC
 from uscope.img_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
@@ -54,30 +54,6 @@ def error(msg, code=1):
 
 # XXX: maybe UI preferences should be in different config file?
 # need some way to apply preferences while easily pulling in core updates
-
-
-def argus_job_name_widget(usj=None):
-    return usj.get("argus", {}).get("jog_name_widget", "simple")
-
-
-def argus_show_mdi(usj=None):
-    """
-    Should argus GUI show MDI?
-    For advanced users only
-    Bypasses things like gearbox correction
-    """
-    if not usj:
-        usj = get_usj()
-    val = os.getenv("ARGUS_MDI", None)
-    if val is not None:
-        return bool(val)
-    return bool(usj.get("argus", {}).get("mdi", 0))
-
-
-def argus_jog_min(usj=None):
-    return int(usj.get("argus", {}).get("jog_min", 1))
-
-
 """
 GRBL / 3018 stock vlaues
 $110=1000.000
@@ -86,17 +62,58 @@ $112=600.000
 """
 
 
-# FIXME: default should be actual max jog rate
-def argus_jog_max(usj=None):
-    return int(usj.get("argus", {}).get("jog_max", 1000))
+class USCArgus:
+    def __init__(self, j=None):
+        """
+        j: usj["app"]["argus"]
+        """
+        self.j = j
 
+    # FIXME: default should be actual max jog rate
+    def jog_max(self):
+        return int(self.j.get("jog_max", 1000))
 
-def get_out_dir(usj):
-    return usj.get("argus", {}).get("out_dir", "out")
+    def scan_dir(self):
+        """
+        Where scan jobs go
+        Change to "scan"?
+        """
+        return self.j.get("scan_dir", "out")
 
+    def snapshot_dir(self):
+        return self.j.get("snapshot_dir", "snapshot")
 
-def get_snapshot_dir(usj):
-    return usj.get("argus", {}).get("snapshot_dir", "snapshot")
+    def dry_default(self):
+        """
+        Should the dry checkbox be checked:
+        -At startup
+        -After job complete
+        """
+        return self.j.get("dry_default", True)
+
+    def scan_name_widget(self):
+        """
+        simple: file name prefix only (no extension)
+        sipr0n: vendor, chipid, layer enforced
+        """
+        ret = self.j.get("jog_name_widget", "simple")
+        if ret not in ("simple", "sipr0n"):
+            raise ValueError("Bad scan name widget: %s" % (ret, ))
+        return ret
+
+    def show_mdi(self):
+        """
+        Should argus GUI show MDI?
+        For advanced users only
+        Bypasses things like gearbox correction
+        """
+        val = os.getenv("ARGUS_MDI", None)
+        if val is not None:
+            return bool(val)
+        return bool(self.j.get("mdi", 0))
+
+    def jog_min(self):
+        return int(self.j.get("jog_min", 1))
 
 
 class JogListener(QPushButton):
@@ -131,14 +148,14 @@ class JogListener(QPushButton):
 
 
 class JogSlider(QWidget):
-    def __init__(self, usj, parent=None):
+    def __init__(self, usc, parent=None):
         super().__init__(parent=parent)
 
-        self.usj = usj
+        self.usc = usc
 
         # log scaled to slider
-        self.jog_min = argus_jog_min(self.usj)
-        self.jog_max = argus_jog_max(self.usj)
+        self.jog_min = self.usc.app("argus").jog_min()
+        self.jog_max = self.usc.app("argus").jog_max()
         self.jog_cur = None
 
         self.slider_min = 1
@@ -189,9 +206,9 @@ class JogSlider(QWidget):
 
 
 class MotionWidget(QWidget):
-    def __init__(self, motion_thread, usj, parent=None):
+    def __init__(self, motion_thread, usc, parent=None):
         super().__init__(parent=parent)
-        self.usj = usj
+        self.usc = usc
         self.motion_thread = motion_thread
 
         self.axis_map = {
@@ -213,7 +230,7 @@ class MotionWidget(QWidget):
         layout = QVBoxLayout()
         self.listener = JogListener("Jog", self)
         layout.addWidget(self.listener)
-        self.slider = JogSlider(usj=self.usj)
+        self.slider = JogSlider(usc=self.usc)
         layout.addWidget(self.slider)
 
         def move_abs():
@@ -235,7 +252,7 @@ class MotionWidget(QWidget):
         layout.addLayout(move_abs())
 
         self.mdi_le = None
-        if argus_show_mdi(self.usj):
+        if self.usc.app("argus").show_mdi():
             layout.addLayout(mdi())
 
         # XXX: make this a proper signal emitting changed value
@@ -416,9 +433,11 @@ class MainWindow(QMainWindow):
         self.verbose = verbose
         self.showMaximized()
         self.usj = get_usj(name=microscope)
+        self.usc = USC(usj=self.usj)
+        self.usc.app_register("argus", USCArgus)
         self.objective_name_le = None
 
-        self.vidpip = GstVideoPipeline(usj=self.usj,
+        self.vidpip = GstVideoPipeline(usc=self.usc,
                                        overview=True,
                                        overview2=True,
                                        roi=True)
@@ -429,9 +448,9 @@ class MainWindow(QMainWindow):
         # TODO: some pipelines output jpeg directly
         # May need to tweak this
         raw_input = True
-        raw_width, raw_height = get_raw_wh(self.usj)
-        self.capture_sink = CaptureSink(width=raw_width,
-                                        height=raw_height,
+        cropped_width, cropped_height = self.usc.imager.cropped_wh()
+        self.capture_sink = CaptureSink(width=cropped_width,
+                                        height=cropped_height,
                                         raw_input=raw_input)
         assert self.capture_sink
         self.vidpip.player.add(self.capture_sink)
@@ -455,7 +474,7 @@ class MainWindow(QMainWindow):
 
         self.pt = None
         self.log_fd = None
-        hal = get_motion_hal(self.usj, log=self.emit_log)
+        hal = get_motion_hal(usc=self.usc, log=self.emit_log)
         hal.progress = self.hal_progress
         self.motion_thread = MotionThread(hal=hal, cmd_done=self.cmd_done)
         self.motion_thread.log_msg.connect(self.log)
@@ -463,7 +482,7 @@ class MainWindow(QMainWindow):
 
         # Special UI initialization
         # Requires video pipeline already setup
-        self.control_scroll = get_control_scroll(self.vidpip, usj=self.usj)
+        self.control_scroll = get_control_scroll(self.vidpip, usc=self.usc)
         # screws up the original
         self.imagerTabLayout.addWidget(self.vidpip.get_widget("overview2"))
         self.imagerTabLayout.addWidget(self.control_scroll)
@@ -694,7 +713,7 @@ class MainWindow(QMainWindow):
             self.cncProgress.emit(pictures_to_take, pictures_taken, image,
                                   first)
 
-        base_out_dir = get_out_dir(self.usj)
+        base_out_dir = self.usc.app("argus").scan_dir()
         if not dry and not os.path.exists(base_out_dir):
             os.mkdir(base_out_dir)
 
@@ -922,7 +941,7 @@ class MainWindow(QMainWindow):
         self.position_poll_timer = None
         if 1 or self.usj["motion"]["engine"] == "grbl":
             self.motion_widget = MotionWidget(motion_thread=self.motion_thread,
-                                              usj=self.usj)
+                                              usc=self.usc)
             layout.addWidget(self.motion_widget)
 
             self.position_poll_timer = QTimer()
@@ -936,7 +955,7 @@ class MainWindow(QMainWindow):
         gb = QGroupBox('Snapshot')
         layout = QGridLayout()
 
-        snapshot_dir = get_snapshot_dir(self.usj)
+        snapshot_dir = self.usc.app("argus").snapshot_dir()
         if not os.path.isdir(snapshot_dir):
             self.log('Snapshot dir %s does not exist' % snapshot_dir)
             if os.path.exists(snapshot_dir):
@@ -995,8 +1014,9 @@ class MainWindow(QMainWindow):
             mod_str = ''
             if mod:
                 mod_str = '_%u' % mod
-            fn_full = os.path.join(get_snapshot_dir(self.usj),
-                                   prefix + user + mod_str + extension)
+            fn_full = os.path.join(
+                self.usc.app("argus").snapshot_dir(),
+                prefix + user + mod_str + extension)
             if os.path.exists(fn_full):
                 if mod is None:
                     mod = 1
@@ -1046,7 +1066,7 @@ class MainWindow(QMainWindow):
 
             layout.addWidget(QLabel('Dry?'))
             self.dry_cb = QCheckBox()
-            self.dry_cb.setChecked(self.usj.get("motion", {}).get("dry", True))
+            self.dry_cb.setChecked(self.usc.app("argus").dry_default())
             layout.addWidget(self.dry_cb)
 
             self.pb = QProgressBar()
@@ -1054,8 +1074,8 @@ class MainWindow(QMainWindow):
 
             return layout
 
-        def getJobNameWidget():
-            name = argus_job_name_widget(usj=self.usj)
+        def getScanNameWidget():
+            name = self.usc.app("argus").scan_name_widget()
             if name == "simple":
                 return SimpleNameWidget()
             elif name == "sipr0n":
@@ -1064,8 +1084,8 @@ class MainWindow(QMainWindow):
                 raise ValueError(name)
 
         layout = QVBoxLayout()
-        gb = QGroupBox('Scan')
-        self.jobName = getJobNameWidget()
+        gb = QGroupBox("Scan")
+        self.jobName = getScanNameWidget()
         layout.addWidget(self.jobName)
         layout.addLayout(getProgressLayout())
         gb.setLayout(layout)

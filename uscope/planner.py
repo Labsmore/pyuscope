@@ -20,6 +20,7 @@ import threading
 import time
 
 from uscope.motion.hal import DryHal
+from uscope.config import USCMotion
 
 
 def drange(start, stop, step, inclusive=False):
@@ -339,7 +340,7 @@ class Planner(object):
         mm_per_pix = x_mm / image_wh[0]
         image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
 
-        backlash = self.pconfig.get("motion", {}).get("backlash", 0.0)
+        backlash = USCMotion(j=self.pconfig.get("motion", {})).backlash()
 
         self.axes = OrderedDict([
             ('x',
@@ -349,7 +350,7 @@ class Planner(object):
                          image_wh[0],
                          start[0],
                          end[0],
-                         backlash=backlash,
+                         backlash=backlash["x"],
                          log=self.log)),
             ('y',
              PlannerAxis('Y',
@@ -358,7 +359,7 @@ class Planner(object):
                          image_wh[1],
                          start[1],
                          end[1],
-                         backlash=backlash,
+                         backlash=backlash["y"],
                          log=self.log)),
         ])
         self.x = self.axes['x']

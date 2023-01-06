@@ -178,4 +178,7 @@ However, I've been using this workflow for years now, and will probably continue
   * Config: add imager.crop
    * Use an oversized sensor by cropping it down
   * Add lip-m1-beta support
+  * Backlash can be specified per axis
+   * Intended to support XY vs Z
+  * Config interface cleaned up
   * Reduce verbosity

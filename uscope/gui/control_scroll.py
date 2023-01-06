@@ -11,9 +11,11 @@ from uscope import config
 
 
 class ImagerControlScroll(QScrollArea):
-    def __init__(self, groups, usj, verbose=False, parent=None):
+    def __init__(self, groups, usc, verbose=False, parent=None):
         QScrollArea.__init__(self, parent=parent)
-        #self.usj = usj
+        if usc is None:
+            usc = config.get_usc()
+        self.usc = usc
         self.verbose = verbose
 
         self.verbose and print("init", groups)
@@ -82,9 +84,10 @@ class ImagerControlScroll(QScrollArea):
                 except ValueError:
                     pass
                 else:
-                    self.verbose and print('%s (%s) req => %d, allowed %d' %
-                          (prop["disp_name"], prop["prop_name"], val,
-                           prop["push_gui"]))
+                    self.verbose and print(
+                        '%s (%s) req => %d, allowed %d' %
+                        (prop["disp_name"], prop["prop_name"], val,
+                         prop["push_gui"]))
                     assert type(prop["push_gui"]) is bool
                     if prop["push_gui"]:
                         self.raw_prop_write(prop["prop_name"], val)
@@ -112,8 +115,8 @@ class ImagerControlScroll(QScrollArea):
         def gui_changed(prop):
             def f(val):
                 self.verbose and print('%s (%s) req => %d, allowed %d' %
-                      (prop["disp_name"], prop["prop_name"], val,
-                       prop["push_gui"]))
+                                       (prop["disp_name"], prop["prop_name"],
+                                        val, prop["push_gui"]))
                 if prop["push_gui"]:
                     self.raw_prop_write(prop["prop_name"], val)
 
@@ -180,8 +183,9 @@ class ImagerControlScroll(QScrollArea):
         range_str = ""
         if "min" in prop:
             range_str = ", range %s to %s" % (prop["min"], prop["max"])
-        self.verbose and print("add disp %s prop %s, type %s, default %s%s" %
-              (disp_name, prop_name, prop["type"], prop["default"], range_str))
+        self.verbose and print(
+            "add disp %s prop %s, type %s, default %s%s" %
+            (disp_name, prop_name, prop["type"], prop["default"], range_str))
 
         if prop["type"] == "int":
             row = self._assemble_int(prop, layoutg, row)
@@ -320,7 +324,7 @@ Had these in the class but really fragile pre-init
 """
 
 
-def template_property(vidpip, usj, prop_entry):
+def template_property(vidpip, usc, prop_entry):
     if type(prop_entry) == str:
         prop_name = prop_entry
         defaults = {}
@@ -338,9 +342,8 @@ def template_property(vidpip, usj, prop_entry):
     if ps.value_type.name == "gint":
 
         def override(which, default):
-            if not usj:
+            if not usc:
                 return default
-            imager = usj["imager"]
             """
             Ex:
             prop_name: expotime
@@ -353,7 +356,7 @@ def template_property(vidpip, usj, prop_entry):
                 },
             },
             """
-            spm = imager.get("source_properties_mod")
+            spm = usc.imager.source_properties_mod()
             if not spm:
                 return default
             pconfig = spm.get(prop_name)
@@ -375,7 +378,7 @@ def template_property(vidpip, usj, prop_entry):
     return ret
 
 
-def flatten_groups(vidpip, groups_gst, usj):
+def flatten_groups(vidpip, groups_gst, usc):
     """
     Convert a high level gst property description to something usable by widget API
     """
@@ -385,7 +388,7 @@ def flatten_groups(vidpip, groups_gst, usj):
         for prop_entry in gst_properties:
             val = template_property(vidpip=vidpip,
                                     prop_entry=prop_entry,
-                                    usj=usj)
+                                    usc=usc)
             # NOTE: added source_properties_mod. Maybe leave this at actual max?
             # Log scale would also work well
             if val["prop_name"] == "expotime":
@@ -405,11 +408,11 @@ class GstControlScroll(ImagerControlScroll):
     """
     Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
     """
-    def __init__(self, vidpip, groups_gst, usj, parent=None):
-        groups = flatten_groups(vidpip=vidpip, groups_gst=groups_gst, usj=usj)
+    def __init__(self, vidpip, groups_gst, usc, parent=None):
+        groups = flatten_groups(vidpip=vidpip, groups_gst=groups_gst, usc=usc)
         ImagerControlScroll.__init__(self,
                                      groups=groups,
-                                     usj=usj,
+                                     usc=usc,
                                      parent=parent)
         self.vidpip = vidpip
 

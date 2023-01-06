@@ -32,6 +32,10 @@ MotionHAL is not thread safe with exception of the following:
 
 class MotionHAL:
     def __init__(self, scalars=None, soft_limits=None, log=None, verbose=None):
+        # Per axis? Currently is global
+        self.jog_rate = 0
+        self.stop_on_del = True
+
         self.scalars = scalars
         # dict containing (min, min) for each axis
         self.soft_limits = soft_limits
@@ -53,9 +57,6 @@ class MotionHAL:
         self.progress = lambda pos: None
 
         self.mv_lastt = time.time()
-        # Per axis? Currently is global
-        self.jog_rate = 0
-        self.stop_on_del = True
 
     def __del__(self):
         # Most users want system to idle if they lose control

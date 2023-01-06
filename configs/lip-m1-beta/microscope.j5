@@ -1,0 +1,142 @@
+/*
+*/
+{
+    "planner": {
+        //"border": 0.1,
+        "tsettle": 1.2,
+    },
+    /*
+    Sherline
+    https://www.sherline.com/product/2000-cnc2010-cnc-cnc-ready-deluxe-8-direction-mill/#specifications
+    Travel, “X” Axis	8.65″ (220 mm)
+        XXX: large table installed
+    Travel, “Y” Axis	7.00″ (178 mm)
+    Travel, “Z” Axis	5.38″ (137 mm)
+
+    X/Y/Z: 1 mm leadscrews
+    Z: 5:1 gearbox
+
+    Original GRBL pitch?
+    T8 leadscrew => 4 mm
+    This should be 1 mm => need to move 4x as far to get the same movement
+    */
+    "motion": {
+        "hal": "grbl-ser",
+        //FIXME: what is the actual value?
+        "backlash": 1.0,
+        "scalars": {
+            //4 mm => 1 mm pitch
+            "x": 4.0,
+            //4 mm => 1 mm pitch
+            "y": 4.0,
+            //4 mm => 1 mm pitch, add 5x gearbox
+            "z": 20.0,
+        },
+        //Currently enforced via MotionHAL
+        //Eventually via limits in GRBL controller and/or homing switches
+        "!soft_limits": {
+            "xmax": 220.0,
+            "ymax": 178.0,
+            "zmax": 137.0,
+        },
+    },
+
+    //camera is buggy :(
+    //E3ISPM25000KPA => 1/2.3 “ (5.519x5.519)
+    /*
+    Config:
+    -1X relay tube lens
+    -Zoom knob at 2.0
+
+		{
+			"name":"Mitutoyo Apo 5X",
+			"suffix": "mit5x2",
+			"scalar": 0.5,
+			"x_view": 1.1
+		},
+    */
+    "!imager": {
+        "source":"gst-toupcamsrc",
+        "width": 4928,
+        "height": 4928,
+        "source_properties": {
+            "esize": 0
+        },
+        "scalar": 0.5,
+    },
+
+    //E3ISPM20000KPA => 1 “(13.06x8.76)
+    //A much larger sensor, too large for this microscope
+    //zoom knob at max (4.5)
+    "imager": {
+        "source":"gst-toupcamsrc",
+		"width": 5440,
+		"height": 3648,
+        "source_properties": {
+            "esize": 0
+        },
+        "source_properties_mod": {
+            //In us. Can go up to 15 sec which is impractical for typical usage
+            "expotime": {
+                "max": 200000
+            },
+        },
+        "scalar": 0.5,
+        /*
+        Original intended camera is buggy
+        Work around by using a well vetted larger camera sensor but ignore the unused sensor area
+
+
+		width 5440
+		height: 3648
+		taking about 2k off of width makes almost right
+		(5440 - 3648) / 2 = 896 for square sensor
+		./test/imager/full.py --gst-source toupcamsrc --toupcamsrc-esize 0 --gst-wh 5440,3648 --gst-crop 0,0,896,896
+		very slightly cropping
+		./test/imager/full.py --gst-source toupcamsrc --toupcamsrc-esize 0 --gst-wh 5440,3648 --gst-crop 100,100,996,996
+		think this is ok
+		./test/imager/full.py --gst-source toupcamsrc --toupcamsrc-esize 0 --gst-wh 5440,3648 --gst-crop 150,150,1046,1046
+		add some margin
+		./test/imager/full.py --gst-source toupcamsrc --toupcamsrc-esize 0 --gst-wh 5440,3648 --gst-crop 200,200,1096,1096
+            width 5440 - 1096 - 1096 = 3248
+            height: 3648 - 200 -200 = 3248
+            3248 x 3248 => 10.5 MP effective sensor
+
+		we should also do another run aligning it
+        */
+        "crop": {
+            "top": 200,
+            "bottom": 200,
+            "left": 1096,
+            "right": 1096,
+        },
+    },
+
+
+    /*
+    Config:
+    -1X relay tube lens
+    -Zoom knob at 2.0
+    */
+    "objectives": [
+		{
+			"name":"Mitutoyo Apo 5X",
+			"suffix": "mit5x2",
+			"scalar": 0.5,
+			"x_view": 1.0
+		},
+		{
+			"name":"Mitutoyo Apo 10X",
+			"suffix": "mit10x2",
+			"scalar": 0.5,
+			"x_view": 0.5
+		},
+		{
+			"name":"Mitutoyo Apo 20X",
+			"suffix": "mit20x2",
+			"scalar": 0.5,
+			"x_view": 0.25
+		},
+   ]
+}
+

@@ -3,6 +3,7 @@ import inspect
 import os
 import shutil
 import sys
+import json5
 import json
 import glob
 import errno
@@ -215,7 +216,7 @@ def printj(j):
 
 
 def readj(fn):
-    return json.load(open(fn, "r"))
+    return json5.load(open(fn, "r"))
 
 
 def default_date_dir(root, prefix, postfix):

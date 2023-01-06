@@ -47,6 +47,11 @@ Supported movement sources:
   * linuxcnc
   * Others, but they aren't well maintained
 
+# Quick start touptek
+
+Start by installing https://github.com/JohnDMcMaster/gst-plugin-toupcam
+
+
 # Quick start V4L2
 
 ```

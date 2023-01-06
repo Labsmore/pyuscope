@@ -1,3 +1,7 @@
+/*
+For Ryan C
+very similar to "pr0nscope" mk2 original BH2 CNC microscope
+*/
 {
     "argus": {
         "jog_name_widget": "sipr0n",
@@ -20,7 +24,7 @@
         These appear to be 1 mm pitch
         */
         "scalars": {
-            "x": -4.0,
+            "x": -2.5,
             "y": -4.0,
         },
         //FIXME: once calibrated

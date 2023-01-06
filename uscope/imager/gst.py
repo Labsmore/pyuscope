@@ -173,6 +173,7 @@ def gst_add_args(parser):
     parser.add_argument("--gst-source",
                         default="videotestsrc",
                         help="videotestsrc, v4l2src, toupcamsrc")
+    parser.add_argument("--gst-crop", default="", help="top,bottom,left,right")
 
 
 def gstcliimager_args_to_usj(args):
@@ -211,6 +212,14 @@ def gstcliimager_args_to_usj(args):
     imager["source"] = "gst-" + args["gst_source"]
     w, h = args["gst_wh"].split(",")
     imager["width"], imager["height"] = int(w), int(h)
+    if args["gst_crop"]:
+        top, bottom, left, right = args["gst_crop"].split(",")
+        imager["crop"] = {
+            "top": int(top),
+            "bottom": int(bottom),
+            "left": int(left),
+            "right": int(right),
+        }
     if imager["source"] == "gst-v4l2src":
         imager["source_properties"]["device"] = args["v4l2src_device"]
     if imager["source"] == "gst-toupcamsrc":

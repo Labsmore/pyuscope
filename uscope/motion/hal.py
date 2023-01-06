@@ -154,7 +154,8 @@ class MotionHAL:
     def validate_axes(self, axes):
         for axis in axes:
             if axis not in self.axes():
-                raise ValueError("Got axis %s but expect axis in %s" % (axis, self.axes()))
+                raise ValueError("Got axis %s but expect axis in %s" %
+                                 (axis, self.axes()))
 
     def jog(self, scalars):
         """

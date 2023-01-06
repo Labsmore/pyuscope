@@ -89,6 +89,7 @@ class GstVideoPipeline:
         assert self.usj, "required"
         self.source = None
         self.source_name = None
+        self.verbose = os.getenv("USCOPE_GSTWIDGET_VERBOSE") == "Y"
 
         # x buffer target
         self.overview = overview
@@ -134,19 +135,27 @@ class GstVideoPipeline:
         # TODO: auto calc these or something better
         self.camw = self.usj["imager"]["width"]
         self.camh = self.usj["imager"]["height"]
+        # Input image may be cropped
+        self.raww = self.camw
+        self.rawh = self.camh
 
         # Must not be initialized until after layout is set
         source = self.usj["imager"].get("source", "auto")
         if source == "auto":
             source = auto_detect_source()
         self.source_name = source
-        print("vidpip source %s" % source)
+        self.verbose and print("vidpip source %s" % source)
 
         # Usable area, not total area
         # XXX: probably should maximize window and take window size
-        self.screenw = 1920
-        self.screenh = 900
+        self.widget_w = 1920
+        self.widget_h = 900
         self.roi_zoom = 1
+
+        if "crop" in self.usj["imager"]:
+            crop = self.usj["imager"]["crop"]
+            self.raww = self.camw - crop["left"] - crop["right"]
+            self.rawh = self.camh - crop["top"] - crop["bottom"]
 
         if not nwidgets_wide:
             nwidgets_wide = 2 if self.overview and self.roi else 1
@@ -171,23 +180,25 @@ class GstVideoPipeline:
         w/h: total canvas area available for all widgets we need to create
         """
 
-        print("size_widgets(w=%s, h=%s, frac=%s)" % (w, h, frac))
+        self.verbose and print("size_widgets(w=%s, h=%s, frac=%s)" %
+                               (w, h, frac))
         if frac:
             sw, sh = screen_wh()
             w = int(sw * frac)
             h = int(sh * frac)
         if w:
-            self.screenw = w
+            self.widget_w = w
         if h:
-            self.screenh = h
+            self.widget_h = h
 
         assert self.overview or self.roi
-        w, h, ratio = self.fit_pix(self.camw * self.nwidgets_wide, self.camh)
+        w, h, ratio = self.fit_pix(self.raww * self.nwidgets_wide, self.rawh)
         w = w / self.nwidgets_wide
         w = int(w)
         h = int(h)
-        print("%u widgets, cam %uw x %uh => xwidget %uw x %uh %ur" %
-              (self.nwidgets_wide, self.camw, self.camh, w, h, ratio))
+        self.verbose and print(
+            "%u widgets, cam %uw x %uh => xwidget %uw x %uh %ur" %
+            (self.nwidgets_wide, self.raww, self.rawh, w, h, ratio))
 
         self.overview_widget_ratio = ratio
 
@@ -207,7 +218,7 @@ class GstVideoPipeline:
 
     def fit_pix(self, w, h):
         ratio = 1
-        while w > self.screenw or h > self.screenh:
+        while w > self.widget_w or h > self.widget_h:
             w = w / 2
             h = h / 2
             ratio *= 2
@@ -231,30 +242,32 @@ class GstVideoPipeline:
         self.roi_videocrop.set_property("right", 1224)
         """
         ratio = self.overview_widget_ratio * self.roi_zoom
-        keepw = self.camw // ratio
-        keeph = self.camh // ratio
-        print("crop ratio %u => %u, %uw x %uh" %
-              (self.overview_widget_ratio, ratio, keepw, keeph))
+        keepw = self.raww // ratio
+        keeph = self.rawh // ratio
+        self.verbose and print(
+            "crop ratio %u => %u, %uw x %uh" %
+            (self.overview_widget_ratio, ratio, keepw, keeph))
 
         # Divide remaining pixels between left and right
-        left = right = (self.camw - keepw) // 2
-        top = bottom = (self.camh - keeph) // 2
+        left = right = (self.raww - keepw) // 2
+        top = bottom = (self.rawh - keeph) // 2
         border = 1
         wigdata["videocrop"].set_property("top", top - border)
         wigdata["videocrop"].set_property("bottom", bottom - border)
         wigdata["videocrop"].set_property("left", left - border)
         wigdata["videocrop"].set_property("right", right - border)
 
-        finalw = self.camw - left - right
-        finalh = self.camh - top - bottom
-        print("crop: %u l %u r => %u w" % (left, right, finalw))
-        print("crop: %u t %u b => %u h" % (top, bottom, finalh))
-        print("crop image ratio: %0.3f" % (finalw / finalh, ))
-        print("cam image ratio: %0.3f" % (self.camw / self.camh, ))
-        print(
-            "cam %uw x %uh %0.1fr => crop (x2) %uw x %uh => %uw x %uh %0.1fr" %
-            (self.camw, self.camh, self.camw / self.camh, left, top, finalw,
-             finalh, finalw / finalh))
+        finalw = self.raww - left - right
+        finalh = self.rawh - top - bottom
+        if self.verbose:
+            print("crop: %u l %u r => %u w" % (left, right, finalw))
+            print("crop: %u t %u b => %u h" % (top, bottom, finalh))
+            print("crop image ratio: %0.3f" % (finalw / finalh, ))
+            print("cam image ratio: %0.3f" % (self.raww / self.rawh, ))
+            print(
+                "cam %uw x %uh %0.1fr => crop (x2) %uw x %uh => %uw x %uh %0.1fr"
+                % (self.raww, self.rawh, self.raww / self.rawh, left, top,
+                   finalw, finalh, finalw / finalh))
         # assert 0, self.roi_zoom
 
     def setupWidgets(self, parent=None):
@@ -281,7 +294,7 @@ class GstVideoPipeline:
             if esize is not None:
                 self.source.set_property("esize", esize)
         elif self.source_name == 'gst-videotestsrc':
-            print('WARNING: using test source')
+            self.verbose and print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)
         else:
             raise Exception('Unknown source %s' % (self.source_name, ))
@@ -289,7 +302,7 @@ class GstVideoPipeline:
         if self.usj:
             properties = self.usj["imager"].get("source_properties", {})
             for propk, propv in properties.items():
-                print("Set source %s => %s" % (propk, propv))
+                self.verbose and print("Set source %s => %s" % (propk, propv))
                 self.source.set_property(propk, propv)
 
     def link_tee(self, src, dsts, add=0):
@@ -302,18 +315,19 @@ class GstVideoPipeline:
         """
 
         assert len(dsts) > 0, "Can't create tee with no sink elements"
-        print(dsts)
 
         if len(dsts) == 1:
             dst = dsts[0]
             if add:
+                # XXX: why isn't this a fatal error?
                 try:
                     self.player.add(dst)
                 except gi.overrides.Gst.AddError:
                     pass
                     print("WARNING: failed to add %s" % (dst, ))
+                    raise
             src.link(dst)
-            print("tee simple link %s => %s" % (src, dst))
+            self.verbose and print("tee simple link %s => %s" % (src, dst))
         else:
             tee = Gst.ElementFactory.make("tee")
             self.player.add(tee)
@@ -326,17 +340,20 @@ class GstVideoPipeline:
                 self.player.add(queue)
                 assert tee.link(queue)
                 if add:
+                    # XXX: why isn't this a fatal error?
                     try:
                         self.player.add(dst)
                     except gi.overrides.Gst.AddError:
                         pass
                         print("WARNING: failed to add %s" % (dst, ))
+                        raise
+                # XXX: why isn't this a fatal error?
                 try:
                     assert queue.link(dst)
                 except:
                     print("Failed to link %s => %s" % (src, dst))
                     raise
-                print("tee queue link %s => %s" % (src, dst))
+                self.verbose and print("tee queue link %s => %s" % (src, dst))
 
     def wigdata_create(self, src_tee, wigdata):
         if wigdata["type"] == "overview":
@@ -410,7 +427,7 @@ class GstVideoPipeline:
         if vc_tees is None:
             vc_tees = []
 
-        print(
+        self.verbose and print(
             "Setting up gstreamer pipeline w/ full=%u, roi=%u, tees-r %u, tees-vc %u"
             % (self.overview, self.roi, len(raw_tees), len(vc_tees)))
 
@@ -434,7 +451,23 @@ class GstVideoPipeline:
 
         if not self.source.link(self.raw_capsfilter):
             raise RuntimeError("Couldn't set capabilities on the source")
-        raw_element = self.raw_capsfilter
+
+        # Hack to use a larger than needed camera sensor
+        # Crop out the unused sensor area
+        if "crop" in self.usj["imager"]:
+            crop = self.usj["imager"]["crop"]
+
+            self.videocrop = Gst.ElementFactory.make("videocrop")
+            assert self.videocrop
+            self.videocrop.set_property("top", crop["top"])
+            self.videocrop.set_property("bottom", crop["bottom"])
+            self.videocrop.set_property("left", crop["left"])
+            self.videocrop.set_property("right", crop["right"])
+            self.player.add(self.videocrop)
+            self.raw_capsfilter.link(self.videocrop)
+            raw_element = self.videocrop
+        else:
+            raw_element = self.raw_capsfilter
 
         # This either will be directly forwarded or put into a queue
         self.videoconvert = Gst.ElementFactory.make('videoconvert')
@@ -446,13 +479,13 @@ class GstVideoPipeline:
             self.wigdata_create(our_vc_tees, wigdata)
 
         # Note at least one vc tee is garaunteed (either full or roi)
-        print("Link raw...")
+        self.verbose and print("Link raw...")
         raw_tees = [self.videoconvert] + raw_tees
         self.link_tee(raw_element, raw_tees)
 
-        print("Link vc...")
-        print("our", our_vc_tees)
-        print("their", vc_tees)
+        self.verbose and print("Link vc...")
+        self.verbose and print("  our", our_vc_tees)
+        self.verbose and print("  their", vc_tees)
         vc_tees = our_vc_tees + vc_tees
         self.link_tee(self.videoconvert, vc_tees)
 
@@ -475,7 +508,7 @@ class GstVideoPipeline:
             wigdata["winid"] = wigdata["widget"].winId()
             assert wigdata["winid"], "Need widget_winid by run"
 
-        print("Starting gstreamer pipeline")
+        self.verbose and print("Starting gstreamer pipeline")
         self.player.set_state(Gst.State.PLAYING)
         if self.source_name == 'gst-toupcamsrc':
             assert self.source.get_property(

@@ -3,6 +3,7 @@ from PIL import Image
 import io
 import threading
 import traceback
+import subprocess
 
 import gi
 

@@ -49,7 +49,11 @@ Supported movement sources:
 
 # Quick start touptek
 
-Start by installing https://github.com/JohnDMcMaster/gst-plugin-toupcam
+FIXME: clean up instructions
+
+You might be able to run this to get a turnkey setup: ./configs/lip-a1/setup_ubuntu_20.04.sh
+
+Otherwise start by installing https://github.com/JohnDMcMaster/gst-plugin-toupcam
 
 
 # Quick start V4L2

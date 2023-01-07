@@ -29,7 +29,7 @@
             //raw about 0.011
             "y": 0.025,
             //raw about 0.115
-            "y": 0.250,
+            "z": 0.250,
         },
         "scalars": {
             //4 mm => 1 mm pitch

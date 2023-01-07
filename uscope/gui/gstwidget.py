@@ -58,6 +58,37 @@ else:
         return int(width), int(height)
 
 
+"""
+The widget used to render a sinkx winId
+"""
+
+
+class SinkxWidget(QWidget):
+    '''
+    https://github.com/Labsmore/pyuscope/issues/34
+    neither of these got called
+    however setUpdatesEnabled(False) seems to have been enough
+
+    def eventFilter(self, obj, event):
+        """
+        Repaint gets requested as GUI updates
+        However only x can repaint the widget
+        This results in flickering
+        Ignore paint events to keep the old data
+        """
+        print("SinkxWidget: eventFilter()")
+        if event.type() == QEvent.Paint:
+            print("SinkxWidget: skip paint")
+            return True
+
+        return super().eventFilter(obj, event)
+
+    def paintEvent(self, event):
+        print("SinkxWidget: paintEvent()")
+        pass
+    '''
+
+
 class GstVideoPipeline:
     """
     Integrates Qt widgets + gstreamer pipelines for easy setup
@@ -266,12 +297,15 @@ class GstVideoPipeline:
     def setupWidgets(self, parent=None):
         for wigdata in self.wigdatas.values():
             # Raw X-windows canvas
-            wigdata["widget"] = QWidget(parent=parent)
+            wigdata["widget"] = SinkxWidget(parent=parent)
             wigdata["widget"].setMinimumSize(wigdata["width"],
                                              wigdata["height"])
             wigdata["widget"].resize(wigdata["width"], wigdata["height"])
             policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             wigdata["widget"].setSizePolicy(policy)
+            # https://github.com/Labsmore/pyuscope/issues/34
+            # Let x-windows render directly, a clear here will cause flicker
+            wigdata["widget"].setUpdatesEnabled(False)
 
     def prepareSource(self, esize=None):
         # Must not be initialized until after layout is set

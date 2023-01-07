@@ -546,7 +546,8 @@ class MainWindow(QMainWindow):
         # merge them together?
         if not self.pt:
             self.motion_thread.update_pos_cache()
-        self.position_poll_timer.start(400)
+        # 400 => 100: allow more frequent updates now that flicker issue is solved
+        self.position_poll_timer.start(100)
 
     def update_pos(self, pos):
         # FIXME: this is causing screen flickering

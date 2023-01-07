@@ -342,7 +342,19 @@ class Planner(object):
         mm_per_pix = x_mm / image_wh[0]
         image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
 
-        backlash = USCMotion(j=self.pconfig.get("motion", {})).backlash()
+        motionj = self.pconfig.get("motion", {})
+        backlash = USCMotion(j=motionj).backlash()
+        """
+        +1: do a negative move before a positive move
+        0: no compensation
+        -1: do a positive move before a negative move
+
+        True => 1 => negative move before positive
+        """
+        self.backlash_compensate = self.pconfig.get("backlash_compensate", 0)
+        if self.backlash_compensate:
+            self.backlash_compensate = int(self.backlash_compensate) // abs(
+                int(self.backlash_compensate))
 
         self.axes = OrderedDict([
             ('x',
@@ -420,6 +432,7 @@ class Planner(object):
         self.xy_imgs = 0
 
         self.img_ext = '.jpg'
+        self.tsettle = self.pconfig.get("tsettle", 0.0)
 
     def check_running(self):
         if not self.running:
@@ -511,7 +524,7 @@ class Planner(object):
                 image.save(fn_full)
 
         if not self.dry:
-            time.sleep(self.pconfig.get("tsettle", 0.0))
+            time.sleep(self.tsettle)
         self.motion.settle()
         if not self.dry:
             if self.imager.remote():
@@ -527,8 +540,18 @@ class Planner(object):
                         save(image, fn_base + "_" + k, self.img_ext)
         self.all_imgs += 1
 
+    def move_absolute(self, pos):
+        if self.backlash_compensate:
+            # TODO: only do these moves if they are significant
+            bpos = {}
+            for k in pos.keys():
+                bpos[k] = -self.backlash_compensate * self.axes[k].backlash
+            self.motion.move_relative(pos)
+        self.motion.move_absolute(pos)
+
     def take_pictures(self):
         if self.num_stack:
+            assert 0, "FIXME"
             n = self.num_stack
             if n % 2 != 1:
                 raise Exception('Center stacking requires odd n')
@@ -663,6 +686,14 @@ class Planner(object):
             "  Pixel counts are for final scaled image as written to disk")
 
         self.imager.log_planner_header(self.log)
+        self.comment("Focus stacking")
+        self.comment("  Images: %s" % self.num_stack)
+        # the math seems off here. Disabled for now / needs cleanup
+        # self.comment("  Z step: %s" % self.stack_step_size)
+        self.comment("Full backlash compensation: %d" %
+                     self.backlash_compensate)
+        self.comment("Output extension: %s" % self.img_ext)
+        self.comment("tsettle: %0.2f" % self.tsettle)
 
         # imgr_mp = self.imager.wh()[0] * self.imager.wh()[1] / 1.e6
         # imagr_mp = self.x.view_pixels * self.y.view_pixels
@@ -852,6 +883,10 @@ class Planner(object):
 
     def move_absolute_backlash(self, move_to):
         '''Do an absolute move with backlash compensation'''
+        if self.backlash_compensate:
+            self.move_absolute(move_to)
+            return
+
         def fmt_axis(c):
             if c in move_to:
                 self.max_move[c] = max(self.max_move[c], move_to[c])

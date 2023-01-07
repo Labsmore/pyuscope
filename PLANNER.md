@@ -49,7 +49,10 @@ List of parameters
     * start: return to start coordinate (default)
   * motion
     * backlash: how much is requires to compensate for consistent motion
-       * Currently all axes are assumed the same backlash
+       * Can be a single number to apply to all or a dict of axes
+    * backlash_compensate: whether all moves should be backlash compensated
+       * Default: False
+       * By default a serpintine is done but will have backlash
     * origin: where row 0, column 0 is on the image plane
       * Background: image coordinates tend to be upper left, but CNC machines lower left origin
       * Options:

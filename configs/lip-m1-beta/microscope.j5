@@ -4,6 +4,7 @@
     "planner": {
         //"border": 0.1,
         "tsettle": 1.2,
+        "backlash_compensate": 1,
     },
     /*
     Sherline

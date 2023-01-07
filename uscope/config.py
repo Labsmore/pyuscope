@@ -220,6 +220,9 @@ class USCImager:
         """
         return self.j.get("source_properties_mod", {})
 
+    def scalar(self):
+        return float(self.j.get("scalar", 1.0))
+
 
 class USCPlanner:
     def __init__(self, j=None):
@@ -252,6 +255,12 @@ class USCMotion:
         # Usually this is a reasonable approximation
         # Dict to reserve for future metadata if needed
         self.axes_meta = OrderedDict([("x", {}), ("y", {}), ("z", {})])
+        # hmm pconfig tries to overlay on USCMotion
+        # not a good idea?
+        # assert "hal" in self.j
+
+    def hal(self):
+        return self.j["hal"]
 
     def set_axes_meta(self, axes_meta):
         """
@@ -287,6 +296,11 @@ class USCMotion:
             if k not in self.axes_meta:
                 raise ValueError("Unexpected axis %s in motion config" % (k, ))
 
+        return ret
+
+    def origin(self):
+        ret = self.j.get("origin", "ll")
+        assert ret in ("ll", "ul"), "Invalid coordinate origin"
         return ret
 
 

@@ -895,6 +895,8 @@ def microscope_to_planner(usj, objective=None, objectivei=None, contour=None):
     if v:
         ret["imager"]["scalar"] = float(v)
 
+    # ret["motion"]["hal"] = usj["motion"].get("hal")
+
     v = usj["motion"].get("origin")
     if v:
         ret["motion"]["origin"] = v

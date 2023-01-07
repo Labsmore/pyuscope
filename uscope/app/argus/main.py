@@ -582,8 +582,7 @@ class MainWindow(QMainWindow):
         self.obj_config = self.usj['objectives'][self.obj_configi]
         self.log('Selected objective %s' % self.obj_config['name'])
 
-        im_w_pix = int(self.usj['imager']['width'])
-        im_h_pix = int(self.usj['imager']['height'])
+        im_w_pix, im_h_pix = self.usc.imager.cropped_wh()
         im_w_um = self.obj_config["x_view"]
         im_h_um = im_w_um * im_h_pix / im_w_pix
         self.obj_view.setText('View : %0.3fx %0.3fy' % (im_w_um, im_h_um))
@@ -790,8 +789,10 @@ class MainWindow(QMainWindow):
         self.pt.start()
 
     def get_hdr(self):
+        # FIXME
+        return None
         hdr = None
-        source = self.usj["imager"]["source"]
+        source = self.imager.source()
         cal = cal_load_all(source)
         if cal:
             hdr = cal.get("hdr", None)
@@ -867,8 +868,8 @@ class MainWindow(QMainWindow):
         pos = self.motion_thread.pos_cache
         #self.log("Updating end pos from %s" % (str(pos)))
         x_view = self.obj_config["x_view"]
-        y_view = 1.0 * x_view * self.usj['imager']['height'] / self.usj[
-            'imager']['width']
+        im_w_pix, im_h_pix = self.usc.imager.cropped_wh()
+        y_view = 1.0 * x_view * im_h_pix / im_w_pix
         x1 = pos['x'] + x_view
         y1 = pos['y'] + y_view
         self.plan_x1_le.setText('%0.3f' % x1)
@@ -908,12 +909,10 @@ class MainWindow(QMainWindow):
             self.axis_pos_label['z'] = label
             row += 1
 
-            self.origin = self.usj["motion"].get("origin", "ll")
-            assert self.origin in ("ll", "ul"), "Invalid coordinate origin"
             start_label, end_label = {
                 "ll": ("Lower left", "Upper right"),
                 "ul": ("Upper left", "Lower right"),
-            }[self.origin]
+            }[self.usc.motion.origin()]
 
             self.plan_start_pb = QPushButton(start_label)
             self.plan_start_pb.clicked.connect(self.set_start_pos)
@@ -939,7 +938,9 @@ class MainWindow(QMainWindow):
         layout.addLayout(top())
         self.motion_widget = None
         self.position_poll_timer = None
-        if 1 or self.usj["motion"]["engine"] == "grbl":
+        assert self.usc.motion.hal() == "grbl-ser", ("FIXME",
+                                                     self.usc.motion.hal())
+        if self.usc.motion.hal() == "grbl-ser":
             self.motion_widget = MotionWidget(motion_thread=self.motion_thread,
                                               usc=self.usc)
             layout.addWidget(self.motion_widget)
@@ -1032,7 +1033,7 @@ class MainWindow(QMainWindow):
             image = self.capture_sink.pop_image(image_id)
             fn_full = self.snapshot_fn()
             self.log('Capturing %s...' % fn_full)
-            factor = float(self.usj['imager']['scalar'])
+            factor = self.usc.imager.scalar()
             # Use a reasonably high quality filter
             try:
                 scaled = get_scaled(image, factor, Image.ANTIALIAS)

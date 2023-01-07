@@ -250,7 +250,7 @@ class PlannerThread(QThread):
     def run(self):
         try:
             self.log('Initializing planner!')
-            print("Planner thread started: %s" % (threading.get_ident(), ))
+            # print("Planner thread started: %s" % (threading.get_ident(), ))
 
             self.planner = Planner(log=self.log, **self.pconfig)
             self.log('Running planner')

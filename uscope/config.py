@@ -273,7 +273,7 @@ class USCMotion:
             pass
         elif type(backlash) in (float, int):
             default_backlash = float(backlash)
-        elif type(backlash) is dict:
+        elif type(backlash) in (dict, OrderedDict):
             for axis, v in backlash.items():
                 ret[axis] = float(v)
         else:

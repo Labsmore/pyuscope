@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+"""
+Running the full suite:
+-GRBL controller attached (no microscope)
+-E3ISPM20000KPA camera attached
+-v4levice as /dev/video0 that supports 640x480 video
+    Ex: my X1 carbon has this as built in web camera
+"""
 
 import unittest
 import os
@@ -163,21 +170,86 @@ class PlannerTestCase(TestCommon):
 
 
 class GstTestCase(TestCommon):
-    def setUp(self):
-        """Call before every test case."""
-        self.verbose = int(os.getenv("TEST_VERBOSE", "0"))
-        self.planner_dir = "/tmp/pyuscope/planner"
-        if os.path.exists("/tmp/pyuscope"):
-            shutil.rmtree("/tmp/pyuscope")
-        os.mkdir("/tmp/pyuscope")
-
-    def tearDown(self):
-        """Call after every test case."""
-        pass
-
     def test_mock(self):
         usj = get_usj(name="mock")
         gst.get_cli_imager_by_config(usj)
+
+
+class GstCLIImagerTestCase(TestCommon):
+    def get_image(self):
+        ret = []
+
+        def thread(loop):
+            # self.imager.warm_up()
+            im = self.imager.get()
+            ret.append(im)
+            loop.quit()
+
+        gst.easy_run(self.imager, thread)
+        return ret[0]
+
+    def test_get_args(self):
+        import argparse
+
+        parser = argparse.ArgumentParser(
+            description="GstImager (gstreamer wrapper) demo")
+        gst.gst_add_args(parser)
+        args = parser.parse_args([])
+
+        gst.gst_get_args(args)
+
+    def test_videotestsrc(self):
+        self.imager = gst.GstCLIImager(opts={
+            "source": "videotestsrc",
+            "wh": (123, 456)
+        })
+        im = self.get_image()["0"]
+        self.assertEqual((123, 456), im.size)
+
+    def test_raw(self):
+        """
+        Need 59535360 bytes, got 59535360
+        """
+        # Doesn't work...hmm
+        # maybe its jpgeg or something like that?
+        # self.imager = gst.GstCLIImager(opts={"source": "videotestsrc", "wh": (100, 100), "gst_jpg": False})
+        self.imager = gst.GstCLIImager(opts={
+            "source": "toupcamsrc",
+            "wh": (5440, 3648),
+            "gst_jpg": False
+        })
+        im = self.get_image()["0"]
+        self.assertEqual(((5440, 3648)), im.size)
+        self.imager.stop()
+
+    def test_v4lsrc(self):
+        """
+        video4linux test
+        (using my laptop camera)
+        """
+        # FIXME: only run if there is an appropriate device
+        self.imager = gst.GstCLIImager(opts={
+            "source": "v4l2src",
+            "device": "/dev/video0",
+            "wh": (640, 480)
+        })
+        im = self.get_image()["0"]
+        self.assertEqual((640, 480), im.size)
+
+    def test_toupcamsrc(self):
+        """
+        touptek test
+        (using E3ISPM20000KPA (IMX183))
+        """
+        # FIXME: only run if there is an appropriate device
+        self.imager = gst.GstCLIImager(opts={
+            "source": "toupcamsrc",
+            "esize": 0,
+            "wh": (5440, 3648)
+        })
+        im = self.get_image()["0"]
+        self.assertEqual((5440, 3648), im.size)
+        self.imager.stop()
 
 
 def get_grbl(verbose=False):

@@ -114,6 +114,8 @@ class CaptureSink(CbSink):
         # TODO: should pass rawer/lossless image to PIL instead of jpg?
         # open("tmp.bin", "wb").write(ret)
         if raw_input:
+            # Need 59535360 bytes, got 59535360
+            # print("Need %u bytes, got %u" % (3 * width * height, len(buf)))
             return Image.frombytes('RGB', (width, height), bytes(buf), 'raw',
                                    'RGB')
         else:

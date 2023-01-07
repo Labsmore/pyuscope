@@ -16,6 +16,7 @@ from uscope.gst_util import CaptureSink
 from uscope.util import add_bool_arg
 from uscope import config
 import threading
+import time
 
 
 class GstCLIImager(Imager):
@@ -82,6 +83,9 @@ class GstCLIImager(Imager):
         bus.connect("message", self.on_message)
         bus.connect("sync-message::element", self.on_sync_message)
 
+    def __del__(self):
+        self.stop()
+
     def wh(self):
         return self.width, self.height
 
@@ -111,16 +115,16 @@ class GstCLIImager(Imager):
 
     def get(self):
         def got_image(image_id):
-            print('Image captured reported: %s' % image_id)
+            self.verbose and print('Image captured reported: %s' % image_id)
             self.image_id = image_id
             self.image_ready.set()
 
         self.image_id = None
         self.image_ready.clear()
         self.capture_sink.request_image(got_image)
-        print('Waiting for next image...')
+        self.verbose and print('Waiting for next image...')
         self.image_ready.wait()
-        print('Got image %s' % self.image_id)
+        self.verbose and print('Got image %s' % self.image_id)
         img = self.capture_sink.pop_image(self.image_id)
         return {"0": img}
 
@@ -145,6 +149,18 @@ class GstCLIImager(Imager):
         if message_name == "prepare-window-handle":
             print("prepare-window-handle", message.src.get_name(),
                   self.full_widget_winid, self.roi_widget_winid)
+
+    def warm_up(self):
+        # XXX hack: can we push this down the stack?
+        if self.source_name == "toupcamsrc":
+            # gain takes a while to ramp up
+            # print("stabalizing camera")
+            time.sleep(1)
+
+    def stop(self):
+        if self.player:
+            self.player.set_state(Gst.State.NULL)
+            self.player = None
 
 
 def gst_add_args(parser):

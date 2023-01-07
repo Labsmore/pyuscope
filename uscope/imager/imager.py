@@ -1,3 +1,4 @@
+import time
 from PIL import Image
 '''
 R:127
@@ -48,6 +49,12 @@ class Imager:
     def remote(self):
         """Return true if the image is taken remotely and not handled here. Call take() instead of get"""
         return False
+
+    def warm_up(self):
+        pass
+
+    def stop(self):
+        pass
 
 
 class MockImager(Imager):

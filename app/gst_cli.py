@@ -74,10 +74,7 @@ def main():
     imager = gst.GstCLIImager(gst.gst_get_args(args))
 
     def thread(loop):
-        if imager.source_name == "toupcamsrc":
-            # gain takes a while to ramp up
-            print("stabalizing camera")
-            time.sleep(1)
+        imager.warm_up()
         print("Getting image")
         im = imager.get()
         print("Got image")

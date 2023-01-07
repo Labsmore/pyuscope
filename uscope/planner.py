@@ -217,7 +217,79 @@ class Stop(Exception):
     pass
 
 
-class Planner(object):
+class PlannerStacker:
+    def __init__(self, planner, config):
+        self.planner = planner
+        # Most users will want to stack on z
+        self.axis = config.get("axis", "z")
+        # Position where stacking is relative to
+        # If None will be initialized at start of run
+        if "start" in config:
+            self.start = float(config["start"])
+        else:
+            self.start = None
+        """
+        start: relative from absolute position
+            ie start + distance
+        center: center distance on start
+            ie start +/- (distance / 2)
+        """
+        self.start_mode = config.get("start_mode", "center")
+        self.images_per_stack = int(config["number"])
+        # How far a stack should be
+        # Will go self.start + self.distance
+        # To stack down make distance negative
+        # You probably want negative backlash compensation as well
+        self.distance = float(config["distance"])
+        self.pos0 = None
+
+    def begin_scan(self):
+        # If don't have a start position take the beginning position
+        self.pos0 = self.planner.motion.pos()[self.axis]
+        if self.start is None:
+            self.start = self.pos0
+
+    def take_pictures(self):
+        if self.start_mode == "center":
+            # if self.images_per_stack % 2 != 1:
+            #    raise Exception('Center stacking requires odd n')
+
+            # Step in the same distance as backlash compensation
+            # Start at bottom and move down
+            if self.planner.backlash_compensate > 0:
+                start = self.start - self.distance / 2
+            # Move to the top of the stack and move down
+            else:
+                start = self.start + self.distance / 2
+        elif self.start_mode == "start":
+            # Move to the top of the stack
+            start = self.start
+        else:
+            assert 0, "bad stack mode"
+
+        # Step in the same distance as backlash compensation
+        # Default down
+        direction = -1
+        if self.planner.backlash_compensate:
+            direction = self.planner.backlash_compensate
+        step_distance = self.distance / (self.images_per_stack - 1) * direction
+
+        self.planner.move_absolute({'z': start})
+        self.planner.log("stack: distance %0.3f" % (self.distance, ))
+        self.planner.log("stack: start %0.3f => %0.3f" % (self.start, start))
+        for image_number in range(self.images_per_stack):
+            # self.planner.move_absolute(
+            # bypass backlash compensation to keep movement smooth
+            z = start + image_number * step_distance
+            self.planner.log("stack: %u / %u @ %0.3f" %
+                             (image_number, self.images_per_stack, z))
+            self.planner.motion.move_absolute({self.axis: z})
+            img_fn = self.planner.img_fn('_z%02d' % image_number)
+            self.planner.take_picture(img_fn)
+            self.planner.notify_progress(img_fn)
+
+
+class Planner:
     """
     config: JSON like configuration settings
     """
@@ -283,7 +355,13 @@ class Planner(object):
 
         start, end = self.init_contour()
         self.init_axes(start, end)
-        self.init_stacking()
+
+        # Stacker
+        stack = self.pconfig.get("stack")
+        self.stacker = None
+        if stack:
+            self.stacker = PlannerStacker(self, stack)
+
         self.init_images()
 
         self.running = True
@@ -343,7 +421,7 @@ class Planner(object):
         image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
 
         motionj = self.pconfig.get("motion", {})
-        backlash = USCMotion(j=motionj).backlash()
+        self.backlash = USCMotion(j=motionj).backlash()
         """
         +1: do a negative move before a positive move
         0: no compensation
@@ -364,7 +442,7 @@ class Planner(object):
                          image_wh[0],
                          start[0],
                          end[0],
-                         backlash=backlash["x"],
+                         backlash=self.backlash["x"],
                          log=self.log)),
             ('y',
              PlannerAxis('Y',
@@ -373,21 +451,11 @@ class Planner(object):
                          image_wh[1],
                          start[1],
                          end[1],
-                         backlash=backlash["y"],
+                         backlash=self.backlash["y"],
                          log=self.log)),
         ])
         self.x = self.axes['x']
         self.y = self.axes['y']
-
-    def init_stacking(self):
-        """Focus stacking initialization"""
-        if 'stack' in self.pconfig:
-            stack = self.pconfig['stack']
-            self.num_stack = int(stack['num'])
-            self.stack_step_size = int(stack['step_size'])
-        else:
-            self.num_stack = None
-            self.stack_step_size = None
 
     def init_images(self):
         for axisc, axis in self.axes.items():
@@ -545,37 +613,20 @@ class Planner(object):
             # TODO: only do these moves if they are significant
             bpos = {}
             for k in pos.keys():
-                bpos[k] = pos[k] - self.backlash_compensate * self.axes[k].backlash
+                # z is not traditionally well defined, hack around
+                backlash = self.backlash.get(k, 0.0)
+                bpos[k] = pos[k] - self.backlash_compensate * backlash
             self.motion.move_absolute(bpos)
         self.motion.move_absolute(pos)
 
     def take_pictures(self):
-        if self.num_stack:
-            assert 0, "FIXME"
-            n = self.num_stack
-            if n % 2 != 1:
-                raise Exception('Center stacking requires odd n')
-            # how much to step on each side
-            n2 = (self.num_stack - 1) / 2
-            self.motion.move_absolute({'z': -n2 * self.stack_step_size})
-            '''
-            Say 3 image stack
-            Move down 1 step to start and will have to do 2 more
-            '''
-            for i in range(n):
-                img_fn = self.img_fn('_z%02d' % i)
-                self.take_picture(img_fn)
-                # Avoid moving at actual_end
-                if i != n:
-                    self.move_relative(None, None, self.stack_step_size)
-                    # we now sleep before the actual picture is taken
-                    #time.sleep(3)
-                self.notify_progress(img_fn)
+        if self.stacker:
+            self.stacker.take_pictures()
         else:
             img_fn = self.img_fn()
             self.take_picture(img_fn)
+            self.notify_progress(img_fn)
         self.xy_imgs += 1
-        self.notify_progress(img_fn)
 
     def validate_point(self, p):
         (cur_x, cur_y), (cur_col, cur_row) = p
@@ -686,8 +737,13 @@ class Planner(object):
             "  Pixel counts are for final scaled image as written to disk")
 
         self.imager.log_planner_header(self.log)
-        self.comment("Focus stacking")
-        self.comment("  Images: %s" % self.num_stack)
+        if self.stacker:
+            self.comment("Focus stacking from \"%s\"" %
+                         self.stacker.start_mode)
+            self.comment("  Images: %s" % self.stacker.images_per_stack)
+            self.comment("  Distance: %0.3f" % self.stacker.distance)
+        else:
+            self.comment("Focus stacking: no")
         # the math seems off here. Disabled for now / needs cleanup
         # self.comment("  Z step: %s" % self.stack_step_size)
         self.comment("Full backlash compensation: %d" %
@@ -773,6 +829,8 @@ class Planner(object):
         self.check_running()
         self.start_time = time.time()
         self.max_move = {'x': 0, 'y': 0}
+        if self.stacker:
+            self.stacker.begin_scan()
         self.log()
         self.log()
         self.log()
@@ -819,7 +877,12 @@ class Planner(object):
             rety = 0.0
         else:
             raise Exception("Unknown end_at: %s" % end_at)
-        self.move_absolute_backlash({'x': retx, 'y': rety})
+        ret_pos = {'x': retx, 'y': rety}
+        # Will be at the end of a stack
+        # Put it back where it started
+        if self.stacker:
+            ret_pos["z"] = self.stacker.pos0
+        self.move_absolute_backlash(ret_pos)
 
         self.end_program()
         self.end_time = time.time()

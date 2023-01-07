@@ -30,6 +30,10 @@ MotionHAL is not thread safe with exception of the following:
 '''
 
 
+def pos_str(pos):
+    return ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()])
+
+
 class MotionHAL:
     def __init__(self, scalars=None, soft_limits=None, log=None, verbose=None):
         # Per axis? Currently is global
@@ -124,6 +128,7 @@ class MotionHAL:
                     raise AxisExceeded(
                         "axis %s: absolute violates %0.3f <= new pos %0.3f <= %0.3f"
                         % (axis, axmin, axpos, axmax))
+        self.verbose and print("motion: move_absolute(%s)" % (pos_str(pos)))
         return self._move_absolute(self.scale_e2i(pos))
 
     def _move_absolute(self, pos):
@@ -149,6 +154,7 @@ class MotionHAL:
                     raise AxisExceeded(
                         "axis %s: delta %+0.3f violates %0.3f <= new pos %0.3f <= %0.3f"
                         % (axis, axdelta, axmin, axpos, axmax))
+        self.verbose and print("motion: move_relative(%s)" % (pos_str(pos)))
         return self._move_relative(self.scale_e2i(pos))
 
     def _move_relative(self, delta):
@@ -298,16 +304,12 @@ class MockHal(MotionHAL):
     def _move_absolute(self, pos):
         for axis, apos in pos.items():
             self._pos[axis] = apos
-        self._log(
-            'absolute move to ' +
-            ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
+        0 and self._log('absolute move to ' + pos_str(pos))
 
     def _move_relative(self, delta):
         for axis, adelta in delta.items():
             self._pos[axis] += adelta
-        self._log(
-            'relative move to ' +
-            ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
+        0 and self._log('relative move to ' + pos_str(delta))
 
     def _pos(self):
         return self._pos
@@ -333,10 +335,10 @@ class DryHal(MotionHAL):
         self.hal = hal
         self.scalars = hal.scalars
 
-        self._pos = {}
+        self._posd = {}
         # Assume starting at 0.0 until causes problems
         for axis in self.axes():
-            self._pos[axis] = 0.0
+            self._posd[axis] = 0.0
 
     def _log(self, msg):
         self.log('Dry: ' + msg)
@@ -346,27 +348,27 @@ class DryHal(MotionHAL):
 
     def home(self, axes):
         for axis in axes:
-            self._pos[axis] = 0.0
+            self._posd[axis] = 0.0
 
     def take_picture(self, file_name):
         self._log('taking picture to %s' % file_name)
 
     def _move_absolute(self, pos):
         for axis, apos in pos.items():
-            self._pos[axis] = apos
-        self._log(
+            self._posd[axis] = apos
+        0 and self._log(
             'absolute move to ' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
 
     def _move_relative(self, delta):
         for axis, adelta in delta.items():
-            self._pos[axis] += adelta
-        self._log(
+            self._posd[axis] += adelta
+        0 and self._log(
             'relative move to ' +
             ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
 
     def _pos(self):
-        return self._pos
+        return self._posd
 
     def settle(self):
         # No hardware to let settle

@@ -474,9 +474,10 @@ class MainWindow(QMainWindow):
 
         self.pt = None
         self.log_fd = None
-        hal = get_motion_hal(usc=self.usc, log=self.emit_log)
-        hal.progress = self.hal_progress
-        self.motion_thread = MotionThread(hal=hal, cmd_done=self.cmd_done)
+        motion = get_motion_hal(usc=self.usc, log=self.emit_log)
+        motion.progress = self.hal_progress
+        self.motion_thread = MotionThread(motion=motion,
+                                          cmd_done=self.cmd_done)
         self.motion_thread.log_msg.connect(self.log)
         self.initUI()
 
@@ -692,6 +693,16 @@ class MainWindow(QMainWindow):
 
         return ret
 
+    def planner_config_stack(self, pconfig):
+        images_per_stack = int(str(self.stacker_number_le.text()))
+        if images_per_stack <= 1:
+            return
+        distance = float(self.stacker_distance_le.text())
+        pconfig["stack"] = {
+            "number": images_per_stack,
+            "distance": distance,
+        }
+
     def go(self):
         if not self.snapshot_pb.isEnabled():
             self.log("Wait for snapshot to complete before CNC'ing")
@@ -745,7 +756,7 @@ class MainWindow(QMainWindow):
         planner_params = {
             # Simple settings written to disk, no objects
             "pconfig": pconfig,
-            "motion": self.motion_thread.hal,
+            "motion": self.motion_thread.motion,
 
             # Typically GstGUIImager
             # Will be offloaded to its own thread
@@ -767,6 +778,7 @@ class MainWindow(QMainWindow):
             # "overwrite": False,
             "verbosity": 2,
         }
+        self.planner_config_stack(pconfig)
 
         self.pt = PlannerThread(self, planner_params)
         self.pt.log_msg.connect(self.log)
@@ -1105,6 +1117,48 @@ class MainWindow(QMainWindow):
         layout.addLayout(get_lr_layout())
         return layout
 
+    def getAdvancedTabLayout(self):
+        layout = QGridLayout()
+        row = 0
+
+        def stack_gb():
+            layout = QGridLayout()
+            row = 0
+
+            if 0:
+                # FIXME: dropbox
+                layout.addWidget(QLabel("Start mode: relative or center"), row,
+                                 0)
+                self.stacker_start_mode_le = QLineEdit("center")
+                layout.addWidget(self.stacker_start_mode_le, row, 1)
+                row += 1
+
+            layout.addWidget(QLabel("Distance"), row, 0)
+            # Is there a reasonable default here?
+            self.stacker_distance_le = QLineEdit("0.000")
+            layout.addWidget(self.stacker_distance_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Number"), row, 0)
+            self.stacker_number_le = QLineEdit("1")
+            layout.addWidget(self.stacker_number_le, row, 1)
+            row += 1
+
+            gb = QGroupBox("Stacking")
+            gb.setLayout(layout)
+            return gb
+
+        layout.addWidget(stack_gb(), row, 0)
+        row += 1
+
+        if 0:
+            layout.addWidget(QLabel("HDR sequence (csv in us)"), row, 0)
+            self.hdr_le = QLineEdit()
+            layout.addWidget(self.hdr_le, row, 1)
+            row += 1
+
+        return layout
+
     def initUI(self):
         self.vidpip.setupWidgets()
         self.setWindowTitle('pyuscope')
@@ -1132,6 +1186,11 @@ class MainWindow(QMainWindow):
         self.imagerTab = QWidget()
         self.imagerTab.setLayout(self.imagerTabLayout)
         self.tabs.addTab(self.imagerTab, "Imager")
+
+        self.advancedTabLayout = self.getAdvancedTabLayout()
+        self.advancedTab = QWidget()
+        self.advancedTab.setLayout(self.advancedTabLayout)
+        self.tabs.addTab(self.advancedTab, "Advanced")
 
         self.update_obj_config()
 

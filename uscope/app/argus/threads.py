@@ -33,11 +33,11 @@ TODO: should block?
 class MotionThread(QThread):
     log_msg = pyqtSignal(str)
 
-    def __init__(self, hal, cmd_done):
+    def __init__(self, motion, cmd_done):
         QThread.__init__(self)
         self.verbose = False
         self.queue = queue.Queue()
-        self.hal = hal
+        self.motion = motion
         self.running = threading.Event()
         self.idle = threading.Event()
         self.idle.set()
@@ -71,7 +71,7 @@ class MotionThread(QThread):
 
     def pos(self):
         self.lock.set()
-        ret = self.hal.pos()
+        ret = self.motion.pos()
         self.lock.clear()
         return ret
 
@@ -116,20 +116,20 @@ class MotionThread(QThread):
                                (threading.get_ident(), ))
         self.running.set()
         self.idle.clear()
-        self.hal.on()
+        self.motion.on()
 
         try:
             while self.running.is_set():
                 self.lock.set()
 
                 if self._estop:
-                    self.hal.estop()
+                    self.motion.estop()
                     self.queue_clear()
                     self._estop = False
                     continue
 
                 if self._stop:
-                    self.hal.stop()
+                    self.motion.stop()
                     self.queue_clear()
                     self._stop = False
                     continue
@@ -153,20 +153,20 @@ class MotionThread(QThread):
 
                 def move_absolute(pos):
                     try:
-                        self.hal.move_absolute(pos)
+                        self.motion.move_absolute(pos)
                     except AxisExceeded as e:
                         self.log(str(e))
-                    return self.hal.pos()
+                    return self.motion.pos()
 
                 def move_relative(pos):
                     try:
-                        self.hal.move_relative(pos)
+                        self.motion.move_relative(pos)
                     except AxisExceeded as e:
                         self.log(str(e))
-                    return self.hal.pos()
+                    return self.motion.pos()
 
                 def update_pos_cache():
-                    self.pos_cache = self.hal.pos()
+                    self.pos_cache = self.motion.pos()
 
                 self.verbose and print("")
                 self.verbose and print(
@@ -177,13 +177,13 @@ class MotionThread(QThread):
                     'update_pos_cache': update_pos_cache,
                     'move_absolute': move_absolute,
                     'move_relative': move_relative,
-                    'jog': self.hal.jog,
-                    'set_jog_rate': self.hal.set_jog_rate,
-                    'home': self.hal.home,
-                    # 'stop': self.hal.stop,
-                    # 'estop': self.hal.estop,
-                    'unestop': self.hal.unestop,
-                    'mdi': self.hal.command,
+                    'jog': self.motion.jog,
+                    'set_jog_rate': self.motion.set_jog_rate,
+                    'home': self.motion.home,
+                    # 'stop': self.motion.stop,
+                    # 'estop': self.motion.estop,
+                    'unestop': self.motion.unestop,
+                    'mdi': self.motion.command,
                 }.get(command, default)
                 try:
                     ret = f(*args)
@@ -197,7 +197,7 @@ class MotionThread(QThread):
                 self.cmd_done(command, args, ret)
 
         finally:
-            self.hal.stop()
+            self.motion.stop()
 
     def thread_stop(self):
         self.running.clear()

@@ -312,6 +312,11 @@ class MotionWidget(QWidget):
         # if not self.video_container.hasFocus():
         #    return
         k = event.key()
+
+        # Hmm larger GUI doesn't get these if this handler is active
+        if k == Qt.Key_Escape:
+            self.motion_thread.stop()
+
         # Ignore duplicates, want only real presses
         if event.isAutoRepeat():
             return

@@ -112,10 +112,10 @@
 		we should also do another run aligning it
         */
         "crop": {
-            "top": 200,
-            "bottom": 200,
-            "left": 1096,
-            "right": 1096,
+            "top": 500,
+            "bottom": 500,
+            "left": 1396,
+            "right": 1396,
         },
     },
 
@@ -130,19 +130,19 @@
 			"name":"Mitutoyo Apo 5X",
 			"suffix": "mit5x2",
 			"scalar": 0.5,
-			"x_view": 1.0
+			"x_view": 0.7 
 		},
 		{
 			"name":"Mitutoyo Apo 10X",
 			"suffix": "mit10x2",
 			"scalar": 0.5,
-			"x_view": 0.5
+			"x_view": 0.35
 		},
 		{
 			"name":"Mitutoyo Apo 20X",
 			"suffix": "mit20x2",
 			"scalar": 0.5,
-			"x_view": 0.25
+			"x_view": 0.17
 		},
    ]
 }

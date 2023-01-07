@@ -244,6 +244,20 @@ class USCPlanner:
         """
         return float(self.j.get("border", 0.0))
 
+    def tsettle(self):
+        """
+        How much time to wait after moving to take an image
+        A factor of vibration + time to clear a frame
+        """
+        return float(self.j.get("tsettle", 0.0))
+
+    def hdr_tsettle(self):
+        """
+        How much time to wait after moving to take an image
+        A factor of vibration + time to clear a frame
+        """
+        return float(self.j.get("hdr_tsettle", self.tsettle()))
+
 
 class USCMotion:
     def __init__(self, j=None):

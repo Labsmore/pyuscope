@@ -730,26 +730,40 @@ class MainWindow(QMainWindow):
 
         out_dir = os.path.join(base_out_dir, self.jobName.getName())
         if os.path.exists(out_dir):
-            self.log("Already exists: %s" % out_dir)
+            self.log("Run aborted: already exists: %s" % out_dir)
             return
-        if not dry:
-            os.mkdir(out_dir)
 
         # If user had started some movement before hitting run wait until its done
         dbg("Waiting for previous movement (if any) to cease")
         # TODO: make this not block GUI
         self.motion_thread.wait_idle()
 
+        def auto_exposure_enabled():
+            # XXX: not portable, touptek only
+            return self.control_scroll.raw_prop_read("auto-exposure")
+
         pconfig = microscope_to_planner(self.usj,
                                         objective=self.obj_config,
                                         contour=contour_json)
 
+        if auto_exposure_enabled():
+            self.log(
+                "WARNING: auto-exposure is enabled. This may result in an unevently exposed panorama"
+            )
+
+        hdr = self.get_hdr()
+        if hdr:
+            pconfig["imager"]["hdr"] = hdr
+            if auto_exposure_enabled():
+                self.log(
+                    "Run aborted: requested HDR but auto-exposure enabled")
+                return
+
+        if not dry:
+            os.mkdir(out_dir)
+
         # not sure if this is the right place to add this
         # plannerj['copyright'] = "&copy; %s John McMaster, CC-BY" % datetime.datetime.today().year
-
-        if 0:
-            print("planner_json")
-            util.printj(pconfig)
 
         # Directly goes into planner constructor
         # Make sure everything here is thread safe
@@ -792,24 +806,29 @@ class MainWindow(QMainWindow):
 
         self.go_pause_pb.setText("Pause")
 
-        if self.get_hdr():
+        if hdr:
             # Actively driving properties during operation may cause signal thrashing
             # Only take explicit external updates
             # GUI will continue to update to reflect state though
             self.control_scroll.set_push_gui(False)
             self.control_scroll.set_push_prop(False)
+            self.imager.set_hdr(hdr)
 
         self.pt.start()
 
     def get_hdr(self):
-        # FIXME
-        return None
-        hdr = None
-        source = self.imager.source()
-        cal = cal_load_all(source)
-        if cal:
-            hdr = cal.get("hdr", None)
-        return hdr
+        raw = str(self.hdr_le.text())
+        if not raw:
+            return False
+        properties = []
+        for val in [int(x) for x in raw.split(",")]:
+            properties.append({"expotime": val})
+        ret = {
+            "properties": properties,
+            # this is probably a good approximation for now
+            "tsettle": self.usc.planner.hdr_tsettle()
+        }
+        return ret
 
     def go_pause(self):
         # CNC already running? pause/continue
@@ -841,6 +860,7 @@ class MainWindow(QMainWindow):
         # Return to normal state if HDR was enabled
         self.control_scroll.set_push_gui(True)
         self.control_scroll.set_push_prop(True)
+        self.imager.set_hdr(None)
 
     """
     def stop(self):
@@ -1128,6 +1148,7 @@ class MainWindow(QMainWindow):
 
             if 0:
                 # FIXME: dropbox
+                # althouh center is probably ideal anyway
                 layout.addWidget(QLabel("Start mode: relative or center"), row,
                                  0)
                 self.stacker_start_mode_le = QLineEdit("center")
@@ -1152,11 +1173,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(stack_gb(), row, 0)
         row += 1
 
-        if 0:
-            layout.addWidget(QLabel("HDR sequence (csv in us)"), row, 0)
-            self.hdr_le = QLineEdit()
-            layout.addWidget(self.hdr_le, row, 1)
-            row += 1
+        layout.addWidget(QLabel("HDR exposure sequence (csv in us)"), row, 0)
+        self.hdr_le = QLineEdit("")
+        layout.addWidget(self.hdr_le, row, 1)
+        row += 1
 
         return layout
 

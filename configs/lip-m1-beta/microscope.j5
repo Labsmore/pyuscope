@@ -4,6 +4,7 @@
     "planner": {
         //"border": 0.1,
         "tsettle": 1.2,
+        //"hdr_tsettle": 1.2,
         //backlash down so z is locked in place under tension
         "backlash_compensate": -1,
     },

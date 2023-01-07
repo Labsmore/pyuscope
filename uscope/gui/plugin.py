@@ -46,6 +46,10 @@ class GstGUIImager(Imager):
         self.image_id = None
         self.emitter = GstGUIImager.Emitter()
         self.width, self.height = self.usc.imager.cropped_wh()
+        self.hdr = None
+
+    def set_hdr(self, hdr):
+        self.hdr = hdr
 
     def wh(self):
         return self.width, self.height
@@ -75,22 +79,17 @@ class GstGUIImager(Imager):
         ret = {}
         factor = self.usc.imager.scalar()
         for hdri, hdrv in enumerate(hdr["properties"]):
-            print("hdr: set %u %s" % (hdri, hdrv))
+            # print("hdr: set %u %s" % (hdri, hdrv))
             self.emitter.change_properties.emit(hdrv)
             # Wait for setting to take effect
-            time.sleep(hdr["tsleep"])
+            time.sleep(hdr["tsettle"])
             image = self.next_image()
             scaled = get_scaled(image, factor, Image.ANTIALIAS)
             ret["%u" % hdri] = scaled
         return ret
 
     def get(self):
-        # FIXME: cache at beginning of scan somehow
-        hdr = None
-        source = self.usc.imager.source()
-        cal = cal_load_all(source)
-        if cal:
-            hdr = cal.get("hdr", None)
+        hdr = self.hdr
         if hdr:
             return self.get_hdr(hdr)
         else:
@@ -123,6 +122,7 @@ def get_gui_imager(source, gui):
         return MockImager()
     elif source.find("gst-") == 0:
         ret = GstGUIImager(gui, usc=gui.usc)
+        # For HDR which needs in situ control
         ret.emitter.change_properties.connect(
             gui.control_scroll.set_disp_properties)
         return ret

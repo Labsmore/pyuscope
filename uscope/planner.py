@@ -545,8 +545,8 @@ class Planner(object):
             # TODO: only do these moves if they are significant
             bpos = {}
             for k in pos.keys():
-                bpos[k] = -self.backlash_compensate * self.axes[k].backlash
-            self.motion.move_relative(pos)
+                bpos[k] = pos[k] - self.backlash_compensate * self.axes[k].backlash
+            self.motion.move_absolute(bpos)
         self.motion.move_absolute(pos)
 
     def take_pictures(self):

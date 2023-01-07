@@ -258,8 +258,8 @@ class GRBLSer:
         if self.verbose:
             tend = time.time()
             print("rx %u bytes in %0.3f sec" % (len(b), tend - tstart))
-            from uscope import util
-            util.hexdump(b)
+            if self.verbose >= 2:
+                util.hexdump(b)
         return b.decode("ascii").strip()
 
     def txrxs(self, out, nl=True, trim_data=True):
@@ -534,7 +534,13 @@ class GRBL:
         self.close()
 
     def stop(self):
-        self.cancel_jog()
+        # sometimes the stop is ignored
+        # seems to happen especially for very low jog amounts
+        while True:
+            self.cancel_jog()
+            if self.qstatus()["status"] == "Idle":
+                break
+            time.sleep(0.01)
 
     def reset(self):
         self.gs.reset()

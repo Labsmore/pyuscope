@@ -740,7 +740,7 @@ class MainWindow(QMainWindow):
 
         def auto_exposure_enabled():
             # XXX: not portable, touptek only
-            return self.control_scroll.raw_prop_read("auto-exposure")
+            return self.control_scroll.prop_read("auto-exposure")
 
         pconfig = microscope_to_planner(self.usj,
                                         objective=self.obj_config,

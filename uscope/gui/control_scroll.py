@@ -90,7 +90,7 @@ class ImagerControlScroll(QScrollArea):
                          prop["push_gui"]))
                     assert type(prop["push_gui"]) is bool
                     if prop["push_gui"]:
-                        self.raw_prop_write(prop["prop_name"], val)
+                        self.prop_write(prop["prop_name"], val)
                         value_label.setText(str(val))
 
             return f
@@ -118,7 +118,7 @@ class ImagerControlScroll(QScrollArea):
                                        (prop["disp_name"], prop["prop_name"],
                                         val, prop["push_gui"]))
                 if prop["push_gui"]:
-                    self.raw_prop_write(prop["prop_name"], val)
+                    self.prop_write(prop["prop_name"], val)
 
             return f
 
@@ -231,7 +231,7 @@ class ImagerControlScroll(QScrollArea):
                 raise
             # Rely on GUI signal writing API unless GUI updates are disabled
             if not prop["push_gui"]:
-                self.raw_prop_write(prop["prop_name"], val)
+                self.prop_write(prop["prop_name"], val)
             widgets = self.disp2widgets[disp_name]
             if prop["type"] == "int":
                 slider, value_label = widgets
@@ -270,6 +270,20 @@ class ImagerControlScroll(QScrollArea):
             vals[disp_name] = prop["default"]
         self.set_disp_properties(vals)
 
+    def prop_policy(self, name, value):
+        # Auto-exposure quickly fights with GUI
+        # Disable the control when its activated
+        if name == "auto-exposure":
+            push_expotime = not value
+            self.set_push_gui(push_expotime, disp_names=["expotime"])
+
+    def prop_write(self, name, value):
+        self.raw_prop_write(name, value)
+        self.prop_policy(name, value)
+
+    def prop_read(self, name):
+        return self.raw_prop_read(name)
+
     def raw_prop_write(self, name, value):
         raise Exception("Required")
 
@@ -287,6 +301,9 @@ class ImagerControlScroll(QScrollArea):
                         j=self.get_disp_properties())
 
     def run(self):
+        # Requires special care not to thrash
+        self.prop_policy("auto-exposure", self.prop_read("auto-exposure"))
+
         if self.update_timer:
             self.update_timer.start(200)
         # Doesn't load reliably, add a delay
@@ -296,7 +313,7 @@ class ImagerControlScroll(QScrollArea):
 
     def set_push_gui(self, val, disp_names=None):
         val = bool(val)
-        for disp_name in self.get_disp_properties().keys():
+        for disp_name in disp_names:
             if disp_names and disp_name not in disp_names:
                 continue
             prop = self.disp2prop[disp_name]

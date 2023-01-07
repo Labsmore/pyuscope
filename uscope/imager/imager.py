@@ -56,6 +56,9 @@ class Imager:
     def stop(self):
         pass
 
+    def log_planner_header(self, log):
+        pass
+
 
 class MockImager(Imager):
     def __init__(self, verbose=False, width=640, height=480):

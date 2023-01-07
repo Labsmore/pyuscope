@@ -28,21 +28,24 @@ However we might consider some flexibility allowing not to render...TBD
 ex: if you are using DSLR with own screen no strict requirement to render here
 although could still have a method to snap pictures
 """
+"""
+FIXME: a lot of this should be some sort of layer on top of planner
+is not strictly speaking related to the GUI. Hmm
+"""
 
 
 class GstGUIImager(Imager):
     class Emitter(QObject):
         change_properties = pyqtSignal(dict)
 
-    def __init__(self, gui, usj):
+    def __init__(self, gui, usc):
         Imager.__init__(self)
         self.gui = gui
-        self.usj = usj
+        self.usc = usc
         self.image_ready = threading.Event()
         self.image_id = None
         self.emitter = GstGUIImager.Emitter()
-        # FIXME
-        self.width, self.height = (640, 480)
+        self.width, self.height = self.usc.imager.cropped_wh()
 
     def wh(self):
         return self.width, self.height
@@ -64,13 +67,13 @@ class GstGUIImager(Imager):
 
     def get_normal(self):
         image = self.next_image()
-        factor = float(self.usj['imager']['scalar'])
+        factor = self.usc.imager.scalar()
         scaled = get_scaled(image, factor, Image.ANTIALIAS)
         return {"0": scaled}
 
     def get_hdr(self, hdr):
         ret = {}
-        factor = float(self.usj['imager']['scalar'])
+        factor = self.usc.imager.scalar()
         for hdri, hdrv in enumerate(hdr["properties"]):
             print("hdr: set %u %s" % (hdri, hdrv))
             self.emitter.change_properties.emit(hdrv)
@@ -84,7 +87,7 @@ class GstGUIImager(Imager):
     def get(self):
         # FIXME: cache at beginning of scan somehow
         hdr = None
-        source = self.usj['imager']['source']
+        source = self.usc.imager.source()
         cal = cal_load_all(source)
         if cal:
             hdr = cal.get("hdr", None)
@@ -93,6 +96,25 @@ class GstGUIImager(Imager):
         else:
             return self.get_normal()
 
+    def log_planner_header(self, log):
+        hdr = None
+        source = self.usc.imager.source()
+        cal = cal_load_all(source)
+        if cal:
+            hdr = cal.get("hdr", None)
+
+        log("Imager config")
+        log("  HDR enabled: %s" % (bool(hdr), ))
+        log("  Image size")
+        log("    Raw sensor size: %uw x %uh" % (self.usc.imager.raw_wh()))
+        cropw, croph = self.usc.imager.cropped_wh()
+        log("    Cropped sensor size: %uw x %uh" %
+            (self.usc.imager.cropped_wh()))
+        scalar = self.usc.imager.scalar()
+        log("    Output scale factor: %0.1f" % scalar)
+        log("    Final scaled image: %uw x %uh" %
+            (cropw * scalar, croph * scalar))
+
 
 def get_gui_imager(source, gui):
     # WARNING: only gst- sources are supported
@@ -100,7 +122,7 @@ def get_gui_imager(source, gui):
     if source == 'mock':
         return MockImager()
     elif source.find("gst-") == 0:
-        ret = GstGUIImager(gui, gui.usj)
+        ret = GstGUIImager(gui, usc=gui.usc)
         ret.emitter.change_properties.connect(
             gui.control_scroll.set_disp_properties)
         return ret

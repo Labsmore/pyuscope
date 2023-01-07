@@ -110,6 +110,11 @@
             3248 x 3248 => 10.5 MP effective sensor
 
 		we should also do another run aligning it
+
+
+        width 5440 - 1396 - 1396 = 2648
+        height: 3648 - 500 - 500 = 2648
+        2648 x 2648 => 7 MP effective sensor
         */
         "crop": {
             "top": 500,

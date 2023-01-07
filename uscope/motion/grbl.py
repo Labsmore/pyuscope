@@ -520,6 +520,10 @@ class GRBL:
         # See move_relative
         self.use_soft_move_relative = int(os.getenv("GRBL_SOFT_RELATIVE", "1"))
         self.pos_cache = None
+        self.qstatus_updated_cb = None
+
+    def set_qstatus_updated_cb(self, cb):
+        self.qstatus_updated_cb = cb
 
     def close(self):
         if self.gs:
@@ -637,12 +641,15 @@ class GRBL:
                 mpos = (float(x) for x in mpos.split(":")[1].split(","))
                 mpos = dict([(k, v) for k, v in zip("xyz", mpos)])
                 self.set_pos_cache(mpos)
-                return {
+                ret = {
                     # Idle, Jog
                     "status": ij,
                     "MPos": mpos,
                     "FS": fs,
                 }
+                if self.qstatus_updated_cb:
+                    self.qstatus_updated_cb(ret)
+                return ret
             except Exception:
                 self.verbose and print("WARNING: bad qstatus")
                 if i == tries - 1:
@@ -698,7 +705,10 @@ class GRBL:
                 self.wait_idle()
 
     def wait_idle(self):
-        while self.qstatus()["status"] != "Idle":
+        while True:
+            qstatus = self.qstatus()
+            if qstatus["status"] == "Idle":
+                break
             time.sleep(0.1)
 
     def jog(self, scalars, rate):
@@ -754,6 +764,10 @@ class GrblHal(MotionHAL):
             self.grbl = grbl
         else:
             self.grbl = GRBL(port=port, verbose=verbose)
+        self.grbl.set_qstatus_updated_cb(self.qstatus_updated)
+
+    def qstatus_updated(self, status):
+        self.update_status({"pos": status["MPos"]})
 
     def axes(self):
         return {'x', 'y', 'z'}

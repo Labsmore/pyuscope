@@ -118,6 +118,11 @@ class MotionThread(QThread):
         self.idle.clear()
         self.motion.on()
 
+        def motion_status(status):
+            self.pos_cache = status["pos"]
+
+        self.motion.register_status_cb(motion_status)
+
         try:
             while self.running.is_set():
                 self.lock.set()

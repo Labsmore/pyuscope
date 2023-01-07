@@ -217,6 +217,7 @@ class Stop(Exception):
     pass
 
 
+# TODO: make more generic so can be used in CLI, etc outside of Planner
 class PlannerStacker:
     def __init__(self, planner, config):
         self.planner = planner
@@ -243,6 +244,7 @@ class PlannerStacker:
         self.distance = float(config["distance"])
         self.pos0 = None
 
+    # XXX: maybe just do this in init()
     def begin_scan(self):
         # If don't have a start position take the beginning position
         self.pos0 = self.planner.motion.pos()[self.axis]
@@ -275,8 +277,8 @@ class PlannerStacker:
         step_distance = self.distance / (self.images_per_stack - 1) * direction
 
         self.planner.move_absolute({'z': start})
-        self.planner.log("stack: distance %0.3f" % (self.distance, ))
-        self.planner.log("stack: start %0.3f => %0.3f" % (self.start, start))
+        # self.planner.log("stack: distance %0.3f" % (self.distance, ))
+        # self.planner.log("stack: start %0.3f => %0.3f" % (self.start, start))
         for image_number in range(self.images_per_stack):
             # self.planner.move_absolute(
             # bypass backlash compensation to keep movement smooth

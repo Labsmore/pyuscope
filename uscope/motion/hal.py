@@ -58,12 +58,33 @@ class MotionHAL:
 
         # Overwrite to get updates while moving
         # (if supported)
-        self.progress = lambda pos: None
-
+        # self.progress = lambda pos: None
+        self.status_cbs = []
         self.mv_lastt = time.time()
 
     def __del__(self):
         self.close()
+
+    def unregister_status_cb(self, cb):
+        index = self.status_cbs.find(cb)
+        del self.status_cbs[index]
+
+    def register_status_cb(self, cb):
+        """
+        Notify callback cb on long moves
+        cb(d)
+        where status = {
+        "pos": {"x": 1.0, ...},
+        }
+        and can add other fields later
+        """
+        self.status_cbs.append(cb)
+
+    def update_status(self, status):
+        if "pos" in status:
+            status["pos"] = self.scale_i2e(status["pos"])
+        for cb in self.status_cbs:
+            cb(status)
 
     def close(self):
         # Most users want system to idle if they lose control
@@ -85,6 +106,8 @@ class MotionHAL:
     def scale_e2i(self, pos):
         """
         Scale an external coordinate system to an internal coordinate system
+        External: what user sees
+        Internal: what the machine uses
         Fixup layer for gearboxes and such
         """
         if not self.scalars:

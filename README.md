@@ -172,13 +172,21 @@ However, I've been using this workflow for years now, and will probably continue
  * Misc fixes
 
 3.2.0 (WIP)
+ * Compatible with
   * gst-plugin-toupcam: v0.3.0 (WIP)
-  * Config: add imager.source_properties_mod
-   * ex: reduce exposure time to practical range)
-  * Config: add imager.crop
-   * Use an oversized sensor by cropping it down
-  * Add lip-m1-beta support
-  * Backlash can be specified per axis
-   * Intended to support XY vs Z
-  * Config interface cleaned up
-  * Reduce verbosity
+  * Motion HAL: GRBL (LinuxCNC bitrotting)
+ * Config: add imager.source_properties_mod
+  * ex: reduce exposure time to practical range)
+ * Config: add imager.crop
+  * Use an oversized sensor by cropping it down
+ * Config: add planner.backlash_compensate
+  * More aggressively backlash compensate to improve xy alignment
+ * Config: backlash can be specified per axis
+  * Intended to support XY vs Z
+ * Config API cleaned up
+ * Add Advanced tab
+  * Focus stack support
+ * Argus: update position during long moves
+ * Microscope: lip-m1-beta support
+ * Reduce verbosity
+ * Unit test suite significantly expanded

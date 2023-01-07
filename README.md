@@ -174,19 +174,28 @@ However, I've been using this workflow for years now, and will probably continue
 3.2.0 (WIP)
  * Compatible with
   * gst-plugin-toupcam: v0.3.0 (WIP)
-  * Motion HAL: GRBL (LinuxCNC bitrotting)
- * Config: add imager.source_properties_mod
-  * ex: reduce exposure time to practical range)
- * Config: add imager.crop
-  * Use an oversized sensor by cropping it down
- * Config: add planner.backlash_compensate
-  * More aggressively backlash compensate to improve xy alignment
- * Config: backlash can be specified per axis
-  * Intended to support XY vs Z
- * Config API cleaned up
+  * Motion HAL: GRBL
+   * LinuxCNC was not removed but was not updated either
+ * Microscope
+  * lip-m1-beta support
+  * ls-hvy-1: moved from LinuxCNC to GRBL
+  * brainscope: moved from LinuxCNC to GRBL
  * Add Advanced tab
   * Focus stack support
- * Argus: update position during long moves
- * Microscope: lip-m1-beta support
- * Reduce verbosity
- * Unit test suite significantly expanded
+  * HDR support
+ * Config improvements and changes
+  * Config: add imager.source_properties_mod
+   * ex: reduce exposure time to practical range)
+  * Config: add imager.crop
+   * Use an oversized sensor by cropping it down
+  * Config: add planner.backlash_compensate
+   * More aggressively backlash compensate to improve xy alignment
+  * Config: backlash can be specified per axis
+   * Intended to support XY vs Z
+  * Config API cleaned up
+ * Bug fixes / usability improvements
+  * Argus: update position during long moves
+  * Fix image flickering during move
+  * Fix image flickering caused by GUI exposure fighting auto-exposure
+  * Reduce console verbosity
+  * Unit test suite significantly expanded

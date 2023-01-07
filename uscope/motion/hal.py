@@ -59,6 +59,9 @@ class MotionHAL:
         self.mv_lastt = time.time()
 
     def __del__(self):
+        self.close()
+
+    def close(self):
         # Most users want system to idle if they lose control
         if self.stop_on_del:
             self.stop()

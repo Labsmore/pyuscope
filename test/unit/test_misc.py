@@ -12,11 +12,18 @@ from uscope.util import printj
 from uscope.planner import microscope_to_planner
 import shutil
 import time
+import glob
+from uscope.motion.grbl import GRBL, GrblHal
 
 
-class PlannerTestCase(unittest.TestCase):
+class TestCommon(unittest.TestCase):
     def setUp(self):
         """Call before every test case."""
+        print("")
+        print("")
+        print("")
+        print("Start " + self._testMethodName)
+        self.verbose = os.getenv("VERBOSE", "N") == "Y"
         self.verbose = int(os.getenv("TEST_VERBOSE", "0"))
         self.planner_dir = "/tmp/pyuscope/planner"
         if os.path.exists("/tmp/pyuscope"):
@@ -25,8 +32,9 @@ class PlannerTestCase(unittest.TestCase):
 
     def tearDown(self):
         """Call after every test case."""
-        pass
 
+
+class PlannerTestCase(TestCommon):
     def simple_planner(self, pconfig, dry=False):
         if self.verbose:
             log = print
@@ -154,7 +162,7 @@ class PlannerTestCase(unittest.TestCase):
         microscope_to_planner(usj, objectivei=0, contour=contour)
 
 
-class GstTestCase(unittest.TestCase):
+class GstTestCase(TestCommon):
     def setUp(self):
         """Call before every test case."""
         self.verbose = int(os.getenv("TEST_VERBOSE", "0"))
@@ -170,6 +178,131 @@ class GstTestCase(unittest.TestCase):
     def test_mock(self):
         usj = get_usj(name="mock")
         gst.get_cli_imager_by_config(usj)
+
+
+def get_grbl(verbose=False):
+    # print("Checking for GRBL...")
+    if not glob.glob("/dev/serial/by-id/usb-*_USB_Serial-if00-port0"):
+        print("GRBL: no plausible GRBL")
+        return None
+    try:
+        ret = GRBL(verbose=verbose)
+    except:
+        print("GRBL: open failed")
+        raise
+    print("GRBL: open ok")
+    return ret
+
+
+class GrblTestCase(TestCommon):
+    def setUp(self):
+        """Call before every test case."""
+        super().setUp()
+
+        self.grbl = get_grbl()
+        if not self.grbl:
+            self.skipTest("No GRBL")
+
+        # print("Set TEST_GRBL_ALL to run aggressive tests")
+
+        # A small amount to move
+        self.delta = 0.01
+        # A reasonable feedrate
+        self.f = 100
+
+    def tearDown(self):
+        """Call after every test case."""
+        self.grbl.close()
+        super().tearDown()
+
+    def test_reset(self):
+        self.grbl.reset()
+
+    def test_stop(self):
+        self.grbl.stop()
+
+    def test_qstatus(self):
+        self.grbl.qstatus()
+
+    def test_mpos(self):
+        self.grbl.mpos()
+
+    def test_move_absolute(self):
+        mpos = self.grbl.mpos()
+        for axis in "xyz":
+            pos0 = mpos[axis]
+            self.grbl.move_absolute(pos={axis: pos0 + self.delta}, f=self.f)
+            self.grbl.move_absolute(pos={axis: pos0}, f=self.f)
+
+    def test_hard_move_relative(self):
+        for axis in "xyz":
+            self.grbl.move_relative(pos={axis: +self.delta},
+                                    f=self.f,
+                                    soft=False)
+            self.grbl.move_relative(pos={axis: -self.delta},
+                                    f=self.f,
+                                    soft=False)
+
+    def test_soft_move_relative(self):
+        for axis in "xyz":
+            self.grbl.move_relative(pos={axis: +self.delta},
+                                    f=self.f,
+                                    soft=True)
+            self.grbl.move_relative(pos={axis: -self.delta},
+                                    f=self.f,
+                                    soft=True)
+
+    def test_wait_idle(self):
+        self.grbl.wait_idle()
+
+    def test_jog(self):
+        self.grbl.jog({"x": +self.delta}, rate=self.f)
+        time.sleep(0.1)
+        self.grbl.cancel_jog()
+        self.grbl.jog({"x": -self.delta}, rate=self.f)
+        time.sleep(0.1)
+        self.grbl.cancel_jog()
+
+    def test_cancel_jog(self):
+        self.grbl.cancel_jog()
+
+
+class GrblHalTestCase(TestCommon):
+    def setUp(self):
+        """Call before every test case."""
+        super().setUp()
+
+        grbl = get_grbl()
+        if not grbl:
+            self.skipTest("No GRBL")
+        self.gh = GrblHal(grbl=grbl)
+
+        # print("Set TEST_GRBL_ALL to run aggressive tests")
+
+        # A small amount to move
+        self.delta = 0.01
+        # A reasonable feedrate
+        self.f = 100
+
+    def tearDown(self):
+        """Call after every test case."""
+        self.gh.close()
+        super().tearDown()
+
+    def test_pos(self):
+        self.gh.pos()
+
+    def test_move_absolute(self):
+        pos0s = self.gh.pos()
+        for axis in "xyz":
+            pos0 = pos0s[axis]
+            self.gh.move_absolute(pos={axis: pos0 + self.delta})
+            self.gh.move_absolute(pos={axis: pos0})
+
+    def test_move_relative(self):
+        for axis in "xyz":
+            self.gh.move_relative(pos={axis: +self.delta})
+            self.gh.move_relative(pos={axis: -self.delta})
 
 
 if __name__ == "__main__":

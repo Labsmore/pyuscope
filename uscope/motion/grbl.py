@@ -204,6 +204,14 @@ class GRBLSer:
             # they will buffer into unfrozen
             self.flush()
 
+    def close(self):
+        if self.serial:
+            self.serial.close()
+            self.serial = None
+
+    def __del__(self):
+        self.close()
+
     def flush(self):
         """
         Wait to see if there is anything in progress
@@ -513,6 +521,14 @@ class GRBL:
         self.use_soft_move_relative = int(os.getenv("GRBL_SOFT_RELATIVE", "1"))
         self.pos_cache = None
 
+    def close(self):
+        if self.gs:
+            self.gs.close()
+            self.gs = None
+
+    def __del__(self):
+        self.close()
+
     def stop(self):
         self.cancel_jog()
 
@@ -662,15 +678,16 @@ class GRBL:
             apos[k] = self.pos_cache[k] + v
         self.move_absolute(apos, f=f, blocking=blocking)
 
-    def move_relative(self, pos, f, blocking=True):
+    def move_relative(self, pos, f, blocking=True, soft=None):
         """
         WARNING: if a command errors its easy to move position
         You will need to deal with raised exceptions (which can be frequent)
         and recover based on whether or not the move happened
         Use soft_move_relative instead
         """
-
-        if self.use_soft_move_relative:
+        if soft is None:
+            soft = self.use_soft_move_relative
+        if soft:
             return self.soft_move_relative(pos, f, blocking=blocking)
         else:
             # implies G1
@@ -729,11 +746,14 @@ class GRBL:
 
 
 class GrblHal(MotionHAL):
-    def __init__(self, verbose=None, port=None, **kwargs):
+    def __init__(self, verbose=None, port=None, grbl=None, **kwargs):
         self.grbl = None
         MotionHAL.__init__(self, verbose=verbose, **kwargs)
         self.feedrate = None
-        self.grbl = GRBL(port=port, verbose=verbose)
+        if grbl:
+            self.grbl = grbl
+        else:
+            self.grbl = GRBL(port=port, verbose=verbose)
 
     def axes(self):
         return {'x', 'y', 'z'}

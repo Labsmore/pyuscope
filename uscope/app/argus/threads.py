@@ -7,8 +7,6 @@ import queue
 import threading
 from PyQt5.QtCore import *
 import time
-import os
-import json
 import datetime
 
 

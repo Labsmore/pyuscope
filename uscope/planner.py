@@ -15,7 +15,6 @@ from collections import OrderedDict
 import json
 import math
 import os
-import shutil
 import threading
 import time
 
@@ -288,6 +287,10 @@ class PlannerStacker:
             self.planner.motion.move_absolute({self.axis: z})
             img_fn = self.planner.img_fn('_z%02d' % image_number)
             self.planner.take_picture(img_fn)
+            # Notify complete on last imge in stack
+            # Really though need to improve this interface...
+            if image_number == self.images_per_stack - 1:
+                self.xy_imgs += 1
             self.planner.notify_progress(img_fn)
 
 
@@ -631,8 +634,8 @@ class Planner:
         else:
             img_fn = self.img_fn()
             self.take_picture(img_fn)
+            self.xy_imgs += 1
             self.notify_progress(img_fn)
-        self.xy_imgs += 1
 
     def validate_point(self, p):
         (cur_x, cur_y), (cur_col, cur_row) = p

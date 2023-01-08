@@ -208,3 +208,9 @@ However, I've been using this workflow for years now, and will probably continue
   * Fix image flickering caused by GUI exposure fighting auto-exposure
   * Reduce console verbosity
   * Unit test suite significantly expanded
+
+3.3.0 (WIP)
+ * Config API clean up
+ * WIP: fix axis soft limit bug
+ * WIP: add ability to temporarily override soft limits
+ * WIP: reliable Argus launch

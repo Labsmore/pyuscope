@@ -181,8 +181,8 @@ However, I've been using this workflow for years now, and will probably continue
   * ls-hvy-1: moved from LinuxCNC to GRBL
   * brainscope: moved from LinuxCNC to GRBL
  * Add Advanced tab
-  * Focus stack support
-  * HDR support
+  * Focus stack support (beta quality)
+  * HDR support (beta quality)
  * Config improvements and changes
   * Config: add imager.source_properties_mod
    * ex: reduce exposure time to practical range)

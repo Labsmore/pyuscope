@@ -318,7 +318,7 @@ class PlannerStacker:
             # Notify complete on last imge in stack
             # Really though need to improve this interface...
             if image_number == self.images_per_stack - 1:
-                self.xy_imgs += 1
+                self.planner.xy_imgs += 1
             self.planner.notify_progress(img_fn)
 
 

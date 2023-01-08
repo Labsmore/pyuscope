@@ -1,4 +1,14 @@
 /*
+Configuration:
+-Camera: E3ISPM20000KPA
+-1X relay lens
+-Zoom knob: 3.5X
+-Z: 5:1 gearbox
+-X/Y: no gearbox
+
+E3ISPM20000KPA => 1 “(13.06x8.76)
+A much larger sensor, too large for this microscope
+But not buggy like original intended camera
 */
 {
     "planner": {
@@ -23,7 +33,7 @@
     */
     "motion": {
         "hal": "grbl-ser",
-        //FIXME: what is the actual value?
+        //2022-07-06: measured values on S/N 2301001
         "backlash": {
             //raw about 0.040
             "x": 0.080,
@@ -42,47 +52,24 @@
             //4 mm => 1 mm pitch, add 5x gearbox
             "z": 20.0,
         },
-        //Currently enforced via MotionHAL
-        //Eventually via limits in GRBL controller and/or homing switches
-        "!soft_limits": {
-            "xmax": 220.0,
-            "ymax": 178.0,
-            "zmax": 137.0,
+        //2023-01-07: somewhat conservative values, especially for z
+        //WARNING: top of Z will cause excessive friction, do not approach
+        "soft_limits": {
+            "xmin": 0.0,
+            "xmax": 305.0,
+            "ymin": 0.0,
+            "ymax": 150.0,
+            //z home is at top
+            "zmin": -80.0,
+            "zmax": 0.0,
         },
     },
-
-    //camera is buggy :(
-    //E3ISPM25000KPA => 1/2.3 “ (5.519x5.519)
-    /*
-    Config:
-    -1X relay tube lens
-    -Zoom knob at 2.0
-
-		{
-			"name":"Mitutoyo Apo 5X",
-			"suffix": "mit5x2",
-			"scalar": 0.5,
-			"x_view": 1.1
-		},
-    */
-    "!imager": {
-        "source":"gst-toupcamsrc",
-        "width": 4928,
-        "height": 4928,
-        "source_properties": {
-            "esize": 0
-        },
-        "scalar": 0.5,
-    },
-
-    //E3ISPM20000KPA => 1 “(13.06x8.76)
-    //A much larger sensor, too large for this microscope
-    //zoom knob at max (4.5)
     "imager": {
         "source":"gst-toupcamsrc",
 		"width": 5440,
 		"height": 3648,
         "source_properties": {
+            //0 => mode 5440x3648
             "esize": 0
         },
         "source_properties_mod": {
@@ -92,33 +79,9 @@
             },
         },
         "scalar": 0.5,
-        /*
-        Original intended camera is buggy
-        Work around by using a well vetted larger camera sensor but ignore the unused sensor area
-
-
-		width 5440
-		height: 3648
-		taking about 2k off of width makes almost right
-		(5440 - 3648) / 2 = 896 for square sensor
-		./test/imager/full.py --gst-source toupcamsrc --toupcamsrc-esize 0 --gst-wh 5440,3648 --gst-crop 0,0,896,896
-		very slightly cropping
-		./test/imager/full.py --gst-source toupcamsrc --toupcamsrc-esize 0 --gst-wh 5440,3648 --gst-crop 100,100,996,996
-		think this is ok
-		./test/imager/full.py --gst-source toupcamsrc --toupcamsrc-esize 0 --gst-wh 5440,3648 --gst-crop 150,150,1046,1046
-		add some margin
-		./test/imager/full.py --gst-source toupcamsrc --toupcamsrc-esize 0 --gst-wh 5440,3648 --gst-crop 200,200,1096,1096
-            width 5440 - 1096 - 1096 = 3248
-            height: 3648 - 200 -200 = 3248
-            3248 x 3248 => 10.5 MP effective sensor
-
-		we should also do another run aligning it
-
-
-        width 5440 - 1396 - 1396 = 2648
-        height: 3648 - 500 - 500 = 2648
-        2648 x 2648 => 7 MP effective sensor
-        */
+        //Uncomment to save snapshots and scans 8-bit lossless
+        //Note: raw and 12 bit support is much more involved / experimental
+        //"save_extension": ".tif",
         "crop": {
             "top": 500,
             "bottom": 500,
@@ -126,32 +89,24 @@
             "right": 1396,
         },
     },
-
-
-    /*
-    Config:
-    -1X relay tube lens
-    -Zoom knob at 2.0
-    */
     "objectives": [
 		{
 			"name":"Mitutoyo Apo 5X",
-			"suffix": "mit5x2",
+			"suffix": "mit5",
 			"scalar": 0.5,
 			"x_view": 0.7 
 		},
 		{
 			"name":"Mitutoyo Apo 10X",
-			"suffix": "mit10x2",
+			"suffix": "mit10",
 			"scalar": 0.5,
 			"x_view": 0.35
 		},
 		{
 			"name":"Mitutoyo Apo 20X",
-			"suffix": "mit20x2",
+			"suffix": "mit20",
 			"scalar": 0.5,
 			"x_view": 0.17
 		},
    ]
 }
-

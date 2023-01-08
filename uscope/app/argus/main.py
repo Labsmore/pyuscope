@@ -1012,7 +1012,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.snapshot_pb, 0, 0)
 
         self.snapshot_fn_le = QLineEdit('snapshot')
-        self.snapshot_suffix_le = QLineEdit('.jpg')
+        self.snapshot_suffix_le = QLineEdit(self.usc.imager.save_extension())
         # XXX: since we already have jpegenc this is questionable
         self.snapshot_suffix_le.setEnabled(False)
         self.snapshot_suffix_le.setSizePolicy(
@@ -1077,7 +1077,8 @@ class MainWindow(QMainWindow):
                 scaled = get_scaled(image, factor, Image.ANTIALIAS)
                 extension = str(self.snapshot_suffix_le.text())
                 if extension == ".jpg":
-                    scaled.save(fn_full, quality=95)
+                    scaled.save(fn_full,
+                                quality=self.usc.imager.save_quality())
                 else:
                     scaled.save(fn_full)
             # FIXME: refine

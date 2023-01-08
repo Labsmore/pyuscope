@@ -223,6 +223,26 @@ class USCImager:
     def scalar(self):
         return float(self.j.get("scalar", 1.0))
 
+    def save_extension(self):
+        """
+        Used by PIL to automagically save files
+
+        Used by:
+        -Planner output
+        -Argus snapshot
+        """
+        return self.j.get("save_extension", ".jpg")
+
+    def save_quality(self):
+        """
+        When .jpg output, determines the saved compression level
+
+        Used by:
+        -Planner output
+        -Argus snapshot
+        """
+        return self.j.get("save_quality", 95)
+
 
 class USCPlanner:
     def __init__(self, j=None):

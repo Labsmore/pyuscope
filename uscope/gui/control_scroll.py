@@ -296,14 +296,14 @@ class ImagerControlScroll(QScrollArea):
             return
         self.set_disp_properties(j)
 
+        # Requires special care not to thrash
+        self.prop_policy("auto-exposure", self.prop_read("auto-exposure"))
+
     def cal_save(self):
         config.cal_save(source=self.vidpip.source_name,
                         j=self.get_disp_properties())
 
     def run(self):
-        # Requires special care not to thrash
-        self.prop_policy("auto-exposure", self.prop_read("auto-exposure"))
-
         if self.update_timer:
             self.update_timer.start(200)
         # Doesn't load reliably, add a delay
@@ -312,8 +312,16 @@ class ImagerControlScroll(QScrollArea):
         QTimer.singleShot(500, self.cal_load)
 
     def set_push_gui(self, val, disp_names=None):
+        """
+        val
+            true: when the value changes in the GUI set that value onto the device
+            false: do nothing when GUI value changes
+        disp_names
+            None: all values
+            iterable: only these
+        """
         val = bool(val)
-        for disp_name in disp_names:
+        for disp_name in self.get_disp_properties().keys():
             if disp_names and disp_name not in disp_names:
                 continue
             prop = self.disp2prop[disp_name]
@@ -329,6 +337,14 @@ class ImagerControlScroll(QScrollArea):
                 assert 0, prop
 
     def set_push_prop(self, val, disp_names=None):
+        """
+        val
+            true: when the value changes pon the device set that value in the GUI
+            false: do nothing when device value changes
+        disp_names
+            None: all values
+            iterable: only these
+        """
         val = bool(val)
         for disp_name in self.get_disp_properties().keys():
             if disp_names and disp_name not in disp_names:

@@ -501,7 +501,8 @@ class Planner:
         # May be different than all_imags if image stacking
         self.xy_imgs = 0
 
-        self.img_ext = '.jpg'
+        self.image_save_extension = self.usc.imager.save_extension()
+        self.image_save_quality = self.usc.imager.save_quality()
         self.tsettle = self.pconfig.get("tsettle", 0.0)
 
     def check_running(self):
@@ -588,8 +589,8 @@ class Planner:
     def take_picture(self, fn_base):
         def save(image, fn_base, img_ext):
             fn_full = fn_base + img_ext
-            if img_ext == ".jpg":
-                image.save(fn_full, quality=95)
+            if img_ext == ".jpg" or img_ext == ".jpeg":
+                image.save(fn_full, quality=self.image_save_quality)
             else:
                 image.save(fn_full)
 
@@ -604,10 +605,11 @@ class Planner:
                 # HDR, focus stack, etc may give more than one image
                 if len(images) == 1:
                     image = list(images.values())[0]
-                    save(image, fn_base, self.img_ext)
+                    save(image, fn_base, self.image_save_extension)
                 else:
                     for k, image in images.items():
-                        save(image, fn_base + "_" + k, self.img_ext)
+                        save(image, fn_base + "_" + k,
+                             self.image_save_extension)
         self.all_imgs += 1
 
     def move_absolute(self, pos):
@@ -750,7 +752,7 @@ class Planner:
         # self.comment("  Z step: %s" % self.stack_step_size)
         self.comment("Full backlash compensation: %d" %
                      self.backlash_compensate)
-        self.comment("Output extension: %s" % self.img_ext)
+        self.comment("Output extension: %s" % self.image_save_extension)
         self.comment("tsettle: %0.2f" % self.tsettle)
 
         # imgr_mp = self.imager.wh()[0] * self.imager.wh()[1] / 1.e6

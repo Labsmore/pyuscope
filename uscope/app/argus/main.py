@@ -10,7 +10,7 @@ from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
 from uscope.motion.plugins import get_motion_hal
 from uscope.app.argus.threads import MotionThread, PlannerThread
-from uscope.planner import microscope_to_planner
+from uscope.planner import microscope_to_planner, backlash_move_absolute
 from uscope import util
 from uscope import config
 from uscope.motion import motion_util
@@ -235,10 +235,17 @@ class MotionWidget(QWidget):
 
         def move_abs():
             layout = QHBoxLayout()
+
             layout.addWidget(QLabel("Absolute move"))
             self.move_abs_le = QLineEdit()
             self.move_abs_le.returnPressed.connect(self.move_abs_le_process)
             layout.addWidget(self.move_abs_le)
+
+            layout.addWidget(QLabel("Backlash compensate?"))
+            self.move_abs_backlash_cb = QCheckBox()
+            self.move_abs_backlash_cb.setChecked(False)
+            layout.addWidget(self.move_abs_backlash_cb)
+
             return layout
 
         def mdi():
@@ -267,6 +274,11 @@ class MotionWidget(QWidget):
             pos = motion_util.parse_move(s)
         except ValueError:
             self.log("Failed to parse move. Need like: X1.0 Y2.4")
+        if self.move_abs_backlash_cb.isChecked():
+            bpos = backlash_move_absolute(
+                pos, self.usc.motion.backlash(),
+                self.usc.motion.backlash_compensation())
+            self.motion_thread.move_relative(bpos)
         self.motion_thread.move_absolute(pos)
 
     def mdi_le_process(self):

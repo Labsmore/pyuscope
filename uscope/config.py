@@ -332,6 +332,16 @@ class USCMotion:
 
         return ret
 
+    def backlash_compensation(self):
+        """
+        +1: move negative along axis then positive to final position
+        0 => none
+        -1: move positive along axis then negative to final position
+        """
+        ret = int(self.j.get("backlash_compensation", 0))
+        assert ret in (-1, 0, 1)
+        return ret
+
     def origin(self):
         ret = self.j.get("origin", "ll")
         assert ret in ("ll", "ul"), "Invalid coordinate origin"

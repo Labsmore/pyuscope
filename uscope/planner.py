@@ -64,6 +64,24 @@ def drange_tol(start, stop, step, delta=None):
         r += step
 
 
+def backlash_move_absolute(pos, backlash, direction):
+    """
+    return an absolute move to proceed pos
+
+    pos: move to absolute position after this
+    backlash: amount in each axis
+    direction: which way to compensate
+    """
+
+    # TODO: only do these moves if they are significant
+    bpos = {}
+    for k in pos.keys():
+        # z is not traditionally well defined, hack around
+        backlash = backlash.get(k, 0.0)
+        bpos[k] = pos[k] - direction * backlash
+    return bpos
+
+
 class PlannerAxis(object):
     def __init__(
         self,
@@ -267,7 +285,7 @@ class PlannerStacker:
 
             # Step in the same distance as backlash compensation
             # Start at bottom and move down
-            if self.planner.backlash_compensate > 0:
+            if self.planner.backlash_compensation > 0:
                 start = self.start - self.distance / 2
             # Move to the top of the stack and move down
             else:
@@ -281,8 +299,8 @@ class PlannerStacker:
         # Step in the same distance as backlash compensation
         # Default down
         direction = -1
-        if self.planner.backlash_compensate:
-            direction = self.planner.backlash_compensate
+        if self.planner.backlash_compensation:
+            direction = self.planner.backlash_compensation
         step_distance = self.distance / (self.images_per_stack - 1) * direction
 
         self.planner.move_absolute({'z': start})
@@ -444,10 +462,12 @@ class Planner:
 
         True => 1 => negative move before positive
         """
-        self.backlash_compensate = self.pconfig.get("backlash_compensate", 0)
-        if self.backlash_compensate:
-            self.backlash_compensate = int(self.backlash_compensate) // abs(
-                int(self.backlash_compensate))
+        self.backlash_compensation = self.pconfig["motion"].get(
+            "backlash_compensation", 0)
+        if self.backlash_compensation:
+            self.backlash_compensation = int(
+                self.backlash_compensation) // abs(
+                    int(self.backlash_compensation))
 
         self.axes = OrderedDict([
             ('x',
@@ -628,13 +648,10 @@ class Planner:
         self.all_imgs += 1
 
     def move_absolute(self, pos):
-        if self.backlash_compensate:
-            # TODO: only do these moves if they are significant
-            bpos = {}
-            for k in pos.keys():
-                # z is not traditionally well defined, hack around
-                backlash = self.backlash.get(k, 0.0)
-                bpos[k] = pos[k] - self.backlash_compensate * backlash
+        if self.backlash_compensation:
+            bpos = backlash_move_absolute(pos,
+                                          self.backlash,
+                                          direction=self.backlash_compensation)
             self.motion.move_absolute(bpos)
         self.motion.move_absolute(pos)
 
@@ -766,7 +783,7 @@ class Planner:
         # the math seems off here. Disabled for now / needs cleanup
         # self.comment("  Z step: %s" % self.stack_step_size)
         self.comment("Full backlash compensation: %d" %
-                     self.backlash_compensate)
+                     self.backlash_compensation)
         self.comment("Output extension: %s" % self.image_save_extension)
         self.comment("tsettle: %0.2f" % self.tsettle)
 
@@ -965,7 +982,7 @@ class Planner:
 
     def move_absolute_backlash(self, move_to):
         '''Do an absolute move with backlash compensation'''
-        if self.backlash_compensate:
+        if self.backlash_compensation:
             self.move_absolute(move_to)
             return
 
@@ -1032,6 +1049,9 @@ def microscope_to_planner(usj, objective=None, objectivei=None, contour=None):
     v = usj["motion"].get("backlash")
     if v:
         ret["motion"]["backlash"] = v
+    v = usj["motion"].get("backlash_compensation")
+    if v:
+        ret["motion"]["backlash_compensation"] = v
 
     # By definition anything in planner section is planner config
     # give more thought to precedence at some point

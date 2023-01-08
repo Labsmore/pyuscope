@@ -171,7 +171,7 @@ However, I've been using this workflow for years now, and will probably continue
  * Better GRBL automatic serial port selection
  * Misc fixes
 
-3.2.0 (WIP)
+3.2.0
  * Compatible with
   * gst-plugin-toupcam: v0.3.0 (WIP)
   * Motion HAL: GRBL

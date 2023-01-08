@@ -180,9 +180,11 @@ However, I've been using this workflow for years now, and will probably continue
   * lip-m1-beta support
   * ls-hvy-1: moved from LinuxCNC to GRBL
   * brainscope: moved from LinuxCNC to GRBL
- * Add Advanced tab
-  * Focus stack support (beta quality)
-  * HDR support (beta quality)
+ * Argus
+  * Add Advanced tab
+   * Focus stack support (beta quality)
+   * HDR support (beta quality)
+  * Manual move w/ backlash compensation option
  * Config improvements and changes
   * Config: add imager.source_properties_mod
    * ex: reduce exposure time to practical range)

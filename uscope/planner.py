@@ -22,7 +22,7 @@ import time
 from uscope.motion.hal import DryHal
 # FIXME: hack, maybe just move the baacklash parsing out
 # at least to stand alone function
-from uscope.config import USCMotion
+from uscope.config import USCMotion, USCImager
 
 
 def drange(start, stop, step, inclusive=False):
@@ -501,8 +501,10 @@ class Planner:
         # May be different than all_imags if image stacking
         self.xy_imgs = 0
 
-        self.image_save_extension = self.usc.imager.save_extension()
-        self.image_save_quality = self.usc.imager.save_quality()
+        # FIXME: hack
+        imager_config = USCImager(j=self.pconfig.get("imager", {}))
+        self.image_save_extension = imager_config.save_extension()
+        self.image_save_quality = imager_config.save_quality()
         self.tsettle = self.pconfig.get("tsettle", 0.0)
 
     def check_running(self):
@@ -1003,8 +1005,12 @@ def microscope_to_planner(usj, objective=None, objectivei=None, contour=None):
     v = usj["imager"].get("scalar")
     if v:
         ret["imager"]["scalar"] = float(v)
-
-    # ret["motion"]["hal"] = usj["motion"].get("hal")
+    v = usj["imager"].get("save_extension")
+    if v:
+        ret["imager"]["save_extension"] = v
+    v = usj["imager"].get("save_quality")
+    if v:
+        ret["imager"]["save_quality"] = v
 
     v = usj["motion"].get("origin")
     if v:

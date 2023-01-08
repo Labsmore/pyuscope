@@ -151,8 +151,8 @@ class USCImager:
         j: usj["imager"]
         """
         self.j = j
-        if not "width" in j or not "height" in j:
-            raise ValueError("width/height required")
+        #if not "width" in j or not "height" in j:
+        #    raise ValueError("width/height required")
 
     def source(self):
         return self.j.get("source", "auto")

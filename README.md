@@ -173,9 +173,16 @@ However, I've been using this workflow for years now, and will probably continue
 
 3.2.0
  * Compatible with
-  * gst-plugin-toupcam: v0.3.0 (WIP)
+  * gst-plugin-toupcam: v0.3.0
   * Motion HAL: GRBL
    * LinuxCNC was not removed but was not updated either
+ * Known bugs
+  * Argus: first time connecting to GRBL may cuase failed start
+   * Workaround: re-launch GUI or first run "python3 test/grbl/status.py"
+  * Axis soft limit may be exceeded during long jog
+   * Workaround: be careful and/or do shorter jogs
+  * Auto-exposure may cause image to flicker
+   * Workaround: toggle auto-exposure off then on to stabalize
  * Microscope
   * lip-m1-beta support
   * ls-hvy-1: moved from LinuxCNC to GRBL

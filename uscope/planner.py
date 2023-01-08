@@ -103,7 +103,7 @@ class PlannerAxis(object):
         self.req_overlap = req_overlap
 
         self.start = start
-        # Requested actual_end, not necessarily true actual_end
+        # May extend past if scan area is smaller than view
         self.requested_end = end
         self.actual_end = end
         if self.requested_delta_mm() < view_mm:
@@ -178,7 +178,17 @@ class PlannerAxis(object):
 
     def images_actual(self):
         '''How many images_actual should actually take after considering margins and rounding'''
-        ret = int(math.ceil(self.images_ideal()))
+        # IDEAL: 1.000000 => 2
+        # lets deal with very small rounding errors
+        # if within 0.1% of requested image size, take it
+        ideal = self.images_ideal()
+        min_images = int(ideal)
+        if ideal - min_images < 0.0001:
+            ret = min_images
+        else:
+            ret = int(math.ceil(ideal))
+        # Always take at least one image
+        ret = max(ret, 1)
         if ret < 1:
             raise Exception('Bad number of images_actual %d' % ret)
         return ret

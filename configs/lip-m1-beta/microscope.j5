@@ -33,7 +33,7 @@
             "z": 0.250,
         },
         //backlash down so z is locked in place under tension
-        "backlash_compensate": -1,
+        "backlash_compensation": -1,
         "scalars": {
             //4 mm => 1 mm pitch
             "x": 4.0,

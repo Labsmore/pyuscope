@@ -77,8 +77,8 @@ def backlash_move_absolute(pos, backlash, direction):
     bpos = {}
     for k in pos.keys():
         # z is not traditionally well defined, hack around
-        backlash = backlash.get(k, 0.0)
-        bpos[k] = pos[k] - direction * backlash
+        ax_backlash = backlash.get(k, 0.0)
+        bpos[k] = pos[k] - direction * ax_backlash
     return bpos
 
 
@@ -455,19 +455,8 @@ class Planner:
 
         motionj = self.pconfig.get("motion", {})
         self.backlash = USCMotion(j=motionj).backlash()
-        """
-        +1: do a negative move before a positive move
-        0: no compensation
-        -1: do a positive move before a negative move
-
-        True => 1 => negative move before positive
-        """
-        self.backlash_compensation = self.pconfig["motion"].get(
-            "backlash_compensation", 0)
-        if self.backlash_compensation:
-            self.backlash_compensation = int(
-                self.backlash_compensation) // abs(
-                    int(self.backlash_compensation))
+        self.backlash_compensation = USCMotion(
+            j=motionj).backlash_compensation()
 
         self.axes = OrderedDict([
             ('x',
@@ -650,7 +639,7 @@ class Planner:
     def move_absolute(self, pos):
         if self.backlash_compensation:
             bpos = backlash_move_absolute(pos,
-                                          self.backlash,
+                                          backlash=self.backlash,
                                           direction=self.backlash_compensation)
             self.motion.move_absolute(bpos)
         self.motion.move_absolute(pos)

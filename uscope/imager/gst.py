@@ -288,19 +288,75 @@ def gst_get_args(args):
     return source_opts
 
 
-def easy_run(imager, target):
+class GstError(Exception):
+    pass
+
+
+def easy_run(imager, target, verbose=False):
+    """
+    Given a GstImager, start gstreamer pipeline and start a thread for function "target"
+    """
+
+    result = []
+
+    # Gst.Pipeline
+    # https://lazka.github.io/pgi-docs/Gst-1.0/classes/Pipeline.html
+    # https://lazka.github.io/pgi-docs/Gst-1.0/classes/Element.html#Gst.Element.set_state
     imager.player.set_state(Gst.State.PLAYING)
     loop = GLib.MainLoop()
+    thread_go = threading.Event()
+    loop_done = threading.Event()
+
+    def on_message(bus, message):
+        t = message.type
+
+        verbose and print("on_message", message, t)
+        if t == Gst.MessageType.EOS:
+            imager.player.set_state(Gst.State.NULL)
+            loop.quit()
+        elif t == Gst.MessageType.ERROR:
+            err, debug = message.parse_error()
+            verbose and print("Error: %s" % err, debug)
+            imager.player.set_state(Gst.State.NULL)
+            result.append(err)
+            loop.quit()
+        elif t == Gst.MessageType.STATE_CHANGED:
+            pass
+        elif t == Gst.MessageType.STREAM_START:
+            thread_go.set()
+
+    bus = imager.player.get_bus()
+    bus.add_signal_watch()
+    bus.enable_sync_message_emission()
+    bus.connect("message", on_message)
+
+    # bus.connect("sync-message::element", on_sync_message)
 
     def wrapper(args):
+        verbose and print("wrap start, waiting for ready")
+        thread_go.wait(timeout=1.0)
+        if loop_done.is_set():
+            verbose and print("skipping thread on bad start")
+            return
         try:
             target(loop)
         finally:
+            # XXX: must be thread safe?
             loop.quit()
+            pass
 
     thread = threading.Thread(target=wrapper, args=(loop, ))
     thread.start()
     loop.run()
+    verbose and print("loop done, joining")
+    # In case of error shut down quickly
+    thread_go.set()
+    loop_done.set()
+    thread.join()
+    verbose and print("thread joined")
+
+    if len(result):
+        raise GstError(result[0])
 
 
 def apply_imager_cal(imager, verbose=False):

@@ -268,11 +268,18 @@ class USCMotion:
         self.j = j
         # See set_axes() for more fine grained control
         # Usually this is a reasonable approximation
-        # Dict to reserve for future metadata if needed
+        # Iterate (list, dict, etc) to reserve for future metadata if needed
         self.axes_meta = OrderedDict([("x", {}), ("y", {}), ("z", {})])
         # hmm pconfig tries to overlay on USCMotion
         # not a good idea?
         # assert "hal" in self.j
+
+    def validate_axes_dict(self, axes):
+        # FIXME
+        pass
+
+    def set_axes_meta(self, axes_meta):
+        self.axes_meta = axes_meta
 
     def hal(self):
         """
@@ -326,8 +333,10 @@ class USCMotion:
         else:
             raise Exception("Invalid backlash: %s" % (backlash, ))
 
-        # If axes are known validte and add defaults
-        if self.axes_meta and default_backlash is not None:
+        # If axes are known validate and add defaults
+        if self.axes_meta:
+            if default_backlash is None:
+                default_backlash = 0.0
             # If axes were registered, set defaults
             for k in self.axes_meta:
                 if not k in ret:
@@ -492,8 +501,14 @@ class PCImager:
     def __init__(self, j=None):
         self.j = j
 
-        self.save_extension = USCImager.save_extension
-        self.save_quality = USCImager.save_quality
+        # self.save_extension = USCImager.save_extension
+        # self.save_quality = USCImager.save_quality
+
+    def save_extension(self, *args, **kwargs):
+        return USCImager.save_extension(self, *args, **kwargs)
+
+    def save_quality(self, *args, **kwargs):
+        return USCImager.save_quality(self, *args, **kwargs)
 
 
 class PCMotion:
@@ -501,9 +516,21 @@ class PCMotion:
         self.j = j
         self.axes_meta = OrderedDict([("x", {}), ("y", {}), ("z", {})])
 
-        self.backlash = USCMotion.backlash
-        self.backlash_compensation = USCMotion.backlash_compensation
-        self.set_axes_meta = USCMotion.set_axes_meta
+        # self.backlash = USCMotion.backlash
+        # self.backlash_compensation = USCMotion.backlash_compensation
+        # self.set_axes_meta = USCMotion.set_axes_meta
+
+    def backlash(self, *args, **kwargs):
+        return USCMotion.backlash(self, *args, **kwargs)
+
+    def backlash_compensation(self, *args, **kwargs):
+        return USCMotion.backlash_compensation(self, *args, **kwargs)
+
+    def set_axes_meta(self, *args, **kwargs):
+        return USCMotion.set_axes_meta(self, *args, **kwargs)
+
+    def validate_axes_dict(self, *args, **kwargs):
+        return USCMotion.validate_axes_dict(self, *args, **kwargs)
 
 
 """
@@ -512,10 +539,10 @@ Planner configuration
 
 
 class PC:
-    def __init__(self, pj=None):
-        self.j = pj
-        self.imager = PCImager(self.pj.get("imager"))
-        self.motion = PCMotion(self.pj.get("motion"))
+    def __init__(self, j=None):
+        self.j = j
+        self.imager = PCImager(self.j.get("imager"))
+        self.motion = PCMotion(self.j.get("motion", {}))
         self.apps = {}
 
     def tsettle(self):

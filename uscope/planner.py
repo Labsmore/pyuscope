@@ -385,6 +385,7 @@ class Planner:
         # FIXME: this is better than before but CTypes pickle error from deepcopy
         self.pconfig = pconfig
         self.pc = PC(j=self.pconfig)
+        self.pc.motion.set_axes_meta(self.motion.axes())
         self.progress_cb = progress_cb
 
         start, end = self.init_contour()

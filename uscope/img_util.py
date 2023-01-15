@@ -8,6 +8,7 @@ if usb:
     import usb.core
     import usb.util
 import glob
+import os
 
 VID_TOUPTEK = 0x0547
 PID_MU800 = 0x6801
@@ -19,6 +20,20 @@ def get_scaled(image, factor, filt=Image.NEAREST):
     else:
         return image.resize(
             (int(image.size[0] * factor), int(image.size[1] * factor)), filt)
+
+
+def have_touptek_camera():
+    if usb:
+        # find our device
+        for dev in usb.core.find(find_all=True):
+            if dev.idVendor != VID_TOUPTEK:
+                continue
+            return True
+
+
+def have_v4l2_camera():
+    # FIXME: more proper check
+    return os.path.exists("/dev/video0")
 
 
 def auto_detect_source():

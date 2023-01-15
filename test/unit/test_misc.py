@@ -13,6 +13,7 @@ import json5
 from uscope.motion.hal import MockHal
 from uscope.imager.imager import MockImager
 from uscope.imager import gst
+from uscope.img_util import have_touptek_camera, have_v4l2_camera
 import uscope.planner
 from uscope.config import get_usj
 from uscope.util import printj
@@ -268,6 +269,8 @@ class GstCLIImagerTestCase(TestCommon):
         """
         Need 59535360 bytes, got 59535360
         """
+        if not have_touptek_camera():
+            self.skipTest("no touptek camera")
         # Doesn't work...hmm
         # maybe its jpgeg or something like that?
         # self.imager = gst.GstCLIImager(opts={"source": "videotestsrc", "wh": (100, 100), "gst_jpg": False})
@@ -284,6 +287,8 @@ class GstCLIImagerTestCase(TestCommon):
         video4linux test
         (using my laptop camera)
         """
+        if not have_v4l2_camera():
+            self.skipTest("no v4l2 camera")
         # FIXME: only run if there is an appropriate device
         self.imager = gst.GstCLIImager(opts={
             "source": "v4l2src",
@@ -298,6 +303,8 @@ class GstCLIImagerTestCase(TestCommon):
         touptek test
         (using E3ISPM20000KPA (IMX183))
         """
+        if not have_touptek_camera():
+            self.skipTest("no touptek camera")
         # FIXME: only run if there is an appropriate device
         self.imager = gst.GstCLIImager(opts={
             "source": "toupcamsrc",

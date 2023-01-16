@@ -210,6 +210,10 @@ However, I've been using this workflow for years now, and will probably continue
   * Unit test suite significantly expanded
 
 3.3.0 (WIP)
+ * Compatible with
+  * gst-plugin-toupcam: v0.3.1 (WIP)
+   * Rev for toupcamsrc automatic resolution detection
+  * Motion HAL: GRBL
  * Config API clean up
  * WIP: fix axis soft limit bug
  * WIP: add ability to temporarily override soft limits

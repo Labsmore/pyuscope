@@ -13,7 +13,7 @@ import json5
 from uscope.motion.hal import MockHal
 from uscope.imager.imager import MockImager
 from uscope.imager import gst
-from uscope.img_util import have_touptek_camera, have_v4l2_camera
+from uscope.imager.util import have_touptek_camera, have_v4l2_camera
 import uscope.planner
 from uscope.config import get_usj
 from uscope.util import printj
@@ -22,6 +22,11 @@ import shutil
 import time
 import glob
 from uscope.motion.grbl import GRBL, GrblHal
+from uscope.imager.touptek import toupcamsrc_info
+
+TT_WH = (5440, 3648)
+TT_WH = (4928, 4928)
+V4L2_WH = (640, 480)
 
 
 class TestCommon(unittest.TestCase):
@@ -241,11 +246,10 @@ class GstCLIImagerTestCase(TestCommon):
             im = self.imager.get()
             ret.append(im)
 
-        gst.easy_run(self.imager, thread)
+        self.imager.gst_run(thread)
         if len(ret) == 0:
-            return None
-        else:
-            return ret[0]
+            raise Exception("No images")
+        return ret[0]
 
     def test_get_args(self):
         import argparse
@@ -295,11 +299,9 @@ class GstCLIImagerTestCase(TestCommon):
         # self.imager = gst.GstCLIImager(opts={"source": "videotestsrc", "wh": (100, 100), "gst_jpg": False})
         self.imager = gst.GstCLIImager(opts={
             "source": "toupcamsrc",
-            "wh": (5440, 3648),
-            "gst_jpg": False
         })
         im = self.get_image()["0"]
-        self.assertEqual(((5440, 3648)), im.size)
+        self.assertEqual((TT_WH), im.size)
 
     def test_v4lsrc(self):
         """
@@ -315,10 +317,10 @@ class GstCLIImagerTestCase(TestCommon):
                 "v4l2src": {
                     "device": "/dev/video0",
                 },
-                "wh": (640, 480)
+                "wh": V4L2_WH,
             })
         im = self.get_image()["0"]
-        self.assertEqual((640, 480), im.size)
+        self.assertEqual(V4L2_WH, im.size)
 
     def test_toupcamsrc(self):
         """
@@ -330,12 +332,16 @@ class GstCLIImagerTestCase(TestCommon):
         # FIXME: only run if there is an appropriate device
         self.imager = gst.GstCLIImager(opts={
             "source": "toupcamsrc",
-            "esize": 0,
-            "wh": (5440, 3648)
         })
         im = self.get_image()["0"]
-        self.assertEqual((5440, 3648), im.size)
+        self.assertEqual(TT_WH, im.size)
         self.imager.stop()
+
+    def test_toupcamsrc_info(self):
+        if not have_touptek_camera():
+            self.skipTest("no touptek camera")
+        j = toupcamsrc_info()
+        assert j["eSizes"][0]["StillResolution"]["w"] > 0
 
 
 def get_grbl(verbose=False):

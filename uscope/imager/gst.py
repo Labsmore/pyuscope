@@ -17,6 +17,12 @@ from uscope.util import add_bool_arg
 from uscope import config
 import threading
 import time
+"""
+FIXME
+This is getting mixed with easy_run
+ex: two buses
+Seems to work, but lets take a closer look if this is reasonable
+"""
 
 
 class GstCLIImager(Imager):

@@ -257,6 +257,25 @@ class GstCLIImagerTestCase(TestCommon):
 
         gst.gst_get_args(args)
 
+    def test_gst_failed_start(self):
+        """
+        If gstreamer gets a bad device it should shut down gracefully
+        """
+        # FIXME: only run if there is an appropriate device
+        self.imager = gst.GstCLIImager(
+            opts={
+                "source": "v4l2src",
+                "v4l2src": {
+                    "device": "/dev/video123",
+                },
+                "wh": (640, 480)
+            })
+        try:
+            _images = self.get_image()
+            self.fail("Expected exception")
+        except gst.GstError:
+            pass
+
     def test_videotestsrc(self):
         self.imager = gst.GstCLIImager(opts={
             "source": "videotestsrc",
@@ -290,11 +309,14 @@ class GstCLIImagerTestCase(TestCommon):
         if not have_v4l2_camera():
             self.skipTest("no v4l2 camera")
         # FIXME: only run if there is an appropriate device
-        self.imager = gst.GstCLIImager(opts={
-            "source": "v4l2src",
-            "device": "/dev/video0",
-            "wh": (640, 480)
-        })
+        self.imager = gst.GstCLIImager(
+            opts={
+                "source": "v4l2src",
+                "v4l2src": {
+                    "device": "/dev/video0",
+                },
+                "wh": (640, 480)
+            })
         im = self.get_image()["0"]
         self.assertEqual((640, 480), im.size)
 

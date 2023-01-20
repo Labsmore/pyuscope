@@ -146,6 +146,15 @@ def cal_save(source, j):
 
 
 class USCImager:
+    """
+    Rough pipeline for typical Touptek camera:
+    -Set esize + w/h to configure sensor size
+    -Optionally set crop to reduce the incoming image size
+    -scalar to reduce output width/height
+    """
+
+    valid_keys = {"source", "width", "height", "crop"}
+
     def __init__(self, j=None):
         """
         j: usj["imager"]
@@ -179,6 +188,8 @@ class USCImager:
             w = w - crop["left"] - crop["right"]
             h = h - crop["top"] - crop["bottom"]
 
+        if w <= 0 or h <= 0:
+            raise ValueError("Bad cropped w/h")
         return w, h
 
     def crop_tblr(self):
@@ -221,6 +232,11 @@ class USCImager:
         return self.j.get("source_properties_mod", {})
 
     def scalar(self):
+        """
+        Scale image by given factor
+        Ex: a 640x480 image (after crop) with scalar 0.5 will be output 320x240
+        A return value of None is equivalent to 1.0
+        """
         return float(self.j.get("scalar", 1.0))
 
     def save_extension(self):
@@ -242,6 +258,129 @@ class USCImager:
         -Argus snapshot
         """
         return self.j.get("save_quality", 95)
+
+
+class USCMotion:
+    def __init__(self, j=None):
+        """
+        j: usj["motion"]
+        """
+        self.j = j
+        # See set_axes() for more fine grained control
+        # Usually this is a reasonable approximation
+        # Iterate (list, dict, etc) to reserve for future metadata if needed
+        self.axes_meta = OrderedDict([("x", {}), ("y", {}), ("z", {})])
+        # hmm pconfig tries to overlay on USCMotion
+        # not a good idea?
+        # assert "hal" in self.j
+
+    def validate_axes_dict(self, axes):
+        # FIXME
+        pass
+
+    def set_axes_meta(self, axes_meta):
+        self.axes_meta = axes_meta
+
+    def hal(self):
+        """
+        Which movement engine to use
+        Sample values:
+        grbl: use GRBL controller
+        mock: use an emulatd controller
+
+        Note: there is also a family of LinuxCNC (machinekit) HALs
+        However they are not currently maintained / supported
+        """
+        ret = self.j["hal"]
+        if ret not in ("mock", "grbl", "lcnc-rpc", "lcnc-arpc", "lcnc-py"):
+            raise ValueError("Invalid hal: %s" % (ret, ))
+        return ret
+
+    def scalars(self):
+        """
+        Scale each user command by given amount when driven to physical system
+        Return a dictionary, one key per axis, of the possible axes
+        Or None if should not be scaled
+
+        Ex GRBL controller with:
+        "scalars": {
+            "x": 4.0,
+            "y": 4.0,
+            "z": 20.0,
+        GUI move x relative 2 => move GRBL x by 8
+        GUI move z relative 3 => move GRBL x by 60
+        """
+        ret = self.j.get("scalars", {})
+        self.validate_axes_dict(ret)
+        return ret
+
+    def backlash(self):
+        """
+        Return a dictionary, one key per known axis, of the possible axes
+        Backlash ("slop") defines the amount of motion needed in one axis to engage motion
+        if previously going the other direction
+        """
+        default_backlash = None
+        backlash = self.j.get("backlash", {})
+        ret = {}
+        if backlash is None:
+            pass
+        elif type(backlash) in (float, int):
+            default_backlash = float(backlash)
+        elif type(backlash) in (dict, OrderedDict):
+            for axis, v in backlash.items():
+                ret[axis] = float(v)
+        else:
+            raise Exception("Invalid backlash: %s" % (backlash, ))
+
+        # If axes are known validate and add defaults
+        if self.axes_meta:
+            if default_backlash is None:
+                default_backlash = 0.0
+            # If axes were registered, set defaults
+            for k in self.axes_meta:
+                if not k in ret:
+                    ret[k] = default_backlash
+
+        self.validate_axes_dict(ret)
+        return ret
+
+    def backlash_compensation(self):
+        """
+        +1: move negative along axis then positive to final position
+        0 => none
+        -1: move positive along axis then negative to final position
+        """
+        ret = int(self.j.get("backlash_compensation", 0))
+        if ret not in (-1, 0, 1):
+            raise ValueError("Invalid backlash_compensation: %s" % (ret, ))
+        return ret
+
+    def origin(self):
+        """
+        Where the coordinate system starts from
+        Primarily used by planner and related
+
+        CNC industry standard coordinate system is lower left
+        However, image typical coordinate system is upper left
+        There are also other advantages for some fixturing to have upper left
+        As such support a few choices here
+        """
+        ret = self.j.get("origin", "ll")
+        if ret not in ("ll", "ul"):
+            raise ValueError("Invalid coordinate origin: %s" % (ret, ))
+        return ret
+
+    def soft_limits(self):
+        """
+        Do not allow travel beyond given values
+        Return a dictionary, one key per axis, of the possible axes
+
+        Useful if your system doesn't easily support soft or hard limits
+        """
+        ret = self.jget("soft_limits", {})
+        self.validate_axes_dict(ret)
+        return ret
 
 
 class USCPlanner:
@@ -279,84 +418,15 @@ class USCPlanner:
         return float(self.j.get("hdr_tsettle", self.tsettle()))
 
 
-class USCMotion:
-    def __init__(self, j=None):
-        """
-        j: usj["motion"]
-        """
-        self.j = j
-        # See set_axes() for more fine grained control
-        # Usually this is a reasonable approximation
-        # Dict to reserve for future metadata if needed
-        self.axes_meta = OrderedDict([("x", {}), ("y", {}), ("z", {})])
-        # hmm pconfig tries to overlay on USCMotion
-        # not a good idea?
-        # assert "hal" in self.j
-
-    def hal(self):
-        return self.j["hal"]
-
-    def set_axes_meta(self, axes_meta):
-        """
-        Strictly speaking the axes are controlled by the Motion interface
-        However you can tune them here if needed
-        """
-        self.axes_meta = OrderedDict(axes_meta)
-
-    def backlash(self):
-        """
-        Return a dictionary, one key per axis, of the possible axes
-        Backlash ("slop") defines the amount of motion needed in one axis to engage motion
-        if previously going the other direction
-        """
-        default_backlash = 0.0
-        backlash = self.j.get("backlash", None)
-        ret = {}
-        if backlash is None:
-            pass
-        elif type(backlash) in (float, int):
-            default_backlash = float(backlash)
-        elif type(backlash) in (dict, OrderedDict):
-            for axis, v in backlash.items():
-                ret[axis] = float(v)
-        else:
-            raise Exception("Invalid backlash: %s" % (backlash, ))
-
-        for k in self.axes_meta:
-            if not k in ret:
-                ret[k] = default_backlash
-
-        for k in ret:
-            if k not in self.axes_meta:
-                raise ValueError("Unexpected axis %s in motion config" % (k, ))
-
-        return ret
-
-    def backlash_compensation(self):
-        """
-        +1: move negative along axis then positive to final position
-        0 => none
-        -1: move positive along axis then negative to final position
-        """
-        ret = int(self.j.get("backlash_compensation", 0))
-        assert ret in (-1, 0, 1)
-        return ret
-
-    def origin(self):
-        ret = self.j.get("origin", "ll")
-        assert ret in ("ll", "ul"), "Invalid coordinate origin"
-        return ret
-
-
 # Microscope usj config parser
 class USC:
     def __init__(self, usj=None):
         if usj is None:
             usj = get_usj()
         self.usj = usj
-        self.planner = USCPlanner(self.usj.get("planner"))
-        self.motion = USCMotion(self.usj.get("motion"))
         self.imager = USCImager(self.usj.get("imager"))
+        self.motion = USCMotion(self.usj.get("motion"))
+        self.planner = USCPlanner(self.usj.get("planner"))
         self.apps = {}
 
     def app_register(self, name, cls):
@@ -370,9 +440,123 @@ class USC:
         return self.apps[name]
 
 
+def validate_usj(usj):
+    """
+    Load all config parameters and ensure they appear to be valid
+
+    strict
+        True:
+            Error on any keys not matching a valid directive
+            If possible, error on duplicate keys
+        False
+            Allow keys like "!motion" to effectively comment a section out
+    XXX: is there a generic JSON schema system?
+    """
+    # Good approximation for now
+    axes = "xyz"
+    usc = USC(usj=usj)
+
+    # Imager
+    usc.imager.source()
+    usc.imager.raw_wh()
+    usc.imager.cropped_wh()
+    usc.imager.crop_tblr()
+    usc.imager.source_properties()
+    usc.imager.source_properties_mod()
+    usc.imager.scalar()
+    usc.imager.save_extension()
+    usc.imager.save_quality()
+
+    # Motion
+    usc.motion.set_axes_meta(axes)
+    # In case a plugin is registered validate here?
+    usc.motion.hal()
+    usc.motion.scalars()
+    usc.motion.backlash()
+    usc.motion.backlash_compensation()
+    usc.motion.origin()
+    usc.motion.soft_limits()
+
+    # Planner
+    usc.planner.step()
+    usc.planner.border()
+    usc.planner.tsettle()
+    usc.planner.hdr_tsettle()
+
+
 def get_usc(usj=None):
     global usc
 
     if usc is None:
         usc = USC(usj=usj)
     return usc
+
+
+"""
+Planner configuration
+"""
+
+
+class PCImager:
+    def __init__(self, j=None):
+        self.j = j
+
+        # self.save_extension = USCImager.save_extension
+        # self.save_quality = USCImager.save_quality
+
+    def save_extension(self, *args, **kwargs):
+        return USCImager.save_extension(self, *args, **kwargs)
+
+    def save_quality(self, *args, **kwargs):
+        return USCImager.save_quality(self, *args, **kwargs)
+
+
+class PCMotion:
+    def __init__(self, j=None):
+        self.j = j
+        self.axes_meta = OrderedDict([("x", {}), ("y", {}), ("z", {})])
+
+        # self.backlash = USCMotion.backlash
+        # self.backlash_compensation = USCMotion.backlash_compensation
+        # self.set_axes_meta = USCMotion.set_axes_meta
+
+    def backlash(self, *args, **kwargs):
+        return USCMotion.backlash(self, *args, **kwargs)
+
+    def backlash_compensation(self, *args, **kwargs):
+        return USCMotion.backlash_compensation(self, *args, **kwargs)
+
+    def set_axes_meta(self, *args, **kwargs):
+        return USCMotion.set_axes_meta(self, *args, **kwargs)
+
+    def validate_axes_dict(self, *args, **kwargs):
+        return USCMotion.validate_axes_dict(self, *args, **kwargs)
+
+
+"""
+Planner configuration
+"""
+
+
+class PC:
+    def __init__(self, j=None):
+        self.j = j
+        self.imager = PCImager(self.j.get("imager"))
+        self.motion = PCMotion(self.j.get("motion", {}))
+        self.apps = {}
+
+    def tsettle(self):
+        return self.j.get("tsettle", 0.0)
+
+    def exclude(self):
+        return self.j.get('exclude', [])
+
+    def end_at(self):
+        return self.j.get("end_at", "start")
+
+    def contour(self):
+        return self.j["contour"]
+
+
+def validate_pconfig(pj, strict=False):
+    pass

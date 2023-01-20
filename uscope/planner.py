@@ -21,7 +21,7 @@ import time
 from uscope.motion.hal import DryHal
 # FIXME: hack, maybe just move the baacklash parsing out
 # at least to stand alone function
-from uscope.config import USCMotion, USCImager
+from uscope.config import PC
 
 
 def drange(start, stop, step, inclusive=False):
@@ -384,6 +384,8 @@ class Planner:
 
         # FIXME: this is better than before but CTypes pickle error from deepcopy
         self.pconfig = pconfig
+        self.pc = PC(j=self.pconfig)
+        self.pc.motion.set_axes_meta(self.motion.axes())
         self.progress_cb = progress_cb
 
         start, end = self.init_contour()
@@ -453,10 +455,8 @@ class Planner:
         mm_per_pix = x_mm / image_wh[0]
         image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
 
-        motionj = self.pconfig.get("motion", {})
-        self.backlash = USCMotion(j=motionj).backlash()
-        self.backlash_compensation = USCMotion(
-            j=motionj).backlash_compensation()
+        self.backlash = self.pc.motion.backlash()
+        self.backlash_compensation = self.pc.motion.backlash_compensation()
 
         self.axes = OrderedDict([
             ('x',
@@ -505,7 +505,7 @@ class Planner:
 
         # Try actually generating the points and see if it matches how many we thought we were going to get
         self.pictures_to_take = self.n_xy()
-        if self.pconfig.get('exclude', []):
+        if self.pc.exclude():
             self.log('Suppressing picture take check on exclusions')
         elif self.pictures_to_take != expected_n_pictures:
             self.log(
@@ -523,11 +523,9 @@ class Planner:
         # May be different than all_imags if image stacking
         self.xy_imgs = 0
 
-        # FIXME: hack
-        imager_config = USCImager(j=self.pconfig.get("imager", {}))
-        self.image_save_extension = imager_config.save_extension()
-        self.image_save_quality = imager_config.save_quality()
-        self.tsettle = self.pconfig.get("tsettle", 0.0)
+        self.image_save_extension = self.pc.imager.save_extension()
+        self.image_save_quality = self.pc.imager.save_quality()
+        self.tsettle = self.pc.tsettle()
 
     def check_running(self):
         if not self.running:
@@ -697,7 +695,7 @@ class Planner:
 
     def exclude(self, p):
         (_xy, (cur_row, cur_col)) = p
-        for exclusion in self.pconfig.get('exclude', []):
+        for exclusion in self.pc.exclude():
             '''
             If neither limit is specified don't exclude
             maybe later: if one limit is specified but not the other take it as the single bound
@@ -893,10 +891,10 @@ class Planner:
             self.last_col = self.cur_col
 
         # Return to end position
-        end_at = self.pconfig.get("end_at", "start")
+        end_at = self.pc.end_at()
         if end_at == "start":
-            retx = float(self.pconfig["contour"]['start']['x'])
-            rety = float(self.pconfig["contour"]['start']['y'])
+            retx = float(self.pc.contour()['start']['x'])
+            rety = float(self.pc.contour()['start']['y'])
         elif end_at == "zero":
             retx = 0.0
             rety = 0.0

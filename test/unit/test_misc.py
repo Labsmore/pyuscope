@@ -13,6 +13,7 @@ import json5
 from uscope.motion.hal import MockHal
 from uscope.imager.imager import MockImager
 from uscope.imager import gst
+from uscope.imager.util import have_touptek_camera, have_v4l2_camera
 import uscope.planner
 from uscope.config import get_usj
 from uscope.util import printj
@@ -21,6 +22,11 @@ import shutil
 import time
 import glob
 from uscope.motion.grbl import GRBL, GrblHal
+from uscope.imager.touptek import toupcamsrc_info
+
+TT_WH = (5440, 3648)
+TT_WH = (4928, 4928)
+V4L2_WH = (640, 480)
 
 
 class TestCommon(unittest.TestCase):
@@ -42,13 +48,15 @@ class TestCommon(unittest.TestCase):
 
 
 class PlannerTestCase(TestCommon):
-    def simple_planner(self, pconfig, dry=False):
+    def simple_planner(self, pconfig, motion=None, imager=None, dry=False):
         if self.verbose:
             log = print
         else:
             log = lambda x: None
-        motion = MockHal(log=log)
-        imager = MockImager(width=150, height=50)
+        if motion is None:
+            motion = MockHal(log=log)
+        if imager is None:
+            imager = MockImager(width=150, height=50)
         planner = uscope.planner.Planner(pconfig,
                                          motion=motion,
                                          imager=imager,
@@ -149,6 +157,60 @@ class PlannerTestCase(TestCommon):
         pconfig.setdefault("motion", {})["origin"] = "ul"
         self.simple_planner(pconfig=pconfig)
 
+    def test_coordinates_rounded(self):
+        """
+        See if pictures are taken at the right coordinates
+        There should be some tolerance when very cloose
+        """
+        pconfig = {
+            "step": 0.75,
+            "imager": {
+                "x_view": 1.0,
+                # y_view => 0.5
+            },
+            "contour": {
+                "start": {
+                    "x": 0.0,
+                    "y": 0.0,
+                },
+                "end": {
+                    # Exactly 3 images wide
+                    # 1.0 * (1 + 2 * 0.75)
+                    "x": 2.5,
+                    # Exactly 2 images tall
+                    # 0.5 * (1 + 1 * 0.75)
+                    "y": 0.875,
+                },
+            },
+        }
+        imager = MockImager(width=100, height=50)
+        j = self.simple_planner(imager=imager, pconfig=pconfig)
+        # y = 0.5 * 0.75 = 0.375
+        expect_coordinates = [
+            (0, 0),
+            (0.75, 0),
+            (1.5, 0),
+            (1.5, 0.375),
+            (0.75, 0.375),
+            (0, 0.375),
+        ]
+        self.validate_coordinates(j, expect_coordinates)
+
+    def validate_coordinates(self, j, expect_coordinates):
+        """
+        Dict order in order taken
+        Can be sorted to row/column order
+        """
+        self.assertEqual(len(expect_coordinates), len(j["images"]))
+        # JSON outputs each column at a time regardless of order taken
+        for gotj, expect in zip(j["images"].values(), expect_coordinates):
+
+            def xy_delta(a, b):
+                return ((a[0] - b[0])**2 + (a[1] - b[1])**2)**0.5
+
+            delta = xy_delta(expect, (gotj["x"], gotj["y"]))
+            self.assertTrue(delta < 0.01, (expect, gotj, delta))
+
     def test_exclude(self):
         pconfig = self.simple_config()
         pconfig["exclude"] = [{"r0": 0, "c0": 0, "r1": 1, "c1": 1}]
@@ -183,9 +245,10 @@ class GstCLIImagerTestCase(TestCommon):
             # self.imager.warm_up()
             im = self.imager.get()
             ret.append(im)
-            loop.quit()
 
-        gst.easy_run(self.imager, thread)
+        self.imager.gst_run(thread)
+        if len(ret) == 0:
+            raise Exception("No images")
         return ret[0]
 
     def test_get_args(self):
@@ -197,6 +260,25 @@ class GstCLIImagerTestCase(TestCommon):
         args = parser.parse_args([])
 
         gst.gst_get_args(args)
+
+    def test_gst_failed_start(self):
+        """
+        If gstreamer gets a bad device it should shut down gracefully
+        """
+        # FIXME: only run if there is an appropriate device
+        self.imager = gst.GstCLIImager(
+            opts={
+                "source": "v4l2src",
+                "v4l2src": {
+                    "device": "/dev/video123",
+                },
+                "wh": (640, 480)
+            })
+        try:
+            _images = self.get_image()
+            self.fail("Expected exception")
+        except gst.GstError:
+            pass
 
     def test_videotestsrc(self):
         self.imager = gst.GstCLIImager(opts={
@@ -210,46 +292,56 @@ class GstCLIImagerTestCase(TestCommon):
         """
         Need 59535360 bytes, got 59535360
         """
+        if not have_touptek_camera():
+            self.skipTest("no touptek camera")
         # Doesn't work...hmm
         # maybe its jpgeg or something like that?
         # self.imager = gst.GstCLIImager(opts={"source": "videotestsrc", "wh": (100, 100), "gst_jpg": False})
         self.imager = gst.GstCLIImager(opts={
             "source": "toupcamsrc",
-            "wh": (5440, 3648),
-            "gst_jpg": False
         })
         im = self.get_image()["0"]
-        self.assertEqual(((5440, 3648)), im.size)
-        self.imager.stop()
+        self.assertEqual((TT_WH), im.size)
 
     def test_v4lsrc(self):
         """
         video4linux test
         (using my laptop camera)
         """
+        if not have_v4l2_camera():
+            self.skipTest("no v4l2 camera")
         # FIXME: only run if there is an appropriate device
-        self.imager = gst.GstCLIImager(opts={
-            "source": "v4l2src",
-            "device": "/dev/video0",
-            "wh": (640, 480)
-        })
+        self.imager = gst.GstCLIImager(
+            opts={
+                "source": "v4l2src",
+                "v4l2src": {
+                    "device": "/dev/video0",
+                },
+                "wh": V4L2_WH,
+            })
         im = self.get_image()["0"]
-        self.assertEqual((640, 480), im.size)
+        self.assertEqual(V4L2_WH, im.size)
 
     def test_toupcamsrc(self):
         """
         touptek test
         (using E3ISPM20000KPA (IMX183))
         """
+        if not have_touptek_camera():
+            self.skipTest("no touptek camera")
         # FIXME: only run if there is an appropriate device
         self.imager = gst.GstCLIImager(opts={
             "source": "toupcamsrc",
-            "esize": 0,
-            "wh": (5440, 3648)
         })
         im = self.get_image()["0"]
-        self.assertEqual((5440, 3648), im.size)
+        self.assertEqual(TT_WH, im.size)
         self.imager.stop()
+
+    def test_toupcamsrc_info(self):
+        if not have_touptek_camera():
+            self.skipTest("no touptek camera")
+        j = toupcamsrc_info()
+        assert j["eSizes"][0]["StillResolution"]["w"] > 0
 
 
 def get_grbl(verbose=False):

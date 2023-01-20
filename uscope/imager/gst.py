@@ -1,4 +1,5 @@
 import gi
+import copy
 
 gi.require_version('Gst', '1.0')
 
@@ -12,11 +13,16 @@ Gst.init(None)
 from gi.repository import GLib
 
 from uscope.imager.imager import Imager
+from uscope.imager.config import default_gstimager_config
 from uscope.gst_util import CaptureSink
 from uscope.util import add_bool_arg
 from uscope import config
 import threading
 import time
+
+
+class ImageTimeout(Exception):
+    pass
 
 
 class GstCLIImager(Imager):
@@ -27,12 +33,15 @@ class GstCLIImager(Imager):
         Imager.__init__(self, verbose=verbose)
         self.image_ready = threading.Event()
         self.image_id = None
+        opts = copy.deepcopy(opts)
+
+        # Fill in extended configuration parameters
+        # Ex: source to use
+        default_gstimager_config(opts)
 
         # gst source name
         # does not have gst- prefix
-        source_name = opts.get("source", None)
-        if source_name is None:
-            source_name = "videotestsrc"
+        source_name = opts["source"]
         self.source_name = source_name
 
         self.width, self.height = opts.get("wh", (640, 480))
@@ -77,11 +86,19 @@ class GstCLIImager(Imager):
             if not self.videoconvert.link(self.capture_sink):
                 raise RuntimeError("Failed to link")
 
-        bus = self.player.get_bus()
-        bus.add_signal_watch()
-        bus.enable_sync_message_emission()
-        bus.connect("message", self.on_message)
-        bus.connect("sync-message::element", self.on_sync_message)
+        self.warm_up_time = opts.get("warm_up_time")
+        if self.warm_up_time is None:
+            # XXX hack: can we push this down the stack?
+            if self.source_name == "toupcamsrc":
+                # gain takes a while to ramp up
+                # print("stabalizing camera")
+                self.warm_up_time = 1.0
+            else:
+                self.warm_up_time = 0.0
+
+        # Ideally related to max exposure
+        # 1.0 second is not enough for dark image
+        self.frame_timeout = 2.0
 
     def __del__(self):
         self.stop()
@@ -123,44 +140,94 @@ class GstCLIImager(Imager):
         self.image_ready.clear()
         self.capture_sink.request_image(got_image)
         self.verbose and print('Waiting for next image...')
-        self.image_ready.wait()
+        self.image_ready.wait(timeout=self.frame_timeout)
         self.verbose and print('Got image %s' % self.image_id)
+        if self.image_id is None:
+            raise ImageTimeout()
         img = self.capture_sink.pop_image(self.image_id)
         return {"0": img}
 
-    def on_message(self, bus, message):
-        t = message.type
-
-        # print("on_message", message, t)
-        if t == Gst.MessageType.EOS:
-            self.player.set_state(Gst.State.NULL)
-            print("End of stream")
-        elif t == Gst.MessageType.ERROR:
-            err, debug = message.parse_error()
-            print("Error: %s" % err, debug)
-            self.player.set_state(Gst.State.NULL)
-        elif t == Gst.MessageType.STATE_CHANGED:
-            pass
-
-    def on_sync_message(self, bus, message):
-        if message.get_structure() is None:
-            return
-        message_name = message.get_structure().get_name()
-        if message_name == "prepare-window-handle":
-            print("prepare-window-handle", message.src.get_name(),
-                  self.full_widget_winid, self.roi_widget_winid)
-
     def warm_up(self):
-        # XXX hack: can we push this down the stack?
-        if self.source_name == "toupcamsrc":
-            # gain takes a while to ramp up
-            # print("stabalizing camera")
-            time.sleep(1)
+        """
+        Called by Planner() to eat a few images
+        """
+        time.sleep(self.warm_up_time)
 
     def stop(self):
         if self.player:
             self.player.set_state(Gst.State.NULL)
             self.player = None
+
+    def gst_run(self, target, verbose=False):
+        """
+        Given a GstImager, start gstreamer pipeline and start a thread for function "target"
+        """
+
+        errors = []
+
+        # Gst.Pipeline
+        # https://lazka.github.io/pgi-docs/Gst-1.0/classes/Pipeline.html
+        # https://lazka.github.io/pgi-docs/Gst-1.0/classes/Element.html#Gst.Element.set_state
+        self.player.set_state(Gst.State.PLAYING)
+        loop = GLib.MainLoop()
+        thread_go = threading.Event()
+        loop_done = threading.Event()
+
+        def shutdown():
+            loop_done.set()
+            thread_go.set()
+            loop.quit()
+
+        def on_message(bus, message):
+            t = message.type
+
+            verbose and print("on_message", message, t)
+            if t == Gst.MessageType.EOS:
+                self.player.set_state(Gst.State.NULL)
+                shutdown()
+            elif t == Gst.MessageType.ERROR:
+                err, debug = message.parse_error()
+                verbose and print("Error: %s" % err, debug)
+                self.player.set_state(Gst.State.NULL)
+                errors.append(err)
+                shutdown()
+            elif t == Gst.MessageType.STATE_CHANGED:
+                pass
+            elif t == Gst.MessageType.STREAM_START:
+                thread_go.set()
+
+        bus = self.player.get_bus()
+        bus.add_signal_watch()
+        bus.enable_sync_message_emission()
+        bus.connect("message", on_message)
+
+        # bus.connect("sync-message::element", on_sync_message)
+
+        def wrapper(args):
+            verbose and print("wrap start, waiting for ready")
+            thread_go.wait(timeout=1.0)
+            if loop_done.is_set():
+                verbose and print("skipping thread on bad start")
+                return
+            verbose and print("wrap ready, go go go")
+            try:
+                target(loop)
+            finally:
+                # XXX: must be thread safe?
+                loop.quit()
+                pass
+
+        thread = threading.Thread(target=wrapper, args=(loop, ))
+        thread.start()
+        loop.run()
+        verbose and print("loop done, joining")
+        # In case of error shut down quickly
+        shutdown()
+        thread.join(timeout=1.0)
+        verbose and print("thread joined")
+
+        if len(errors):
+            raise GstError(errors[0])
 
 
 def gst_add_args(parser):
@@ -288,19 +355,8 @@ def gst_get_args(args):
     return source_opts
 
 
-def easy_run(imager, target):
-    imager.player.set_state(Gst.State.PLAYING)
-    loop = GLib.MainLoop()
-
-    def wrapper(args):
-        try:
-            target(loop)
-        finally:
-            loop.quit()
-
-    thread = threading.Thread(target=wrapper, args=(loop, ))
-    thread.start()
-    loop.run()
+class GstError(Exception):
+    pass
 
 
 def apply_imager_cal(imager, verbose=False):

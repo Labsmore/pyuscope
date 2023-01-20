@@ -116,10 +116,10 @@ However, I've been using this workflow for years now, and will probably continue
 # Version history
 
 0.0.0
- * Works with custom motor driver board ("pr0ndexer")
- * Job setup is done through our GUI
- * In practice only works with MU800 camera
- * Tested Ubuntu 16.04
+* Works with custom motor driver board ("pr0ndexer")
+* Job setup is done through our GUI
+* In practice only works with MU800 camera
+* Tested Ubuntu 16.04
 
 1.0.0
  * Motor contril via LinuxCNC
@@ -127,84 +127,94 @@ However, I've been using this workflow for years now, and will probably continue
  * Tested Ubuntu 16.04
 
 2.0.0
- * gst-toupcamsrc supported
- * GUI simplified
- * Job setup is entirely done through Axis (LinuxCNC GUI)
- * Major configuration file format changes
- * python2 => python3
- * gstreamer-0.10 => gstreamer-1.0
- * PyQt4 => PyQT5
- * Tested Ubuntu 16.04 and 20.04
+* gst-toupcamsrc supported
+* GUI simplified
+* Job setup is entirely done through Axis (LinuxCNC GUI)
+* Major configuration file format changes
+* python2 => python3
+* gstreamer-0.10 => gstreamer-1.0
+* PyQt4 => PyQT5
+* Tested Ubuntu 16.04 and 20.04
 
 2.1.0
- * HDR support
- * First packaged release
+* HDR support
+* First packaged release
 
 2.2.0
- * Enforce output file naming convention
+* Enforce output file naming convention
  
 3.0.0
- * GRBL support
- * Jog support (GRBL only)
- * Coordiante system defaults to lower left instead of upper left
- * Move imager controls from floating window into tab
- * Major API restructure
- * microscope.json changes and moved to microscope.j5
- * planner.json major changes
- * Drop obsolete "Controller" motion control API (including Axis object)
- * Drop obsolete pr0ndexer motion control support
- * Drop obsolete MC motion control support
- * Motion HAL plugin architecture
- * main_gui is now "argus"
- * Options for argus output file naming
- * --microscope command line argument
- * Axis scalar support (gearbox workaround)
- * Test suite
- * Expanded CLI programs
- * Expanded microscope calibration suite (namely fiducial tracking)
+* GRBL support
+* Jog support (GRBL only)
+* Coordiante system defaults to lower left instead of upper left
+* Move imager controls from floating window into tab
+* Major API restructure
+* microscope.json changes and moved to microscope.j5
+* planner.json major changes
+* Drop obsolete "Controller" motion control API (including Axis object)
+* Drop obsolete pr0ndexer motion control support
+* Drop obsolete MC motion control support
+* Motion HAL plugin architecture
+* main_gui is now "argus"
+* Options for argus output file naming
+* --microscope command line argument
+* Axis scalar support (gearbox workaround)
+* Test suite
+* Expanded CLI programs
+* Expanded microscope calibration suite (namely fiducial tracking)
 
 3.1.0
- * Soft axis limit support
- * lip-a1 real machine values
- * Planner end_at option
- * Add PYUSCOPE_MICROSCOPE
- * Better GRBL automatic serial port selection
- * Misc fixes
+* Soft axis limit support
+* lip-a1 real machine values
+* Planner end_at option
+* Add PYUSCOPE_MICROSCOPE
+* Better GRBL automatic serial port selection
+* Misc fixes
 
 3.2.0
- * Compatible with
+* Compatible with
   * gst-plugin-toupcam: v0.3.0
   * Motion HAL: GRBL
-   * LinuxCNC was not removed but was not updated either
- * Known bugs
+    * LinuxCNC was not removed but was not updated either
+* Known bugs
   * Argus: first time connecting to GRBL may cuase failed start
-   * Workaround: re-launch GUI or first run "python3 test/grbl/status.py"
+    * Workaround: re-launch GUI or first run "python3 test/grbl/status.py"
   * Axis soft limit may be exceeded during long jog
-   * Workaround: be careful and/or do shorter jogs
+    * Workaround: be careful and/or do shorter jogs
   * Auto-exposure may cause image to flicker
-   * Workaround: toggle auto-exposure off then on to stabalize
- * Microscope
+    * Workaround: toggle auto-exposure off then on to stabalize
+* Microscope
   * lip-m1-beta support
   * ls-hvy-1: moved from LinuxCNC to GRBL
   * brainscope: moved from LinuxCNC to GRBL
- * Argus
+* Argus
   * Add Advanced tab
-   * Focus stack support (beta quality)
-   * HDR support (beta quality)
+    * Focus stack support (beta quality)
+    * HDR support (beta quality)
   * Manual move w/ backlash compensation option
- * Config improvements and changes
+* Config improvements and changes
   * Config: add imager.source_properties_mod
-   * ex: reduce exposure time to practical range)
+    * ex: reduce exposure time to practical range)
   * Config: add imager.crop
-   * Use an oversized sensor by cropping it down
+    * Use an oversized sensor by cropping it down
   * Config: add planner.backlash_compensate
-   * More aggressively backlash compensate to improve xy alignment
+    * More aggressively backlash compensate to improve xy alignment
   * Config: backlash can be specified per axis
-   * Intended to support XY vs Z
+    * Intended to support XY vs Z
   * Config API cleaned up
- * Bug fixes / usability improvements
+* Bug fixes / usability improvements
   * Argus: update position during long moves
   * Fix image flickering during move
   * Fix image flickering caused by GUI exposure fighting auto-exposure
   * Reduce console verbosity
   * Unit test suite significantly expanded
+
+3.3.0 (WIP)
+ * Compatible with
+  * gst-plugin-toupcam: v0.3.1 (WIP)
+   * Rev for toupcamsrc automatic resolution detection
+  * Motion HAL: GRBL
+ * Config API clean up
+ * WIP: fix axis soft limit bug
+ * WIP: add ability to temporarily override soft limits
+ * WIP: reliable Argus launch

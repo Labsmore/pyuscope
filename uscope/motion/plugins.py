@@ -71,15 +71,15 @@ def get_motion_hal(usc=None, usc_motion=None, log=print):
         if usc is None:
             usc = get_usc()
         usc_motion = usc.motion
-    name = usc_motion.j["hal"]
-    scalars = usc_motion.j.get("scalars", None)
+    name = usc_motion.hal()
+    scalars = usc_motion.scalars()
     # log("get_motion_hal: %s" % name)
     ctor = plugins.get(name)
     if ctor is None:
         raise Exception("Unknown motion HAL %s" % name)
     kwargs = {"scalars": scalars, "log": log}
 
-    slj = usc_motion.j.get("soft_limits", None)
+    slj = usc_motion.j.soft_limits()
     if slj:
         soft_limits = {}
         for axis in "xyz":

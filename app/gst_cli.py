@@ -90,7 +90,7 @@ def main():
                 open(args.out, "wb").write(im)
         loop.quit()
 
-    gst.easy_run(imager, thread)
+    imager.gst_run(thread)
 
 
 if __name__ == "__main__":

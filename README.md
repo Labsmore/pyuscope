@@ -115,18 +115,18 @@ However, I've been using this workflow for years now, and will probably continue
 
 # Version history
 
-0.0.0
+## 0.0.0
 * Works with custom motor driver board ("pr0ndexer")
 * Job setup is done through our GUI
 * In practice only works with MU800 camera
 * Tested Ubuntu 16.04
 
-1.0.0
+## 1.0.0
  * Motor contril via LinuxCNC
  * Job setup is primarily done through Axis (LinuxCNC GUI)
  * Tested Ubuntu 16.04
 
-2.0.0
+## 2.0.0
 * gst-toupcamsrc supported
 * GUI simplified
 * Job setup is entirely done through Axis (LinuxCNC GUI)
@@ -136,14 +136,14 @@ However, I've been using this workflow for years now, and will probably continue
 * PyQt4 => PyQT5
 * Tested Ubuntu 16.04 and 20.04
 
-2.1.0
+## 2.1.0
 * HDR support
 * First packaged release
 
-2.2.0
+## 2.2.0
 * Enforce output file naming convention
  
-3.0.0
+## 3.0.0
 * GRBL support
 * Jog support (GRBL only)
 * Coordiante system defaults to lower left instead of upper left
@@ -163,7 +163,7 @@ However, I've been using this workflow for years now, and will probably continue
 * Expanded CLI programs
 * Expanded microscope calibration suite (namely fiducial tracking)
 
-3.1.0
+## 3.1.0
 * Soft axis limit support
 * lip-a1 real machine values
 * Planner end_at option
@@ -171,7 +171,7 @@ However, I've been using this workflow for years now, and will probably continue
 * Better GRBL automatic serial port selection
 * Misc fixes
 
-3.2.0
+## 3.2.0
 * Compatible with
   * gst-plugin-toupcam: v0.3.0
   * Motion HAL: GRBL
@@ -209,7 +209,7 @@ However, I've been using this workflow for years now, and will probably continue
   * Reduce console verbosity
   * Unit test suite significantly expanded
 
-3.3.0 (WIP)
+## 3.3.0 (WIP)
  * Compatible with
   * gst-plugin-toupcam: v0.3.1 (WIP)
    * Rev for toupcamsrc automatic resolution detection

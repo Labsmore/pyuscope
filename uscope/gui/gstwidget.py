@@ -1,4 +1,4 @@
-from uscope.img_util import auto_detect_source
+from uscope.imager.util import auto_detect_source
 
 from PyQt5.Qt import Qt
 from PyQt5.QtGui import *

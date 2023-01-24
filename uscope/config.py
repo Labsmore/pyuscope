@@ -292,7 +292,7 @@ class USCMotion:
         However they are not currently maintained / supported
         """
         ret = self.j["hal"]
-        if ret not in ("mock", "grbl", "lcnc-rpc", "lcnc-arpc", "lcnc-py"):
+        if ret not in ("mock", "grbl-ser", "lcnc-rpc", "lcnc-arpc", "lcnc-py"):
             raise ValueError("Invalid hal: %s" % (ret, ))
         return ret
 
@@ -378,7 +378,7 @@ class USCMotion:
 
         Useful if your system doesn't easily support soft or hard limits
         """
-        ret = self.jget("soft_limits", {})
+        ret = self.j.get("soft_limits", {})
         self.validate_axes_dict(ret)
         return ret
 

@@ -25,10 +25,10 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
         */
         "scalars": {
             "x": -2.5,
-            "y": -4.0,
+            "y": 4.0,
         },
         //FIXME: once calibrated
-        "!soft_limits": {
+        "soft_limits": {
             "xmin": -5.0,
             "xmax": 40.0,
             "ymin": -5.0,
@@ -39,10 +39,24 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
     "imager": {
         "source":"gst-toupcamsrc",
         "snapshot_dir":"snapshot",
-		"width": 5440,
-		"height": 3648,
-		"esize": 0,
-		"scalar": 0.50
+		"width": 3704,
+		"height": 2778,
+        "source_properties": {
+            "esize": 0
+        },
+		"scalar": 0.50,
+        "crop": {
+            "top": 500,
+            "bottom": 500,
+            "left": 410,
+            "right": 410,
+        },
+        "source_properties_mod": {
+            //In us. Can go up to 15 sec which is impractical for typical usage
+            "expotime": {
+                "max": 200000
+            },
+        },
     },
     "objectives": [
 		{

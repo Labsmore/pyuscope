@@ -79,7 +79,7 @@ def get_motion_hal(usc=None, usc_motion=None, log=print):
         raise Exception("Unknown motion HAL %s" % name)
     kwargs = {"scalars": scalars, "log": log}
 
-    slj = usc_motion.j.soft_limits()
+    slj = usc_motion.soft_limits()
     if slj:
         soft_limits = {}
         for axis in "xyz":

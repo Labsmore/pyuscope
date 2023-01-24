@@ -154,6 +154,7 @@ class GRBLSer:
         ser_timeout=0.15,
         flush=True,
         verbose=None):
+        self.serial = None
         if port is None:
             port = default_port()
         self.verbose = verbose if verbose is not None else bool(
@@ -500,6 +501,7 @@ class GRBL:
         verbose: yell stuff to the screen
         """
 
+        self.gs = None
         self.verbose = verbose if verbose is not None else bool(
             int(os.getenv("GRBL_VERBOSE", "0")))
         if gs is None:

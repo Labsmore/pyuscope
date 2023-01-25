@@ -4,7 +4,7 @@ from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gui.control_scrolls import get_control_scroll
 from uscope.util import add_bool_arg
 from uscope.config import get_usj, cal_load_all, USC
-from uscope.imager.util  import get_scaled
+from uscope.imager.util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink

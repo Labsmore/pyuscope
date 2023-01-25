@@ -8,6 +8,7 @@ Case insensitive best I can tell
 from uscope.motion.hal import MotionHAL, format_t, AxisExceeded
 
 from uscope import util
+from uscope.motion.motion_util import parse_move
 import termios
 import serial
 import time
@@ -444,8 +445,47 @@ class GRBLSer:
         """
         self.txb(b"\x85")
 
+    def in_reset(self):
+        self.gs.tx("?", nl=False)
+        l = self.gs.readline()
+        # print("got", len(l), l)
+        # Line shoudl be quite long and have markers
+        if len(l) > 4 and "<" in l and ">" in l:
+            # Connection ok, no need to
+            return False
+        return True
+
+    def reset_recover(self):
+        # Prompt should come in about 1.5 seconds from start
+        tbegin = time.time()
+        while time.time() - tbegin < 2.0:
+            l = self.readline()
+            if len(l):
+                break
+        else:
+            raise Exception("Timed out reestablishing communications")
+
+        # Initial response should be newline
+        # Wait until grbl reset prompt
+        tstart = time.time()
+        while time.time() - tstart < 1.0:
+            # Grbl 1.1f ['$' for help]
+            if "Grbl" in l:
+                break
+            # Normal timeout here?
+            # Should be moving quickly now
+            l = self.readline()
+
+
+"""
+Emulate a GRBL serial port for testng on the go
+"""
+
 
 class MockGRBLSer(GRBLSer):
+    STATE_RESET = None
+    STATE_IDLE = "Idle"
+
     def __init__(
         self,
         port="/dev/ttyUSB0",
@@ -453,11 +493,23 @@ class MockGRBLSer(GRBLSer):
         ser_timeout=3.0,
         flush=True,
         verbose=None):
+        print("GRBL mock")
         self.verbose = verbose if verbose is not None else bool(
             int(os.getenv("GRBLSER_VERBOSE", "0")))
         self.verbose and print("MOCK: opening", port)
         self.serial = None
         self.poison_threads = False
+        self.reset()
+
+    def in_reset(self):
+        return self.state == self.STATE_RESET
+
+    def reset_recover(self):
+        if self.state == self.STATE_RESET:
+            time.sleep(1.4)
+            self.state = self.STATE_IDLE
+        elif self.state != self.STATE_IDLE:
+            assert 0
 
     def tx(self, out, nl=True):
         self.verbose and print("MOCK: tx", out)
@@ -468,19 +520,58 @@ class MockGRBLSer(GRBLSer):
     def txrx0(self, out, nl=True):
         self.verbose and print("MOCK: txrx0", out)
 
-    def qstatus(self):
-        return {
-            "status": "Idle",
-            "MPos": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
-            },
-            "FS": 0.0,
-        }
-
     def question(self):
-        return "Idle|MPos:0.000,0.000,0.000|FS:0,0"
+        """
+        Idle|MPos:8.000,0.000,0.000|FS:0,0|WCO:0.000,0.000,0.000
+        Idle|MPos:8.000,0.000,0.000|FS:0,0|Ov:100,100,100
+        Idle|MPos:8.000,0.000,0.000|FS:0,0
+        """
+        assert self.state
+        time.sleep(0.05)
+        return "%s|MPos:%0.3f,%0.3f,%0.3f|FS:0,0" % (
+            self.state, self.mpos["x"], self.mpos["y"], self.mpos["z"])
+
+    def j(self, command):
+        # Parse a jog command and update state
+        # Command completes instantly
+        parts = command.split(" ")
+        g = parts[0]
+        if g == "G90":
+            pos = parse_move(command.replace("G90 ", ""))
+            for k, v in pos.items():
+                k = k.lower()
+                assert k in self.mpos
+                assert type(v) in (int, float)
+                self.mpos[k] = v
+        elif g == "G91":
+            pos = parse_move(command.replace("G91 ", ""))
+            for k, v in pos.items():
+                k = k.lower()
+                assert k in self.mpos
+                assert type(v) in (int, float)
+                self.mpos[k] += v
+        else:
+            raise ValueError(command)
+        time.sleep(0.05)
+
+    def reset(self):
+        self.mpos = {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+        }
+        self.state = self.STATE_RESET
+        time.sleep(0.05)
+
+    def cancel_jog(self):
+        self.state = self.STATE_IDLE
+        time.sleep(0.05)
+
+    def tilda(self):
+        time.sleep(0.05)
+
+    def flush(self):
+        time.sleep(0.05)
 
 
 class GRBL:
@@ -502,6 +593,8 @@ class GRBL:
         """
 
         self.gs = None
+        self.qstatus_updated_cb = None
+        self.pos_cache = None
         self.verbose = verbose if verbose is not None else bool(
             int(os.getenv("GRBL_VERBOSE", "0")))
         if gs is None:
@@ -521,8 +614,6 @@ class GRBL:
 
         # See move_relative
         self.use_soft_move_relative = int(os.getenv("GRBL_SOFT_RELATIVE", "1"))
-        self.pos_cache = None
-        self.qstatus_updated_cb = None
 
     def set_qstatus_updated_cb(self, cb):
         self.qstatus_updated_cb = cb
@@ -546,7 +637,7 @@ class GRBL:
 
     def reset(self):
         self.gs.reset()
-        self.reset_recover()
+        self.gs.reset_recover()
 
     def reset_probe(self):
         """
@@ -566,23 +657,17 @@ class GRBL:
         """
         tbegin = time.time()
 
-        self.gs.tx("?", nl=False)
-        l = self.gs.readline()
-        # print("got", len(l), l)
-        # Line shoudl be quite long and have markers
-        if len(l) > 4 and "<" in l and ">" in l:
-            # Connection ok, no need to
+        if not self.gs.in_reset():
             return
-
         print("grbl WARNING: failed to respond, attempting reset recovery")
-        self.reset_recover()
+        self.gs.reset_recover()
 
         # Run full status command to be sure
         self.qstatus()
         # grbl: recovered after 1.388 sec
         print("grbl: recovered after %0.3f sec" % (time.time() - tbegin, ))
 
-    def general_recover(self):
+    def general_recover(self, retry=True):
         """
         Recover after communication issue when not in reset
         """
@@ -595,34 +680,15 @@ class GRBL:
                 # Clear any commands in progress
                 self.gs.flush()
                 # Try a simple command
-                self.qstatus()
+                self.qstatus(retry=retry)
                 # Success!
                 return
             except Exception:
+                if not retry:
+                    raise
                 if tryi == tries - 2:
                     raise
                 continue
-
-    def reset_recover(self):
-        # Prompt should come in about 1.5 seconds from start
-        tbegin = time.time()
-        while time.time() - tbegin < 2.0:
-            l = self.gs.readline()
-            if len(l):
-                break
-        else:
-            raise Exception("Timed out reestablishing communications")
-
-        # Initial response should be newline
-        # Wait until grbl reset prompt
-        tstart = time.time()
-        while time.time() - tstart < 1.0:
-            # Grbl 1.1f ['$' for help]
-            if "Grbl" in l:
-                break
-            # Normal timeout here?
-            # Should be moving quickly now
-            l = self.gs.readline()
 
     def set_pos_cache(self, pos):
         self.pos_cache = dict(pos)
@@ -630,7 +696,7 @@ class GRBL:
     def update_pos_cache(self):
         self.qstatus()
 
-    def qstatus(self):
+    def qstatus(self, retry=True):
         """
         Idle|MPos:8.000,0.000,0.000|FS:0,0|WCO:0.000,0.000,0.000
         Idle|MPos:8.000,0.000,0.000|FS:0,0|Ov:100,100,100
@@ -659,10 +725,13 @@ class GRBL:
                     self.qstatus_updated_cb(ret)
                 return ret
             except Exception:
+                if not retry:
+                    raise
                 self.verbose and print("WARNING: bad qstatus")
                 if i == tries - 1:
                     raise
-                self.general_recover()
+                # Uses qstatus
+                self.general_recover(retry=False)
         assert 0
 
     def mpos(self):

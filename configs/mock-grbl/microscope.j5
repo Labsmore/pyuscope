@@ -17,7 +17,7 @@ A minimal configuration to do basic testing
 		{
 			"name":"Objective",
 			"suffix":"suffix",
-			"x_view": 100.0
+			"x_view": 1.0
 		}
     ]
 }

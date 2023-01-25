@@ -659,7 +659,7 @@ class GRBL:
 
         if not self.gs.in_reset():
             return
-        print("grbl WARNING: failed to respond, attempting reset recovery")
+        print("grbl: failed to respond, attempting reset recovery")
         self.gs.reset_recover()
 
         # Run full status command to be sure
@@ -674,7 +674,7 @@ class GRBL:
         tries = 3
         for tryi in range(tries):
             try:
-                self.verbose and print("WARNING: recovering")
+                self.verbose and print("Recovering")
                 # might have been put into hold
                 self.gs.tilda()
                 # Clear any commands in progress

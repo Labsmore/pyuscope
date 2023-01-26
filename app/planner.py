@@ -7,6 +7,7 @@ from uscope.config import get_usc
 from uscope.planner import microscope_to_planner
 from uscope.motion.plugins import get_motion_hal
 from uscope.util import default_date_dir
+import os
 
 
 def main():
@@ -57,7 +58,11 @@ def main():
                                     contour=contour,
                                     objectivestr=args.objective,
                                     objectivei=objectivei)
-    out_dir = default_date_dir("out", "", args.postfix)
+    root_dir = "out"
+    if not os.path.exists(root_dir):
+        os.mkdir(root_dir)
+    out_dir = default_date_dir(root_dir, "", args.postfix)
+    print("Writing files to %s" % out_dir)
 
     print("Initializing imager...")
     imager = gst.get_cli_imager_by_config(usj=usj)

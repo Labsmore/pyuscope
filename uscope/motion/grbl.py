@@ -534,6 +534,10 @@ class MockGRBLSer(GRBLSer):
     def j(self, command):
         # Parse a jog command and update state
         # Command completes instantly
+        command = command.upper()
+        # remove feedrate
+        if "F" in command:
+            command = command.split("F")[0]
         parts = command.split(" ")
         g = parts[0]
         if g == "G90":

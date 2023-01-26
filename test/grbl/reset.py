@@ -8,10 +8,11 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Soft reset")
+    parser.add_argument("--port")
     add_bool_arg(parser, "--verbose", default=False, help="Verbose output")
     args = parser.parse_args()
 
-    grbl = GRBL(reset=False, verbose=args.verbose)
+    grbl = GRBL(reset=False, port=args.port, verbose=args.verbose)
     grbl.gs.reset()
 
 

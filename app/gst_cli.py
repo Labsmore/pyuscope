@@ -64,6 +64,7 @@ import time
 def main():
     import argparse
 
+    print("FIXME: WIP, needs gst threads fixed")
     parser = argparse.ArgumentParser(
         description="GstImager (gstreamer wrapper) demo")
     add_bool_arg(parser, "--verbose", default=False, help="Verbose output")

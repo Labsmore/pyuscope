@@ -41,48 +41,6 @@ defaults = {}
 usj = None
 usc = None
 config_dir = None
-
-
-def set_usj(j):
-    global usj
-    usj = j
-
-
-def get_usj(config_dir=None, name=None):
-    global usj
-
-    if usj is not None:
-        return usj
-
-    if not config_dir:
-        if not name:
-            name = os.getenv("PYUSCOPE_MICROSCOPE")
-        if name:
-            config_dir = "configs/" + name
-        # Maybe just throw an exception at this point?
-        else:
-            config_dir = "config"
-    globals()["config_dir"] = config_dir
-    fn = os.path.join(config_dir, "microscope.j5")
-    if not os.path.exists(fn):
-        fn = os.path.join(config_dir, "microscope.json")
-        if not os.path.exists(fn):
-            raise Exception("couldn't find microscope.j5 in %s" % config_dir)
-    with open(fn) as f:
-        j = json5.load(f, object_pairs_hook=OrderedDict)
-
-    def default(rootj, rootd):
-        for k, v in rootd.items():
-            if not k in rootj:
-                rootj[k] = v
-            elif type(v) is dict:
-                default(rootj[k], v)
-
-    default(j, defaults)
-    usj = j
-    return usj
-
-
 """
 Calibration broken out into separate file to allow for easier/safer frequent updates
 Ideally we'd also match on S/N or something like that
@@ -484,10 +442,52 @@ def validate_usj(usj):
     usc.planner.hdr_tsettle()
 
 
-def get_usc(usj=None):
+def set_usj(j):
+    global usj
+    usj = j
+
+
+def get_usj(config_dir=None, name=None):
+    global usj
+
+    if usj is not None:
+        return usj
+
+    if not config_dir:
+        if not name:
+            name = os.getenv("PYUSCOPE_MICROSCOPE")
+        if name:
+            config_dir = "configs/" + name
+        # Maybe just throw an exception at this point?
+        else:
+            config_dir = "config"
+    globals()["config_dir"] = config_dir
+    fn = os.path.join(config_dir, "microscope.j5")
+    if not os.path.exists(fn):
+        fn = os.path.join(config_dir, "microscope.json")
+        if not os.path.exists(fn):
+            raise Exception("couldn't find microscope.j5 in %s" % config_dir)
+    with open(fn) as f:
+        j = json5.load(f, object_pairs_hook=OrderedDict)
+
+    def default(rootj, rootd):
+        for k, v in rootd.items():
+            if not k in rootj:
+                rootj[k] = v
+            elif type(v) is dict:
+                default(rootj[k], v)
+
+    default(j, defaults)
+    usj = j
+    return usj
+
+
+def get_usc(usj=None, config_dir=None, name=None):
     global usc
 
     if usc is None:
+        if usj is None:
+            usj = get_usj(config_dir=config_dir, name=name)
         usc = USC(usj=usj)
     return usc
 

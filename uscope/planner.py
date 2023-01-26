@@ -1007,9 +1007,27 @@ class Planner:
         self.motion.move_absolute(move_to)
 
 
-def microscope_to_planner(usj, objective=None, objectivei=None, contour=None):
+def get_objective(usj, objectivei=None, objectivestr=None):
+    if objectivestr:
+        for objective in usj["objectives"]:
+            if objective["name"] == objectivestr:
+                return objective
+        raise ValueError("Failed to find named objective")
+    # Only one objective? Default to it
+    if objectivei is None and not objectivestr and len(usj["objectives"]) == 0:
+        return usj["objectives"][0]
+    assert 0, "Ambiguous objective, must specify"
+
+
+def microscope_to_planner(usj,
+                          objective=None,
+                          objectivestr=None,
+                          objectivei=None,
+                          contour=None):
     if objective is None:
-        objective = usj["objectives"][objectivei]
+        objective = get_objective(usj=usj,
+                                  objectivei=objectivei,
+                                  objectivestr=objectivestr)
     ret = {
         "imager": {
             "x_view": objective["x_view"],

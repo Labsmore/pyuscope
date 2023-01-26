@@ -277,7 +277,7 @@ class MotionHAL:
         '''Check last move time and wait if its not safe to take picture'''
         sleept = self.t_settle + self.mv_lastt - time.time()
         if sleept > 0.0:
-            self.sleep(sleept, 'settle')
+            time.sleep(sleept)
 
     def limit(self, axes=None):
         # FIXME: why were dummy values put here?

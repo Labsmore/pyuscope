@@ -446,8 +446,8 @@ class GRBLSer:
         self.txb(b"\x85")
 
     def in_reset(self):
-        self.gs.tx("?", nl=False)
-        l = self.gs.readline()
+        self.tx("?", nl=False)
+        l = self.readline()
         # print("got", len(l), l)
         # Line shoudl be quite long and have markers
         if len(l) > 4 and "<" in l and ">" in l:
@@ -606,6 +606,7 @@ class GRBL:
                 gs = MockGRBLSer(verbose=verbose)
             else:
                 gs = GRBLSer(port=port, verbose=verbose)
+        assert gs
         self.gs = gs
         if flush:
             pass
@@ -855,6 +856,12 @@ class GrblHal(MotionHAL):
 
     def command(self, cmd):
         return "\n".join(self.grbl.gs.txrxs(cmd))
+
+    def rc_commands(self, cmds):
+        for cmd in cmds:
+            rx = self.grbl.gs.txrxs(cmd)
+            if "error" in rx:
+                raise Exception("cmd failed: %s => %s" % (cmd, rx))
 
     def _pos(self):
         return self.grbl.qstatus()["MPos"]

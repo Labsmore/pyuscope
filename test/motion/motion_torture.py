@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from uscope.motion.plugins import get_motion_hal
-from uscope.config import get_usj
+from uscope.config import get_usc
 from uscope.util import add_bool_arg
 from uscope.imager import gst
 import time
@@ -34,15 +34,15 @@ def run(microscope=None,
         return ret
 
     origin = filter_moves({"x": 0.0, "y": 0.0, "z": 0.0})
-    usj = get_usj(name=microscope)
+    usc = get_usc(name=microscope)
     print("Initializing imager...")
-    imager = gst.get_cli_imager_by_config(usj)
+    imager = gst.get_cli_imager_by_config(usc=usc)
     print("Initializing motion...")
-    motion = get_motion_hal(usj)
+    motion = get_motion_hal(usc=usc)
     print("System ready")
 
     # Consider planner for movement? aware of things like backlash
-    backlash = usj["motion"].get("backlash", 0.0)
+    backlash = usc.usj["motion"].get("backlash", 0.0)
     print("Backlash: %0.3f" % backlash)
 
     mpos = {}

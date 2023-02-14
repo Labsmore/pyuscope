@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from uscope.motion.plugins import get_motion_hal
-from uscope.config import get_usj
+from uscope.config import get_usc
 from uscope.util import add_bool_arg, default_date_dir, mkdir_p
 from uscope.imager import gst
 from uscope.cal_util import stabalize_camera_start, stabalize_camera_snap
@@ -31,11 +31,11 @@ def run(
     print("writing to %s" % out_dir)
     mkdir_p(out_dir)
 
-    usj = get_usj(name=microscope)
+    usc = get_usc(name=microscope)
     print("Initializing imager...")
-    imager = gst.get_cli_imager_by_config(usj)
+    imager = gst.get_cli_imager_by_config(usc=usc)
     print("Initializing motion...")
-    motion = get_motion_hal(usj)
+    motion = get_motion_hal(usc=usc)
     print("System ready")
 
     origin = motion.pos()
@@ -45,10 +45,10 @@ def run(
 
     # this can probably be skipped in practice
     # or add tstart if I want to be proper
-    stabalize_camera_start(imager, usj)
+    stabalize_camera_start(imager, usc=usc)
 
     def save_image(basename):
-        stabalize_camera_snap(imager, usj)
+        stabalize_camera_snap(imager, usc=usc)
         im = imager.get()
         im = im["0"]
         fn = "%s/%s" % (out_dir, basename)

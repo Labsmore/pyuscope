@@ -206,9 +206,10 @@ class JogSlider(QWidget):
 
 
 class MotionWidget(QWidget):
-    def __init__(self, motion_thread, usc, parent=None):
+    def __init__(self, motion_thread, usc, log, parent=None):
         super().__init__(parent=parent)
         self.usc = usc
+        self.log = log
         self.motion_thread = motion_thread
 
         self.axis_map = {
@@ -274,6 +275,7 @@ class MotionWidget(QWidget):
             pos = motion_util.parse_move(s)
         except ValueError:
             self.log("Failed to parse move. Need like: X1.0 Y2.4")
+            return
         if self.move_abs_backlash_cb.isChecked():
             bpos = backlash_move_absolute(
                 pos, self.usc.motion.backlash(),
@@ -992,7 +994,8 @@ class MainWindow(QMainWindow):
                                                      self.usc.motion.hal())
         if self.usc.motion.hal() == "grbl-ser":
             self.motion_widget = MotionWidget(motion_thread=self.motion_thread,
-                                              usc=self.usc)
+                                              usc=self.usc,
+                                              log=self.log)
             layout.addWidget(self.motion_widget)
 
             self.position_poll_timer = QTimer()

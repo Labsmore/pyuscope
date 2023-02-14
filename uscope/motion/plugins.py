@@ -55,8 +55,15 @@ def register_plugins():
     register_plugin("lcnc-rsh", lcnc_rsh)
 
     def grbl_ser(usc_motion, kwargs):
-        port = usc_motion.j.get("grbl", {}).get("port")
-        return GrblHal(port=port, **kwargs)
+        grblc = usc_motion.j.get("grbl", {})
+        port = grblc.get("port")
+        ret = GrblHal(port=port, **kwargs)
+        # Escape hatch for system initialization
+        # Move to dedicated file?
+        commands = grblc.get("rc")
+        if commands:
+            ret.rc_commands(commands)
+        return ret
 
     register_plugin("grbl-ser", grbl_ser)
     # XXX: look into the network protocols

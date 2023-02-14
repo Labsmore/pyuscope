@@ -1,0 +1,35 @@
+/*
+A minimal configuration to do basic testing
+*/
+{
+    "motion": {
+        "hal": "grbl-ser",
+        "grbl": {
+            "rc": [
+                //intentionally starts locked
+                "$X",
+                //G54 has coordinate offsets
+                //remap go second slot which doesn't have these strange offsets
+                "G55",
+                ],
+            }
+    },
+    //25MP
+    "imager": {
+        "source":"gst-toupcamsrc",
+        "width": 4928,
+        "height": 4928,
+    },
+    //BigEye
+    "imager": {
+        "source":"gst-toupcamsrc",
+        "width": 3704,
+        "height": 2778,
+    },
+    "objectives": [
+		{
+			"name":"5X",
+			"x_view": 1.15
+		},
+    ]
+}

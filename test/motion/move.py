@@ -3,7 +3,7 @@
 from uscope.util import add_bool_arg
 from uscope.motion import motion_util
 from uscope.motion.plugins import get_motion_hal
-from uscope.config import get_usj
+from uscope.config import get_usc
 
 
 def main():
@@ -19,8 +19,8 @@ def main():
     args = parser.parse_args()
 
     # grbl = GRBL(verbose=args.verbose)
-    usj = get_usj(name=args.microscope)
-    motion = get_motion_hal(usj)
+    usc = get_usc(name=args.microscope)
+    motion = get_motion_hal(usc=usc)
 
     moves = motion_util.parse_move(" ".join(list(args.cmd)))
     if args.relative:

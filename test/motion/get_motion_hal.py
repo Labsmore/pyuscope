@@ -6,7 +6,7 @@ Planner test harness
 # from uscope.cnc_hal import lcnc
 # from uscope.lcnc.client import LCNCRPC
 from uscope.gui.plugin import get_motion_hal
-from uscope.config import get_usj
+from uscope.config import get_usc
 import argparse
 
 if __name__ == "__main__":
@@ -16,6 +16,6 @@ if __name__ == "__main__":
     parser.add_argument('--port', default=22617, type=int, help='Host port')
     args = parser.parse_args()
 
-    usj = get_usj()
+    usc = get_usc()
     # linuxcnc = LCNCRPC(args.host, args.port)
-    hal = get_motion_hal(usj)
+    hal = get_motion_hal(usc=usc)

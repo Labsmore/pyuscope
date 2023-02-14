@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from uscope.motion.plugins import get_motion_hal
-from uscope.config import get_usj
+from uscope.config import get_usc
 from uscope.util import add_bool_arg
 from uscope.imager import gst
 import time
@@ -25,11 +25,11 @@ def run(
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
 
-    usj = get_usj(name=microscope)
+    usc = get_usc(name=microscope)
     print("Initializing imager...")
-    imager = gst.get_cli_imager_by_config(usj)
+    imager = gst.get_cli_imager_by_config(usc=usc)
     print("Initializing motion...")
-    motion = get_motion_hal(usj)
+    motion = get_motion_hal(usc=usc)
     print("System ready")
 
     origin = motion.pos()

@@ -295,6 +295,10 @@ class MotionHAL:
         """
         raise NotSupported("")
 
+    def rc_commands(self, commands):
+        for command in commands:
+            self.command(command)
+
 
 '''
 Has no actual hardware associated with it

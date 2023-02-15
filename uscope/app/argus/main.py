@@ -446,6 +446,7 @@ class MainWindow(QMainWindow):
     snapshotCaptured = pyqtSignal(int)
     log_msg = pyqtSignal(str)
     pos = pyqtSignal(int)
+    assets_dir = os.path.join(os.getcwd(), 'uscope/gui/assets/')
 
     def __init__(self, microscope=None, verbose=False):
         QMainWindow.__init__(self)
@@ -1204,6 +1205,7 @@ class MainWindow(QMainWindow):
     def initUI(self):
         self.vidpip.setupWidgets()
         self.setWindowTitle('pyuscope')
+        self.setWindowIcon(QIcon(os.path.join(self.assets_dir, 'logo.png')))
 
         def mainLayout():
             layout = QVBoxLayout()

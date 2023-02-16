@@ -2,6 +2,10 @@
 A minimal configuration to do basic testing
 */
 {
+    "planner": {
+        //"border": 0.1,
+        "tsettle": 1.2,
+    },
     "motion": {
         "hal": "grbl-ser",
         "grbl": {
@@ -13,10 +17,11 @@ A minimal configuration to do basic testing
                 "G55",
             ],
         },
+        "backlash_compensation": -1,
         "scalars": {
-            "x": 5.0,
+            "x": 1.0,
             "y": 1.0,
-            "z": 1.0,
+            "z": 5.0,
         },
     },
     //25MP
@@ -30,11 +35,25 @@ A minimal configuration to do basic testing
         "source":"gst-toupcamsrc",
         "width": 3704,
         "height": 2778,
+        "crop": {
+            "top": 250,
+            "bottom": 250,
+            "left": 250,
+            "right": 250,
+        },
     },
     "objectives": [
-		{
-			"name":"5X",
-			"x_view": 1.15
-		},
+        {
+            "name":"5X",
+            "x_view": 3.0
+        },
+        {
+            "name":"20X",
+            "x_view": 0.75
+        },
+          {
+            "name":"100X",
+            "x_view": 0.15
+        },
     ]
 }

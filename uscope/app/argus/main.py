@@ -3,7 +3,7 @@
 from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gui.control_scrolls import get_control_scroll
 from uscope.util import add_bool_arg
-from uscope.config import get_usj, cal_load_all, USC
+from uscope.config import get_usj, cal_load_all, USC, GUI
 from uscope.imager.util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
@@ -123,6 +123,7 @@ class JogListener(QPushButton):
     def __init__(self, label, parent=None):
         super().__init__(label, parent=parent)
         self.parent = parent
+        self.setIcon(QIcon(config.GUI.icon_files["jog"]))
 
     def keyPressEvent(self, event):
         self.parent.keyPressEventCaptured(event)
@@ -446,7 +447,6 @@ class MainWindow(QMainWindow):
     snapshotCaptured = pyqtSignal(int)
     log_msg = pyqtSignal(str)
     pos = pyqtSignal(int)
-    assets_dir = os.path.join(os.getcwd(), 'uscope/gui/assets/')
 
     def __init__(self, microscope=None, verbose=False):
         QMainWindow.__init__(self)
@@ -487,6 +487,7 @@ class MainWindow(QMainWindow):
         # must be created early to accept early logging
         # not displayed until later though
         self.log_widget = QTextEdit()
+        self.log_widget.setObjectName("log_widget")
         # Special case for logging that might occur out of thread
         self.log_msg.connect(self.log)
         # self.pos.connect(self.update_pos)
@@ -962,13 +963,14 @@ class MainWindow(QMainWindow):
             self.axis_pos_label['z'] = label
             row += 1
 
-            start_label, end_label = {
-                "ll": ("Lower left", "Upper right"),
-                "ul": ("Upper left", "Lower right"),
+            start_label, end_label, start_icon, end_icon = {
+                "ll": ("Lower left", "Upper right", config.GUI.icon_files["SW"], config.GUI.icon_files["NE"]),
+                "ul": ("Upper left", "Lower right", config.GUI.icon_files["NE"], config.GUI.icon_files["SW"]),
             }[self.usc.motion.origin()]
 
             self.plan_start_pb = QPushButton(start_label)
             self.plan_start_pb.clicked.connect(self.set_start_pos)
+            self.plan_start_pb.setIcon(QIcon(start_icon))
             gl.addWidget(self.plan_start_pb, row, 0)
             self.plan_x0_le = QLineEdit('0.000')
             gl.addWidget(self.plan_x0_le, row, 1)
@@ -978,6 +980,7 @@ class MainWindow(QMainWindow):
 
             self.plan_end_pb = QPushButton(end_label)
             self.plan_end_pb.clicked.connect(self.set_end_pos)
+            self.plan_end_pb.setIcon(QIcon(end_icon))
             gl.addWidget(self.plan_end_pb, row, 0)
             self.plan_x1_le = QLineEdit('0.000')
             gl.addWidget(self.plan_x1_le, row, 1)
@@ -1024,6 +1027,8 @@ class MainWindow(QMainWindow):
         self.snapshot_serial = -1
 
         self.snapshot_pb = QPushButton("Snap")
+        self.snapshot_pb.setIcon(QIcon(config.GUI.icon_files["camera"]))
+
         self.snapshot_pb.clicked.connect(self.take_snapshot)
         layout.addWidget(self.snapshot_pb, 0, 0)
 
@@ -1114,10 +1119,12 @@ class MainWindow(QMainWindow):
 
             self.go_pause_pb = QPushButton("Go")
             self.go_pause_pb.clicked.connect(self.go_pause)
+            self.go_pause_pb.setIcon(QIcon(config.GUI.icon_files['go']))
             layout.addWidget(self.go_pause_pb)
 
             self.stop_pb = QPushButton("Stop")
             self.stop_pb.clicked.connect(self.stop)
+            self.stop_pb.setIcon(QIcon(config.GUI.icon_files['stop']))
             layout.addWidget(self.stop_pb)
 
             layout.addWidget(QLabel('Dry?'))
@@ -1205,7 +1212,7 @@ class MainWindow(QMainWindow):
     def initUI(self):
         self.vidpip.setupWidgets()
         self.setWindowTitle('pyuscope')
-        self.setWindowIcon(QIcon(os.path.join(self.assets_dir, 'logo.png')))
+        self.setWindowIcon(QIcon(config.GUI.icon_files['logo']))
 
         def mainLayout():
             layout = QVBoxLayout()

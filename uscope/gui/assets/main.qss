@@ -1,0 +1,28 @@
+* {
+  font: 12pt "Helvetica";
+  color: #000000;
+  icon-size: 25px;
+}
+
+QPushButton {
+  padding: 0.5ex;
+}
+
+QGroupBox {
+ font: 14pt;
+ border: 2px solid gray;
+ border-radius: 5px;
+ font: bold;
+ margin-top: 1.5ex; /* leave space at the top for the title */
+ padding: 5px;
+}
+
+QLineEdit {
+  padding: 0.5ex;
+}
+
+#log_widget {
+  font: 16px "Courier";
+  border-radius: 5px;
+  border: 2px solid gray;
+}

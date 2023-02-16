@@ -560,3 +560,15 @@ class PC:
 
 def validate_pconfig(pj, strict=False):
     pass
+
+class GUI(object):
+    assets_dir = os.path.join(os.getcwd(), 'uscope','gui', 'assets')
+    stylesheet_file = os.path.join(assets_dir, 'main.qss')
+    icon_files = {}
+    icon_files['jog'] = os.path.join(assets_dir, 'directions_run_FILL1_wght700_GRAD0_opsz48.png')
+    icon_files['NE'] = os.path.join(assets_dir, 'north_east_FILL1_wght700_GRAD0_opsz48.png')
+    icon_files['SW'] = os.path.join(assets_dir, 'south_west_FILL1_wght700_GRAD0_opsz48.png')
+    icon_files['camera'] = os.path.join(assets_dir, 'photo_camera_FILL1_wght400_GRAD0_opsz48.png')
+    icon_files['go'] = os.path.join(assets_dir, 'smart_display_FILL1_wght400_GRAD0_opsz48.png')
+    icon_files['stop'] = os.path.join(assets_dir, 'stop_circle_FILL1_wght400_GRAD0_opsz48.png')
+    icon_files['logo'] = os.path.join(assets_dir, 'logo.png')

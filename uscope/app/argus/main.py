@@ -749,7 +749,10 @@ class MainWindow(QMainWindow):
         if not dry and not os.path.exists(base_out_dir):
             os.mkdir(base_out_dir)
 
-        out_dir = os.path.join(base_out_dir, self.jobName.getName())
+        postfix = datetime.datetime.utcnow().isoformat().replace(
+            'T', '_').replace(':', '-').split('.')[0] + "_"
+
+        out_dir = os.path.join(base_out_dir, self.jobName.getName() + '_' + postfix)
         if os.path.exists(out_dir):
             self.log("Run aborted: already exists: %s" % out_dir)
             return

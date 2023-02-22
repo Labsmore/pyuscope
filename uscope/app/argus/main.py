@@ -752,7 +752,8 @@ class MainWindow(QMainWindow):
         postfix = datetime.datetime.utcnow().isoformat().replace(
             'T', '_').replace(':', '-').split('.')[0] + "_"
 
-        out_dir = os.path.join(base_out_dir, self.jobName.getName() + '_' + postfix)
+        out_dir = os.path.join(base_out_dir,
+                               self.jobName.getName() + '_' + postfix)
         if os.path.exists(out_dir):
             self.log("Run aborted: already exists: %s" % out_dir)
             return
@@ -967,8 +968,12 @@ class MainWindow(QMainWindow):
             row += 1
 
             start_label, end_label, start_icon, end_icon = {
-                "ll": ("Lower left", "Upper right", config.GUI.icon_files["SW"], config.GUI.icon_files["NE"]),
-                "ul": ("Upper left", "Lower right", config.GUI.icon_files["NE"], config.GUI.icon_files["SW"]),
+                "ll":
+                ("Lower left", "Upper right", config.GUI.icon_files["SW"],
+                 config.GUI.icon_files["NE"]),
+                "ul":
+                ("Upper left", "Lower right", config.GUI.icon_files["NE"],
+                 config.GUI.icon_files["SW"]),
             }[self.usc.motion.origin()]
 
             self.plan_start_pb = QPushButton(start_label)

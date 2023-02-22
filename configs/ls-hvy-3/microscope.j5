@@ -1,6 +1,7 @@
 /*
 For Travis
-very similar to "pr0nscope" mk2 original BH2 CNC microscope
+Olympus BH2-UMA measuring microscope
+UT100 NEMA23 stages
 */
 {
     "planner": {
@@ -34,6 +35,9 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
                 //$100, $101 and $102 – [X,Y,Z] steps/mm
                 "$100=1600.000",
                 "$101=1600.000",
+                //X - Max Rate (mm/min)
+                "$110=1000.000",
+                "$111=1000.000",
                 //$120, $121, $122 – [X,Y,Z] Acceleration, mm/sec^2
                 //Default values, didn't try changing
                 "$120=30.000",
@@ -43,14 +47,16 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
                 //homg disabled => not usable
                 //"$130=19.500",
                 //"$131=19.500",
+
+                //Could use P0 but better to make state canonical
+                //G54: zero out offsets
+                "G10 L2 P1 X0 Y0 Z0",
+                //Select G54 coordinate system
+                "G54",
             ],
         },
+        //XXX: actual value?
         "backlash": 0.05,
-        //FIXME: not calibrated
-        "scalars": {
-            "x": -1.0,
-            "y": 1.0,
-        },
         /*
         Actual stage range: 25 mm
         Leave 2.5 mm each side

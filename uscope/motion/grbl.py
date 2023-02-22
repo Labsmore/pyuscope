@@ -438,6 +438,12 @@ class GRBLSer:
         """
         return self.txrxs("$N")
 
+    def x(self):
+        """
+        Clear alarm
+        """
+        self.txrx0("$X")
+
     def cancel_jog(self):
         """
         Immediately cancels the current jog state by a feed hold and

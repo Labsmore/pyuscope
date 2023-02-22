@@ -18,7 +18,7 @@ def main():
     parser.add_argument(
         "cmd",
         # nargs="?",
-        help="Ex: G90 X1.0 F1000")
+        help="Ex: X1.0 F1000")
     args = parser.parse_args()
 
     grbl = GRBL(verbose=args.verbose)

@@ -11,43 +11,31 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
     "motion": {
         "hal": "grbl-ser",
         "backlash": 0.05,
-        "origin": "ul",
         //FIXME: not calibrated
-        /*
-        lcnc
-        1024000
-        1024 * 1000
-        3018 threads are T8 lead screw => 8 mm diameter, 2 mm pitch
-        These appear to be 1 mm pitch
-        */
         "scalars": {
             "x": -2.5,
             "y": 4.0,
         },
-        //FIXME: once calibrated
+        /*
+        Actual stages 50 mm
+        Leave 5 mm each side
+        */
         "soft_limits": {
             "xmin": -5.0,
-            "xmax": 40.0,
+            "xmax": 35.0,
             "ymin": -5.0,
-            "ymax": 40.0,
+            "ymax": 35.0,
         },
     },
-
+    //E3ISPM20000KPA
     "imager": {
         "source":"gst-toupcamsrc",
-        "snapshot_dir":"snapshot",
-		"width": 3704,
-		"height": 2778,
+		"width": 5440,
+		"height": 3648,
         "source_properties": {
             "esize": 0
         },
 		"scalar": 0.50,
-        "crop": {
-            "top": 500,
-            "bottom": 500,
-            "left": 410,
-            "right": 410,
-        },
         "source_properties_mod": {
             //In us. Can go up to 15 sec which is impractical for typical usage
             "expotime": {
@@ -60,25 +48,31 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
 			"name":"5X",
 			"suffix": "ns5x",
 			"scalar": 0.5,
-			"x_view": 3.6
+			"x_view": 3.55
 		},
 		{
 			"name":"10X",
 			"suffix": "ns10x",
 			"scalar": 0.5,
-			"x_view": 1.8
+			"x_view": 1.78
 		},
 		{
 			"name":"20X",
 			"suffix": "ns20x",
 			"scalar": 0.5,
-			"x_view": 0.9
+			"x_view": 0.89
+		},
+		{
+			"name":"50X",
+			"suffix": "ns50x",
+			"scalar": 0.5,
+			"x_view": 0.356
 		},
 		{
 			"name":"100X",
 			"suffix": "ns100x",
 			"scalar": 0.5,
-			"x_view": 0.18
+			"x_view": 0.178
 		}
     ]
 }

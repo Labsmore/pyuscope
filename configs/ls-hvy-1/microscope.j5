@@ -37,13 +37,14 @@ Original "pr0nscope" mk2 BH2 CNC microscope
             "ymax": 40.0,
         },
     },
-
+    //E3ISPM20000KPA
     "imager": {
         "source":"gst-toupcamsrc",
-        "snapshot_dir":"snapshot",
 		"width": 5440,
 		"height": 3648,
-		"esize": 0,
+        "source_properties": {
+            "esize": 0
+        },
 		"scalar": 0.50
     },
     "objectives": [

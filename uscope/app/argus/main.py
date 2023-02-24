@@ -480,6 +480,7 @@ class MainWindow(QMainWindow):
         QMainWindow.__init__(self)
         self.verbose = verbose
         self.showMaximized()
+        self.microscope = microscope
         self.usj = get_usj(name=microscope)
         self.usc = USC(usj=self.usj)
         self.usc.app_register("argus", USCArgus)
@@ -807,6 +808,13 @@ class MainWindow(QMainWindow):
                 self.log(
                     "Run aborted: requested HDR but auto-exposure enabled")
                 return
+
+        # Ignored app specific metadata
+        pconfig["app"] = {
+            "app": "argus",
+            "objective": self.obj_config,
+            "microscope": self.microscope,
+        }
 
         if not dry:
             os.mkdir(out_dir)

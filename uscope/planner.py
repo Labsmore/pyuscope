@@ -17,6 +17,7 @@ import math
 import os
 import threading
 import time
+import datetime
 
 from uscope.motion.hal import DryHal
 # FIXME: hack, maybe just move the baacklash parsing out
@@ -111,13 +112,7 @@ class PlannerAxis(object):
         self.view_pixels = view_pix
         #self.pos = 0.0
         self.name = name
-        '''
-        The naming is somewhat bad on this as it has an anti-intuitive meaning
-        
-        Proportion of each image that is unique from previous
-        Overlap of 1.0 means that images_actual are all unique sections
-        Overlap of 0.0 means never move and keep taking the same spot
-        '''
+        # Proportion of each image that is shared to the next
         self.req_overlap = req_overlap
 
         self.start = start
@@ -134,28 +129,34 @@ class PlannerAxis(object):
         # Its actually less than this but it seems it takes some stepping
         # to get it out of the system
         self.backlash = backlash
-        # sort out later
-        #self.backlash = None
         '''
         Backlash compensation
         0: no compensation
         -1: compensated for decreasing
         1: compensated for increasing
         '''
-        self.comp = 0
+        # self.backlash_compensation = 0
 
     def meta(self):
         ret = {}
-        ret['backlash'] = self.backlash
-        ret['overlap'] = self.step_percent()
+        ret['backlash_mm'] = self.backlash
+        # ret['backlash_compensation'] = self.backlash_compensation
+        ret['step_mm'] = self.step()
+        ret['start_mm'] = self.start
+        ret['end_mm'] = self.actual_end
         ret['view_pixels'] = self.view_pixels
-        # FIXME: find a way to verify au is in pixels
         ret['view_mm'] = self.view_mm
-        ret['pixels'] = self.requested_delta_pixels()
-        # all of my systems are set to mm though, even if they are imperial screws
-        ret['pixels_mm'] = self.view_pixels / self.view_mm
-        mm = self.requested_delta_pixels() / ret['pixels_mm']
-        ret['mm'] = mm
+        ret['delta_mm'] = self.actual_delta_mm()
+        ret['delta_pixels']: self.actual_delta_pixels()
+        ret['pixels_per_mm'] = self.view_pixels / self.view_mm
+        ret['overlap_fraction'] = self.actual_overlap()
+        # source parameters that might have been modified
+        ret["requested"] = {
+            'end_mm': self.requested_end,
+            'delta_mm': self.requested_delta_mm(),
+            'delta_pixels': self.requested_delta_pixels(),
+            'overlap_fraction': self.req_overlap,
+        }
         return ret
 
     def requested_delta_mm(self):
@@ -188,8 +189,8 @@ class PlannerAxis(object):
         '''
         if self.requested_delta_mm() <= self.view_mm:
             return 1.0 * self.requested_delta_mm() / self.view_mm
-        ret = 1.0 + (self.requested_delta_mm() -
-                     self.view_mm) / (self.req_overlap * self.view_mm)
+        ret = 1.0 + (self.requested_delta_mm() - self.view_mm) / (
+            (1.0 - self.req_overlap) * self.view_mm)
         if ret < 0:
             raise Exception('bad number of idea images_actual %s' % ret)
         return ret
@@ -229,10 +230,8 @@ class PlannerAxis(object):
             return (self.requested_delta_mm() -
                     self.view_mm) / (images_to_take - 1.0)
 
-    def step_percent(self):
-        '''Actual percentage we move to take the next picture'''
-        # Contrast with requested value self.req_overlap
-        return self.step() / self.view_mm
+    def actual_overlap(self):
+        return 1.0 - self.step() / self.view_mm
 
     def points(self):
         step = self.step()
@@ -405,8 +404,8 @@ class Planner:
     def init_contour(self):
         contour = self.pconfig["contour"]
 
-        self.ideal_overlap = self.pconfig.get("step") if self.pconfig.get(
-            "step") else 0.7
+        self.ideal_overlap = self.pconfig.get("overlap") if self.pconfig.get(
+            "step") else 0.3
         # Maximum allowable overlap proportion error when trying to fit number of snapshots
         #overlap_max_error = 0.05
         '''
@@ -487,7 +486,7 @@ class Planner:
             self.log('  %f to %f' % (axis.start, axis.actual_end), 2)
             self.log(
                 '  Ideal overlap: %f, actual %g' %
-                (self.ideal_overlap, axis.step_percent()), 2)
+                (self.ideal_overlap, axis.actual_overlap()), 2)
             self.log('  full delta: %f' % (axis.requested_delta_mm()), 2)
             self.log('  view: %d pix' % (axis.view_pixels, ), 2)
             self.log('  border: %f' % self.border)
@@ -577,7 +576,7 @@ class Planner:
                                separators=(',', ': ')))
 
         meta = self.gen_meta()
-        dumpj(meta, 'out.json')
+        dumpj(meta, 'uscan.json')
         return meta
 
     def prepare_image_output(self):
@@ -934,6 +933,11 @@ class Planner:
         '''Can only be called after run'''
 
         plannerj = {}
+        """
+        Bump patch when adding w/o breaking something
+        Bump minor when making a small breaking change
+        Bump major when making a big breaking change
+        """
 
         # plannerj['x'] = ...
         for axisc, axis in self.axes.items():
@@ -943,8 +947,15 @@ class Planner:
         plannerj['time'] = self.end_time - self.start_time
         plannerj['pictures_to_take'] = self.pictures_to_take
         plannerj['pictures_taken'] = self.xy_imgs
+        plannerj["time_end"] = datetime.datetime.utcnow().isoformat()
+
+        # Only supported for now
+        # Start at row=0, col=0 and increment col
+        # Then inc row and decrement col until col=0 again
+        self.pconfig["algorithm"] = "serpentine-lr"
 
         ret = self.meta_base
+        ret["version"] = "1.0.0"
         # User scan parameters
         ret['pconfig'] = self.pconfig
         # Calculated scan parameters

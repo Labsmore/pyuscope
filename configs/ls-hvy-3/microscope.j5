@@ -48,8 +48,8 @@ UT100 NEMA23 stages
                 //"$130=19.500",
                 //"$131=19.500",
 
-                //Could use P0 but better to make state canonical
                 //G54: zero out offsets
+                //Could use P0 but better to make state canonical
                 "G10 L2 P1 X0 Y0 Z0",
                 //Select G54 coordinate system
                 "G54",

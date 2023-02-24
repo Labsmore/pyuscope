@@ -9,9 +9,9 @@ The flagship application creates panoramic scans using:
 These panoramic scans are typically chip images (ex: see http://siliconpr0n.org/)
 
 Notable applications:
-  * main_gui/main.py: primary GUI
-  * touptek/tvl.py: for testing touptek plugin
-  * demo/*.py: small tech demos
+ * main_gui/main.py: primary GUI
+ * touptek/tvl.py: for testing touptek plugin
+ * demo/*.py: small tech demos
 
 # Supported hardware
 
@@ -241,50 +241,51 @@ However, I've been using this workflow for years now, and will probably continue
 * Better GRBL automatic serial port selection
 * Misc fixes
 
+
 ## 3.2.0
 * Compatible with
-  * gst-plugin-toupcam: v0.3.0
-  * Motion HAL: GRBL
-    * LinuxCNC was not removed but was not updated either
+  * gst-plugin-toupcam: v0.3.0
+  * Motion HAL: GRBL
+    * LinuxCNC was not removed but was not updated either
 * Known bugs
-  * Argus: first time connecting to GRBL may cuase failed start
-    * Workaround: re-launch GUI or first run "python3 test/grbl/status.py"
-  * Axis soft limit may be exceeded during long jog
-    * Workaround: be careful and/or do shorter jogs
-  * Auto-exposure may cause image to flicker
-    * Workaround: toggle auto-exposure off then on to stabalize
+  * Argus: first time connecting to GRBL may cuase failed start
+    * Workaround: re-launch GUI or first run "python3 test/grbl/status.py"
+  * Axis soft limit may be exceeded during long jog
+    * Workaround: be careful and/or do shorter jogs
+  * Auto-exposure may cause image to flicker
+    * Workaround: toggle auto-exposure off then on to stabalize
 * Microscope
-  * lip-m1-beta support
-  * ls-hvy-1: moved from LinuxCNC to GRBL
-  * brainscope: moved from LinuxCNC to GRBL
+  * lip-m1-beta support
+  * ls-hvy-1: moved from LinuxCNC to GRBL
+  * brainscope: moved from LinuxCNC to GRBL
 * Argus
-  * Add Advanced tab
-    * Focus stack support (beta quality)
-    * HDR support (beta quality)
-  * Manual move w/ backlash compensation option
+  * Add Advanced tab
+    * Focus stack support (beta quality)
+    * HDR support (beta quality)
+  * Manual move w/ backlash compensation option
 * Config improvements and changes
-  * Config: add imager.source_properties_mod
-    * ex: reduce exposure time to practical range)
-  * Config: add imager.crop
-    * Use an oversized sensor by cropping it down
-  * Config: add planner.backlash_compensate
-    * More aggressively backlash compensate to improve xy alignment
-  * Config: backlash can be specified per axis
-    * Intended to support XY vs Z
-  * Config API cleaned up
+  * Config: add imager.source_properties_mod
+    * ex: reduce exposure time to practical range)
+  * Config: add imager.crop
+    * Use an oversized sensor by cropping it down
+  * Config: add planner.backlash_compensate
+    * More aggressively backlash compensate to improve xy alignment
+  * Config: backlash can be specified per axis
+    * Intended to support XY vs Z
+  * Config API cleaned up
 * Bug fixes / usability improvements
-  * Argus: update position during long moves
-  * Fix image flickering during move
-  * Fix image flickering caused by GUI exposure fighting auto-exposure
-  * Reduce console verbosity
-  * Unit test suite significantly expanded
+  * Argus: update position during long moves
+  * Fix image flickering during move
+  * Fix image flickering caused by GUI exposure fighting auto-exposure
+  * Reduce console verbosity
+  * Unit test suite significantly expanded
 
 ## 3.3.0 (WIP)
- * Compatible with
-  * gst-plugin-toupcam: v0.3.1 (WIP)
-   * Rev for toupcamsrc automatic resolution detection
-  * Motion HAL: GRBL
- * Config API clean up
- * WIP: fix axis soft limit bug
- * WIP: add ability to temporarily override soft limits
- * WIP: reliable Argus launch
+ * Compatible with
+  * gst-plugin-toupcam: v0.3.1 (WIP)
+   * Rev for toupcamsrc automatic resolution detection
+  * Motion HAL: GRBL
+ * Config API clean up
+ * WIP: fix axis soft limit bug
+ * WIP: add ability to temporarily override soft limits
+ * WIP: reliable Argus launch

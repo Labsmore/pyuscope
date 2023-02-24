@@ -9,9 +9,9 @@ The flagship application creates panoramic scans using:
 These panoramic scans are typically chip images (ex: see http://siliconpr0n.org/)
 
 Notable applications:
- * main_gui/main.py: primary GUI
- * touptek/tvl.py: for testing touptek plugin
- * demo/*.py: small tech demos
+  * main_gui/main.py: primary GUI
+  * touptek/tvl.py: for testing touptek plugin
+  * demo/*.py: small tech demos
 
 # Supported hardware
 
@@ -39,13 +39,13 @@ Mostly for the screen resolution to make the GUI nice
 See some high level usage notes here: https://microwiki.org/wiki/index.php/McScope
 
 Supported gstreamer image sources:
-  * toupcamsrc (primary)
-  * v4l2src
-  * Other sources may work but without calibration
+  * toupcamsrc (primary)
+  * v4l2src
+  * Other sources may work but without calibration
 
 Supported movement sources:
-  * linuxcnc
-  * Others, but they aren't well maintained
+  * linuxcnc
+  * Others, but they aren't well maintained
 
 # Quick start touptek
 
@@ -192,9 +192,9 @@ However, I've been using this workflow for years now, and will probably continue
 * Tested Ubuntu 16.04
 
 ## 1.0.0
- * Motor contril via LinuxCNC
- * Job setup is primarily done through Axis (LinuxCNC GUI)
- * Tested Ubuntu 16.04
+ * Motor contril via LinuxCNC
+ * Job setup is primarily done through Axis (LinuxCNC GUI)
+ * Tested Ubuntu 16.04
 
 ## 2.0.0
 * gst-toupcamsrc supported
@@ -212,7 +212,7 @@ However, I've been using this workflow for years now, and will probably continue
 
 ## 2.2.0
 * Enforce output file naming convention
- 
+ 
 ## 3.0.0
 * GRBL support
 * Jog support (GRBL only)
@@ -240,7 +240,6 @@ However, I've been using this workflow for years now, and will probably continue
 * Add PYUSCOPE_MICROSCOPE
 * Better GRBL automatic serial port selection
 * Misc fixes
-
 
 ## 3.2.0
 * Compatible with

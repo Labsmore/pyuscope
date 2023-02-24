@@ -116,6 +116,33 @@ class USCArgus:
         return int(self.j.get("jog_min", 1))
 
 
+def snapshot_fn(user, extension, parent):
+    prefix = ''
+    # if self.prefix_date_cb.isChecked():
+    if 1:
+        # 2020-08-12_06-46-21
+        prefix = datetime.datetime.utcnow().isoformat().replace(
+            'T', '_').replace(':', '-').split('.')[0] + "_"
+
+    mod = None
+    while True:
+        mod_str = ''
+        if mod:
+            mod_str = '_%u' % mod
+        fn_full = os.path.join(parent, prefix + user + mod_str + extension)
+        if os.path.exists(fn_full):
+            if mod is None:
+                mod = 1
+            else:
+                mod += 1
+            continue
+        return fn_full
+
+
+def scan_dir_fn(user, parent):
+    return snapshot_fn(user=user, extension="", parent=parent)
+
+
 class JogListener(QPushButton):
     """
     Widget that listens for WSAD keys for linear stage movement
@@ -344,7 +371,7 @@ class MotionWidget(QWidget):
             self.motion_thread.stop()
 
 
-class SimpleNameWidget(QWidget):
+class SimpleSnapshotNameWidget(QWidget):
     """
     Job name is whatever the user wants
     """
@@ -359,8 +386,8 @@ class SimpleNameWidget(QWidget):
 
         self.setLayout(layout)
 
-    def getName(self):
-        return str(self.le.text())
+    def getName(self, parent):
+        return scan_dir_fn(user=str(self.le.text()), parent=parent)
 
 
 '''
@@ -386,7 +413,7 @@ class DatetimeWidget(QWidget):
 '''
 
 
-class SiPr0nJobNameWidget(QWidget):
+class SiPr0nSnapshotNameWidget(QWidget):
     """
     Force a name compatible with siliconpr0n.org naming convention
     """
@@ -420,7 +447,7 @@ class SiPr0nJobNameWidget(QWidget):
 
         self.setLayout(layout)
 
-    def getName(self):
+    def getName(self, parent):
         # old: freeform
         # return str(self.job_name_le.text())
         vendor = str(self.vendor_name_le.text())
@@ -439,7 +466,8 @@ class SiPr0nJobNameWidget(QWidget):
         if not objective:
             objective = "unkx"
 
-        return vendor + "_" + product + "_" + layer + "_" + objective
+        ret = vendor + "_" + product + "_" + layer + "_" + objective
+        return os.path.join(parent, ret)
 
 
 class MainWindow(QMainWindow):
@@ -749,11 +777,7 @@ class MainWindow(QMainWindow):
         if not dry and not os.path.exists(base_out_dir):
             os.mkdir(base_out_dir)
 
-        postfix = datetime.datetime.utcnow().isoformat().replace(
-            'T', '_').replace(':', '-').split('.')[0] + "_"
-
-        out_dir = os.path.join(base_out_dir,
-                               self.jobName.getName() + '_' + postfix)
+        out_dir = self.jobName.getName(base_out_dir)
         if os.path.exists(out_dir):
             self.log("Run aborted: already exists: %s" % out_dir)
             return
@@ -1066,32 +1090,9 @@ class MainWindow(QMainWindow):
         self.capture_sink.request_image(emitSnapshotCaptured)
 
     def snapshot_fn(self):
-        user = str(self.snapshot_fn_le.text())
-
-        prefix = ''
-        # if self.prefix_date_cb.isChecked():
-        if 1:
-            # 2020-08-12_06-46-21
-            prefix = datetime.datetime.utcnow().isoformat().replace(
-                'T', '_').replace(':', '-').split('.')[0] + "_"
-
-        extension = str(self.snapshot_suffix_le.text())
-
-        mod = None
-        while True:
-            mod_str = ''
-            if mod:
-                mod_str = '_%u' % mod
-            fn_full = os.path.join(
-                self.usc.app("argus").snapshot_dir(),
-                prefix + user + mod_str + extension)
-            if os.path.exists(fn_full):
-                if mod is None:
-                    mod = 1
-                else:
-                    mod += 1
-                continue
-            return fn_full
+        return snapshot_fn(user=str(self.snapshot_fn_le.text()),
+                           extension=str(self.snapshot_suffix_le.text()),
+                           parent=self.usc.app("argus").snapshot_dir())
 
     def captureSnapshot(self, image_id):
         self.log('RX image for saving')
@@ -1148,9 +1149,9 @@ class MainWindow(QMainWindow):
         def getScanNameWidget():
             name = self.usc.app("argus").scan_name_widget()
             if name == "simple":
-                return SimpleNameWidget()
+                return SimpleSnapshotNameWidget()
             elif name == "sipr0n":
-                return SiPr0nJobNameWidget()
+                return SiPr0nSnapshotNameWidget()
             else:
                 raise ValueError(name)
 

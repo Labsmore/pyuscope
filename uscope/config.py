@@ -572,6 +572,10 @@ class GUI(object):
         assets_dir, 'north_east_FILL1_wght700_GRAD0_opsz48.png')
     icon_files['SW'] = os.path.join(
         assets_dir, 'south_west_FILL1_wght700_GRAD0_opsz48.png')
+    icon_files['NW'] = os.path.join(
+        assets_dir, 'north_west_FILL0_wght700_GRAD0_opsz48.png')
+    icon_files['SE'] = os.path.join(
+        assets_dir, 'south_east_FILL0_wght700_GRAD0_opsz48.png')
     icon_files['camera'] = os.path.join(
         assets_dir, 'photo_camera_FILL1_wght400_GRAD0_opsz48.png')
     icon_files['go'] = os.path.join(

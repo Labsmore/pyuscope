@@ -8,6 +8,7 @@ A minimal configuration to do basic testing
     },
     "motion": {
         "hal": "grbl-ser",
+        "backlash": 0.05,
         "grbl": {
             "rc": [
                 //intentionally starts locked

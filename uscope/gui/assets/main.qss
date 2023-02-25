@@ -13,7 +13,7 @@ QGroupBox {
  border: 2px solid gray;
  border-radius: 5px;
  font: bold;
- margin-top: 1.5ex; /* leave space at the top for the title */
+ margin-top: 1.5em; /* leave space at the top for the title */
  padding: 5px;
 }
 

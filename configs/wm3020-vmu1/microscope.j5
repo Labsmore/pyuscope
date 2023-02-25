@@ -13,6 +13,23 @@ A minimal configuration to do basic testing
             "rc": [
                 //intentionally starts locked
                 "$X",
+
+
+                //$100, $101 and $102 – [X,Y,Z] steps/mm
+                //Default
+                "$100=800.000", "$101=800.000", "$102=800.000",
+
+                //2023-02-24: suspect missing steps. Make less aggressive
+                //X - Max Rate (mm/min)
+                //Default
+                //"$110=1200.000", "$111=1200.000", "$112=1200.000",
+                "$110=600.000", "$111=600.000", "$112=600.000",
+                //$120, $121, $122 – [X,Y,Z] Acceleration, mm/sec^2
+                //Default values, didn't try changing
+                //"$120=30.000", "$121=30.000", "$122=30.000",
+                "$120=15.000", "$121=15.000", "$122=15.000",
+
+
                 //G54: zero out offsets
                 //Could use P0 but better to make state canonical
                 "G10 L2 P1 X0 Y0 Z0",

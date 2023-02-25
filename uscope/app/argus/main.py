@@ -1004,8 +1004,8 @@ class MainWindow(QMainWindow):
                 ("Lower left", "Upper right", config.GUI.icon_files["SW"],
                  config.GUI.icon_files["NE"]),
                 "ul":
-                ("Upper left", "Lower right", config.GUI.icon_files["NE"],
-                 config.GUI.icon_files["SW"]),
+                ("Upper left", "Lower right", config.GUI.icon_files["NW"],
+                 config.GUI.icon_files["SE"]),
             }[self.usc.motion.origin()]
 
             self.plan_start_pb = QPushButton(start_label)

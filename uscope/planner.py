@@ -964,7 +964,7 @@ class Planner:
         ret["images"] = OrderedDict()
         for (x, y), (c, r) in self.gen_xycr():
             k = "%uc_%ur" % (c, r)
-            ret["images"][k] = {"x": x, "y": y, "c": c, "r": r}
+            ret["images"][k] = {"x": x, "y": y, "col": c, "row": r}
         return ret
 
     def backlash_init(self):

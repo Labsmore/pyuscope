@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 """
 Mitutoyo power turret test
-Connect with null modem cable
+Connect with straight through cable (not null modem)
+I used a null modem cable with a second null modem adapter to cancel it out
+Check jumper settings for baud etc or review error codes until it works
 """
 
 import serial

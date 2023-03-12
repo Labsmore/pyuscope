@@ -31,7 +31,7 @@ TODO: should block?
 class MotionThread(QThread):
     log_msg = pyqtSignal(str)
 
-    def __init__(self, motion, cmd_done):
+    def __init__(self, motion, cmd_done=None):
         QThread.__init__(self)
         self.verbose = False
         self.queue = queue.Queue()
@@ -194,10 +194,12 @@ class MotionThread(QThread):
                     print("")
                     print("WARNING: motion thread crashed")
                     print(traceback.format_exc())
-                    self.cmd_done(command, args, e)
+                    if self.cmd_done:
+                        self.cmd_done(command, args, e)
                     continue
 
-                self.cmd_done(command, args, ret)
+                if self.cmd_done:
+                    self.cmd_done(command, args, ret)
 
         finally:
             self.motion.stop()

@@ -12,6 +12,7 @@ import platform
 import glob
 from uscope.util import add_bool_arg
 
+
 def default_port():
     if platform.system() == "Linux":
         acms = glob.glob('/dev/ttyUSB*')
@@ -21,8 +22,10 @@ def default_port():
     else:
         return None
 
+
 class BadCommand(Exception):
     pass
+
 
 def tobytes(buff):
     if type(buff) is str:
@@ -42,6 +45,7 @@ def tostr(buff):
     else:
         assert 0, type(buff)
 
+
 class MitutoyoPower:
     def __init__(self, device=None, verbose=None):
         if device is None:
@@ -55,17 +59,18 @@ class MitutoyoPower:
         Baud: 1200, 2400, 4800, or 9600
         Parity: yes/no + even/odd
         """
-        self.ser = serial.Serial(device,
-                baudrate=9600,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_EVEN,
-                stopbits=serial.STOPBITS_ONE,
-                rtscts=False,
-                dsrdtr=False,
-                xonxoff=False,
-                timeout=0.5,
-                # Blocking writes
-                writeTimeout=None)
+        self.ser = serial.Serial(
+            device,
+            baudrate=9600,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_EVEN,
+            stopbits=serial.STOPBITS_ONE,
+            rtscts=False,
+            dsrdtr=False,
+            xonxoff=False,
+            timeout=0.5,
+            # Blocking writes
+            writeTimeout=None)
 
         if 0:
             self.ser.write('\r\n')
@@ -106,9 +111,8 @@ class MitutoyoPower:
 
         if not reply:
             return
-        
-        return tostr(self.ser.readline()).strip()
 
+        return tostr(self.ser.readline()).strip()
 
     def rotate_to(self, pos, wait_idle=True):
         assert pos in "ABCDE"
@@ -133,7 +137,7 @@ class MitutoyoPower:
             "connect_status": ret[5],
             "version": ret[6],
             "position": ret[7],
-            }
+        }
 
     def wait_idle(self):
         """
@@ -164,6 +168,7 @@ def main():
         mp.rotate_to("B")
         print("To C...")
         mp.rotate_to("C")
+
 
 if __name__ == "__main__":
     main()

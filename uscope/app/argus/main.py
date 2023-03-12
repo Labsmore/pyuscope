@@ -10,10 +10,11 @@ from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
 from uscope.motion.plugins import get_motion_hal
 from uscope.app.argus.threads import MotionThread, PlannerThread
-from uscope.planner import microscope_to_planner, backlash_move_absolute
+from uscope.planner import microscope_to_planner, backlash_move_absolute, PC
 from uscope import util
 from uscope import config
 from uscope.motion import motion_util
+import json
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -290,7 +291,7 @@ class MainTab(ArgusTab):
         # XXX: not portable, touptek only
         return self.ac.control_scroll.prop_read("auto-exposure")
 
-    def plannerDone(self, run_next=False):
+    def plannerDone(self, run_next=True):
         self.log('RX planner done')
         self.go_pause_pb.setText("Go")
         # Cleanup camera objects
@@ -326,7 +327,7 @@ class MainTab(ArgusTab):
             if "hdr" in pconfig["imager"] and self.auto_exposure_enabled():
                 self.log(
                     "Run aborted: requested HDR but auto-exposure enabled")
-                self.plannerDone()
+                self.plannerDone(run_next=False)
                 return
 
             def emitCncProgress(pictures_to_take, pictures_taken, image,
@@ -391,11 +392,14 @@ class MainTab(ArgusTab):
 
             self.pt.start()
         except:
-            self.plannerDone()
+            self.plannerDone(run_next=False)
             raise
 
-    def go_scan_configs(self, pconfigs):
-        self.scan_configs = pconfigs
+    def go_scan_configs(self, scan_configs):
+        if not scan_configs:
+            return
+
+        self.scan_configs = list(scan_configs)
 
         if not self.snapshot_pb.isEnabled():
             self.log("Wait for snapshot to complete before CNC'ing")
@@ -732,22 +736,27 @@ class BatchImageTab(ArgusTab):
         self.layout = QVBoxLayout()
 
         self.add_pb = QPushButton("Add current scan")
+        self.layout.addWidget(self.add_pb)
         self.add_pb.clicked.connect(self.add_clicked)
 
         self.del_pb = QPushButton("Del selected scan")
+        self.layout.addWidget(self.del_pb)
         self.del_pb.clicked.connect(self.del_clicked)
 
         self.del_all_pb = QPushButton("Del all scans")
+        self.layout.addWidget(self.del_all_pb)
         self.del_all_pb.clicked.connect(self.del_all_clicked)
 
         self.run_all_pb = QPushButton("Run all scans")
+        self.layout.addWidget(self.run_all_pb)
         self.run_all_pb.clicked.connect(self.run_all_clicked)
 
         self.layout.addWidget(QLabel("Abort on first failure?"))
         self.abort_cb = QCheckBox()
         self.layout.addWidget(self.abort_cb)
 
-        self.scan_name = QTextEdit()
+        # FIXME: instead just set to the MainTab's name
+        self.scan_name = QLineEdit()
 
         # Which tab to get config from
         # In advanced setups multiple algorithms are possible
@@ -761,6 +770,8 @@ class BatchImageTab(ArgusTab):
         self.pconfig_cb.currentIndexChanged.connect(self.update_cb)
 
         self.display = QTextEdit()
+        self.display.setReadOnly(True)
+        self.layout.addWidget(self.display)
 
         self.setLayout(self.layout)
 
@@ -775,11 +786,20 @@ class BatchImageTab(ArgusTab):
         self.pconfig_source_cb.addItem(name)
 
     def update_cb(self):
+        if not len(self.scan_configs):
+            self.display.setText("None")
+            return
         index = self.pconfig_cb.currentIndex()
-        self.display.setText(self.scan_configs[index])
+        scan_config = self.scan_configs[index]
+        s = json.dumps(scan_config,
+                       sort_keys=True,
+                       indent=4,
+                       separators=(",", ": "))
+        self.display.setPlainText(json.dumps(s))
 
-    def get_pconfig(self):
-        return self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
+    def get_scan_config(self):
+        mainTab = self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
+        return mainTab.get_current_scan_config()
 
     def add_clicked(self):
         self.scani += 1
@@ -788,24 +808,25 @@ class BatchImageTab(ArgusTab):
             name = "Batch %u" % self.scani
         else:
             name = "Batch %u: %s" % (self.scani, name)
-        self.obj_cb.addItem(name)
-        self.scan_configs.add(self.get_pconfig())
+        self.pconfig_cb.addItem(name)
+        self.scan_configs.append(self.get_scan_config())
         self.update_cb()
 
     def del_clicked(self):
-        index = self.pconfig_cb.currentIndex()
-        del self.scan_configs[index]
-        self.obj_cb.removeItem(index)
+        if len(self.scan_configs):
+            index = self.pconfig_cb.currentIndex()
+            del self.scan_configs[index]
+            self.pconfig_cb.removeItem(index)
         self.update_cb()
 
     def del_all_clicked(self):
         for _i in range(len(self.scan_configs)):
             del self.scan_configs[0]
-            self.obj_cb.removeItem(0)
+            self.pconfig_cb.removeItem(0)
         self.update_cb()
 
     def run_all_clicked(self):
-        pass
+        self.ac.mainTab.go_scan_configs(self.scan_configs)
 
 
 class AdvancedTab(ArgusTab):
@@ -849,6 +870,84 @@ class AdvancedTab(ArgusTab):
         layout.addWidget(QLabel("HDR exposure sequence (csv in us)"), row, 0)
         self.hdr_le = QLineEdit("")
         layout.addWidget(self.hdr_le, row, 1)
+        row += 1
+
+        # FIXME: display for now, but should make editable
+        def planner_gb():
+            layout = QGridLayout()
+            row = 0
+            pconfig = microscope_to_planner(self.ac.usj,
+                                            objective={"x_view": None},
+                                            contour={})
+            pc = PC(j=pconfig)
+
+            layout.addWidget(QLabel("Border"), row, 0)
+            self.gutter_le = QLineEdit("%f" % pc.border())
+            self.gutter_le.setReadOnly(True)
+            layout.addWidget(self.gutter_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("tsettle"), row, 0)
+            self.tsettle_le = QLineEdit("%f" % pc.tsettle())
+            self.tsettle_le.setReadOnly(True)
+            layout.addWidget(self.tsettle_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Ideal overlap X"), row, 0)
+            self.overlap_x_le = QLineEdit("%f" % pc.ideal_overlap("x"))
+            self.overlap_x_le.setReadOnly(True)
+            layout.addWidget(self.overlap_x_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Ideal overlap Y"), row, 0)
+            self.overlap_y_le = QLineEdit("%f" % pc.ideal_overlap("y"))
+            self.overlap_y_le.setReadOnly(True)
+            layout.addWidget(self.overlap_y_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Image scalar"), row, 0)
+            self.image_scalar_le = QLineEdit("%f" % pc.image_scalar())
+            self.image_scalar_le.setReadOnly(True)
+            layout.addWidget(self.image_scalar_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Motion origin"), row, 0)
+            self.motion_scalar_le = QLineEdit(pc.motion_origin())
+            self.motion_scalar_le.setReadOnly(True)
+            layout.addWidget(self.motion_scalar_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Backlash compensation"), row, 0)
+            self.backlash_comp_le = QLineEdit(
+                str(self.ac.usc.motion.backlash_compensation()))
+            self.backlash_comp_le.setReadOnly(True)
+            layout.addWidget(self.backlash_comp_le, row, 1)
+            row += 1
+
+            backlashes = self.ac.usc.motion.backlash()
+            layout.addWidget(QLabel("Backlash X"), row, 0)
+            self.backlash_x_le = QLineEdit("%f" % backlashes["x"])
+            self.backlash_x_le.setReadOnly(True)
+            layout.addWidget(self.backlash_x_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Backlash Y"), row, 0)
+            self.backlash_y_le = QLineEdit("%f" % backlashes["y"])
+            self.backlash_y_le.setReadOnly(True)
+            layout.addWidget(self.backlash_y_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Backlash Z"), row, 0)
+            self.backlash_z_le = QLineEdit("%f" % backlashes["z"])
+            self.backlash_z_le.setReadOnly(True)
+            layout.addWidget(self.backlash_z_le, row, 1)
+            row += 1
+
+            gb = QGroupBox("Planner")
+            gb.setLayout(layout)
+            return gb
+
+        layout.addWidget(planner_gb(), row, 0)
         row += 1
 
         self.setLayout(layout)
@@ -1425,6 +1524,7 @@ class MainWindow(QMainWindow):
         self.imagerTab = ImagerTab(ac=self.ac, parent=self)
         self.batchTab = BatchImageTab(ac=self.ac, parent=self)
         self.advancedTab = AdvancedTab(ac=self.ac, parent=self)
+        self.ac.mainTab = self.mainTab
 
     def initUI(self):
         self.ac.initUI()

@@ -348,12 +348,12 @@ class USCPlanner:
         """
         self.j = j
 
-    def step(self):
+    def overlap(self):
         """
-        ideal faction of image to move between images
-        Default: 0.7 => only overlap adjacent image by 30%
+        ideal faction of image that overlaps to each adjacent image
+        Default: 0.3 => overlap adjacent image by 30% on each side (40% unique)
         """
-        return float(self.j.get("overlap", 0.7))
+        return float(self.j.get("overlap", 0.3))
 
     def border(self):
         """
@@ -556,6 +556,29 @@ class PC:
 
     def contour(self):
         return self.j["contour"]
+
+    def ideal_overlap(self, axis=None):
+        # FIXME: axis option
+        return self.j.get("overlap", 0.3)
+
+    def border(self):
+        """
+        How much to add onto each side of the XY scan
+        Convenience parameter to give a systematic fudge factor
+        """
+        return float(self.j.get("border", 0.0))
+
+    def image_scalar(self):
+        """Multiplier to go from Imager image size to output image size"""
+        return float(self.j.get("imager", {}).get("scalar", 1.0))
+
+    def motion_origin(self):
+        ret = self.j.get("motion", {}).get("origin", "ll")
+        assert ret in ("ll", "ul"), "Invalid coordinate origin"
+        return ret
+
+    def x_view(self):
+        return float(self.j["imager"]["x_view"])
 
 
 def validate_pconfig(pj, strict=False):

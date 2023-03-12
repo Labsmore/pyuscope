@@ -404,8 +404,6 @@ class Planner:
     def init_contour(self):
         contour = self.pconfig["contour"]
 
-        self.ideal_overlap = self.pconfig.get("overlap") if self.pconfig.get(
-            "step") else 0.3
         # Maximum allowable overlap proportion error when trying to fit number of snapshots
         #overlap_max_error = 0.05
         '''
@@ -423,33 +421,28 @@ class Planner:
         if start[1] > end[1]:
             start[1], end[1] = end[1], start[1]
 
-        self.border = float(self.pconfig.get("border", 0.0))
-        start[0] -= self.border
-        start[1] -= self.border
-        end[0] += self.border
-        end[1] += self.border
+        border = self.pc.border()
+        start[0] -= border
+        start[1] -= border
+        end[0] += border
+        end[1] += border
 
         return start, end
-
-    def image_scalar(self):
-        """Multiplier to go from Imager image size to output image size"""
-        return float(self.pconfig.get("imager", {}).get("scalar", 1.0))
 
     def image_wh(self):
         """Final snapshot image width, height after scaling"""
         raww, rawh = self.imager.wh()
-        w = int(raww * self.image_scalar())
-        h = int(rawh * self.image_scalar())
+        w = int(raww * self.pc.image_scalar())
+        h = int(rawh * self.pc.image_scalar())
         return w, h
 
     def init_axes(self, start, end):
         # CNC convention is origin should be in lower left of sample
         # Increases up and to the right
         # pr0nscope has ul origin though
-        self.origin = self.pconfig.get("motion", {}).get("origin", "ll")
-        assert self.origin in ("ll", "ul"), "Invalid coordinate origin"
+        self.origin = self.pc.motion_origin()
 
-        x_mm = float(self.pconfig["imager"]["x_view"])
+        x_mm = self.pc.x_view()
         image_wh = self.image_wh()
         mm_per_pix = x_mm / image_wh[0]
         image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
@@ -460,7 +453,7 @@ class Planner:
         self.axes = OrderedDict([
             ('x',
              PlannerAxis('X',
-                         self.ideal_overlap,
+                         self.pc.overlap("x"),
                          image_wh_mm[0],
                          image_wh[0],
                          start[0],
@@ -469,7 +462,7 @@ class Planner:
                          log=self.log)),
             ('y',
              PlannerAxis('Y',
-                         self.ideal_overlap,
+                         self.pc.overlap("y"),
                          image_wh_mm[1],
                          image_wh[1],
                          start[1],
@@ -486,10 +479,10 @@ class Planner:
             self.log('  %f to %f' % (axis.start, axis.actual_end), 2)
             self.log(
                 '  Ideal overlap: %f, actual %g' %
-                (self.ideal_overlap, axis.actual_overlap()), 2)
+                (self.pc.overlap(axisc), axis.actual_overlap()), 2)
             self.log('  full delta: %f' % (axis.requested_delta_mm()), 2)
             self.log('  view: %d pix' % (axis.view_pixels, ), 2)
-            self.log('  border: %f' % self.border)
+            self.log('  border: %f' % self.pc.border())
 
         # A true useful metric of efficieny loss is how many extra pictures we had to take
         # Maybe overhead is a better way of reporting it

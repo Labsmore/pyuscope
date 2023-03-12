@@ -1,6 +1,6 @@
 from uscope.planner import Planner
 from uscope.benchmark import Benchmark
-from uscope.motion.hal import AxisExceeded
+from uscope.motion.hal import AxisExceeded, MotionHAL
 import traceback
 
 import queue
@@ -26,6 +26,39 @@ However, it doesn't provide feedback completion so use with care
 (other blocks until done)
 TODO: should block?
 '''
+
+
+class MotionThreadMotion(MotionHAL):
+    def __init__(self, mt):
+        self.mt = mt
+        MotionHAL.__init__(self,
+                           scalars=mt.motion.scalars,
+                           soft_limits=mt.motion.soft_limits,
+                           log=mt.motion.log,
+                           verbose=mt.motion.verbose)
+
+    def axes(self):
+        return self.mt.motion.axes()
+
+    def home(self, axes):
+        self.mt.home()
+
+    def _move_absolute(self, pos):
+        self.mt.move_absolute(pos)
+
+    def _move_relative(self, pos):
+        self.mt.move_relative(pos)
+
+    def _pos(self):
+        # return self.mt.pos_cache
+        return self.pos()
+
+    def settle(self):
+        # No hardware to let settle
+        pass
+
+    def ar_stop(self):
+        pass
 
 
 class MotionThread(QThread):
@@ -87,8 +120,11 @@ class MotionThread(QThread):
         # self.command("estop")
         self._estop = True
 
-    def move_absolute(self, move_absolute):
-        self.command("move_absolute", move_absolute)
+    def home(self):
+        self.command("home")
+
+    def move_absolute(self, pos):
+        self.command("move_absolute", pos)
 
     def move_relative(self, pos):
         self.command("move_relative", pos)
@@ -108,6 +144,9 @@ class MotionThread(QThread):
                 self.queue.get(block=False)
             except queue.Empty:
                 break
+
+    def get_planner_motion(self):
+        return MotionThreadMotion(self)
 
     def run(self):
         self.verbose and print("Motion thread started: %s" %

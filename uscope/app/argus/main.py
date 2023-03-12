@@ -346,7 +346,7 @@ class MainTab(ArgusTab):
             planner_params = {
                 # Simple settings written to disk, no objects
                 "pconfig": pconfig,
-                "motion": self.ac.motion_thread.motion,
+                "motion": self.ac.motion_thread.get_planner_motion(),
 
                 # Typically GstGUIImager
                 # Will be offloaded to its own thread

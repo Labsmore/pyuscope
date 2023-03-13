@@ -53,7 +53,12 @@ def error(msg, code=1):
     exit(code)
 
 
-class ArgusTab(QWidget):
+"""
+Argus Widget
+"""
+
+
+class AWidget(QWidget):
     def __init__(self, ac, parent=None):
         super().__init__(parent=None)
         self.ac = ac
@@ -65,116 +70,294 @@ class ArgusTab(QWidget):
         pass
 
 
-class MainTab(ArgusTab):
+class ArgusTab(AWidget):
+    pass
+
+
+"""
+Select objective and show FoV
+"""
+
+
+class ObjectiveWidget(AWidget):
+    def __init__(self, ac, parent=None):
+        super().__init__(ac=ac, parent=parent)
+        self.objective_name_le = None
+
+    def initUI(self):
+        cl = QGridLayout()
+
+        row = 0
+        l = QLabel("Objective")
+        cl.addWidget(l, row, 0)
+
+        self.obj_cb = QComboBox()
+        cl.addWidget(self.obj_cb, row, 1)
+        self.obj_cb.currentIndexChanged.connect(self.update_obj_config)
+        self.obj_view = QLabel("")
+        cl.addWidget(self.obj_view, row, 2)
+        # seed it
+        self.reload_obj_cb()
+        row += 1
+
+        self.setLayout(cl)
+
+    def post_ui_init(self):
+        self.update_obj_config()
+
+    def reload_obj_cb(self):
+        '''Re-populate the objective combo box'''
+        self.obj_cb.clear()
+        self.obj_config = None
+        self.obj_configi = None
+        for objective in self.ac.usj["objectives"]:
+            self.obj_cb.addItem(objective['name'])
+
+    def update_obj_config(self):
+        '''Make resolution display reflect current objective'''
+        self.obj_configi = self.obj_cb.currentIndex()
+        self.obj_config = self.ac.usj['objectives'][self.obj_configi]
+        self.ac.log('Selected objective %s' % self.obj_config['name'])
+
+        im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
+        im_w_um = self.obj_config["x_view"]
+        im_h_um = im_w_um * im_h_pix / im_w_pix
+        self.obj_view.setText('View : %0.3fx %0.3fy' % (im_w_um, im_h_um))
+        if self.objective_name_le:
+            suffix = self.obj_config.get("suffix")
+            if not suffix:
+                suffix = self.obj_config.get("name")
+            self.objective_name_le.setText(suffix)
+
+
+"""
+Save a snapshot to a file
+"""
+
+
+class SnapshotWidget(AWidget):
     snapshotCaptured = pyqtSignal(int)
 
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
 
-        self.log_fd = None
-        # must be created early to accept early logging
-        # not displayed until later though
-        self.log_widget = QTextEdit()
-        self.log_widget.setObjectName("log_widget")
-        # Special case for logging that might occur out of thread
-        self.ac.log_msg.connect(self.log)
         # self.pos.connect(self.update_pos)
         self.snapshotCaptured.connect(self.captureSnapshot)
 
-        self.objective_name_le = None
-        self.position_poll_timer = None
-
     def initUI(self):
-        def get_config_layout():
-            cl = QGridLayout()
+        gb = QGroupBox('Snapshot')
+        layout = QGridLayout()
 
-            row = 0
-            l = QLabel("Objective")
-            cl.addWidget(l, row, 0)
+        snapshot_dir = self.ac.usc.app("argus").snapshot_dir()
+        if not os.path.isdir(snapshot_dir):
+            self.ac.log('Snapshot dir %s does not exist' % snapshot_dir)
+            if os.path.exists(snapshot_dir):
+                raise Exception("Snapshot directory is not accessible")
+            os.mkdir(snapshot_dir)
+            self.ac.log('Snapshot dir %s created' % snapshot_dir)
 
-            self.obj_cb = QComboBox()
-            cl.addWidget(self.obj_cb, row, 1)
-            self.obj_cb.currentIndexChanged.connect(self.update_obj_config)
-            self.obj_view = QLabel("")
-            cl.addWidget(self.obj_view, row, 2)
-            # seed it
-            self.reload_obj_cb()
-            row += 1
+        # nah...just have it in the config
+        # d = QFileDialog.getExistingDirectory(self, 'Select snapshot directory', snapshot_dir)
 
-            return cl
+        self.snapshot_serial = -1
 
-        def get_video_layout():
-            # Overview
-            def low_res_layout():
-                layout = QVBoxLayout()
-                layout.addWidget(QLabel("Overview"))
-                layout.addWidget(self.ac.vidpip.get_widget("overview"))
+        self.snapshot_pb = QPushButton("Snap")
+        self.snapshot_pb.setIcon(QIcon(config.GUI.icon_files["camera"]))
 
-                return layout
+        self.snapshot_pb.clicked.connect(self.take_snapshot)
+        layout.addWidget(self.snapshot_pb, 0, 0)
 
-            # Higher res in the center for focusing
-            def high_res_layout():
-                layout = QVBoxLayout()
-                layout.addWidget(QLabel("Focus"))
-                layout.addWidget(self.ac.vidpip.get_widget("roi"))
+        self.snapshot_fn_le = QLineEdit('snapshot')
+        self.snapshot_suffix_le = QLineEdit(
+            self.ac.usc.imager.save_extension())
+        # XXX: since we already have jpegenc this is questionable
+        self.snapshot_suffix_le.setEnabled(False)
+        self.snapshot_suffix_le.setSizePolicy(
+            QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
+        hl = QHBoxLayout()
+        hl.addWidget(self.snapshot_fn_le)
+        hl.addWidget(self.snapshot_suffix_le)
+        layout.addLayout(hl, 0, 1)
 
-                return layout
-
-            layout = QHBoxLayout()
-            layout.addLayout(low_res_layout())
-            layout.addLayout(high_res_layout())
-            return layout
-
-        def get_bottom_layout():
-            layout = QHBoxLayout()
-            layout.addWidget(self.get_axes_gb())
-
-            def get_lr_layout():
-                layout = QVBoxLayout()
-                layout.addWidget(self.get_snapshot_layout())
-                layout.addWidget(self.get_scan_layout())
-                return layout
-
-            layout.addLayout(get_lr_layout())
-            return layout
+        gb.setLayout(layout)
 
         layout = QVBoxLayout()
-        dbg("get_config_layout()")
-        layout.addLayout(get_config_layout())
-        dbg("get_video_layout()")
-        layout.addLayout(get_video_layout())
-        dbg("get_bottom_layout()")
-        layout.addLayout(get_bottom_layout())
-        self.log_widget.setReadOnly(True)
-        layout.addWidget(self.log_widget)
-
+        layout.addWidget(gb)
         self.setLayout(layout)
 
-        # Offload callback to GUI thread so it can do GUI ops
-        self.ac.cncProgress.connect(self.processCncProgress)
+    def take_snapshot(self):
+        self.ac.log('Requesting snapshot')
+        # Disable until snapshot is completed
+        self.snapshot_pb.setEnabled(False)
+
+        def emitSnapshotCaptured(image_id):
+            self.ac.log('Image captured: %s' % image_id)
+            self.snapshotCaptured.emit(image_id)
+
+        self.ac.capture_sink.request_image(emitSnapshotCaptured)
+
+    def snapshot_fn(self):
+        return snapshot_fn(user=str(self.snapshot_fn_le.text()),
+                           extension=str(self.snapshot_suffix_le.text()),
+                           parent=self.ac.usc.app("argus").snapshot_dir())
+
+    def captureSnapshot(self, image_id):
+        self.ac.log('RX image for saving')
+
+        def try_save():
+            image = self.ac.capture_sink.pop_image(image_id)
+            fn_full = self.snapshot_fn()
+            self.ac.log('Capturing %s...' % fn_full)
+            factor = self.ac.usc.imager.scalar()
+            # Use a reasonably high quality filter
+            try:
+                scaled = get_scaled(image, factor, Image.ANTIALIAS)
+                extension = str(self.snapshot_suffix_le.text())
+                if extension == ".jpg":
+                    scaled.save(fn_full,
+                                quality=self.ac.usc.imager.save_quality())
+                else:
+                    scaled.save(fn_full)
+            # FIXME: refine
+            except Exception:
+                self.ac.log('WARNING: failed to save %s' % fn_full)
+
+        try_save()
+
+        self.snapshot_pb.setEnabled(True)
+
+    def post_ui_init(self):
+        pass
+
+
+"""
+Provides camera overview and ROI side by side
+"""
+
+
+class FullROIWidget(AWidget):
+    def __init__(self, ac, parent=None):
+        super().__init__(ac=ac, parent=parent)
+
+    def initUI(self):
+        # Overview
+        def low_res_layout():
+            layout = QVBoxLayout()
+            layout.addWidget(QLabel("Overview"))
+            layout.addWidget(self.ac.vidpip.get_widget("overview"))
+
+            return layout
+
+        # Higher res in the center for focusing
+        def high_res_layout():
+            layout = QVBoxLayout()
+            layout.addWidget(QLabel("Focus"))
+            layout.addWidget(self.ac.vidpip.get_widget("roi"))
+
+            return layout
+
+        layout = QHBoxLayout()
+        layout.addLayout(low_res_layout())
+        layout.addLayout(high_res_layout())
+        self.setLayout(layout)
+
+    def post_ui_init(self):
+        pass
+
+
+"""
+TODO:
+-XY w/ third point to correct for angle skew
+-XYZ w/ third point to correct for height
+    Maybe evolution / same as above
+-Many point for distorted dies like packaged chip
+"""
+
+
+class PlannerWidget(AWidget):
+    def __init__(self, ac, scan_widget, objective_widget, parent=None):
+        super().__init__(ac=ac, parent=parent)
+        self.scan_widget = scan_widget
+        self.objective_widget = objective_widget
+
+    # FIXME: abstract these better
+
+    def get_out_dir(self):
+        base_out_dir = self.ac.usc.app("argus").scan_dir()
+        return self.scan_widget.jobName.getName(base_out_dir)
+
+    def get_objective(self):
+        return self.objective_widget.obj_config
+
+
+"""
+Integrates both 2D planner controls and current display
+2.5D: XY planner controls + XYZ display
+"""
+
+
+class XYPlanner2PWidget(PlannerWidget):
+    def __init__(self, ac, scan_widget, objective_widget, parent=None):
+        super().__init__(ac=ac,
+                         scan_widget=scan_widget,
+                         objective_widget=objective_widget,
+                         parent=parent)
+
+    def initUI(self):
+        gl = QGridLayout()
+        row = 0
+
+        gl.addWidget(QLabel("X (mm)"), row, 1)
+        gl.addWidget(QLabel("Y (mm)"), row, 2)
+        gl.addWidget(QLabel("Z (mm)"), row, 3)
+        row += 1
+
+        self.axis_pos_label = {}
+        gl.addWidget(QLabel("Current"), row, 0)
+        label = QLabel("?")
+        gl.addWidget(label, row, 1)
+        self.axis_pos_label['x'] = label
+        label = QLabel("?")
+        gl.addWidget(label, row, 2)
+        self.axis_pos_label['y'] = label
+        label = QLabel("?")
+        gl.addWidget(label, row, 3)
+        self.axis_pos_label['z'] = label
+        row += 1
+
+        start_label, end_label, start_icon, end_icon = {
+            "ll": ("Lower left", "Upper right", config.GUI.icon_files["SW"],
+                   config.GUI.icon_files["NE"]),
+            "ul": ("Upper left", "Lower right", config.GUI.icon_files["NW"],
+                   config.GUI.icon_files["SE"]),
+        }[self.ac.usc.motion.origin()]
+
+        self.plan_start_pb = QPushButton(start_label)
+        self.plan_start_pb.clicked.connect(self.set_start_pos)
+        self.plan_start_pb.setIcon(QIcon(start_icon))
+        gl.addWidget(self.plan_start_pb, row, 0)
+        self.plan_x0_le = QLineEdit('0.000')
+        gl.addWidget(self.plan_x0_le, row, 1)
+        self.plan_y0_le = QLineEdit('0.000')
+        gl.addWidget(self.plan_y0_le, row, 2)
+        row += 1
+
+        self.plan_end_pb = QPushButton(end_label)
+        self.plan_end_pb.clicked.connect(self.set_end_pos)
+        self.plan_end_pb.setIcon(QIcon(end_icon))
+        gl.addWidget(self.plan_end_pb, row, 0)
+        self.plan_x1_le = QLineEdit('0.000')
+        gl.addWidget(self.plan_x1_le, row, 1)
+        self.plan_y1_le = QLineEdit('0.000')
+        gl.addWidget(self.plan_y1_le, row, 2)
+        row += 1
+
+        self.setLayout(gl)
 
     def post_ui_init(self):
         self.position_poll_timer = QTimer()
         self.position_poll_timer.timeout.connect(self.poll_update_pos)
         self.position_poll_timer.start(200)
-
-        self.update_obj_config()
-
-    def log(self, s='', newline=True):
-        s = str(s)
-        # print("LOG: %s" % s)
-        if newline:
-            s += '\n'
-
-        c = self.log_widget.textCursor()
-        c.clearSelection()
-        c.movePosition(QTextCursor.End)
-        c.insertText(s)
-        self.log_widget.setTextCursor(c)
-
-        if self.log_fd is not None:
-            self.log_fd.write(s)
-            self.log_fd.flush()
 
     def poll_update_pos(self):
         last_pos = self.ac.motion_thread.pos_cache
@@ -196,68 +379,6 @@ class MainTab(ArgusTab):
                 continue
             self.axis_pos_label[axis].setText('%0.3f' % axis_pos)
 
-    """
-    def hal_progress(self, pos):
-        # self.pos.emit(pos)
-        pass
-
-    def emit_pos(self, pos):
-        # self.pos.emit(pos)
-        pass
-
-    def cmd_done(self, command, args, ret):
-        # print("FIXME: poll position instead of manually querying")
-        pass
-    """
-
-    def reload_obj_cb(self):
-        '''Re-populate the objective combo box'''
-        self.obj_cb.clear()
-        self.obj_config = None
-        self.obj_configi = None
-        for objective in self.ac.usj["objectives"]:
-            self.obj_cb.addItem(objective['name'])
-
-    def update_obj_config(self):
-        '''Make resolution display reflect current objective'''
-        self.obj_configi = self.obj_cb.currentIndex()
-        self.obj_config = self.ac.usj['objectives'][self.obj_configi]
-        self.log('Selected objective %s' % self.obj_config['name'])
-
-        im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
-        im_w_um = self.obj_config["x_view"]
-        im_h_um = im_w_um * im_h_pix / im_w_pix
-        self.obj_view.setText('View : %0.3fx %0.3fy' % (im_w_um, im_h_um))
-        if self.objective_name_le:
-            suffix = self.obj_config.get("suffix")
-            if not suffix:
-                suffix = self.obj_config.get("name")
-            self.objective_name_le.setText(suffix)
-
-    def processCncProgress(self, pictures_to_take, pictures_taken, image,
-                           first):
-        #dbg('Processing CNC progress')
-        if first:
-            #self.log('First CB with %d items' % pictures_to_take)
-            self.pb.setMinimum(0)
-            self.pb.setMaximum(pictures_to_take)
-            self.bench = Benchmark(pictures_to_take)
-        else:
-            #self.log('took %s at %d / %d' % (image, pictures_taken, pictures_to_take))
-            self.bench.set_cur_items(pictures_taken)
-            self.log('Captured: %s' % (image, ))
-            self.log('%s' % (str(self.bench)))
-
-        self.pb.setValue(pictures_taken)
-
-    def dry(self):
-        return self.dry_cb.isChecked()
-
-    def stop(self):
-        if self.ac.pt:
-            self.log('Stop requested')
-            self.ac.pt.stop()
-
     def mk_contour_json(self):
         try:
             x0 = float(self.plan_x0_le.text())
@@ -265,15 +386,10 @@ class MainTab(ArgusTab):
             x1 = float(self.plan_x1_le.text())
             y1 = float(self.plan_y1_le.text())
         except ValueError:
-            self.log("Bad scan x/y")
+            self.ac.log("Bad scan x/y")
             return None
 
-        # Planner coordinates must be increasing
-        if x0 > x1:
-            self.log("X0 must be less than X1")
-        if y0 > y1:
-            self.log("X0 must be less than X1")
-
+        # Planner will sort order as needed
         ret = {
             "start": {
                 "x": x0,
@@ -287,12 +403,161 @@ class MainTab(ArgusTab):
 
         return ret
 
-    def auto_exposure_enabled(self):
-        # XXX: not portable, touptek only
-        return self.ac.control_scroll.prop_read("auto-exposure")
+    def get_current_scan_config(self):
+        contour_json = self.mk_contour_json()
+        if not contour_json:
+            return
+
+        objective = self.get_objective()
+        pconfig = microscope_to_planner(self.ac.usj,
+                                        objective=objective,
+                                        contour=contour_json)
+
+        self.ac.update_pconfig(pconfig)
+
+        # Ignored app specific metadata
+        pconfig["app"] = {
+            "app": "argus",
+            "objective": objective,
+            "microscope": self.ac.microscope,
+        }
+
+        out_dir = self.get_out_dir()
+        if os.path.exists(out_dir):
+            self.ac.log("Refusing to create config: dir already exists: %s" %
+                        out_dir)
+            return None
+
+        return {
+            "pconfig": pconfig,
+            "out_dir": out_dir,
+        }
+
+    def set_start_pos(self):
+        '''
+        try:
+            lex = float(self.plan_x0_le.text())
+        except ValueError:
+            self.ac.log('WARNING: bad X value')
+
+        try:
+            ley = float(self.plan_y0_le.text())
+        except ValueError:
+            self.ac.log('WARNING: bad Y value')
+        '''
+        # take as upper left corner of view area
+        # this is the current XY position
+        pos = self.ac.motion_thread.pos_cache
+        #self.ac.log("Updating start pos w/ %s" % (str(pos)))
+        self.plan_x0_le.setText('%0.3f' % pos['x'])
+        self.plan_y0_le.setText('%0.3f' % pos['y'])
+
+    def x_view(self):
+        # XXX: maybe put better abstraction on this
+        return self.objective_widget.obj_config["x_view"]
+
+    def set_end_pos(self):
+        # take as lower right corner of view area
+        # this is the current XY position + view size
+        pos = self.ac.motion_thread.pos_cache
+        #self.ac.log("Updating end pos from %s" % (str(pos)))
+        x_view = self.x_view()
+        im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
+        y_view = 1.0 * x_view * im_h_pix / im_w_pix
+        x1 = pos['x'] + x_view
+        y1 = pos['y'] + y_view
+        self.plan_x1_le.setText('%0.3f' % x1)
+        self.plan_y1_le.setText('%0.3f' % y1)
+
+
+"""
+Monitors the current scan
+Set output job name
+"""
+
+
+class ScanWidget(AWidget):
+    def __init__(self,
+                 ac,
+                 go_currnet_pconfig,
+                 setControlsEnabled,
+                 parent=None):
+        super().__init__(ac=ac, parent=parent)
+        self.position_poll_timer = None
+        self.go_currnet_pconfig = go_currnet_pconfig
+        self.setControlsEnabled = setControlsEnabled
+
+    def initUI(self):
+        """
+        Line up Go/Stop w/ "Job name" to make visually appealing
+        """
+        def getProgressLayout():
+            layout = QHBoxLayout()
+
+            self.go_pause_pb = QPushButton("Go")
+            self.go_pause_pb.clicked.connect(self.go_pause_clicked)
+            self.go_pause_pb.setIcon(QIcon(config.GUI.icon_files['go']))
+            layout.addWidget(self.go_pause_pb)
+
+            self.stop_pb = QPushButton("Stop")
+            self.stop_pb.clicked.connect(self.stop_clicked)
+            self.stop_pb.setIcon(QIcon(config.GUI.icon_files['stop']))
+            layout.addWidget(self.stop_pb)
+
+            layout.addWidget(QLabel('Dry?'))
+            self.dry_cb = QCheckBox()
+            self.dry_cb.setChecked(self.ac.usc.app("argus").dry_default())
+            layout.addWidget(self.dry_cb)
+
+            self.pb = QProgressBar()
+            layout.addWidget(self.pb)
+
+            return layout
+
+        def getScanNameWidget():
+            name = self.ac.usc.app("argus").scan_name_widget()
+            if name == "simple":
+                return SimpleScanNameWidget()
+            elif name == "sipr0n":
+                return SiPr0nScanNameWidget()
+            else:
+                raise ValueError(name)
+
+        layout = QVBoxLayout()
+        gb = QGroupBox("Scan")
+        self.jobName = getScanNameWidget()
+        layout.addWidget(self.jobName)
+        layout.addLayout(getProgressLayout())
+        gb.setLayout(layout)
+
+        layout = QVBoxLayout()
+        layout.addWidget(gb)
+        self.setLayout(layout)
+
+    def post_ui_init(self):
+        pass
+
+    def dry(self):
+        return self.dry_cb.isChecked()
+
+    def processCncProgress(self, pictures_to_take, pictures_taken, image,
+                           first):
+        #dbg('Processing CNC progress')
+        if first:
+            #self.ac.log('First CB with %d items' % pictures_to_take)
+            self.pb.setMinimum(0)
+            self.pb.setMaximum(pictures_to_take)
+            self.bench = Benchmark(pictures_to_take)
+        else:
+            #self.ac.log('took %s at %d / %d' % (image, pictures_taken, pictures_to_take))
+            self.bench.set_cur_items(pictures_taken)
+            self.ac.log('Captured: %s' % (image, ))
+            self.ac.log('%s' % (str(self.bench)))
+
+        self.pb.setValue(pictures_taken)
 
     def plannerDone(self, run_next=True):
-        self.log('RX planner done')
+        self.ac.log('RX planner done')
         self.go_pause_pb.setText("Go")
         # Cleanup camera objects
         self.log_fd = None
@@ -324,8 +589,8 @@ class MainTab(ArgusTab):
             if not dry:
                 os.mkdir(out_dir)
 
-            if "hdr" in pconfig["imager"] and self.auto_exposure_enabled():
-                self.log(
+            if "hdr" in pconfig["imager"] and self.ac.auto_exposure_enabled():
+                self.ac.log(
                     "Run aborted: requested HDR but auto-exposure enabled")
                 self.plannerDone(run_next=False)
                 return
@@ -371,7 +636,7 @@ class MainTab(ArgusTab):
             }
 
             self.pt = PlannerThread(self, planner_params)
-            self.pt.log_msg.connect(self.log)
+            self.pt.log_msg.connect(self.ac.log)
             self.pt.plannerDone.connect(self.plannerDone)
             self.setControlsEnabled(False)
             if dry:
@@ -400,13 +665,11 @@ class MainTab(ArgusTab):
             return
 
         self.scan_configs = list(scan_configs)
-
-        if not self.snapshot_pb.isEnabled():
-            self.log("Wait for snapshot to complete before CNC'ing")
+        if not self.ac.is_idle():
             return
 
-        if self.auto_exposure_enabled():
-            self.log(
+        if self.ac.auto_exposure_enabled():
+            self.ac.log(
                 "WARNING: auto-exposure is enabled. This may result in an unevently exposed panorama"
             )
 
@@ -426,39 +689,6 @@ class MainTab(ArgusTab):
         # Kick off first job
         self.run_next_scan_config()
 
-    def get_current_scan_config(self):
-        contour_json = self.mk_contour_json()
-        if not contour_json:
-            return
-
-        pconfig = microscope_to_planner(self.ac.usj,
-                                        objective=self.obj_config,
-                                        contour=contour_json)
-
-        self.ac.update_pconfig(pconfig)
-
-        # Ignored app specific metadata
-        pconfig["app"] = {
-            "app": "argus",
-            "objective": self.obj_config,
-            "microscope": self.ac.microscope,
-        }
-
-        base_out_dir = self.ac.usc.app("argus").scan_dir()
-        out_dir = self.jobName.getName(base_out_dir)
-        if os.path.exists(out_dir):
-            self.log("Refusing to create config: dir already exists: %s" %
-                     out_dir)
-            return None
-
-        return {
-            "pconfig": pconfig,
-            "out_dir": out_dir,
-        }
-
-    def go_currnet_pconfig(self):
-        self.go_scan_configs([self.get_current_scan_config()])
-
     def go_pause_clicked(self):
         # CNC already running? pause/continue
         if self.ac.pt:
@@ -473,244 +703,131 @@ class MainTab(ArgusTab):
         else:
             self.go_currnet_pconfig()
 
-    def setControlsEnabled(self, yes):
-        self.snapshot_pb.setEnabled(yes)
+    def stop_clicked(self):
+        if self.ac.pt:
+            self.ac.log('Stop requested')
+            self.ac.pt.stop()
 
-    def set_start_pos(self):
-        '''
-        try:
-            lex = float(self.plan_x0_le.text())
-        except ValueError:
-            self.log('WARNING: bad X value')
 
-        try:
-            ley = float(self.plan_y0_le.text())
-        except ValueError:
-            self.log('WARNING: bad Y value')
-        '''
-        # take as upper left corner of view area
-        # this is the current XY position
-        pos = self.ac.motion_thread.pos_cache
-        #self.log("Updating start pos w/ %s" % (str(pos)))
-        self.plan_x0_le.setText('%0.3f' % pos['x'])
-        self.plan_y0_le.setText('%0.3f' % pos['y'])
+def awidgets_initUI(awidgets):
+    for awidget in awidgets:
+        awidget.initUI()
 
-    def set_end_pos(self):
-        # take as lower right corner of view area
-        # this is the current XY position + view size
-        pos = self.ac.motion_thread.pos_cache
-        #self.log("Updating end pos from %s" % (str(pos)))
-        x_view = self.obj_config["x_view"]
-        im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
-        y_view = 1.0 * x_view * im_h_pix / im_w_pix
-        x1 = pos['x'] + x_view
-        y1 = pos['y'] + y_view
-        self.plan_x1_le.setText('%0.3f' % x1)
-        self.plan_y1_le.setText('%0.3f' % y1)
 
-    def get_axes_gb(self):
-        """
-        Grid layout
-        3w x 4h
+def awidgets_post_ui_init(awidgets):
+    for awidget in awidgets:
+        awidget.post_ui_init()
 
-                X   Y
-        Current
-        Start
-        End
 
-        start, end should be buttons to snap current position
-        """
-        def top():
-            gl = QGridLayout()
-            row = 0
+class MainTab(ArgusTab):
+    def __init__(self, ac, parent=None):
+        super().__init__(ac=ac, parent=parent)
 
-            gl.addWidget(QLabel("X (mm)"), row, 1)
-            gl.addWidget(QLabel("Y (mm)"), row, 2)
-            gl.addWidget(QLabel("Z (mm)"), row, 3)
-            row += 1
+        self.log_fd = None
+        # must be created early to accept early logging
+        # not displayed until later though
+        self.log_widget = QTextEdit()
+        # Is this used for something?
+        self.log_widget.setObjectName("log_widget")
+        # Special case for logging that might occur out of thread
+        self.ac.log_msg.connect(self.log)
 
-            self.axis_pos_label = {}
-            gl.addWidget(QLabel("Current"), row, 0)
-            label = QLabel("?")
-            gl.addWidget(label, row, 1)
-            self.axis_pos_label['x'] = label
-            label = QLabel("?")
-            gl.addWidget(label, row, 2)
-            self.axis_pos_label['y'] = label
-            label = QLabel("?")
-            gl.addWidget(label, row, 3)
-            self.axis_pos_label['z'] = label
-            row += 1
+        self.snapshot_widget = SnapshotWidget(ac=ac)
+        self.objective_widget = ObjectiveWidget(ac=ac)
+        self.video_widget = FullROIWidget(ac=ac)
 
-            start_label, end_label, start_icon, end_icon = {
-                "ll":
-                ("Lower left", "Upper right", config.GUI.icon_files["SW"],
-                 config.GUI.icon_files["NE"]),
-                "ul":
-                ("Upper left", "Lower right", config.GUI.icon_files["NW"],
-                 config.GUI.icon_files["SE"]),
-            }[self.ac.usc.motion.origin()]
+        self.planner_widget_tabs = QTabWidget()
+        # First sets up algorithm specific parameters
+        # Second is a more generic monitoring / control widget
+        self.scan_widget = ScanWidget(
+            ac=ac,
+            go_currnet_pconfig=self.go_currnet_pconfig,
+            setControlsEnabled=self.setControlsEnabled)
+        self.planner_widget = XYPlanner2PWidget(
+            ac=ac,
+            scan_widget=self.scan_widget,
+            objective_widget=self.objective_widget)
 
-            self.plan_start_pb = QPushButton(start_label)
-            self.plan_start_pb.clicked.connect(self.set_start_pos)
-            self.plan_start_pb.setIcon(QIcon(start_icon))
-            gl.addWidget(self.plan_start_pb, row, 0)
-            self.plan_x0_le = QLineEdit('0.000')
-            gl.addWidget(self.plan_x0_le, row, 1)
-            self.plan_y0_le = QLineEdit('0.000')
-            gl.addWidget(self.plan_y0_le, row, 2)
-            row += 1
+        self.motion_widget = MotionWidget(ac=self.ac,
+                                          motion_thread=self.ac.motion_thread,
+                                          usc=self.ac.usc,
+                                          log=self.ac.log)
 
-            self.plan_end_pb = QPushButton(end_label)
-            self.plan_end_pb.clicked.connect(self.set_end_pos)
-            self.plan_end_pb.setIcon(QIcon(end_icon))
-            gl.addWidget(self.plan_end_pb, row, 0)
-            self.plan_x1_le = QLineEdit('0.000')
-            gl.addWidget(self.plan_x1_le, row, 1)
-            self.plan_y1_le = QLineEdit('0.000')
-            gl.addWidget(self.plan_y1_le, row, 2)
-            row += 1
+        self.awidgets = [
+            self.snapshot_widget,
+            self.objective_widget,
+            self.video_widget,
+            self.planner_widget,
+            self.scan_widget,
+            self.motion_widget,
+        ]
 
-            return gl
-
-        layout = QVBoxLayout()
-        layout.addLayout(top())
-        self.motion_widget = None
-        assert self.ac.usc.motion.hal() == "grbl-ser", (
-            "FIXME", self.ac.usc.motion.hal())
-        if self.ac.usc.motion.hal() == "grbl-ser":
-            self.motion_widget = MotionWidget(
-                motion_thread=self.ac.motion_thread,
-                usc=self.ac.usc,
-                log=self.ac.log)
+    def initUI(self):
+        def get_axes_gb():
+            layout = QVBoxLayout()
+            # TODO: support other planner sources (ex: 3 point)
+            self.planner_widget_tabs.addTab(self.planner_widget, "XY 2P")
+            layout.addWidget(self.planner_widget_tabs)
             layout.addWidget(self.motion_widget)
+            gb = QGroupBox("Motion")
+            gb.setLayout(layout)
+            return gb
 
-        gb = QGroupBox('Motion')
-        gb.setLayout(layout)
-        return gb
-
-    def get_snapshot_layout(self):
-        gb = QGroupBox('Snapshot')
-        layout = QGridLayout()
-
-        snapshot_dir = self.ac.usc.app("argus").snapshot_dir()
-        if not os.path.isdir(snapshot_dir):
-            self.log('Snapshot dir %s does not exist' % snapshot_dir)
-            if os.path.exists(snapshot_dir):
-                raise Exception("Snapshot directory is not accessible")
-            os.mkdir(snapshot_dir)
-            self.log('Snapshot dir %s created' % snapshot_dir)
-
-        # nah...just have it in the config
-        # d = QFileDialog.getExistingDirectory(self, 'Select snapshot directory', snapshot_dir)
-
-        self.snapshot_serial = -1
-
-        self.snapshot_pb = QPushButton("Snap")
-        self.snapshot_pb.setIcon(QIcon(config.GUI.icon_files["camera"]))
-
-        self.snapshot_pb.clicked.connect(self.take_snapshot)
-        layout.addWidget(self.snapshot_pb, 0, 0)
-
-        self.snapshot_fn_le = QLineEdit('snapshot')
-        self.snapshot_suffix_le = QLineEdit(
-            self.ac.usc.imager.save_extension())
-        # XXX: since we already have jpegenc this is questionable
-        self.snapshot_suffix_le.setEnabled(False)
-        self.snapshot_suffix_le.setSizePolicy(
-            QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
-        hl = QHBoxLayout()
-        hl.addWidget(self.snapshot_fn_le)
-        hl.addWidget(self.snapshot_suffix_le)
-        layout.addLayout(hl, 0, 1)
-
-        gb.setLayout(layout)
-        return gb
-
-    def take_snapshot(self):
-        self.log('Requesting snapshot')
-        # Disable until snapshot is completed
-        self.snapshot_pb.setEnabled(False)
-
-        def emitSnapshotCaptured(image_id):
-            self.log('Image captured: %s' % image_id)
-            self.snapshotCaptured.emit(image_id)
-
-        self.ac.capture_sink.request_image(emitSnapshotCaptured)
-
-    def snapshot_fn(self):
-        return snapshot_fn(user=str(self.snapshot_fn_le.text()),
-                           extension=str(self.snapshot_suffix_le.text()),
-                           parent=self.ac.usc.app("argus").snapshot_dir())
-
-    def captureSnapshot(self, image_id):
-        self.log('RX image for saving')
-
-        def try_save():
-            image = self.ac.capture_sink.pop_image(image_id)
-            fn_full = self.snapshot_fn()
-            self.log('Capturing %s...' % fn_full)
-            factor = self.ac.usc.imager.scalar()
-            # Use a reasonably high quality filter
-            try:
-                scaled = get_scaled(image, factor, Image.ANTIALIAS)
-                extension = str(self.snapshot_suffix_le.text())
-                if extension == ".jpg":
-                    scaled.save(fn_full,
-                                quality=self.ac.usc.imager.save_quality())
-                else:
-                    scaled.save(fn_full)
-            # FIXME: refine
-            except Exception:
-                self.log('WARNING: failed to save %s' % fn_full)
-
-        try_save()
-
-        self.snapshot_pb.setEnabled(True)
-
-    def get_scan_layout(self):
-        """
-        Line up Go/Stop w/ "Job name" to make visually appealing
-        """
-        def getProgressLayout():
+        def get_bottom_layout():
             layout = QHBoxLayout()
+            layout.addWidget(get_axes_gb())
 
-            self.go_pause_pb = QPushButton("Go")
-            self.go_pause_pb.clicked.connect(self.go_pause_clicked)
-            self.go_pause_pb.setIcon(QIcon(config.GUI.icon_files['go']))
-            layout.addWidget(self.go_pause_pb)
+            def get_lr_layout():
+                layout = QVBoxLayout()
+                layout.addWidget(self.snapshot_widget)
+                layout.addWidget(self.scan_widget)
+                return layout
 
-            self.stop_pb = QPushButton("Stop")
-            self.stop_pb.clicked.connect(self.stop)
-            self.stop_pb.setIcon(QIcon(config.GUI.icon_files['stop']))
-            layout.addWidget(self.stop_pb)
-
-            layout.addWidget(QLabel('Dry?'))
-            self.dry_cb = QCheckBox()
-            self.dry_cb.setChecked(self.ac.usc.app("argus").dry_default())
-            layout.addWidget(self.dry_cb)
-
-            self.pb = QProgressBar()
-            layout.addWidget(self.pb)
-
+            layout.addLayout(get_lr_layout())
             return layout
 
-        def getScanNameWidget():
-            name = self.ac.usc.app("argus").scan_name_widget()
-            if name == "simple":
-                return SimpleScanNameWidget()
-            elif name == "sipr0n":
-                return SiPr0nScanNameWidget()
-            else:
-                raise ValueError(name)
+        awidgets_initUI(self.awidgets)
 
         layout = QVBoxLayout()
-        gb = QGroupBox("Scan")
-        self.jobName = getScanNameWidget()
-        layout.addWidget(self.jobName)
-        layout.addLayout(getProgressLayout())
-        gb.setLayout(layout)
-        return gb
+        dbg("get_config_layout()")
+        layout.addWidget(self.objective_widget)
+        dbg("get_video_layout()")
+        layout.addWidget(self.video_widget)
+        dbg("get_bottom_layout()")
+        layout.addLayout(get_bottom_layout())
+        self.log_widget.setReadOnly(True)
+        layout.addWidget(self.log_widget)
+
+        self.setLayout(layout)
+
+        # Offload callback to GUI thread so it can do GUI ops
+        self.ac.cncProgress.connect(self.scan_widget.processCncProgress)
+
+    def post_ui_init(self):
+        awidgets_post_ui_init(self.awidgets)
+
+    def log(self, s='', newline=True):
+        s = str(s)
+        # print("LOG: %s" % s)
+        if newline:
+            s += '\n'
+
+        c = self.log_widget.textCursor()
+        c.clearSelection()
+        c.movePosition(QTextCursor.End)
+        c.insertText(s)
+        self.log_widget.setTextCursor(c)
+
+        if self.log_fd is not None:
+            self.log_fd.write(s)
+            self.log_fd.flush()
+
+    def go_currnet_pconfig(self):
+        self.scan_widget.go_scan_configs(
+            [self.planner_widget.get_current_scan_config()])
+
+    def setControlsEnabled(self, yes):
+        self.snapshot_widget.snapshot_pb.setEnabled(yes)
 
 
 class ImagerTab(ArgusTab):
@@ -799,7 +916,7 @@ class BatchImageTab(ArgusTab):
 
     def get_scan_config(self):
         mainTab = self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
-        return mainTab.get_current_scan_config()
+        return mainTab.planner_widget.get_current_scan_config()
 
     def add_clicked(self):
         self.scani += 1
@@ -826,7 +943,7 @@ class BatchImageTab(ArgusTab):
         self.update_cb()
 
     def run_all_clicked(self):
-        self.ac.mainTab.go_scan_configs(self.scan_configs)
+        self.ac.mainTab.scan_widget.go_scan_configs(self.scan_configs)
 
 
 class AdvancedTab(ArgusTab):
@@ -1152,9 +1269,13 @@ class JogSlider(QWidget):
         return ret
 
 
-class MotionWidget(QWidget):
-    def __init__(self, motion_thread, usc, log, parent=None):
-        super().__init__(parent=parent)
+class MotionWidget(AWidget):
+    def __init__(self, ac, motion_thread, usc, log, parent=None):
+        super().__init__(ac=ac, parent=parent)
+
+        assert self.ac.usc.motion.hal() == "grbl-ser", (
+            "FIXME", self.ac.usc.motion.hal())
+
         self.usc = usc
         self.log = log
         self.motion_thread = motion_thread
@@ -1169,7 +1290,6 @@ class MotionWidget(QWidget):
             Qt.Key_E: ("z", 1),
         }
 
-        self.initUI()
         self.last_send = time.time()
 
     def initUI(self):
@@ -1221,7 +1341,7 @@ class MotionWidget(QWidget):
         try:
             pos = motion_util.parse_move(s)
         except ValueError:
-            self.log("Failed to parse move. Need like: X1.0 Y2.4")
+            self.ac.log("Failed to parse move. Need like: X1.0 Y2.4")
             return
         if self.move_abs_backlash_cb.isChecked():
             bpos = backlash_move_absolute(
@@ -1233,7 +1353,7 @@ class MotionWidget(QWidget):
     def mdi_le_process(self):
         if self.mdi_le:
             s = str(self.mdi_le.text())
-            self.log("Sending MDI: %s" % s)
+            self.ac.log("Sending MDI: %s" % s)
             self.motion_thread.mdi(s)
 
     # XXX: make this a proper signal emitting changed value
@@ -1309,29 +1429,6 @@ class SimpleScanNameWidget(QWidget):
         return scan_dir_fn(user=str(self.le.text()), parent=parent)
 
 
-'''
-FIXME: implement
-class DatetimeWidget(QWidget):
-    """
-    Job name is prefixed with current date and time
-    """
-
-    def __init__(self, parent=None):
-        super().__init__(parent=parent)
-
-        layout = QHBoxLayout()
-
-        layout.addWidget(QLabel("Job name"))
-        self.le = QLineEdit("unknown")
-        layout.addWidget(self.le )
-
-        self.setLayout(layout)
-
-    def getName(self):
-        return str(self.le.text())
-'''
-
-
 class SiPr0nScanNameWidget(QWidget):
     """
     Force a name compatible with siliconpr0n.org naming convention
@@ -1402,9 +1499,10 @@ class ArgusCommon(QObject):
 
     # pos = pyqtSignal(int)
 
-    def __init__(self, microscope=None):
+    def __init__(self, microscope=None, mw=None):
         QObject.__init__(self)
 
+        self.mw = mw
         self.logs = []
         self.update_pconfigs = []
 
@@ -1457,13 +1555,9 @@ class ArgusCommon(QObject):
 
     def post_ui_init(self):
         self.control_scroll.run()
-
         self.vid_fd = None
-
         self.motion_thread.start()
-
         self.vidpip.run()
-
         self.init_imager()
 
     def shutdown(self):
@@ -1495,6 +1589,17 @@ class ArgusCommon(QObject):
         for update_pconfig in self.update_pconfigs:
             update_pconfig(pconfig)
 
+    def auto_exposure_enabled(self):
+        # XXX: not portable, touptek only
+        return self.control_scroll.prop_read("auto-exposure")
+
+    # FIXME: better abstraction
+    def is_idle(self):
+        if not self.mw.mainTab.snapshot_widget.snapshot_pb.isEnabled():
+            self.log("Wait for snapshot to complete before CNC'ing")
+            return False
+        return True
+
 
 class MainWindow(QMainWindow):
     def __init__(self, microscope=None, verbose=False):
@@ -1517,7 +1622,7 @@ class MainWindow(QMainWindow):
             pass
 
     def init_objects(self, microscope=None):
-        self.ac = ArgusCommon(microscope=microscope)
+        self.ac = ArgusCommon(microscope=microscope, mw=self)
         self.ac.usc.app_register("argus", USCArgus)
         # Tabs
         self.mainTab = MainTab(ac=self.ac, parent=self)

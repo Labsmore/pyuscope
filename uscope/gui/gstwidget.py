@@ -602,7 +602,8 @@ def gstwidget_main(AQMainWindow, parse_args=default_parse_args):
     GObject.threads_init()
 
     app = QApplication(sys.argv)
-    app.setStyleSheet(pathlib.Path(config.GUI.stylesheet_file).read_text())
+    # FIXME: becoming unreadable
+    # app.setStyleSheet(pathlib.Path(config.GUI.stylesheet_file).read_text())
 
     kwargs = {}
     if parse_args:

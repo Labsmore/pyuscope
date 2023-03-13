@@ -453,7 +453,7 @@ class Planner:
         self.axes = OrderedDict([
             ('x',
              PlannerAxis('X',
-                         self.pc.overlap("x"),
+                         self.pc.ideal_overlap("x"),
                          image_wh_mm[0],
                          image_wh[0],
                          start[0],
@@ -462,7 +462,7 @@ class Planner:
                          log=self.log)),
             ('y',
              PlannerAxis('Y',
-                         self.pc.overlap("y"),
+                         self.pc.ideal_overlap("y"),
                          image_wh_mm[1],
                          image_wh[1],
                          start[1],
@@ -479,7 +479,7 @@ class Planner:
             self.log('  %f to %f' % (axis.start, axis.actual_end), 2)
             self.log(
                 '  Ideal overlap: %f, actual %g' %
-                (self.pc.overlap(axisc), axis.actual_overlap()), 2)
+                (self.pc.ideal_overlap(axisc), axis.actual_overlap()), 2)
             self.log('  full delta: %f' % (axis.requested_delta_mm()), 2)
             self.log('  view: %d pix' % (axis.view_pixels, ), 2)
             self.log('  border: %f' % self.pc.border())

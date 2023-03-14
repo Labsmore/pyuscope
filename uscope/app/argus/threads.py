@@ -338,3 +338,29 @@ class PlannerThread(QThread):
             #raise
         finally:
             self.plannerDone.emit()
+
+
+class StitcherThread(QThread):
+    stitcherDone = pyqtSignal()
+    log_msg = pyqtSignal(str)
+
+    def __init__(self,
+                 directory,
+                 access_key,
+                 secret_key,
+                 notification_email,
+                 parent=None):
+        QThread.__init__(self, parent)
+
+    def log(self, msg):
+        self.log_msg.emit(msg)
+
+    def run(self):
+        try:
+            self.log("Starting stitch")
+            self.log("Starting done")
+        except Exception as e:
+            self.log('WARNING: stitcher thread crashed: %s' % str(e))
+            traceback.print_exc()
+        finally:
+            self.stitcherDone.emit()

@@ -9,8 +9,9 @@ from uscope.benchmark import Benchmark
 from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
 from uscope.motion.plugins import get_motion_hal
-from uscope.app.argus.threads import MotionThread, PlannerThread
+from uscope.app.argus.threads import MotionThread, PlannerThread, StitcherThread
 from uscope.planner.planner_util import microscope_to_planner_config
+from uscope import util
 from uscope import config
 from uscope.motion import motion_util
 import json
@@ -677,6 +678,7 @@ class ScanWidget(AWidget):
         self.position_poll_timer = None
         self.go_currnet_pconfig = go_currnet_pconfig
         self.setControlsEnabled = setControlsEnabled
+        self.current_scan_config = None
 
     def initUI(self):
         """
@@ -761,6 +763,9 @@ class ScanWidget(AWidget):
         self.log_fd = None
         self.ac.pt = None
 
+        self.ac.stitchingTab.scan_completed(self.current_scan_config)
+        self.current_scan_config = None
+
         # More scans?
         if run_next and self.scan_configs:
             self.run_next_scan_config()
@@ -776,13 +781,13 @@ class ScanWidget(AWidget):
 
     def run_next_scan_config(self):
         try:
-            scan_config = self.scan_configs[0]
+            self.current_scan_config = self.scan_configs[0]
             del self.scan_configs[0]
 
             dry = self.dry()
 
-            out_dir = scan_config["out_dir"]
-            pconfig = scan_config["pconfig"]
+            out_dir = self.current_scan_config["out_dir"]
+            pconfig = self.current_scan_config["pconfig"]
             if not dry:
                 os.mkdir(out_dir)
 
@@ -1301,7 +1306,9 @@ class AdvancedTab(ArgusTab):
 class StitchingTab(ArgusTab):
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
+        self.stitcher_thread = None
 
+    def initUI(self):
         layout = QGridLayout()
         row = 0
 
@@ -1329,6 +1336,15 @@ class StitchingTab(ArgusTab):
             layout.addWidget(self.stitch_email, row, 1)
             row += 1
 
+            layout.addWidget(QLabel("Manual stitch directory"), row, 0)
+            self.manual_stitch_dir = QLineEdit("")
+            layout.addWidget(self.manual_stitch_dir, row, 1)
+            row += 1
+
+            self.stitch_pb = QPushButton("Manual stitch")
+            self.stitch_pb.clicked.connect(self.stitch_begin_manual)
+            layout.addWidget(self.stitch_pb, row, 1)
+
             gb = QGroupBox("Cloud Stitching")
             gb.setLayout(layout)
             return gb
@@ -1337,6 +1353,35 @@ class StitchingTab(ArgusTab):
         row += 1
 
         self.setLayout(layout)
+
+    def stitch_begin_manual(self):
+        self.stitch_begin(str(self.manual_stitch_dir.text()))
+
+    def scan_completed(self, scan_config):
+        if self.ac.mainTab.scan_widget.stitch_cb.isChecked():
+            self.stitch_begin(scan_config["out_dir"])
+
+    def stitch_begin(self, directory):
+        self.log(f"Requested stitch on {directory}")
+        if self.stitcher_thread:
+            self.log("Stitch already running")
+            return
+
+        # Offload uploads etc to thread since they might take a while
+        self.stitcher_thread = StitcherThread(
+            directory=directory,
+            access_key=str(self.stitch_accesskey.text()),
+            secret_key=str(self.stitch_secretkey.text()),
+            notification_email=str(self.stitch_email.text()),
+            parent=self,
+        )
+        self.stitcher_thread.log_msg.connect(self.ac.log)
+        self.stitcher_thread.stitchDone.connect(self.stitch_end)
+        self.stitcher_thread.start()
+
+    def stitch_end(self):
+        self.stitcher_thread = None
+
 
 class USCArgus:
     def __init__(self, j=None):
@@ -1876,8 +1921,9 @@ class MainWindow(QMainWindow):
         self.imagerTab = ImagerTab(ac=self.ac, parent=self)
         self.batchTab = BatchImageTab(ac=self.ac, parent=self)
         self.advancedTab = AdvancedTab(ac=self.ac, parent=self)
-        self.stitchingTab = StitchingTab(ac=self.ac, parent=self)        
+        self.stitchingTab = StitchingTab(ac=self.ac, parent=self)
         self.ac.mainTab = self.mainTab
+        self.ac.stitchingTab = self.stitchingTab
 
     def initUI(self):
         self.ac.initUI()

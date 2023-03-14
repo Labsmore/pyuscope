@@ -1,4 +1,7 @@
 from uscope.planner.planner_util import get_planner
+import boto3
+import io
+import os
 from uscope.benchmark import Benchmark
 from uscope.motion.hal import AxisExceeded, MotionHAL
 import traceback
@@ -348,17 +351,35 @@ class StitcherThread(QThread):
                  directory,
                  access_key,
                  secret_key,
+                 id_key,
                  notification_email,
                  parent=None):
         QThread.__init__(self, parent)
+        self.directory = directory
+        self.access_key = access_key
+        self.secret_key = secret_key
+        self.id_key = id_key
+        self.notification_email = notification_email
 
     def log(self, msg):
         self.log_msg.emit(msg)
 
     def run(self):
         try:
-            self.log("Starting stitch")
-            self.log("Starting done")
+            self.log("Sending cloud stitching job...")
+            S3BUCKET = 'labsmore-mosaic-service'
+            DEST_DIR = self.id_key + '/' + os.path.basename(os.path.abspath(self.directory))
+            s3 = boto3.client('s3', aws_access_key_id=self.access_key, aws_secret_access_key=self.secret_key)
+
+            for root, _, files in os.walk(self.directory):
+                for file in files:
+                    self.log('Uploading {} to {}/{} '.format(os.path.join(root, file), S3BUCKET, DEST_DIR + '/' + file))
+                    s3.upload_file(os.path.join(root, file), S3BUCKET, DEST_DIR + '/' + file)
+
+            MOSAIC_RUN_CONTENT = u'{{ "email": "{}" }}'.format(self.notification_email)
+            mosaic_run_json = io.BytesIO(bytes(MOSAIC_RUN_CONTENT, encoding='utf8'))
+            s3.upload_fileobj(mosaic_run_json, S3BUCKET, DEST_DIR + '/' + 'mosaic_run.json')
+            self.log("Sent stitching job.")
         except Exception as e:
             self.log('WARNING: stitcher thread crashed: %s' % str(e))
             traceback.print_exc()

@@ -1328,6 +1328,12 @@ class StitchingTab(ArgusTab):
             layout.addWidget(self.stitch_secretkey, row, 1)
             row += 1
 
+            layout.addWidget(QLabel("IDKey"), row, 0)
+            # Is there a reasonable default here?
+            self.stitch_idkey = QLineEdit("")
+            layout.addWidget(self.stitch_idkey, row, 1)
+            row += 1
+
             layout.addWidget(QLabel("Notification Email Address"), row, 0)
             self.stitch_email = QLineEdit("")
             reg_ex = QRegExp("\\b[A-z0-9._%+-]+@[A-z0-9.-]+\\.[A-z]{2,4}\\b")
@@ -1362,9 +1368,9 @@ class StitchingTab(ArgusTab):
             self.stitch_begin(scan_config["out_dir"])
 
     def stitch_begin(self, directory):
-        self.log(f"Requested stitch on {directory}")
+        self.ac.log(f"Requested stitch on {directory}")
         if self.stitcher_thread:
-            self.log("Stitch already running")
+            self.ac.log("Stitch already running")
             return
 
         # Offload uploads etc to thread since they might take a while
@@ -1372,11 +1378,12 @@ class StitchingTab(ArgusTab):
             directory=directory,
             access_key=str(self.stitch_accesskey.text()),
             secret_key=str(self.stitch_secretkey.text()),
+            id_key=str(self.stitch_idkey.text()),
             notification_email=str(self.stitch_email.text()),
             parent=self,
         )
         self.stitcher_thread.log_msg.connect(self.ac.log)
-        self.stitcher_thread.stitchDone.connect(self.stitch_end)
+        self.stitcher_thread.stitcherDone.connect(self.stitch_end)
         self.stitcher_thread.start()
 
     def stitch_end(self):

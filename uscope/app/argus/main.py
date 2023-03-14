@@ -700,6 +700,11 @@ class ScanWidget(AWidget):
             self.dry_cb.setChecked(self.ac.usc.app("argus").dry_default())
             layout.addWidget(self.dry_cb)
 
+            layout.addWidget(QLabel('CloudStitch?'))
+            self.stitch_cb = QCheckBox()
+            self.stitch_cb.setChecked(False)
+            layout.addWidget(self.stitch_cb)
+
             self.progress_bar = QProgressBar()
             layout.addWidget(self.progress_bar)
 
@@ -1293,6 +1298,46 @@ class AdvancedTab(ArgusTab):
         self.update_pconfig_hdr(pconfig)
 
 
+class StitchingTab(ArgusTab):
+    def __init__(self, ac, parent=None):
+        super().__init__(ac=ac, parent=parent)
+
+        layout = QGridLayout()
+        row = 0
+
+        def stitch_gb():
+            layout = QGridLayout()
+            row = 0
+
+            layout.addWidget(QLabel("AccessKey"), row, 0)
+            # Is there a reasonable default here?
+            self.stitch_accesskey = QLineEdit("")
+            layout.addWidget(self.stitch_accesskey, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("SecretKey"), row, 0)
+            self.stitch_secretkey = QLineEdit("")
+            self.stitch_secretkey.setEchoMode(QLineEdit.Password)
+            layout.addWidget(self.stitch_secretkey, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Notification Email Address"), row, 0)
+            self.stitch_email = QLineEdit("")
+            reg_ex = QRegExp("\\b[A-z0-9._%+-]+@[A-z0-9.-]+\\.[A-z]{2,4}\\b")
+            input_validator = QRegExpValidator(reg_ex, self.stitch_email)
+            self.stitch_email.setValidator(input_validator)
+            layout.addWidget(self.stitch_email, row, 1)
+            row += 1
+
+            gb = QGroupBox("Cloud Stitching")
+            gb.setLayout(layout)
+            return gb
+
+        layout.addWidget(stitch_gb(), row, 0)
+        row += 1
+
+        self.setLayout(layout)
+
 class USCArgus:
     def __init__(self, j=None):
         """
@@ -1831,6 +1876,7 @@ class MainWindow(QMainWindow):
         self.imagerTab = ImagerTab(ac=self.ac, parent=self)
         self.batchTab = BatchImageTab(ac=self.ac, parent=self)
         self.advancedTab = AdvancedTab(ac=self.ac, parent=self)
+        self.stitchingTab = StitchingTab(ac=self.ac, parent=self)        
         self.ac.mainTab = self.mainTab
 
     def initUI(self):
@@ -1856,6 +1902,8 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.batchTab, "Batch")
         self.advancedTab.initUI()
         self.tabs.addTab(self.advancedTab, "Advanced")
+        self.stitchingTab.initUI()
+        self.tabs.addTab(self.stitchingTab, "CloudStitch")
 
         self.batchTab.add_pconfig_source(self.mainTab, "Main tab")
 
@@ -1874,6 +1922,7 @@ class MainWindow(QMainWindow):
         self.imagerTab.post_ui_init()
         self.batchTab.post_ui_init()
         self.advancedTab.post_ui_init()
+        self.stitchingTab.post_ui_init()
 
     def keyPressEvent(self, event):
         k = event.key()

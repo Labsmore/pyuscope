@@ -285,6 +285,8 @@ However, I've been using this workflow for years now, and will probably continue
    * Rev for toupcamsrc automatic resolution detection
   * Motion HAL: GRBL
  * Config API clean up
+ * Argus split into smaller widgets
+ * Planner V2 (now plugin based)
  * WIP: fix axis soft limit bug
  * WIP: add ability to temporarily override soft limits
  * WIP: reliable Argus launch

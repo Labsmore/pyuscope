@@ -7,8 +7,8 @@ Control Scroll (imager GUI controls)
 """
 
 from uscope.imager.imager import Imager, MockImager
-from uscope.imager.util import get_scaled
 from uscope.config import cal_load_all
+from uscope.imager.imager_util import get_scaled
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -46,10 +46,6 @@ class GstGUIImager(Imager):
         self.image_id = None
         self.emitter = GstGUIImager.Emitter()
         self.width, self.height = self.usc.imager.cropped_wh()
-        self.hdr = None
-
-    def set_hdr(self, hdr):
-        self.hdr = hdr
 
     def wh(self):
         return self.width, self.height
@@ -69,41 +65,14 @@ class GstGUIImager(Imager):
         self.ac.emit_log('Got image %s' % self.image_id)
         return self.ac.capture_sink.pop_image(self.image_id)
 
-    def get_normal(self):
+    def get(self):
         image = self.next_image()
         factor = self.usc.imager.scalar()
         scaled = get_scaled(image, factor, Image.ANTIALIAS)
         return {"0": scaled}
 
-    def get_hdr(self, hdr):
-        ret = {}
-        factor = self.usc.imager.scalar()
-        for hdri, hdrv in enumerate(hdr["properties"]):
-            # print("hdr: set %u %s" % (hdri, hdrv))
-            self.emitter.change_properties.emit(hdrv)
-            # Wait for setting to take effect
-            time.sleep(hdr["tsettle"])
-            image = self.next_image()
-            scaled = get_scaled(image, factor, Image.ANTIALIAS)
-            ret["%u" % hdri] = scaled
-        return ret
-
-    def get(self):
-        hdr = self.hdr
-        if hdr:
-            return self.get_hdr(hdr)
-        else:
-            return self.get_normal()
-
     def log_planner_header(self, log):
-        hdr = None
-        source = self.usc.imager.source()
-        cal = cal_load_all(source)
-        if cal:
-            hdr = cal.get("hdr", None)
-
         log("Imager config")
-        log("  HDR enabled: %s" % (bool(hdr), ))
         log("  Image size")
         log("    Raw sensor size: %uw x %uh" % (self.usc.imager.raw_wh()))
         cropw, croph = self.usc.imager.cropped_wh()

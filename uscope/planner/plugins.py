@@ -79,6 +79,12 @@ class PlannerAxis:
         '''
         # self.backlash_compensation = 0
 
+        # Basic sanity check
+        # mm_tol = 0.005 * 25.4
+        # Rounding error where things are considered equivalent
+        # ex: may round down scan size if 1.01 images are required
+        self.mm_tol = self.view_mm / 100
+
     def meta(self):
         ret = {}
         ret['backlash_mm'] = self.backlash
@@ -89,7 +95,7 @@ class PlannerAxis:
         ret['view_pixels'] = self.view_pixels
         ret['view_mm'] = self.view_mm
         ret['delta_mm'] = self.actual_delta_mm()
-        ret['delta_pixels']: self.actual_delta_pixels()
+        ret['delta_pixels'] = self.actual_delta_pixels()
         ret['pixels_per_mm'] = self.view_pixels / self.view_mm
         ret['overlap_fraction'] = self.actual_overlap()
         # source parameters that might have been modified
@@ -181,20 +187,54 @@ class PlannerAxis:
             yield self.start + i * step
 
 
+"""
+Production point generators are really complicated due to backlash and other optimizations
+Sample class showing the basics of a point generator plugin
+"""
+
+
+class SamplePointGenerator(PlannerPlugin):
+    def __init__(self, planner):
+        super().__init__(planner=planner)
+        self.rows = 2
+        self.cols = 3
+        self.x_step = 1.0
+        self.y_step = 0.8
+
+    def images_expected(self):
+        return self.rows * self.cols
+
+    def iterate(self, state):
+        for row in range(self.rows):
+            for col in range(self.cols):
+                self.motion.move_absolute({
+                    'x': col * self.x_step,
+                    'y': row * self.y_step
+                })
+
+                modifiers = {
+                    "filename_part": f"r{row}_c{col}",
+                }
+                replace_keys = {}
+                yield modifiers, replace_keys
+
+
 class PointGenerator2P(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
         start, end = self.init_contour()
         self.init_axes(start, end)
-        self.pictures_to_take = self.n_xy()
+        self.n_xy_cache = self.n_xy()
         # Total number of images_actual taken
         # self.all_imgs = 0
         # Number of images_actual taken at unique x, y coordinates
         # May be different than all_imags if image stacking
-        self.xy_points = 0
+        self.itered_xy_points = 0
+        # Telemetry on what was the further requested move
+        self.max_move = None
 
     def init_contour(self):
-        contour = self.pc.j["contour"]
+        contour = self.pc.j["points-xy2p"]["contour"]
 
         # Maximum allowable overlap proportion error when trying to fit number of snapshots
         #overlap_max_error = 0.05
@@ -333,9 +373,6 @@ class PointGenerator2P(PlannerPlugin):
     def validate_point(self, p):
         (cur_x, cur_y), (cur_col, cur_row) = p
 
-        # Basic sanity check
-        # mm_tol = 0.005 * 25.4
-        mm_tol = self.y.view_mm / 100
         xmax = cur_x + self.x.view_mm
         ymax = cur_y + self.y.view_mm
 
@@ -345,7 +382,7 @@ class PointGenerator2P(PlannerPlugin):
             self.log('Col out of range 0 <= %d < %d' %
                      (cur_col, self.x.images_actual()))
             fail = True
-        if cur_x < self.x.start - mm_tol or xmax > self.x.actual_end + mm_tol:
+        if cur_x < self.x.start - self.x.mm_tol or xmax > self.x.actual_end + self.x.mm_tol:
             self.log('X out of range')
             fail = True
 
@@ -353,7 +390,7 @@ class PointGenerator2P(PlannerPlugin):
             self.log('Row out of range 0 <= %d < %d' %
                      (cur_row, self.y.images_actual()))
             fail = True
-        if cur_y < self.y.start - mm_tol or ymax > self.y.actual_end + mm_tol:
+        if cur_y < self.y.start - self.y.mm_tol or ymax > self.y.actual_end + self.y.mm_tol:
             self.log('Y out of range')
             fail = True
 
@@ -394,55 +431,51 @@ class PointGenerator2P(PlannerPlugin):
         for (x, y), _cr in self.gen_xycr():
             yield (x, y)
 
-    def init_images(self):
-        for axisc, axis in self.axes.items():
-            self.log('Axis %s' % axisc)
-            self.log('  %f to %f' % (axis.start, axis.actual_end), 2)
-            self.log(
-                '  Ideal overlap: %f, actual %g' %
-                (self.pc.ideal_overlap(axisc), axis.actual_overlap()), 2)
-            self.log('  full delta: %f' % (axis.requested_delta_mm()), 2)
-            self.log('  view: %d pix' % (axis.view_pixels, ), 2)
-            self.log('  border: %f' % self.pc.border())
+    def images_expected(self):
+        return self.n_xy_cache
 
+    def log_run_header(self):
+        # FIXME
+        self.log("XY2P")
+        self.log("  Origin: %s" % self.origin)
         # A true useful metric of efficieny loss is how many extra pictures we had to take
         # Maybe overhead is a better way of reporting it
         ideal_n_pictures = self.x.images_ideal() * self.y.images_ideal()
         expected_n_pictures = self.x.images_actual() * self.y.images_actual()
         self.log(
-            'Ideally taking %g pictures (%g X %g) but actually taking %d (%d X %d), %0.1f%% efficient'
+            '  Ideally taking %g pictures (%g X %g) but actually taking %d (%d X %d), %0.1f%% efficient'
             % (ideal_n_pictures, self.x.images_ideal(), self.y.images_ideal(),
                expected_n_pictures, self.x.images_actual(),
                self.y.images_actual(),
                ideal_n_pictures / expected_n_pictures * 100.0), 2)
 
+        for axisc, axis in self.axes.items():
+            self.log('  Axis %s' % axisc)
+            self.log('    %f to %f' % (axis.start, axis.actual_end), 2)
+            self.log(
+                '    Ideal overlap: %f, actual %g' %
+                (self.pc.ideal_overlap(axisc), axis.actual_overlap()), 2)
+            self.log('    full delta: %f' % (axis.requested_delta_mm()), 2)
+            self.log('    view: %d pix' % (axis.view_pixels, ), 2)
+            self.log('    border: %f' % self.pc.border())
+
         # Try actually generating the points and see if it matches how many we thought we were going to get
         if self.pc.exclude():
-            self.log('Suppressing picture take check on exclusions')
-        elif self.pictures_to_take != expected_n_pictures:
+            self.log("  ROI exclusions active")
+        elif self.n_xy_cache != expected_n_pictures:
             self.log(
-                'Going to take %d pictures but thought was going to take %d pictures (x %d X y %d)'
-                % (self.pictures_to_take, expected_n_pictures,
+                '  Going to take %d pictures but thought was going to take %d pictures (x %d X y %d)'
+                % (self.n_xy_cache, expected_n_pictures,
                    self.x.images_actual(), self.y.images_actual()))
-            self.log('Points:')
+            self.log('  Points:')
             for p in self.gen_xys():
                 self.log('    ' + str(p))
             raise Exception('See above')
 
-    def images_expected(self):
-        return self.pictures_to_take
-
-    def print_run_header(self):
-        # FIXME
-        return
-
-        self.init_images()
-
-        self.imager.log_planner_header(self.log)
         # the math seems off here. Disabled for now / needs cleanup
-        # self.comment("  Z step: %s" % self.stack_step_size)
-        self.comment("Full backlash compensation: %d" %
-                     self.planner.backlash_compensation)
+        # self.log("  Z step: %s" % self.stack_step_size)
+        self.log("  Full backlash compensation: %d" %
+                 self.planner.backlash_compensation)
 
         # imgr_mp = self.imager.wh()[0] * self.imager.wh()[1] / 1.e6
         # imagr_mp = self.x.view_pixels * self.y.view_pixels
@@ -467,56 +500,53 @@ class PointGenerator2P(PlannerPlugin):
                                  self.x.actual_delta_pixels(),
                                  self.y.actual_delta_pixels())
         if complex_pano_size:
-            self.comment("Pano requested size:")
+            self.log("  Pano requested size:")
         else:
-            self.comment("Pano size (requested/actual):")
-        self.comment(
-            "  mm: %0.3f x,  %0.3f y => %0.1f mm2" %
-            (self.x.requested_delta_mm(), self.y.requested_delta_mm(),
-             self.x.requested_delta_mm() * self.y.requested_delta_mm()))
-        self.comment(
-            "  pix: %u x,  %u y => %s" %
+            self.log("  Pano size (requested/actual):")
+        self.log("    mm: %0.3f x,  %0.3f y => %0.1f mm2" %
+                 (self.x.requested_delta_mm(), self.y.requested_delta_mm(),
+                  self.x.requested_delta_mm() * self.y.requested_delta_mm()))
+        self.log(
+            "    pix: %u x,  %u y => %s" %
             (self.x.requested_delta_pixels(), self.y.requested_delta_pixels(),
              pix_str(self.x.requested_delta_pixels() *
                      self.y.requested_delta_pixels())))
         if complex_pano_size:
-            self.comment("  end: %u x,  %us" %
-                         (self.x.requested_end, self.y.requested_end))
+            self.log("    end: %u x,  %us" %
+                     (self.x.requested_end, self.y.requested_end))
 
         if complex_pano_size:
-            self.comment("Pano actual size:")
-            self.comment("  mm: %0.3f x,  %0.3f y => %0.1f mm2" %
-                         (self.x.actual_delta_mm(), self.y.actual_delta_mm(),
-                          self.x.actual_delta_mm() * self.y.actual_delta_mm()))
-            self.comment(
-                "  pix: %u x,  %u y => %s" %
+            self.log("  Pano actual size:")
+            self.log("    mm: %0.3f x,  %0.3f y => %0.1f mm2" %
+                     (self.x.actual_delta_mm(), self.y.actual_delta_mm(),
+                      self.x.actual_delta_mm() * self.y.actual_delta_mm()))
+            self.log(
+                "    pix: %u x,  %u y => %s" %
                 (self.x.actual_delta_pixels(), self.y.actual_delta_pixels(),
                  pix_str(self.x.actual_delta_pixels() *
                          self.y.actual_delta_pixels())))
-            self.comment("  end: %u x,  %us" %
-                         (self.x.actual_end, self.y.actual_end))
+            self.log("    end: %u x,  %us" %
+                     (self.x.actual_end, self.y.actual_end))
 
-        self.log("Backlash: %0.3f x, %0.3f y" %
+        self.log("  Backlash: %0.3f x, %0.3f y" %
                  (self.x.backlash, self.y.backlash))
 
-        self.comment("Image size:")
-        self.comment(
-            "  mm: %0.3f x,  %0.3f y => %0.1f mm2" %
+        self.log("  Image size:")
+        self.log(
+            "    mm: %0.3f x,  %0.3f y => %0.1f mm2" %
             (self.x.view_mm, self.y.view_mm, self.x.view_mm * self.y.view_mm))
-        self.comment("  pix: %u x,  %u y => %0.1f MP" %
-                     (self.x.view_pixels, self.y.view_pixels,
-                      self.x.view_pixels * self.y.view_pixels / 1e6))
-        self.comment("Derived:")
-        self.comment('  Ideal pictures: %0.1f x, %0.1f y => %0.1f' %
-                     (self.x.images_ideal(), self.y.images_ideal(),
-                      self.x.images_ideal() * self.y.images_ideal()))
-        self.comment('  Actual pictures: %u x, %u y => %u' %
-                     (self.x.images_actual(), self.y.images_actual(),
-                      self.x.images_actual() * self.y.images_actual()))
-        self.comment('  Generated positions: %u' % self.pictures_to_take)
-        self.comment('  step: %0.3f x, %0.3f y' %
-                     (self.x.step(), self.y.step()))
-        self.comment("Origin: %s" % self.origin)
+        self.log("    pix: %u x,  %u y => %0.1f MP" %
+                 (self.x.view_pixels, self.y.view_pixels,
+                  self.x.view_pixels * self.y.view_pixels / 1e6))
+        self.log("  Derived:")
+        self.log('    Ideal pictures: %0.1f x, %0.1f y => %0.1f' %
+                 (self.x.images_ideal(), self.y.images_ideal(),
+                  self.x.images_ideal() * self.y.images_ideal()))
+        self.log('    Actual pictures: %u x, %u y => %u' %
+                 (self.x.images_actual(), self.y.images_actual(),
+                  self.x.images_actual() * self.y.images_actual()))
+        self.log('    Generated positions: %u' % self.n_xy_cache)
+        self.log('    step: %0.3f x, %0.3f y' % (self.x.step(), self.y.step()))
 
     def move_absolute_backlash(self, move_to):
         '''Do an absolute move with backlash compensation'''
@@ -531,8 +561,8 @@ class PointGenerator2P(PlannerPlugin):
             else:
                 return '%c: none'
 
-        self.comment('move_absolute_backlash: %s, %s' %
-                     (fmt_axis('x'), fmt_axis('y')))
+        self.log('move_absolute_backlash: %s, %s' %
+                 (fmt_axis('x'), fmt_axis('y')))
         """
         Simple model
         Assume starting at top col and moving down serpentine
@@ -562,16 +592,16 @@ class PointGenerator2P(PlannerPlugin):
         self.last_row = None
         self.last_col = None
         self.cur_col = -1
+        self.cur_row = -1
         # columns
         for ((cur_x, cur_y), (self.cur_col, self.cur_row)) in self.gen_xycr():
-            self.xy_points += 1
-            """
+            self.itered_xy_points += 1
             self.log('')
-            self.log('Pictures taken: %d / %d' %
-                     (self.xy_points, self.pictures_to_take))
-
+            self.log('XY2P: generated point: %u / %u' %
+                     (self.itered_xy_points, self.n_xy_cache))
+            """
             #self.log('', 3)
-            self.comment(
+            self.log(
                 'comp (%d, %d), pos (%f, %f)' %
                 (self.x.comp, self.y.comp, cur_x, cur_y), 3)
             """
@@ -602,34 +632,35 @@ class PointGenerator2P(PlannerPlugin):
         # Will be at the end of a stack
         # Put it back where it started
         self.move_absolute_backlash(ret_pos)
-        """
-        self.log()
-        self.log()
-        self.log()
-        self.log('Pictures taken: %d / %d' %
-                 (self.xy_points, self.pictures_to_take))
-        self.log('Max x: %0.3f, y: %0.3f' %
+
+    def log_scan_end(self):
+        self.log('XY2P: generated points: %u / %u' %
+                 (self.itered_xy_points, self.n_xy_cache))
+        self.log('  Max x: %0.3f, y: %0.3f' %
                  (self.max_move['x'], self.max_move['y']))
-        self.log('  G0 X%0.3f Y%0.3f' %
-                 (self.max_move['x'], self.max_move['y']))
-        if self.xy_points != self.pictures_to_take:
-            if self.pc.j.get('exclude', []):
-                self.log(
-                    'Suppressing for exclusion: pictures taken mismatch (taken: %d, to take: %d)'
-                    % (self.xy_points, self.pictures_to_take))
-            else:
-                raise Exception(
-                    'pictures taken mismatch (taken: %d, to take: %d)' %
-                    (self.xy_points, self.pictures_to_take))
-        """
+        #self.log('  G0 X%0.3f Y%0.3f' %
+        #         (self.max_move['x'], self.max_move['y']))
+        # excluded points should not be in counts
+        # if len(self.pc.j.get('exclude', [])) == 0 and self.itered_xy_points != self.n_xy_cache:
+        if self.itered_xy_points != self.n_xy_cache:
+            raise Exception(
+                'pictures taken mismatch (taken: %d, to take: %d)' %
+                (self.itered_xy_points, self.n_xy_cache))
 
     def gen_meta(self, meta):
-        images = meta["planner"].setdefault("images", OrderedDict())
+        points = OrderedDict()
         for (x, y), (c, r) in self.gen_xycr():
             k = "%uc_%ur" % (c, r)
-            images[k] = {"x": x, "y": y, "col": c, "row": r}
-        # meta["planner"]['pictures_to_take'] = self.pictures_to_take
-        # meta["planner"]['pictures_taken'] = self.xy_points
+            points[k] = {"x": x, "y": y, "col": c, "row": r}
+        axes = {}
+        for axisc, axis in self.axes.items():
+            axes[axisc] = axis.meta()
+        meta["points-xy2p"] = {
+            'points_to_generate': self.n_xy_cache,
+            'points_generated': self.itered_xy_points,
+            "points": points,
+            "axes": axes,
+        }
 
 
 """
@@ -651,9 +682,8 @@ class PlannerStacker(PlannerPlugin):
         else:
             self.start = None
         # If don't have a start position take the beginning position
-        self.pos0 = self.planner.motion.pos()[self.axis]
         if self.start is None:
-            self.start = self.pos0
+            self.start = self.planner.motion.pos()[self.axis]
         """
         start: relative from absolute position
             ie start + distance
@@ -672,11 +702,11 @@ class PlannerStacker(PlannerPlugin):
         # No backlash compensation needed here since we need to do it every stack
         pass
 
-    def print_run_header(self):
+    def log_run_header(self):
         self.imager.log_planner_header(self.log)
-        self.comment("Focus stacking from \"%s\"" % self.stacker.start_mode)
-        self.comment("  Images: %s" % self.stacker.images_per_stack)
-        self.comment("  Distance: %0.3f" % self.stacker.distance)
+        self.log("Focus stacking from \"%s\"" % self.stacker.start_mode)
+        self.log("  Images: %s" % self.stacker.images_per_stack)
+        self.log("  Distance: %0.3f" % self.stacker.distance)
 
     def images_expected(self):
         return self.images_per_stack
@@ -695,7 +725,7 @@ class PlannerStacker(PlannerPlugin):
             self.motion.move_absolute(bpos)
         self.motion.move_absolute(pos)
 
-    def iterate(self, state):
+    def points(self):
         if self.start_mode == "center":
             # if self.images_per_stack % 2 != 1:
             #    raise Exception('Center stacking requires odd n')
@@ -720,22 +750,48 @@ class PlannerStacker(PlannerPlugin):
             direction = self.planner.backlash_compensation
         step_distance = self.distance / (self.images_per_stack - 1) * direction
 
-        self.move_absolute({self.axis: start})
+        yield "start", {self.axis: start}
         # self.planner.log("stack: distance %0.3f" % (self.distance, ))
         # self.planner.log("stack: start %0.3f => %0.3f" % (self.start, start))
         for image_number in range(self.images_per_stack):
             # self.planner.move_absolute(
             # bypass backlash compensation to keep movement smooth
             z = start + image_number * step_distance
-            self.planner.log("stack: %u / %u @ %0.3f" %
-                             (image_number, self.images_per_stack, z))
-            self.planner.motion.move_absolute({self.axis: z})
+            yield "point", {self.axis: z}
 
-            modifiers = {
-                "filename_part": "z%02d" % image_number,
-            }
-            replace_keys = {}
-            yield modifiers, replace_keys
+    def iterate(self, state):
+        image_number = 0
+        for ptype, point in self.points():
+            if ptype == "start":
+                self.planner.motion.move_absolute(point)
+            elif ptype == "point":
+                image_number += 1
+                self.planner.log(
+                    "stack: %u / %u @ %0.3f" %
+                    (image_number, self.images_per_stack, point[self.axis]))
+                self.planner.motion.move_absolute(point)
+                modifiers = {
+                    "filename_part": "z%02d" % image_number,
+                }
+                replace_keys = {}
+                yield modifiers, replace_keys
+            else:
+                assert 0
+
+    def gen_meta(self, meta):
+        points = []
+        for ptype, point in self.points():
+            if ptype == "point":
+                points.append(point)
+        meta["points-stacker"] = {
+            "images_per_stack": self.images_per_stack,
+            "distance": self.distance,
+            "mode": self.start_mode,
+            "points": points,
+            "start": self.start,
+            # Usually z
+            "axis": self.axis,
+        }
 
 
 class PlannerHDR(PlannerPlugin):
@@ -763,8 +819,8 @@ class PlannerKinematics(PlannerPlugin):
         super().__init__(planner=planner)
         self.tsettle = self.pc.tsettle()
 
-    def print_run_header(self):
-        self.comment("tsettle: %0.2f" % self.tsettle)
+    def log_run_header(self):
+        self.log("tsettle: %0.2f" % self.tsettle)
 
     def iterate(self, state):
         # FIXME: refine
@@ -785,6 +841,7 @@ class PlannerCaptureImage(PlannerPlugin):
 
     def iterate(self, state):
         im = None
+        assert state.get("image") is None, "Pipeline already took an image"
         if not self.planner.dry:
             if self.planner.imager.remote():
                 self.planner.imager_take.take()
@@ -805,6 +862,11 @@ class PlannerCaptureImage(PlannerPlugin):
         }
         yield modifiers, replace_keys
 
+    def gen_meta(self, meta):
+        meta["image-capture"] = {
+            "captured": self.images_captured,
+        }
+
 
 """
 Just snap an image
@@ -817,13 +879,13 @@ class PlannerSaveImage(PlannerPlugin):
         super().__init__(planner=planner)
         self.images_saved = 0
         # FIXME: this should come from config, not imager
-        self.save_extension = self.pc.imager.save_extension()
-        self.save_quality = self.pc.imager.save_quality()
+        self.extension = self.pc.imager.save_extension()
+        self.quality = self.pc.imager.save_quality()
         assert not self.planner.imager.remote()
 
-    def print_run_header(self):
-        self.comment("Output dir: %s" % self.planner.out_dir)
-        self.comment("Output extension: %s" % self.save_extension)
+    def log_run_header(self):
+        self.log("Output dir: %s" % self.planner.out_dir)
+        self.log("Output extension: %s" % self.extension)
 
     def iterate(self, state):
         im = state.get("image")
@@ -832,15 +894,22 @@ class PlannerSaveImage(PlannerPlugin):
 
         self.images_saved += 1
         img_prefix = self.planner.filanme_prefix(state)
-        fn_full = img_prefix + self.save_extension
+        fn_full = img_prefix + self.extension
         if not self.planner.dry:
             # PIL object
-            if self.save_extension == ".jpg" or self.save_extension == ".jpeg":
-                im.save(fn_full, quality=self.save_quality)
+            if self.extension == ".jpg" or self.extension == ".jpeg":
+                im.save(fn_full, quality=self.quality)
             else:
                 im.save(fn_full)
         # yield {}, self.state_add_dict(state, "image", "filename_rel", fn_full)
         yield {}, {"image_filename_rel": fn_full}
+
+    def gen_meta(self, meta):
+        meta["image-save"] = {
+            "extension": self.extension,
+            "quality": self.quality,
+            "saved": self.images_saved,
+        }
 
 
 """
@@ -860,7 +929,7 @@ class PlannerScraper(PlannerPlugin):
 
     def iterate(self, state):
         """
-        self.progress_cb(self.pictures_to_take, self.xy_points,
+        self.progress_cb(self.n_xy_cache, self.itered_xy_points,
                          image_file_name, first)
         """
         self.images_captured += len(state.get("images", []))
@@ -871,13 +940,13 @@ class PlannerScraper(PlannerPlugin):
 
 
 def register_plugins():
-    register_plugin("points2p", PointGenerator2P)
-    register_plugin("stacker", PlannerStacker)
+    register_plugin("points-xy2p", PointGenerator2P)
+    register_plugin("points-stacker", PlannerStacker)
     # FIXME: needs review / testing
     # register_plugin("hdr", PlannerHDR)
     register_plugin("kinematics", PlannerKinematics)
-    register_plugin("capture_image", PlannerCaptureImage)
-    register_plugin("save_image", PlannerSaveImage)
+    register_plugin("image-capture", PlannerCaptureImage)
+    register_plugin("image-save", PlannerSaveImage)
     # register_plugin("scraper", PlannerScraper)
 
 

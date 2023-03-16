@@ -8,7 +8,6 @@ class PlannerPlugin:
         self.pc = self.planner.pc
         self.motion = self.planner.motion
         self.imager = self.planner.imager
-        self.comment = self.planner.comment
         self.dry = self.planner.dry
         self.log = self.planner.log
 
@@ -37,9 +36,15 @@ class PlannerPlugin:
         """
         pass
 
-    def print_run_header(self):
+    def log_scan_begin(self):
         """
-        Use one or more self.comment() to provide output
+        Use one or more self.log() to provide output
+        """
+        pass
+
+    def log_scan_end(self):
+        """
+        Use one or more self.log() to provide output
         """
         pass
 

@@ -28,7 +28,9 @@ def microscope_to_planner_config(usj,
         },
         "motion": {},
         # was scan.json
-        "contour": contour,
+        "points-xy2p": {
+            "contour": contour,
+        }
     }
 
     v = usj["imager"].get("scalar")
@@ -76,16 +78,16 @@ def get_planner(pconfig,
                 verbosity=None):
     pipeline_names = []
 
-    pipeline_names.append("points2p")
-    if "stack" in pconfig:
-        pipeline_names.append("stacker")
+    pipeline_names.append("points-xy2p")
+    if "points-stacker" in pconfig:
+        pipeline_names.append("points-stacker")
     # FIXME: needs review / testing
     # if "hdr" in pconfig["imager"]:
     #    pipeline_names.append("hdr")
     pipeline_names.append("kinematics")
-    pipeline_names.append("capture_image")
+    pipeline_names.append("image-capture")
     if not imager.remote():
-        pipeline_names.append("save_image")
+        pipeline_names.append("image-save")
     # pipeline_names.append("scraper")
 
     ret = Planner(pconfig=pconfig,

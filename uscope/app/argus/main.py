@@ -760,7 +760,7 @@ class MainTab(ArgusTab):
         def get_axes_gb():
             layout = QVBoxLayout()
             # TODO: support other planner sources (ex: 3 point)
-            self.planner_widget_tabs.addTab(self.planner_widget, "XY 2P")
+            self.planner_widget_tabs.addTab(self.planner_widget, "XY2P")
             layout.addWidget(self.planner_widget_tabs)
             layout.addWidget(self.motion_widget)
             gb = QGroupBox("Motion")
@@ -1068,7 +1068,7 @@ class AdvancedTab(ArgusTab):
         if images_per_stack <= 1:
             return
         distance = float(self.stacker_distance_le.text())
-        pconfig["stack"] = {
+        pconfig["points-stacker"] = {
             "number": images_per_stack,
             "distance": distance,
         }

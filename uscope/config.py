@@ -555,7 +555,7 @@ class PC:
         return self.j.get("end_at", "start")
 
     def contour(self):
-        return self.j["contour"]
+        return self.j["points-xy2p"]["contour"]
 
     def ideal_overlap(self, axis=None):
         # FIXME: axis option

@@ -1,11 +1,11 @@
-from uscope.planner import Planner
+from uscope.planner.planner_util import get_planner
 from uscope.benchmark import Benchmark
 from uscope.motion.hal import AxisExceeded, MotionHAL
 import traceback
 
 import queue
 import threading
-from PyQt5.QtCore import *
+from PyQt5.QtCore import QThread, pyqtSignal
 import time
 import datetime
 
@@ -259,15 +259,16 @@ class PlannerThread(QThread):
     plannerDone = pyqtSignal()
     log_msg = pyqtSignal(str)
 
-    def __init__(self, parent, pconfig):
+    def __init__(self, parent, planner_args, progress_cb):
         QThread.__init__(self, parent)
-        self.pconfig = pconfig
+        self.planner_args = planner_args
         self.planner = None
+        self.progress_cb = progress_cb
 
-    def log(self, msg):
+    def log(self, msg=""):
         #print 'emitting log %s' % msg
         #self.log_buff += str(msg) + '\n'
-        self.log_msg.emit(msg)
+        self.log_msg.emit(str(msg))
 
     def setRunning(self, running):
         planner = self.planner
@@ -296,9 +297,14 @@ class PlannerThread(QThread):
             self.log('Initializing planner!')
             # print("Planner thread started: %s" % (threading.get_ident(), ))
 
-            self.planner = Planner(log=self.log, **self.pconfig)
+            self.planner = get_planner(log=self.log, **self.planner_args)
+            self.planner.register_progress_callback(self.progress_cb)
             self.log('Running planner')
             b = Benchmark()
+            self.log()
+            self.log()
+            self.log()
+            self.log()
             self.planner.run()
             b.stop()
             self.log('Planner done!  Took : %s' % str(b))

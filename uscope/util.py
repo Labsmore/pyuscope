@@ -252,3 +252,43 @@ def mkdir_p(path):
             pass
         else:
             raise
+
+
+def drange(start, stop, step, inclusive=False):
+    """
+    range function with double argument
+    """
+    r = start
+    if inclusive:
+        while r <= stop:
+            yield r
+            r += step
+    else:
+        while r < stop:
+            yield r
+            r += step
+
+
+def drange_at_least(start, stop, step):
+    """Guarantee max is in the output"""
+    r = start
+    while True:
+        yield r
+        if r > stop:
+            break
+        r += step
+
+
+def drange_tol(start, stop, step, delta=None):
+    """
+    tolerance drange
+    in output if within a delta
+    """
+    if delta is None:
+        delta = step * 0.05
+    r = start
+    while True:
+        yield r
+        if r > stop:
+            break
+        r += step

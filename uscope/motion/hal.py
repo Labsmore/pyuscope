@@ -144,13 +144,14 @@ class BacklashMM(MotionModifier):
             if self.compensation[axis] == 0:
                 continue
             delta = val - cur_pos[axis]
-            if delta == 0.0:
-                continue
+            # No: if we have moved here w/o backlash correction may be wrong
+            # if delta == 0.0:
+            #     continue
 
             # Already compensated and still moving in the same direction?
             # No compensation necessary
-            if self.compensated[axis] and sign(
-                    delta) == self.compensation[axis]:
+            if self.compensated[axis] and (
+                    delta == 0.0 or sign(delta) == self.compensation[axis]):
                 continue
             # A correction is possibly needed then
             # Will the movement itself compensate?

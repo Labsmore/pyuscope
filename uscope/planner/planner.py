@@ -188,7 +188,6 @@ class Planner:
         self.imager.log_planner_header(self.log)
         for plugin in self.pipeline.values():
             plugin.log_scan_begin()
-
         if self.dry:
             self.log('DRY: mkdir(%s)' % self.out_dir)
         else:

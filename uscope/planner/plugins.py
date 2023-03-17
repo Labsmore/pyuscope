@@ -375,7 +375,7 @@ class PointGenerator2P(PlannerPlugin):
     def images_expected(self):
         return self.n_xy_cache
 
-    def log_run_header(self):
+    def log_scan_begin(self):
         # FIXME
         self.log("XY2P")
         self.log("  Origin: %s" % self.origin)
@@ -586,7 +586,7 @@ class PlannerStacker(PlannerPlugin):
         # You probably want negative backlash compensation as well
         self.distance = float(config["distance"])
 
-    def log_run_header(self):
+    def log_scan_begin(self):
         self.imager.log_planner_header(self.log)
         self.log("Focus stacking from \"%s\"" % self.stacker.start_mode)
         self.log("  Images: %s" % self.stacker.images_per_stack)
@@ -682,8 +682,6 @@ class PlannerHDR(PlannerPlugin):
             assert 0, "FIXME: needs review"
             # self.emitter.change_properties.emit(hdrv)
             self.imager.set_properties(hdrv)
-            # Wait for setting to take effect
-            time.sleep(self.config["tsettle"])
             modifiers = {
                 "filename_part": "h%02u" % hdri,
             }
@@ -695,8 +693,9 @@ class PlannerKinematics(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
         self.tsettle = self.pc.tsettle()
+        self.tsettle = 0.1
 
-    def log_run_header(self):
+    def log_scan_begin(self):
         self.log("tsettle: %0.2f" % self.tsettle)
 
     def iterate(self, state):
@@ -760,7 +759,7 @@ class PlannerSaveImage(PlannerPlugin):
         self.quality = self.pc.imager.save_quality()
         assert not self.planner.imager.remote()
 
-    def log_run_header(self):
+    def log_scan_begin(self):
         self.log("Output dir: %s" % self.planner.out_dir)
         self.log("Output extension: %s" % self.extension)
 

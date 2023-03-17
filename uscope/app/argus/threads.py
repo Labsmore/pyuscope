@@ -42,13 +42,13 @@ class MotionThreadMotion(MotionHAL):
         return self.mt.motion.axes()
 
     def home(self, axes):
-        self.mt.home()
+        self.mt.home(block=True)
 
     def _move_absolute(self, pos):
-        self.mt.move_absolute(pos)
+        self.mt.move_absolute(pos, block=True)
 
     def _move_relative(self, pos):
-        self.mt.move_relative(pos)
+        self.mt.move_relative(pos, block=True)
 
     def _pos(self):
         # return self.mt.pos_cache
@@ -65,7 +65,7 @@ class MotionThreadMotion(MotionHAL):
 class MotionThread(QThread):
     log_msg = pyqtSignal(str)
 
-    def __init__(self, motion, cmd_done=None):
+    def __init__(self, motion):
         QThread.__init__(self)
         self.verbose = False
         self.queue = queue.Queue()
@@ -75,7 +75,6 @@ class MotionThread(QThread):
         self.idle.set()
         self.normal_running = threading.Event()
         self.normal_running.set()
-        self.cmd_done = cmd_done
         self.lock = threading.Event()
         # Let main gui get the last position from a different thread
         # It can request updates
@@ -98,8 +97,17 @@ class MotionThread(QThread):
             if self.idle.is_set():
                 break
 
-    def command(self, command, *args):
-        self.queue.put((command, args))
+    def command(self, command, *args, block=False):
+        command_done = None
+        if block:
+            ready = threading.Event()
+
+            def command_done(command, args, e):
+                ready.set()
+
+        self.queue.put((command, args, command_done))
+        if block:
+            ready.wait()
 
     def pos(self):
         self.lock.set()
@@ -121,14 +129,14 @@ class MotionThread(QThread):
         # self.command("estop")
         self._estop = True
 
-    def home(self):
-        self.command("home")
+    def home(self, block=False):
+        self.command("home", block=block)
 
-    def move_absolute(self, pos):
-        self.command("move_absolute", pos)
+    def move_absolute(self, pos, block=False):
+        self.command("move_absolute", pos, block=block)
 
-    def move_relative(self, pos):
-        self.command("move_relative", pos)
+    def move_relative(self, pos, block=False):
+        self.command("move_relative", pos, block=block)
 
     def set_jog_rate(self, rate):
         self.command("set_jog_rate", rate)
@@ -182,7 +190,7 @@ class MotionThread(QThread):
                     continue
                 try:
                     self.lock.clear()
-                    (command, args) = self.queue.get(True, 0.1)
+                    (command, args, command_done) = self.queue.get(True, 0.1)
                 except queue.Empty:
                     self.idle.set()
                     continue
@@ -234,12 +242,12 @@ class MotionThread(QThread):
                     print("")
                     print("WARNING: motion thread crashed")
                     print(traceback.format_exc())
-                    if self.cmd_done:
-                        self.cmd_done(command, args, e)
+                    if command_done:
+                        command_done(command, args, e)
                     continue
 
-                if self.cmd_done:
-                    self.cmd_done(command, args, ret)
+                if command_done:
+                    command_done(command, args, ret)
 
         finally:
             self.motion.stop()

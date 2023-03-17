@@ -702,7 +702,6 @@ class PlannerKinematics(PlannerPlugin):
         # FIXME: refine
         if not self.dry:
             time.sleep(self.tsettle)
-            self.planner.motion.settle()
         self.planner.wait_imaging_ok()
         yield None
 

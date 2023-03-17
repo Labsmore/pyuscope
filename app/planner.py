@@ -4,7 +4,7 @@ from uscope.util import add_bool_arg
 from uscope.imager import gst
 import uscope.planner
 from uscope.config import get_usc
-from uscope.planner import microscope_to_planner
+from uscope.planner.planner_util import microscope_to_planner_config, get_planner
 from uscope.motion.plugins import get_motion_hal
 from uscope.util import default_date_dir
 import os
@@ -54,10 +54,10 @@ def main():
     objectivei = args.objectivei
     if args.objectivei:
         args.objectivei = int(args.objectivei)
-    pconfig = microscope_to_planner(usj,
-                                    contour=contour,
-                                    objectivestr=args.objective,
-                                    objectivei=objectivei)
+    pconfig = microscope_to_planner_config(usj,
+                                           contour=contour,
+                                           objectivestr=args.objective,
+                                           objectivei=objectivei)
     root_dir = "out"
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
@@ -70,12 +70,11 @@ def main():
     motion = get_motion_hal(usc=usc)
     print("System ready")
 
-    planner = uscope.planner.Planner(pconfig,
-                                     motion=motion,
-                                     imager=imager,
-                                     out_dir=out_dir,
-                                     progress_cb=None,
-                                     dry=args.dry)
+    planner = get_planner(pconfig=pconfig,
+                          motion=motion,
+                          imager=imager,
+                          out_dir=out_dir,
+                          dry=args.dry)
 
     planner.run()
 

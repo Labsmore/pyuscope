@@ -79,23 +79,18 @@ def get_motion_hal(usc=None, usc_motion=None, log=print):
             usc = get_usc()
         usc_motion = usc.motion
     name = usc_motion.hal()
-    scalars = usc_motion.scalars()
     # log("get_motion_hal: %s" % name)
     ctor = plugins.get(name)
     if ctor is None:
         raise Exception("Unknown motion HAL %s" % name)
-    kwargs = {"scalars": scalars, "log": log}
-
-    slj = usc_motion.soft_limits()
-    if slj:
-        soft_limits = {}
-        for axis in "xyz":
-            axmin = slj.get(axis + "min")
-            axmax = slj.get(axis + "max")
-            if axmin is not None or axmax is not None:
-                axmin = axmin if axmin else 0.0
-                axmax = axmax if axmax else 0.0
-                soft_limits[axis] = (axmin, axmax)
-        kwargs["soft_limits"] = soft_limits
+    kwargs = {
+        "options": {
+            "scalars": usc_motion.scalars(),
+            "backlash": usc_motion.backlash(),
+            "backlash_compensation": usc_motion.backlash_compensation(),
+            "soft_limits": usc_motion.soft_limits(),
+        },
+        "log": log,
+    }
 
     return ctor(usc_motion, kwargs)

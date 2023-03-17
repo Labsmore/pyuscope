@@ -31,11 +31,12 @@ TODO: should block?
 class MotionThreadMotion(MotionHAL):
     def __init__(self, mt):
         self.mt = mt
-        MotionHAL.__init__(self,
-                           scalars=mt.motion.scalars,
-                           soft_limits=mt.motion.soft_limits,
-                           log=mt.motion.log,
-                           verbose=mt.motion.verbose)
+        MotionHAL.__init__(
+            self,
+            # Don't re-apply pipeline
+            options={},
+            log=mt.motion.log,
+            verbose=mt.motion.verbose)
 
     def axes(self):
         return self.mt.motion.axes()
@@ -51,7 +52,7 @@ class MotionThreadMotion(MotionHAL):
 
     def _pos(self):
         # return self.mt.pos_cache
-        return self.pos()
+        return self.mt.pos()
 
     def settle(self):
         # No hardware to let settle

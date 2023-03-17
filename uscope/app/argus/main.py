@@ -11,7 +11,6 @@ from uscope.gst_util import Gst, CaptureSink
 from uscope.motion.plugins import get_motion_hal
 from uscope.app.argus.threads import MotionThread, PlannerThread
 from uscope.planner.planner_util import microscope_to_planner_config
-from uscope.planner.plugins import backlash_move_absolute
 from uscope import config
 from uscope.motion import motion_util
 import json
@@ -1337,11 +1336,14 @@ class MotionWidget(AWidget):
         except ValueError:
             self.ac.log("Failed to parse move. Need like: X1.0 Y2.4")
             return
+        """
+        # FIXME: should be able to override?
         if self.move_abs_backlash_cb.isChecked():
             bpos = backlash_move_absolute(
                 pos, self.usc.motion.backlash(),
                 self.usc.motion.backlash_compensation())
             self.motion_thread.move_relative(bpos)
+        """
         self.motion_thread.move_absolute(pos)
 
     def mdi_le_process(self):

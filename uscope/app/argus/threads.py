@@ -101,19 +101,30 @@ class MotionThread(QThread):
         command_done = None
         if block:
             ready = threading.Event()
+            ret = []
 
-            def command_done(command, args, e):
+            def command_done(command, args, ret_e):
+                ret.append(ret_e)
                 ready.set()
 
         self.queue.put((command, args, command_done))
         if block:
             ready.wait()
+            ret = ret[0]
+            if type(ret) is Exception:
+                raise Exception("oopsie: %s" % (ret, ))
+            return ret
 
     def pos(self):
-        self.lock.set()
-        ret = self.motion.pos()
-        self.lock.clear()
-        return ret
+        # XXX: this caused crashes but I'm not sure why
+        # Just offload to the thread to avoid this special case
+        if 0:
+            self.lock.set()
+            ret = self.motion.pos()
+            self.lock.clear()
+            return ret
+        else:
+            return self.command("pos", block=True)
 
     def mdi(self, cmd):
         self.command("mdi", cmd)
@@ -229,6 +240,7 @@ class MotionThread(QThread):
                     'move_absolute': move_absolute,
                     'move_relative': move_relative,
                     'jog': self.motion.jog,
+                    'pos': self.motion.pos,
                     'set_jog_rate': self.motion.set_jog_rate,
                     'home': self.motion.home,
                     # 'stop': self.motion.stop,

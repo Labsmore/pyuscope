@@ -848,7 +848,6 @@ class PlannerKinematics(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
         self.tsettle = self.pc.tsettle()
-        self.tsettle = 0.1
 
     def log_scan_begin(self):
         self.log("tsettle: %0.2f" % self.tsettle)

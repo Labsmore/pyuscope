@@ -1,4 +1,4 @@
-from uscope.imager.util import auto_detect_source
+from uscope.imager.imager_util import auto_detect_source
 from uscope.imager.touptek import toupcamsrc_info
 
 
@@ -53,6 +53,7 @@ def default_gstimager_config(opts):
             else:
                 w, h = opts["wh"]
                 for esize, vs in info["eSizes"].items():
+                    vs = vs["StillResolution"]
                     if (w, h) == (vs["w"], vs["h"]):
                         toupcamsrc["esize"] = esize
                         break

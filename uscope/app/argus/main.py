@@ -3,14 +3,15 @@
 from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gui.control_scrolls import get_control_scroll
 from uscope.util import add_bool_arg
-from uscope.config import get_usj, USC, PC
+from uscope.config import get_usj, USC, PC, get_bc
 from uscope.imager.imager_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
 from uscope.motion.plugins import get_motion_hal
-from uscope.app.argus.threads import MotionThread, PlannerThread
+from uscope.app.argus.threads import MotionThread, PlannerThread, StitcherThread, boto3
 from uscope.planner.planner_util import microscope_to_planner_config
+from uscope import util
 from uscope import config
 from uscope.motion import motion_util
 import json
@@ -677,6 +678,7 @@ class ScanWidget(AWidget):
         self.position_poll_timer = None
         self.go_currnet_pconfig = go_currnet_pconfig
         self.setControlsEnabled = setControlsEnabled
+        self.current_scan_config = None
 
     def initUI(self):
         """
@@ -699,6 +701,11 @@ class ScanWidget(AWidget):
             self.dry_cb = QCheckBox()
             self.dry_cb.setChecked(self.ac.usc.app("argus").dry_default())
             layout.addWidget(self.dry_cb)
+
+            layout.addWidget(QLabel('CloudStitch?'))
+            self.stitch_cb = QCheckBox()
+            self.stitch_cb.setChecked(False)
+            layout.addWidget(self.stitch_cb)
 
             self.progress_bar = QProgressBar()
             layout.addWidget(self.progress_bar)
@@ -756,6 +763,9 @@ class ScanWidget(AWidget):
         self.log_fd = None
         self.ac.pt = None
 
+        self.ac.stitchingTab.scan_completed(self.current_scan_config)
+        self.current_scan_config = None
+
         # More scans?
         if run_next and self.scan_configs:
             self.run_next_scan_config()
@@ -771,13 +781,13 @@ class ScanWidget(AWidget):
 
     def run_next_scan_config(self):
         try:
-            scan_config = self.scan_configs[0]
+            self.current_scan_config = self.scan_configs[0]
             del self.scan_configs[0]
 
             dry = self.dry()
 
-            out_dir = scan_config["out_dir"]
-            pconfig = scan_config["pconfig"]
+            out_dir = self.current_scan_config["out_dir"]
+            pconfig = self.current_scan_config["pconfig"]
             if not dry:
                 os.mkdir(out_dir)
 
@@ -1293,6 +1303,101 @@ class AdvancedTab(ArgusTab):
         self.update_pconfig_hdr(pconfig)
 
 
+class StitchingTab(ArgusTab):
+    def __init__(self, ac, parent=None):
+        super().__init__(ac=ac, parent=parent)
+        self.stitcher_thread = None
+
+    def initUI(self):
+        layout = QGridLayout()
+        row = 0
+
+        def stitch_gb():
+            layout = QGridLayout()
+            row = 0
+
+            layout.addWidget(QLabel("AccessKey"), row, 0)
+            # Is there a reasonable default here?
+            self.stitch_accesskey = QLineEdit(
+                self.ac.bc.labsmore_stitch_aws_access_key())
+            layout.addWidget(self.stitch_accesskey, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("SecretKey"), row, 0)
+            self.stitch_secretkey = QLineEdit(
+                self.ac.bc.labsmore_stitch_aws_secret_key())
+            self.stitch_secretkey.setEchoMode(QLineEdit.Password)
+            layout.addWidget(self.stitch_secretkey, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("IDKey"), row, 0)
+            # Is there a reasonable default here?
+            self.stitch_idkey = QLineEdit(
+                self.ac.bc.labsmore_stitch_aws_id_key())
+            layout.addWidget(self.stitch_idkey, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Notification Email Address"), row, 0)
+            self.stitch_email = QLineEdit(
+                self.ac.bc.labsmore_stitch_notification_email())
+            reg_ex = QRegExp("\\b[A-z0-9._%+-]+@[A-z0-9.-]+\\.[A-z]{2,4}\\b")
+            input_validator = QRegExpValidator(reg_ex, self.stitch_email)
+            self.stitch_email.setValidator(input_validator)
+            layout.addWidget(self.stitch_email, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Manual stitch directory"), row, 0)
+            self.manual_stitch_dir = QLineEdit("")
+            layout.addWidget(self.manual_stitch_dir, row, 1)
+            row += 1
+
+            self.stitch_pb = QPushButton("Manual stitch")
+            self.stitch_pb.clicked.connect(self.stitch_begin_manual)
+            layout.addWidget(self.stitch_pb, row, 1)
+
+            gb = QGroupBox("Cloud Stitching")
+            gb.setLayout(layout)
+            return gb
+
+        layout.addWidget(stitch_gb(), row, 0)
+        row += 1
+
+        self.setLayout(layout)
+
+    def post_ui_init(self):
+        if not boto3:
+            self.log("WARNING: CloudStitch unavailible (require boto3)")
+
+    def stitch_begin_manual(self):
+        self.stitch_begin(str(self.manual_stitch_dir.text()))
+
+    def scan_completed(self, scan_config):
+        if self.ac.mainTab.scan_widget.stitch_cb.isChecked():
+            self.stitch_begin(scan_config["out_dir"])
+
+    def stitch_begin(self, directory):
+        self.ac.log(f"Requested stitch on {directory}")
+        if self.stitcher_thread:
+            self.ac.log("Stitch already running")
+            return
+
+        # Offload uploads etc to thread since they might take a while
+        self.stitcher_thread = StitcherThread(
+            directory=directory,
+            access_key=str(self.stitch_accesskey.text()),
+            secret_key=str(self.stitch_secretkey.text()),
+            id_key=str(self.stitch_idkey.text()),
+            notification_email=str(self.stitch_email.text()),
+            parent=self,
+        )
+        self.stitcher_thread.log_msg.connect(self.ac.log)
+        self.stitcher_thread.stitcherDone.connect(self.stitch_end)
+        self.stitcher_thread.start()
+
+    def stitch_end(self):
+        self.stitcher_thread = None
+
+
 class USCArgus:
     def __init__(self, j=None):
         """
@@ -1713,6 +1818,7 @@ class ArgusCommon(QObject):
         self.microscope = microscope
         self.usj = get_usj(name=microscope)
         self.usc = USC(usj=self.usj)
+        self.bc = get_bc()
 
         self.scan_configs = None
         self.imager = None
@@ -1831,7 +1937,9 @@ class MainWindow(QMainWindow):
         self.imagerTab = ImagerTab(ac=self.ac, parent=self)
         self.batchTab = BatchImageTab(ac=self.ac, parent=self)
         self.advancedTab = AdvancedTab(ac=self.ac, parent=self)
+        self.stitchingTab = StitchingTab(ac=self.ac, parent=self)
         self.ac.mainTab = self.mainTab
+        self.ac.stitchingTab = self.stitchingTab
 
     def initUI(self):
         self.ac.initUI()
@@ -1856,6 +1964,8 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.batchTab, "Batch")
         self.advancedTab.initUI()
         self.tabs.addTab(self.advancedTab, "Advanced")
+        self.stitchingTab.initUI()
+        self.tabs.addTab(self.stitchingTab, "CloudStitch")
 
         self.batchTab.add_pconfig_source(self.mainTab, "Main tab")
 
@@ -1874,6 +1984,7 @@ class MainWindow(QMainWindow):
         self.imagerTab.post_ui_init()
         self.batchTab.post_ui_init()
         self.advancedTab.post_ui_init()
+        self.stitchingTab.post_ui_init()
 
     def keyPressEvent(self, event):
         k = event.key()

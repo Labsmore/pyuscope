@@ -154,9 +154,12 @@ class Planner:
     def wait_unpaused(self):
         if not self.unpaused.is_set():
             self.log('Planner paused')
-            self.unpaused.wait()
+            while True:
+                val = self.unpaused.wait(timeout=0.1)
+                self.check_running()
+                if val:
+                    break
             self.log('Planner unpaused')
-            self.check_running()
 
     def stop(self):
         self.running = False
@@ -242,7 +245,6 @@ class Planner:
     def check_yield(self):
         self.check_running()
         self.wait_unpaused()
-        self.check_running()
 
     def run_pipeline(self, pipeline_list=None, state=None):
         """

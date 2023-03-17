@@ -284,9 +284,13 @@ However, I've been using this workflow for years now, and will probably continue
   * gst-plugin-toupcam: v0.3.1 (WIP)
    * Rev for toupcamsrc automatic resolution detection
   * Motion HAL: GRBL
+ * Significant code restructure (Argus, planner, motion)
  * Config API clean up
  * Argus split into smaller widgets
  * Planner V2 (now plugin based)
+ * Motion HAL V2 (now plugin based)
+ * XY3P algorithm (beta)
+ * Batch imaging (beta)
  * WIP: fix axis soft limit bug
  * WIP: add ability to temporarily override soft limits
- * WIP: reliable Argus launch
+ * Fix GRBL Argus launch bug

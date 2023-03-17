@@ -2,6 +2,8 @@ import json5
 import os
 from collections import OrderedDict
 from uscope.util import writej, readj
+from pathlib import Path
+
 '''
 There is a config directory with two primary config files:
 -microscope.j5: inherent config that doesn't really change
@@ -633,3 +635,35 @@ class GUI(object):
     icon_files['stop'] = os.path.join(
         assets_dir, 'stop_circle_FILL1_wght400_GRAD0_opsz48.png')
     icon_files['logo'] = os.path.join(assets_dir, 'logo.png')
+
+
+"""
+Configuration more related to machine / user than a specific microscope
+"""
+class BaseConfig:
+    def __init__(self, j=None):
+        self.j = j
+
+    def labsmore_stitch_aws_access_key(self):
+        return self.j.get("labsmore_stitch", {}).get("aws_access_key")
+
+    def labsmore_stitch_aws_secret_key(self):
+        return self.j.get("labsmore_stitch", {}).get("aws_secret_key")
+
+    def labsmore_stitch_aws_id_key(self):
+        return self.j.get("labsmore_stitch", {}).get("aws_id_key")
+
+def get_bcj():
+    with open(os.path.join(Path.home(), ".pyuscope")) as f:
+        j = json5.load(f, object_pairs_hook=OrderedDict)
+    return j
+
+bc = None
+def get_bc(j=None):
+    global bc
+
+    if bc is None:
+        if j is None:
+            j = get_bcj()
+        bc = BaseConfig(j=j)
+    return bc

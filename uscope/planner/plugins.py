@@ -653,13 +653,21 @@ class PointGenerator3P(PlannerPlugin):
         for axis in "xyz":
             # Discard constants here and use corners[1] instead
             # At right => use to calculate col dependency
-            self.per_col[axis] = polyfit(
-                (0, self.cols - 1),
-                (self.corners["ll"][axis], self.corners["lr"][axis]), 1)[0]
+            if self.cols == 1:
+                self.per_col[axis] = 0.0
+            else:
+                xs = (0, self.cols - 1)
+                ys = (self.corners["ll"][axis], self.corners["lr"][axis])
+                self.log("per_col xs %s, ys %s" % (xs, ys))
+                self.per_col[axis] = polyfit(xs, ys, 1)[0]
             # At top => use to calculate row dependency
-            self.per_row[axis] = polyfit(
-                (0, self.rows - 1),
-                (self.corners["ll"][axis], self.corners["ul"][axis]), 1)[0]
+            if self.rows == 1:
+                self.per_row[axis] = 0.0
+            else:
+                xs = (0, self.rows - 1)
+                ys = (self.corners["ll"][axis], self.corners["ul"][axis])
+                self.log("per_row xs %s, ys %s" % (xs, ys))
+                self.per_row[axis] = polyfit(xs, ys, 1)[0]
 
         self.itered_xy_points = 0
 
@@ -668,7 +676,7 @@ class PointGenerator3P(PlannerPlugin):
 
     def gen_xycr(self):
         for row in range(self.y.images_actual()):
-            for col in range(self.y.images_actual()):
+            for col in range(self.x.images_actual()):
                 yield (self.calc_pos(col, row), (col, row))
 
     def calc_pos(self, col, row):

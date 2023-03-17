@@ -31,9 +31,19 @@ TODO: should block?
 class MotionThreadMotion(MotionHAL):
     def __init__(self, mt):
         self.mt = mt
+        scalars = None
+        soft_limits = None
+        backlash = None
+        if "scalar" in mt.motion.modifiers:
+            scalars = mt.motion.modifiers["scalar"].scalars
+        if "soft-limit" in mt.motion.modifiers:
+            soft_limits = mt.motion.modifiers["soft-limit"].soft_limits
+        if "backlash" in mt.motion.modifiers:
+            backlash = mt.motion.modifiers["backlash"].backlash
         MotionHAL.__init__(self,
-                           scalars=mt.motion.scalars,
-                           soft_limits=mt.motion.soft_limits,
+                           scalars=scalars,
+                           soft_limits=soft_limits,
+                           backlash=backlash,
                            log=mt.motion.log,
                            verbose=mt.motion.verbose)
 

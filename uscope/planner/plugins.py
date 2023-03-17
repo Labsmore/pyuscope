@@ -7,24 +7,6 @@ from PIL import Image
 from uscope.imager.imager_util import get_scaled
 
 
-def backlash_move_absolute(pos, backlash, direction):
-    """
-    return an absolute move to proceed pos
-
-    pos: move to absolute position after this
-    backlash: amount in each axis
-    direction: which way to compensate
-    """
-
-    # TODO: only do these moves if they are significant
-    bpos = {}
-    for k in pos.keys():
-        # z is not traditionally well defined, hack around
-        ax_backlash = backlash.get(k, 0.0)
-        bpos[k] = pos[k] - direction * ax_backlash
-    return bpos
-
-
 class PlannerAxis:
     def __init__(
         self,
@@ -41,7 +23,6 @@ class PlannerAxis:
         # Inclusive such that 0:0 means image at position 0 only
         start,
         end,
-        backlash,
         log=None):
         if log is None:
 
@@ -68,17 +49,6 @@ class PlannerAxis:
             self.actual_end = start + view_mm
         self.view_mm = view_mm
 
-        # Its actually less than this but it seems it takes some stepping
-        # to get it out of the system
-        self.backlash = backlash
-        '''
-        Backlash compensation
-        0: no compensation
-        -1: compensated for decreasing
-        1: compensated for increasing
-        '''
-        # self.backlash_compensation = 0
-
         # Basic sanity check
         # mm_tol = 0.005 * 25.4
         # Rounding error where things are considered equivalent
@@ -87,8 +57,6 @@ class PlannerAxis:
 
     def meta(self):
         ret = {}
-        ret['backlash_mm'] = self.backlash
-        # ret['backlash_compensation'] = self.backlash_compensation
         ret['step_mm'] = self.step()
         ret['start_mm'] = self.start
         ret['end_mm'] = self.actual_end
@@ -280,7 +248,6 @@ class PointGenerator2P(PlannerPlugin):
                          image_wh[0],
                          start[0],
                          end[0],
-                         backlash=self.planner.backlash["x"],
                          log=self.log)),
             ('y',
              PlannerAxis('Y',
@@ -289,39 +256,13 @@ class PointGenerator2P(PlannerPlugin):
                          image_wh[1],
                          start[1],
                          end[1],
-                         backlash=self.planner.backlash["y"],
                          log=self.log)),
         ])
         self.x = self.axes['x']
         self.y = self.axes['y']
 
-    def backlash_init(self):
-        if self.x.backlash or self.y.backlash:
-            self.motion.move_absolute({
-                'x':
-                self.axes['x'].start - self.x.backlash,
-                'y':
-                self.axes['y'].start - self.y.backlash
-            })
-        self.x.comp = 1
-        self.y.comp = 1
-
-    """
-    Motion controller workarounds
-    Eventually want to integrate better backlash model into motion directly
-    """
-
-    def move_absolute(self, pos):
-        if self.planner.backlash_compensation:
-            bpos = backlash_move_absolute(
-                pos,
-                backlash=self.planner.backlash,
-                direction=self.planner.backlash_compensation)
-            self.motion.move_absolute(bpos)
-        self.motion.move_absolute(pos)
-
     def scan_begin(self, state):
-        self.backlash_init()
+        pass
 
     def filename_part(self):
         """
@@ -472,11 +413,6 @@ class PointGenerator2P(PlannerPlugin):
                 self.log('    ' + str(p))
             raise Exception('See above')
 
-        # the math seems off here. Disabled for now / needs cleanup
-        # self.log("  Z step: %s" % self.stack_step_size)
-        self.log("  Full backlash compensation: %d" %
-                 self.planner.backlash_compensation)
-
         # imgr_mp = self.imager.wh()[0] * self.imager.wh()[1] / 1.e6
         # imagr_mp = self.x.view_pixels * self.y.view_pixels
 
@@ -528,9 +464,6 @@ class PointGenerator2P(PlannerPlugin):
             self.log("    end: %u x,  %us" %
                      (self.x.actual_end, self.y.actual_end))
 
-        self.log("  Backlash: %0.3f x, %0.3f y" %
-                 (self.x.backlash, self.y.backlash))
-
         self.log("  Image size:")
         self.log(
             "    mm: %0.3f x,  %0.3f y => %0.1f mm2" %
@@ -548,45 +481,6 @@ class PointGenerator2P(PlannerPlugin):
         self.log('    Generated positions: %u' % self.n_xy_cache)
         self.log('    step: %0.3f x, %0.3f y' % (self.x.step(), self.y.step()))
 
-    def move_absolute_backlash(self, move_to):
-        '''Do an absolute move with backlash compensation'''
-        if self.planner.backlash_compensation:
-            self.move_absolute(move_to)
-            return
-
-        def fmt_axis(c):
-            if c in move_to:
-                self.max_move[c] = max(self.max_move[c], move_to[c])
-                return '%c: %0.3f' % (c, move_to[c])
-            else:
-                return '%c: none'
-
-        self.log('move_absolute_backlash: %s, %s' %
-                 (fmt_axis('x'), fmt_axis('y')))
-        """
-        Simple model
-        Assume starting at top col and moving down serpentine
-        Need to correct if we are at a new row
-        """
-        axisc = 'x'
-        axis = self.axes[axisc]
-        axis.comp = 0
-        if self.last_row != self.cur_row and self.axes['x'].backlash:
-            blsh_mv = {}
-            blsh_mv['y'] = move_to['y']
-            # Starting at left
-            if self.cur_col == 0:
-                # Go far left
-                blsh_mv[axisc] = move_to[axisc] - axis.backlash
-                axis.comp = 1
-            # Starting at right
-            else:
-                # Go far right
-                blsh_mv[axisc] = move_to[axisc] + axis.backlash
-                axis.comp = -1
-            self.motion.move_absolute(blsh_mv)
-        self.motion.move_absolute(move_to)
-
     def iterate(self, state):
         self.max_move = {'x': 0, 'y': 0}
         self.last_row = None
@@ -599,14 +493,8 @@ class PointGenerator2P(PlannerPlugin):
             self.log('')
             self.log('XY2P: generated point: %u / %u' %
                      (self.itered_xy_points, self.n_xy_cache))
-            """
-            #self.log('', 3)
-            self.log(
-                'comp (%d, %d), pos (%f, %f)' %
-                (self.x.comp, self.y.comp, cur_x, cur_y), 3)
-            """
 
-            self.move_absolute_backlash({'x': cur_x, 'y': cur_y})
+            self.motion.move_absolute({'x': cur_x, 'y': cur_y})
 
             modifiers = {
                 "filename_part": self.filename_part(),
@@ -631,7 +519,7 @@ class PointGenerator2P(PlannerPlugin):
         ret_pos = {'x': retx, 'y': rety}
         # Will be at the end of a stack
         # Put it back where it started
-        self.move_absolute_backlash(ret_pos)
+        self.motion.move_absolute(ret_pos)
 
     def log_scan_end(self):
         self.log('XY2P: generated points: %u / %u' %
@@ -698,10 +586,6 @@ class PlannerStacker(PlannerPlugin):
         # You probably want negative backlash compensation as well
         self.distance = float(config["distance"])
 
-    def scan_begin(self, state):
-        # No backlash compensation needed here since we need to do it every stack
-        pass
-
     def log_run_header(self):
         self.imager.log_planner_header(self.log)
         self.log("Focus stacking from \"%s\"" % self.stacker.start_mode)
@@ -711,28 +595,24 @@ class PlannerStacker(PlannerPlugin):
     def images_expected(self):
         return self.images_per_stack
 
-    """
-    Motion controller workarounds
-    Eventually want to integrate better backlash model into motion directly
-    """
-
-    def move_absolute(self, pos):
-        if self.planner.backlash_compensation:
-            bpos = backlash_move_absolute(
-                pos,
-                backlash=self.planner.backlash,
-                direction=self.planner.backlash_compensation)
-            self.motion.move_absolute(bpos)
-        self.motion.move_absolute(pos)
+    def get_direction(self):
+        direction = -1
+        if "backlash" in self.motion.modifiers["backlash"]:
+            direction = self.motion.modifiers["backlash"].compensation.get(
+                self.axis, -1)
+        if direction == 0:
+            direction = -1
+        return direction
 
     def points(self):
+        direction = self.get_direction()
         if self.start_mode == "center":
             # if self.images_per_stack % 2 != 1:
             #    raise Exception('Center stacking requires odd n')
 
             # Step in the same distance as backlash compensation
             # Start at bottom and move down
-            if self.planner.backlash_compensation > 0:
+            if direction > 0:
                 start = self.start - self.distance / 2
             # Move to the top of the stack and move down
             else:
@@ -745,9 +625,6 @@ class PlannerStacker(PlannerPlugin):
 
         # Step in the same distance as backlash compensation
         # Default down
-        direction = -1
-        if self.planner.backlash_compensation:
-            direction = self.planner.backlash_compensation
         step_distance = self.distance / (self.images_per_stack - 1) * direction
 
         yield "start", {self.axis: start}

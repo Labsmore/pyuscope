@@ -1,4 +1,5 @@
 from uscope.planner.planner import Planner
+from uscope.planner.plugins import register_plugins as _register_plugins
 
 
 def get_objective(usj, objectivei=None, objectivestr=None):

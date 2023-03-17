@@ -1,6 +1,7 @@
 import time
 from uscope.imager.imager import Imager
 import os
+from collections import OrderedDict
 
 
 class AxisExceeded(ValueError):
@@ -34,15 +35,221 @@ def pos_str(pos):
     return ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()])
 
 
+def sign(delta):
+    if delta > 0:
+        return +1
+    else:
+        return -1
+
+
+class MotionModifier:
+    def __init__(self, motion):
+        self.motion = motion
+
+    def move_absolute_pre(self, pos, options={}):
+        pass
+
+    def move_absolute_post(self, ok, options={}):
+        pass
+
+    def move_relative_pre(self, pos, options={}):
+        pass
+
+    def move_relative_post(self, ok, options={}):
+        pass
+
+    def jog(self, scalars, options={}):
+        pass
+
+    def update_status(self, status):
+        """
+        General metadata broadcast
+        """
+        pass
+
+
+'''
+Backlash compensation
+0: no compensation
+-1: compensated for decreasing
++1: compensated for increasing
+'''
+
+
+# TODO: consider simplifying options
+# ex: eliminated enabled if not actually being used
+class BacklashMM(MotionModifier):
+    def __init__(self, motion, backlash):
+        super().__init__(motion)
+
+        # Per axis
+        self.backlash = backlash
+        """
+        Dictionary of axis to bool
+        Default: false
+        """
+        self.enabled = {}
+        """
+        Dictionary of bool to direction
+        -1 => +axis then move backward to position
+        +1 => -axis then move forward to position
+        """
+        self.compensation = {}
+        """
+        Set when the axis is already compensated
+        Can be used to avoid extra backlash compensation when going the same direction
+        """
+        self.compensated = {}
+        for axis in self.motion.axes():
+            self.enabled[axis] = False
+            # Make default since it works well with Z and XY issomewhat arbitrary
+            self.compensation[axis] = -1
+            self.compensated[axis] = False
+        self.recursing = False
+
+    def set_enabled(self, axes):
+        self.enabled = axes
+        self.compensated = {}
+
+    def set_all_enabled(self, val=True):
+        for axis in self.motion.axes():
+            self.enabled[axis] = val
+
+    def set_compendsation(self, compensation):
+        self.compensation = compensation
+        self.compensated = {}
+
+    def move_absolute_pre(self, pos, options={}):
+        if self.recursing:
+            return
+        """
+        Simple model for now:
+        -Assume move completes
+        -Only track when big moves move us into a clear state
+            ie moves need to be bigger than the backlash threshold to count
+        """
+        cur_pos = self.motion.cur_pos_cache()
+        corrections = {}
+        for axis, val in pos.items():
+            if axis not in pos:
+                continue
+            if not self.enabled.get(axis, False):
+                continue
+            if self.backlash[axis] == 0.0:
+                continue
+            # Should this state be disallowed?
+            if self.compensation[axis] == 0:
+                continue
+            delta = val - cur_pos[axis]
+            if delta == 0.0:
+                continue
+
+            # Already compensated and still moving in the same direction?
+            # No compensation necessary
+            if self.compensated[axis] and sign(
+                    delta) == self.compensation[axis]:
+                continue
+            # A correction is possibly needed then
+            # Will the movement itself compensate?
+            if self.compensation[axis] == +1 and delta >= self.backlash[
+                    axis] or self.compensation[
+                        axis] == -1 and delta <= -self.backlash[axis]:
+                self.compensated[axis] = True
+                continue
+            # Need to manually compensate
+            # ex: +compensation => need to do negative backlash move first
+            corrections[axis] = -self.compensation[axis] * self.backlash[axis]
+
+        # Did we calculate any backlash moves?
+        if len(corrections):
+            self.recursing = True
+            self.motion.move_relative(corrections)
+            self.recursing = False
+            for axis in corrections.keys():
+                self.compensated[axis] = True
+
+    def move_relative_pre(self, pos, options={}):
+        if self.recursing:
+            return
+        self.move_absolute_pre(self.motion.estimate_relative_pos(pos))
+
+    def jog(self, scalars, options={}):
+        # Don't modify jog commands, but invalidate compensation
+        for axis in scalars.keys():
+            self.compensated[axis] = False
+
+
+class SoftLimitMM(MotionModifier):
+    def __init__(self, motion, soft_limits):
+        super().__init__(motion)
+        self.soft_limits = soft_limits
+
+    def move_absolute_pre(self, pos, options={}):
+        for axis, axpos in pos.items():
+            limit = self.soft_limits.get(axis)
+            if not limit:
+                continue
+            axmin, axmax = limit
+            if axpos < axmin or axpos > axmax:
+                raise AxisExceeded(
+                    "axis %s: move violates %0.3f <= new pos %0.3f <= %0.3f" %
+                    (axis, axmin, axpos, axmax))
+
+    def move_relative_pre(self, pos, options={}):
+        self.move_absolute_pre(self.motion.estimate_relative_pos(pos))
+
+    def jog(self, scalars, options={}):
+        self.move_absolute_pre(self.motion.estimate_relative_pos(scalars))
+
+
+class ScalarMM(MotionModifier):
+    def __init__(self, motion, scalars):
+        super().__init__(motion)
+        self.scalars = scalars
+
+    def scale_e2i(self, pos):
+        """
+        Scale an external coordinate system to an internal coordinate system
+        External: what user sees
+        Internal: what the machine uses
+        Fixup layer for gearboxes and such
+        """
+        for k, v in dict(pos).items():
+            pos[k] = v * self.scalars.get(k, 1.0)
+
+    def scale_i2e(self, pos):
+        """
+        Opposite of scale_e2i
+        """
+        for k, v in dict(pos).items():
+            pos[k] = v / self.scalars.get(k, 1.0)
+
+    def pos(self, pos):
+        self.scale_i2e(pos)
+
+    def move_absolute_pre(self, pos, options={}):
+        self.scale_e2i(pos)
+
+    def move_relative_pre(self, pos, options={}):
+        self.scale_e2i(pos)
+
+    def update_status(self, status):
+        if "pos" in status:
+            self.scale_i2e(status["pos"])
+
+
 class MotionHAL:
-    def __init__(self, scalars=None, soft_limits=None, log=None, verbose=None):
+    def __init__(self,
+                 scalars=None,
+                 soft_limits=None,
+                 backlash=None,
+                 log=None,
+                 verbose=None):
         # Per axis? Currently is global
         self.jog_rate = 0
         self.stop_on_del = True
 
-        self.scalars = scalars
         # dict containing (min, min) for each axis
-        self.soft_limits = soft_limits
         if log is None:
 
             def log(msg='', lvl=2):
@@ -52,15 +259,28 @@ class MotionHAL:
             int(os.getenv("MOTION_VERBOSE", "0")))
 
         self.log = log
-        # seconds to wait before snapping picture
-        self.t_settle = 4.0
-        self.rt_sleep = 0.0
 
         # Overwrite to get updates while moving
         # (if supported)
         # self.progress = lambda pos: None
         self.status_cbs = []
         self.mv_lastt = time.time()
+
+        # MotionModifier's
+        self.modifiers = OrderedDict()
+        """
+        Order is important
+        Do soft limits after backlash in case backlash compensation would cause a crash
+        Scalar is applied last since its a low level detail
+        Inputs will be applied in forward order, outputs in reverse order
+        """
+        if backlash:
+            self.modifiers["backlash"] = BacklashMM(self, backlash=backlash)
+        if soft_limits:
+            self.modifiers["soft-limit"] = SoftLimitMM(self,
+                                                       soft_limits=soft_limits)
+        if scalars:
+            self.modifiers["scalar"] = ScalarMM(self, scalars=scalars)
 
     def __del__(self):
         self.close()
@@ -80,9 +300,21 @@ class MotionHAL:
         """
         self.status_cbs.append(cb)
 
+    def cur_pos_cache(self):
+        """
+        Intended to be used during modifiers operations to keep pos() queries low
+        (since it can be expensive)
+        """
+        if self._cur_pos_cache is None:
+            self._cur_pos_cache = self.pos()
+        return self._cur_pos_cache
+
+    def cur_pos_cache_invalidate(self):
+        self._cur_pos_cache = None
+
     def update_status(self, status):
-        if "pos" in status:
-            status["pos"] = self.scale_i2e(status["pos"])
+        for modifier in self.modifiers.values():
+            modifier.update_status(status)
         for cb in self.status_cbs:
             cb(status)
 
@@ -103,82 +335,67 @@ class MotionHAL:
         '''Return to origin'''
         self.move_absolute(dict([(k, 0.0) for k in self.axes()]))
 
-    def scale_e2i(self, pos):
-        """
-        Scale an external coordinate system to an internal coordinate system
-        External: what user sees
-        Internal: what the machine uses
-        Fixup layer for gearboxes and such
-        """
-        if not self.scalars:
-            return pos
-        ret = {}
-        for k, v in pos.items():
-            ret[k] = v * self.scalars.get(k, 1.0)
-        return ret
-
-    def scale_i2e(self, pos):
-        """
-        Opposite of scale_e2i
-        """
-        if not self.scalars:
-            return pos
-        ret = {}
-        for k, v in pos.items():
-            ret[k] = v / self.scalars.get(k, 1.0)
-        return ret
-
     def pos(self):
         '''Return current position for all axes'''
-        return self.scale_i2e(self._pos())
+        pos = self._pos()
+        for modifier in self.modifiers.values():
+            modifier.pos(pos)
+        return pos
 
     def _pos(self):
         '''Return current position for all axes'''
         raise NotSupported("Required for planner")
 
-    def move_absolute(self, pos):
+    def move_absolute(self, pos, options={}):
         '''Absolute move to positions specified by pos dict'''
         if len(pos) == 0:
             return
         self.validate_axes(pos.keys())
-        if self.soft_limits:
-            for axis, axpos in pos.items():
-                limit = self.soft_limits.get(axis)
-                if not limit:
-                    continue
-                axmin, axmax = limit
-                if axpos < axmin or axpos > axmax:
-                    raise AxisExceeded(
-                        "axis %s: absolute violates %0.3f <= new pos %0.3f <= %0.3f"
-                        % (axis, axmin, axpos, axmax))
         self.verbose and print("motion: move_absolute(%s)" % (pos_str(pos)))
-        return self._move_absolute(self.scale_e2i(pos))
+        try:
+            self.cur_pos_cache_invalidate()
+            for modifier in self.modifiers.values():
+                modifier.move_absolute_pre(pos, options=options)
+            _ret = self._move_absolute(pos)
+            for modifier in self.modifiers.values():
+                modifier.move_absolute_post(True, options=options)
+            self.mv_lastt = time.time()
+        finally:
+            self.cur_pos_cache_invalidate()
+        # return ret
 
     def _move_absolute(self, pos):
         '''Absolute move to positions specified by pos dict'''
         raise NotSupported("Required for planner")
 
-    def move_relative(self, pos):
+    def update_backlash(self, cur_pos, abs_pos):
+        pass
+
+    def estimate_relative_pos(self, pos):
+        abs_pos = {}
+        cur_pos = self.pos()
+        for axis, axdelta in pos.items():
+            abs_pos[axis] = cur_pos[axis] + axdelta
+        return abs_pos
+
+    def move_relative(self, pos, options={}):
         '''Absolute move to positions specified by pos dict'''
         if len(pos) == 0:
             return
         self.validate_axes(pos.keys())
-        if self.soft_limits:
-            cur_pos = self.pos()
-            for axis, axdelta in pos.items():
-                limit = self.soft_limits.get(axis)
-                if not limit:
-                    continue
-                axmin, axmax = limit
-                axpos = cur_pos[axis] + axdelta
-                # New position under min and making worse?
-                # New position above max and making worse?
-                if axpos < axmin and axpos < 0 or axpos > axmax and axpos > 0:
-                    raise AxisExceeded(
-                        "axis %s: delta %+0.3f violates %0.3f <= new pos %0.3f <= %0.3f"
-                        % (axis, axdelta, axmin, axpos, axmax))
+
         self.verbose and print("motion: move_relative(%s)" % (pos_str(pos)))
-        return self._move_relative(self.scale_e2i(pos))
+        self.cur_pos_cache_invalidate()
+        try:
+            for modifier in self.modifiers.values():
+                modifier.move_relative_pre(pos, options=options)
+            _ret = self._move_relative(pos)
+            for modifier in self.modifiers.values():
+                modifier.move_relative_post(True, options=options)
+            self.mv_lastt = time.time()
+        finally:
+            self.cur_pos_cache_invalidate()
+        # return ret
 
     def _move_relative(self, delta):
         '''Relative move to positions specified by delta dict'''
@@ -190,7 +407,7 @@ class MotionHAL:
                 raise ValueError("Got axis %s but expect axis in %s" %
                                  (axis, self.axes()))
 
-    def jog(self, scalars):
+    def jog(self, scalars, options={}):
         """
         scalars: generally either +1 or -1 per axis to jog
         Final value is globally multiplied by the jog_rate and individually by the axis scalar
@@ -199,23 +416,14 @@ class MotionHAL:
         # Always allow moving away from the bad area though if we are already in there
         if len(scalars) == 0:
             return
-        self.validate_axes(scalars.keys())
-        if self.soft_limits:
-            cur_pos = self.pos()
-            for axis, scalar in scalars.items():
-                limit = self.soft_limits.get(axis)
-                if not limit:
-                    continue
-                axmin, axmax = limit
-                axpos = cur_pos[axis] + scalar
-                # New position under min and making worse?
-                # New position above max and making worse?
-                if axpos < axmin and scalar < 0 or axpos > axmax and scalar > 0:
-                    raise AxisExceeded(
-                        "axis %s: jog %+0.3f violates %0.3f <= new pos %0.3f <= %0.3f"
-                        % (axis, scalar, axmin, axpos, axmax))
-
-        self._jog(self.scale_e2i(scalars))
+        self.cur_pos_cache_invalidate()
+        try:
+            self.validate_axes(scalars.keys())
+            for modifier in self.modifiers.values():
+                modifier.jog(scalars, options=options)
+            self._jog(scalars)
+        finally:
+            self.cur_pos_cache_invalidate()
 
     def _jog(self, axes):
         '''
@@ -272,12 +480,6 @@ class MotionHAL:
     def meta(self):
         '''Supplementary info to add to run log'''
         return {}
-
-    def settle(self):
-        '''Check last move time and wait if its not safe to take picture'''
-        sleept = self.t_settle + self.mv_lastt - time.time()
-        if sleept > 0.0:
-            time.sleep(sleept)
 
     def limit(self, axes=None):
         # FIXME: why were dummy values put here?
@@ -357,15 +559,27 @@ Ex: inherits movement
 
 class DryHal(MotionHAL):
     def __init__(self, hal, log=None):
-        super().__init__(log)
-
         self.hal = hal
-        self.scalars = hal.scalars
 
         self._posd = {}
         # Assume starting at 0.0 until causes problems
         for axis in self.axes():
             self._posd[axis] = 0.0
+
+        scalars = None
+        soft_limits = None
+        backlash = None
+        if "scalar" in hal.modifiers:
+            scalars = hal.modifiers["scalar"].scalars
+        if "soft-limit" in hal.modifiers:
+            soft_limits = hal.modifiers["soft-limit"].soft_limits
+        if "backlash" in hal.modifiers:
+            backlash = hal.modifiers["backlash"].backlash
+        super().__init__(scalars=scalars,
+                         soft_limits=soft_limits,
+                         backlash=backlash,
+                         log=log,
+                         verbose=hal.verbose)
 
     def _log(self, msg):
         self.log('Dry: ' + msg)

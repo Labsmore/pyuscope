@@ -90,8 +90,6 @@ class Planner:
         if not self.motion:
             self.log("WARNING: no mention")
         self.pc.motion.set_axes_meta(self.motion.axes())
-        self.backlash_compensation = self.pc.motion.backlash_compensation()
-        self.backlash = self.pc.motion.backlash()
 
         self.imager = imager
         if not self.motion:
@@ -198,7 +196,6 @@ class Planner:
                 self.log('Creating output directory %s' % self.out_dir)
                 os.mkdir(self.out_dir)
         # self.motion.begin()
-        # Do initial backlash compensation
         state = {
             "type": "begin",
             "images_to_capture": self.images_expected(),

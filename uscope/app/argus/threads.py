@@ -1,7 +1,4 @@
 from uscope.planner.planner_util import get_planner
-import boto3
-import io
-import os
 from uscope.benchmark import Benchmark
 from uscope.motion.hal import AxisExceeded, MotionHAL
 from PyQt5.QtCore import QThread, pyqtSignal

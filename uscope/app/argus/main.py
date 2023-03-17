@@ -3,13 +3,13 @@
 from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gui.control_scrolls import get_control_scroll
 from uscope.util import add_bool_arg
-from uscope.config import get_usj, USC, PC
+from uscope.config import get_usj, USC, PC, get_bc
 from uscope.imager.imager_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
 from uscope.motion.plugins import get_motion_hal
-from uscope.app.argus.threads import MotionThread, PlannerThread, StitcherThread
+from uscope.app.argus.threads import MotionThread, PlannerThread, StitcherThread, boto3
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import util
 from uscope import config
@@ -1338,7 +1338,8 @@ class StitchingTab(ArgusTab):
             row += 1
 
             layout.addWidget(QLabel("Notification Email Address"), row, 0)
-            self.stitch_email = QLineEdit("")
+            self.stitch_email = QLineEdit(
+                self.ac.bc.labsmore_stitch_notification_email())
             reg_ex = QRegExp("\\b[A-z0-9._%+-]+@[A-z0-9.-]+\\.[A-z]{2,4}\\b")
             input_validator = QRegExpValidator(reg_ex, self.stitch_email)
             self.stitch_email.setValidator(input_validator)
@@ -1362,6 +1363,10 @@ class StitchingTab(ArgusTab):
         row += 1
 
         self.setLayout(layout)
+
+    def post_ui_init(self):
+        if not boto3:
+            self.log("WARNING: CloudStitch unavailible (require boto3)")
 
     def stitch_begin_manual(self):
         self.stitch_begin(str(self.manual_stitch_dir.text()))
@@ -1813,6 +1818,7 @@ class ArgusCommon(QObject):
         self.microscope = microscope
         self.usj = get_usj(name=microscope)
         self.usc = USC(usj=self.usj)
+        self.bc = get_bc()
 
         self.scan_configs = None
         self.imager = None

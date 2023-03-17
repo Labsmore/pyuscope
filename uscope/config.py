@@ -654,6 +654,9 @@ class BaseConfig:
     def labsmore_stitch_aws_id_key(self):
         return self.j.get("labsmore_stitch", {}).get("aws_id_key")
 
+    def labsmore_stitch_notification_email(self):
+        return self.j.get("labsmore_stitch", {}).get("notification_email")
+
 
 def get_bcj():
     with open(os.path.join(Path.home(), ".pyuscope")) as f:

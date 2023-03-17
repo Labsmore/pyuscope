@@ -855,7 +855,8 @@ class GrblHal(MotionHAL):
         self.grbl.set_qstatus_updated_cb(self.qstatus_updated)
 
     def qstatus_updated(self, status):
-        self.update_status({"pos": status["MPos"]})
+        # careful this will get modified up the stack
+        self.update_status({"pos": dict(status["MPos"])})
 
     def axes(self):
         return {'x', 'y', 'z'}

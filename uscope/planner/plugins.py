@@ -559,6 +559,8 @@ class PointGenerator2P(PlannerPlugin):
 PoC using much more restrictive parameters than PointGenerator2P:
 -Only ll origin supported
 -Will overscan if needed in lieu of shrinking canvas
+
+TODO: consider leaving Z along if all three points are the same or is omitted entirely
 """
 
 
@@ -574,6 +576,12 @@ class PointGenerator3P(PlannerPlugin):
         -lower left (origin)
         -lower right
         """
+        self.setup_bounds()
+        self.setup_axes()
+        self.calc_per_rc()
+        self.itered_xy_points = 0
+
+    def setup_bounds(self):
         corners = self.pc.j["points-xy3p"]["corners"]
         assert len(corners) == 3
         pos0 = self.planner.motion.pos()
@@ -598,6 +606,7 @@ class PointGenerator3P(PlannerPlugin):
             self.log("  %c: %0.3f to %0.3f" %
                      (axis, self.ax_min[axis], self.ax_max[axis]))
 
+    def setup_axes(self):
         x_mm = self.pc.x_view()
         image_wh = self.planner.image_wh()
         mm_per_pix = x_mm / image_wh[0]
@@ -607,28 +616,50 @@ class PointGenerator3P(PlannerPlugin):
         Revisit later / as figure out something better
         The actual soution might involve some trig to get linear distances
         """
+        if 0:
+            x_min = self.ax_min["x"]
+            x_max = self.ax_max["x"]
+            y_min = self.ax_min["y"]
+            y_max = self.ax_max["y"]
+        else:
+            # The actual coordinates aren't used directly
+            # Think of it as a different coordinate space
+            # Just get the magnitude correct so it can calculate effective rows/cols
+            x_min = 0.0
+            y_min = 0.0
+
+            def xy_distance(p1, p2):
+                return ((p1["x"] - p2["x"])**2 + (p1["y"] - p2["y"])**2)**0.5
+
+            # absolute min/max isn't correct as we are tracking skew
+            # however these should be accurate
+            x_max = xy_distance(self.corners["ll"], self.corners["lr"])
+            y_max = xy_distance(self.corners["ll"], self.corners["ul"])
+
         self.axes = OrderedDict([
             ('x',
              PlannerAxis('X',
                          self.pc.ideal_overlap("x"),
                          image_wh_mm[0],
                          image_wh[0],
-                         self.ax_min["x"],
-                         self.ax_max["x"],
+                         x_min,
+                         x_max,
                          log=self.log)),
             ('y',
              PlannerAxis('Y',
                          self.pc.ideal_overlap("y"),
                          image_wh_mm[1],
                          image_wh[1],
-                         self.ax_min["y"],
-                         self.ax_max["y"],
+                         y_min,
+                         y_max,
                          log=self.log)),
         ])
         self.x = self.axes['x']
         self.y = self.axes['y']
         self.cols = self.x.images_actual()
         self.rows = self.y.images_actual()
+
+    def calc_per_rc(self):
         """
         Next: calculate linear solution
         Need to get dependence of xyz on row and column
@@ -668,8 +699,6 @@ class PointGenerator3P(PlannerPlugin):
                 ys = (self.corners["ll"][axis], self.corners["ul"][axis])
                 self.log("per_row xs %s, ys %s" % (xs, ys))
                 self.per_row[axis] = polyfit(xs, ys, 1)[0]
-
-        self.itered_xy_points = 0
 
     def images_expected(self):
         return self.rows * self.cols

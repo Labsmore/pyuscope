@@ -573,6 +573,7 @@ class XYPlanner3PWidget(PlannerWidget):
     def update_pos(self, pos):
         # FIXME: this is causing screen flickering
         # https://github.com/Labsmore/pyuscope/issues/34
+        # self.ac.log("update_pos(), %s" % (pos,))
         for axis, axis_pos in pos.items():
             # hack...not all systems use z but is included by default
             if axis == 'z' and axis not in self.axis_pos_label:

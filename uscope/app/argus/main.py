@@ -1318,19 +1318,22 @@ class StitchingTab(ArgusTab):
 
             layout.addWidget(QLabel("AccessKey"), row, 0)
             # Is there a reasonable default here?
-            self.stitch_accesskey = QLineEdit("")
+            self.stitch_accesskey = QLineEdit(
+                self.ac.bc.labsmore_stitch_aws_access_key())
             layout.addWidget(self.stitch_accesskey, row, 1)
             row += 1
 
             layout.addWidget(QLabel("SecretKey"), row, 0)
-            self.stitch_secretkey = QLineEdit("")
+            self.stitch_secretkey = QLineEdit(
+                self.ac.bc.labsmore_stitch_aws_secret_key())
             self.stitch_secretkey.setEchoMode(QLineEdit.Password)
             layout.addWidget(self.stitch_secretkey, row, 1)
             row += 1
 
             layout.addWidget(QLabel("IDKey"), row, 0)
             # Is there a reasonable default here?
-            self.stitch_idkey = QLineEdit("")
+            self.stitch_idkey = QLineEdit(
+                self.ac.bc.labsmore_stitch_aws_id_key())
             layout.addWidget(self.stitch_idkey, row, 1)
             row += 1
 

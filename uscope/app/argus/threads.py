@@ -4,13 +4,18 @@ import io
 import os
 from uscope.benchmark import Benchmark
 from uscope.motion.hal import AxisExceeded, MotionHAL
+from PyQt5.QtCore import QThread, pyqtSignal
 import traceback
-
+try:
+    import boto3
+except ImportError:
+    boto3 = None
+import datetime
+import io
+import os
 import queue
 import threading
-from PyQt5.QtCore import QThread, pyqtSignal
 import time
-import datetime
 
 
 def dbg(*args):
@@ -367,18 +372,29 @@ class StitcherThread(QThread):
     def run(self):
         try:
             self.log("Sending cloud stitching job...")
+            if not boto3:
+                raise Exception("Requires boto3 library")
             S3BUCKET = 'labsmore-mosaic-service'
-            DEST_DIR = self.id_key + '/' + os.path.basename(os.path.abspath(self.directory))
-            s3 = boto3.client('s3', aws_access_key_id=self.access_key, aws_secret_access_key=self.secret_key)
+            DEST_DIR = self.id_key + '/' + os.path.basename(
+                os.path.abspath(self.directory))
+            s3 = boto3.client('s3',
+                              aws_access_key_id=self.access_key,
+                              aws_secret_access_key=self.secret_key)
 
             for root, _, files in os.walk(self.directory):
                 for file in files:
-                    self.log('Uploading {} to {}/{} '.format(os.path.join(root, file), S3BUCKET, DEST_DIR + '/' + file))
-                    s3.upload_file(os.path.join(root, file), S3BUCKET, DEST_DIR + '/' + file)
+                    self.log('Uploading {} to {}/{} '.format(
+                        os.path.join(root, file), S3BUCKET,
+                        DEST_DIR + '/' + file))
+                    s3.upload_file(os.path.join(root, file), S3BUCKET,
+                                   DEST_DIR + '/' + file)
 
-            MOSAIC_RUN_CONTENT = u'{{ "email": "{}" }}'.format(self.notification_email)
-            mosaic_run_json = io.BytesIO(bytes(MOSAIC_RUN_CONTENT, encoding='utf8'))
-            s3.upload_fileobj(mosaic_run_json, S3BUCKET, DEST_DIR + '/' + 'mosaic_run.json')
+            MOSAIC_RUN_CONTENT = u'{{ "email": "{}" }}'.format(
+                self.notification_email)
+            mosaic_run_json = io.BytesIO(
+                bytes(MOSAIC_RUN_CONTENT, encoding='utf8'))
+            s3.upload_fileobj(mosaic_run_json, S3BUCKET,
+                              DEST_DIR + '/' + 'mosaic_run.json')
             self.log("Sent stitching job.")
         except Exception as e:
             self.log('WARNING: stitcher thread crashed: %s' % str(e))

@@ -3,7 +3,6 @@ import os
 from collections import OrderedDict
 from uscope.util import writej, readj
 from pathlib import Path
-
 '''
 There is a config directory with two primary config files:
 -microscope.j5: inherent config that doesn't really change
@@ -640,6 +639,8 @@ class GUI(object):
 """
 Configuration more related to machine / user than a specific microscope
 """
+
+
 class BaseConfig:
     def __init__(self, j=None):
         self.j = j
@@ -653,12 +654,16 @@ class BaseConfig:
     def labsmore_stitch_aws_id_key(self):
         return self.j.get("labsmore_stitch", {}).get("aws_id_key")
 
+
 def get_bcj():
     with open(os.path.join(Path.home(), ".pyuscope")) as f:
         j = json5.load(f, object_pairs_hook=OrderedDict)
     return j
 
+
 bc = None
+
+
 def get_bc(j=None):
     global bc
 

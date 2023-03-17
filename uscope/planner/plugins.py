@@ -561,7 +561,7 @@ class PlannerStacker(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
         # Most users will want to stack on z
-        config = self.planner.pc.pconfig["stack"]
+        config = self.planner.pc.j["points-stacker"]
         self.axis = config.get("axis", "z")
         # Position where stacking is relative to
         # If None will be initialized at start of run
@@ -588,16 +588,16 @@ class PlannerStacker(PlannerPlugin):
 
     def log_scan_begin(self):
         self.imager.log_planner_header(self.log)
-        self.log("Focus stacking from \"%s\"" % self.stacker.start_mode)
-        self.log("  Images: %s" % self.stacker.images_per_stack)
-        self.log("  Distance: %0.3f" % self.stacker.distance)
+        self.log("Focus stacking from \"%s\"" % self.start_mode)
+        self.log("  Images: %s" % self.images_per_stack)
+        self.log("  Distance: %0.3f" % self.distance)
 
     def images_expected(self):
         return self.images_per_stack
 
     def get_direction(self):
         direction = -1
-        if "backlash" in self.motion.modifiers["backlash"]:
+        if "backlash" in self.motion.modifiers:
             direction = self.motion.modifiers["backlash"].compensation.get(
                 self.axis, -1)
         if direction == 0:
@@ -640,6 +640,7 @@ class PlannerStacker(PlannerPlugin):
         image_number = 0
         for ptype, point in self.points():
             if ptype == "start":
+                # XXX: with new backlash model we can probably remove this
                 self.planner.motion.move_absolute(point)
             elif ptype == "point":
                 image_number += 1

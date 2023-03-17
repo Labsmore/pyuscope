@@ -46,6 +46,9 @@ class MotionModifier:
     def __init__(self, motion):
         self.motion = motion
 
+    def pos(self, pos):
+        pass
+
     def move_absolute_pre(self, pos, options={}):
         pass
 
@@ -79,7 +82,7 @@ Backlash compensation
 # TODO: consider simplifying options
 # ex: eliminated enabled if not actually being used
 class BacklashMM(MotionModifier):
-    def __init__(self, motion, backlash):
+    def __init__(self, motion, backlash, compensation):
         super().__init__(motion)
 
         # Per axis
@@ -94,16 +97,16 @@ class BacklashMM(MotionModifier):
         -1 => +axis then move backward to position
         +1 => -axis then move forward to position
         """
-        self.compensation = {}
+        self.compensation = compensation
         """
         Set when the axis is already compensated
         Can be used to avoid extra backlash compensation when going the same direction
         """
         self.compensated = {}
         for axis in self.motion.axes():
-            self.enabled[axis] = False
+            self.enabled[axis] = True
             # Make default since it works well with Z and XY issomewhat arbitrary
-            self.compensation[axis] = -1
+            self.compensation.setdefault(axis, -1)
             self.compensated[axis] = False
         self.recursing = False
 
@@ -239,12 +242,7 @@ class ScalarMM(MotionModifier):
 
 
 class MotionHAL:
-    def __init__(self,
-                 scalars=None,
-                 soft_limits=None,
-                 backlash=None,
-                 log=None,
-                 verbose=None):
+    def __init__(self, options, log=None, verbose=None):
         # Per axis? Currently is global
         self.jog_rate = 0
         self.stop_on_del = True
@@ -274,11 +272,17 @@ class MotionHAL:
         Scalar is applied last since its a low level detail
         Inputs will be applied in forward order, outputs in reverse order
         """
+        self.options = options
+        backlash = self.options.get("backlash")
         if backlash:
-            self.modifiers["backlash"] = BacklashMM(self, backlash=backlash)
+            backlash_compensation = self.options.get("backlash_compensation")
+            self.modifiers["backlash"] = BacklashMM(
+                self, backlash=backlash, compensation=backlash_compensation)
+        soft_limits = self.options.get("soft_limits")
         if soft_limits:
             self.modifiers["soft-limit"] = SoftLimitMM(self,
                                                        soft_limits=soft_limits)
+        scalars = self.options.get("scalars")
         if scalars:
             self.modifiers["scalar"] = ScalarMM(self, scalars=scalars)
 
@@ -566,20 +570,11 @@ class DryHal(MotionHAL):
         for axis in self.axes():
             self._posd[axis] = 0.0
 
-        scalars = None
-        soft_limits = None
-        backlash = None
-        if "scalar" in hal.modifiers:
-            scalars = hal.modifiers["scalar"].scalars
-        if "soft-limit" in hal.modifiers:
-            soft_limits = hal.modifiers["soft-limit"].soft_limits
-        if "backlash" in hal.modifiers:
-            backlash = hal.modifiers["backlash"].backlash
-        super().__init__(scalars=scalars,
-                         soft_limits=soft_limits,
-                         backlash=backlash,
-                         log=log,
-                         verbose=hal.verbose)
+        super().__init__(
+            # Don't re-apply pipeline
+            options={},
+            log=log,
+            verbose=hal.verbose)
 
     def _log(self, msg):
         self.log('Dry: ' + msg)

@@ -8,7 +8,10 @@ A minimal configuration to do basic testing
     },
     "motion": {
         "hal": "grbl-ser",
+
         "backlash": 0.05,
+        "backlash_compensation": -1,
+
         "grbl": {
             "rc": [
                 //intentionally starts locked
@@ -36,11 +39,16 @@ A minimal configuration to do basic testing
                 "G54",
             ],
         },
-        "backlash_compensation": -1,
         "scalars": {
             "x": 1.0,
             "y": 1.0,
             "z": 5.0,
+        },
+        "soft_limits": {
+            "xmin": -370.0,
+            "xmax": +370.0,
+            "ymin": -280.0,
+            "ymax": +280.0,
         },
     },
     //25MP

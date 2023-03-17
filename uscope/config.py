@@ -278,7 +278,7 @@ class USCMotion:
         Backlash ("slop") defines the amount of motion needed in one axis to engage motion
         if previously going the other direction
         """
-        default_backlash = None
+        default_backlash = 0.0
         backlash = self.j.get("backlash", {})
         ret = {}
         if backlash is None:
@@ -293,8 +293,6 @@ class USCMotion:
 
         # If axes are known validate and add defaults
         if self.axes_meta:
-            if default_backlash is None:
-                default_backlash = 0.0
             # If axes were registered, set defaults
             for k in self.axes_meta:
                 if not k in ret:
@@ -309,9 +307,27 @@ class USCMotion:
         0 => none
         -1: move positive along axis then negative to final position
         """
-        ret = int(self.j.get("backlash_compensation", 0))
-        if ret not in (-1, 0, 1):
-            raise ValueError("Invalid backlash_compensation: %s" % (ret, ))
+
+        default_backlash = 0
+        backlash = self.j.get("backlash_compensation", {})
+        ret = {}
+        if backlash is None:
+            pass
+        elif type(backlash) is int:
+            default_backlash = backlash
+        elif type(backlash) in (dict, OrderedDict):
+            for axis, v in backlash.items():
+                ret[axis] = int(v)
+        else:
+            raise Exception("Invalid backlash compensation: %s" % (backlash, ))
+
+        # If axes are known validate and add defaults
+        if self.axes_meta:
+            # If axes were registered, set defaults
+            for k in self.axes_meta:
+                if not k in ret:
+                    ret[k] = default_backlash
+
         return ret
 
     def origin(self):
@@ -336,7 +352,18 @@ class USCMotion:
 
         Useful if your system doesn't easily support soft or hard limits
         """
-        ret = self.j.get("soft_limits", {})
+        raw = self.j.get("soft_limits", None)
+        if raw is None:
+            return None
+
+        ret = {}
+        for axis in self.axes_meta:
+            axmin = raw.get(axis + "min")
+            axmax = raw.get(axis + "max")
+            if axmin is not None or axmax is not None:
+                axmin = axmin if axmin else 0.0
+                axmax = axmax if axmax else 0.0
+                ret[axis] = (axmin, axmax)
         self.validate_axes_dict(ret)
         return ret
 

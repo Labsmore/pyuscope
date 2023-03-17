@@ -106,6 +106,7 @@ class Planner:
             self.pipeline = self.make_pipeline(pipeline_names)
         else:
             raise ValueError("Need pipeline")
+        self.log("Planner pipeline: %s" % (self.pipeline.keys(), ))
 
         self.progress_callbacks = []
 

@@ -33,7 +33,7 @@ class MotionThreadMotion(MotionHAL):
         self.mt = mt
         MotionHAL.__init__(
             self,
-            # Don't re-apply pipeline
+            # Don't re-apply pipeline (scaling, etc)
             options={},
             log=mt.motion.log,
             verbose=mt.motion.verbose)
@@ -176,6 +176,7 @@ class MotionThread(QThread):
         self.motion.on()
 
         def motion_status(status):
+            # print("register_status_cb: via motion-status: %s" % (status,))
             self.pos_cache = status["pos"]
 
         self.motion.register_status_cb(motion_status)
@@ -228,7 +229,9 @@ class MotionThread(QThread):
                     return self.motion.pos()
 
                 def update_pos_cache():
-                    self.pos_cache = self.motion.pos()
+                    pos = self.motion.pos()
+                    self.pos_cache = pos
+                    # print("register_status_cb: via update_pos_cache: %s" % (pos,))
 
                 self.verbose and print("")
                 self.verbose and print(

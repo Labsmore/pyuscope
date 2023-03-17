@@ -18,7 +18,8 @@ def microscope_to_planner_config(usj,
                                  objective=None,
                                  objectivestr=None,
                                  objectivei=None,
-                                 contour=None):
+                                 contour=None,
+                                 corners=None):
     if objective is None:
         objective = get_objective(usj=usj,
                                   objectivei=objectivei,
@@ -28,11 +29,17 @@ def microscope_to_planner_config(usj,
             "x_view": objective["x_view"],
         },
         "motion": {},
-        # was scan.json
-        "points-xy2p": {
+    }
+
+    if contour is not None:
+        ret["points-xy2p"] = {
             "contour": contour,
         }
-    }
+    if corners is not None:
+        ret["points-xy3p"] = {
+            "corners": corners,
+        }
+    assert "points-xy2p" in ret or "points-xy3p" in ret, (contour, corners)
 
     v = usj["imager"].get("scalar")
     if v:
@@ -79,7 +86,10 @@ def get_planner(pconfig,
                 verbosity=None):
     pipeline_names = []
 
-    pipeline_names.append("points-xy2p")
+    if "points-xy2p" in pconfig:
+        pipeline_names.append("points-xy2p")
+    if "points-xy3p" in pconfig:
+        pipeline_names.append("points-xy3p")
     if "points-stacker" in pconfig:
         pipeline_names.append("points-stacker")
     # FIXME: needs review / testing

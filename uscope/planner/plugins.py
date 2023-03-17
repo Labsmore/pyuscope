@@ -5,6 +5,10 @@ import time
 from uscope.planner.plugin import PlannerPlugin, register_plugin
 from PIL import Image
 from uscope.imager.imager_util import get_scaled
+try:
+    from scipy import polyfit
+except ImportError:
+    scipy = None
 
 
 class PlannerAxis:
@@ -187,12 +191,97 @@ class SamplePointGenerator(PlannerPlugin):
                 yield modifiers, replace_keys
 
 
+def log_scan_xy_begin(self):
+    # A true useful metric of efficieny loss is how many extra pictures we had to take
+    # Maybe overhead is a better way of reporting it
+    ideal_n_pictures = self.x.images_ideal() * self.y.images_ideal()
+    expected_n_pictures = self.x.images_actual() * self.y.images_actual()
+    self.log(
+        '  Ideally taking %g pictures (%g X %g) but actually taking %d (%d X %d), %0.1f%% efficient'
+        % (ideal_n_pictures, self.x.images_ideal(), self.y.images_ideal(),
+           expected_n_pictures, self.x.images_actual(), self.y.images_actual(),
+           ideal_n_pictures / expected_n_pictures * 100.0), 2)
+
+    for axisc, axis in self.axes.items():
+        self.log('  Axis %s' % axisc)
+        self.log('    %f to %f' % (axis.start, axis.actual_end), 2)
+        self.log(
+            '    Ideal overlap: %f, actual %g' %
+            (self.pc.ideal_overlap(axisc), axis.actual_overlap()), 2)
+        self.log('    full delta: %f' % (axis.requested_delta_mm()), 2)
+        self.log('    view: %d pix' % (axis.view_pixels, ), 2)
+        self.log('    border: %f' % self.pc.border())
+
+    # imgr_mp = self.imager.wh()[0] * self.imager.wh()[1] / 1.e6
+    # imagr_mp = self.x.view_pixels * self.y.view_pixels
+
+    def pix_str(pixels):
+        pixels = pixels / 1e6
+        if pixels >= 1000:
+            return "%0.1f GP" % (pixels / 1000, )
+        else:
+            return "%0.1f MP" % (pixels, )
+
+    """
+    Print separate if small pano forces adjusting bounds
+    This is rare as panos are usually significantly larger than the image sensor
+
+    Pano size (requested/actual):
+       mm: 112.200 x,  75.306 y => 8449.3 mm2
+       pix: 2725 x,  1829 y => 5.0 MP
+    """
+    complex_pano_size = (
+        self.x.requested_delta_pixels(), self.y.requested_delta_pixels()) != (
+            self.x.actual_delta_pixels(), self.y.actual_delta_pixels())
+    if complex_pano_size:
+        self.log("  Pano requested size:")
+    else:
+        self.log("  Pano size (requested/actual):")
+    self.log("    mm: %0.3f x,  %0.3f y => %0.1f mm2" %
+             (self.x.requested_delta_mm(), self.y.requested_delta_mm(),
+              self.x.requested_delta_mm() * self.y.requested_delta_mm()))
+    self.log("    pix: %u x,  %u y => %s" %
+             (self.x.requested_delta_pixels(), self.y.requested_delta_pixels(),
+              pix_str(self.x.requested_delta_pixels() *
+                      self.y.requested_delta_pixels())))
+    if complex_pano_size:
+        self.log("    end: %u x,  %us" %
+                 (self.x.requested_end, self.y.requested_end))
+
+    if complex_pano_size:
+        self.log("  Pano actual size:")
+        self.log("    mm: %0.3f x,  %0.3f y => %0.1f mm2" %
+                 (self.x.actual_delta_mm(), self.y.actual_delta_mm(),
+                  self.x.actual_delta_mm() * self.y.actual_delta_mm()))
+        self.log("    pix: %u x,  %u y => %s" %
+                 (self.x.actual_delta_pixels(), self.y.actual_delta_pixels(),
+                  pix_str(self.x.actual_delta_pixels() *
+                          self.y.actual_delta_pixels())))
+        self.log("    end: %u x,  %us" %
+                 (self.x.actual_end, self.y.actual_end))
+
+    self.log("  Image size:")
+    self.log("    mm: %0.3f x,  %0.3f y => %0.1f mm2" %
+             (self.x.view_mm, self.y.view_mm, self.x.view_mm * self.y.view_mm))
+    self.log("    pix: %u x,  %u y => %0.1f MP" %
+             (self.x.view_pixels, self.y.view_pixels,
+              self.x.view_pixels * self.y.view_pixels / 1e6))
+    self.log("  Derived:")
+    self.log('    Ideal pictures: %0.1f x, %0.1f y => %0.1f' %
+             (self.x.images_ideal(), self.y.images_ideal(),
+              self.x.images_ideal() * self.y.images_ideal()))
+    self.log('    Actual pictures: %u x, %u y => %u' %
+             (self.x.images_actual(), self.y.images_actual(),
+              self.x.images_actual() * self.y.images_actual()))
+    self.log('    Generated positions: %u' % self.points_expected())
+    self.log('    step: %0.3f x, %0.3f y' % (self.x.step(), self.y.step()))
+
+
 class PointGenerator2P(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
         start, end = self.init_contour()
         self.init_axes(start, end)
-        self.n_xy_cache = self.n_xy()
         # Total number of images_actual taken
         # self.all_imgs = 0
         # Number of images_actual taken at unique x, y coordinates
@@ -364,122 +453,23 @@ class PointGenerator2P(PlannerPlugin):
                 return True
         return False
 
-    def n_xy(self):
-        '''Number of unique x, y coordinates'''
-        return len(list(self.gen_xys()))
-
     def gen_xys(self):
         for (x, y), _cr in self.gen_xycr():
             yield (x, y)
 
+    def points_expected(self):
+        return self.rows * self.cols
+
     def images_expected(self):
-        return self.n_xy_cache
+        return self.rows * self.cols
 
     def log_scan_begin(self):
-        # FIXME
         self.log("XY2P")
         self.log("  Origin: %s" % self.origin)
-        # A true useful metric of efficieny loss is how many extra pictures we had to take
-        # Maybe overhead is a better way of reporting it
-        ideal_n_pictures = self.x.images_ideal() * self.y.images_ideal()
-        expected_n_pictures = self.x.images_actual() * self.y.images_actual()
-        self.log(
-            '  Ideally taking %g pictures (%g X %g) but actually taking %d (%d X %d), %0.1f%% efficient'
-            % (ideal_n_pictures, self.x.images_ideal(), self.y.images_ideal(),
-               expected_n_pictures, self.x.images_actual(),
-               self.y.images_actual(),
-               ideal_n_pictures / expected_n_pictures * 100.0), 2)
-
-        for axisc, axis in self.axes.items():
-            self.log('  Axis %s' % axisc)
-            self.log('    %f to %f' % (axis.start, axis.actual_end), 2)
-            self.log(
-                '    Ideal overlap: %f, actual %g' %
-                (self.pc.ideal_overlap(axisc), axis.actual_overlap()), 2)
-            self.log('    full delta: %f' % (axis.requested_delta_mm()), 2)
-            self.log('    view: %d pix' % (axis.view_pixels, ), 2)
-            self.log('    border: %f' % self.pc.border())
-
+        log_scan_xy_begin(self)
         # Try actually generating the points and see if it matches how many we thought we were going to get
         if self.pc.exclude():
             self.log("  ROI exclusions active")
-        elif self.n_xy_cache != expected_n_pictures:
-            self.log(
-                '  Going to take %d pictures but thought was going to take %d pictures (x %d X y %d)'
-                % (self.n_xy_cache, expected_n_pictures,
-                   self.x.images_actual(), self.y.images_actual()))
-            self.log('  Points:')
-            for p in self.gen_xys():
-                self.log('    ' + str(p))
-            raise Exception('See above')
-
-        # imgr_mp = self.imager.wh()[0] * self.imager.wh()[1] / 1.e6
-        # imagr_mp = self.x.view_pixels * self.y.view_pixels
-
-        def pix_str(pixels):
-            pixels = pixels / 1e6
-            if pixels >= 1000:
-                return "%0.1f GP" % (pixels / 1000, )
-            else:
-                return "%0.1f MP" % (pixels, )
-
-        """
-        Print separate if small pano forces adjusting bounds
-        This is rare as panos are usually significantly larger than the image sensor
-
-        Pano size (requested/actual):
-           mm: 112.200 x,  75.306 y => 8449.3 mm2
-           pix: 2725 x,  1829 y => 5.0 MP
-        """
-        complex_pano_size = (self.x.requested_delta_pixels(),
-                             self.y.requested_delta_pixels()) != (
-                                 self.x.actual_delta_pixels(),
-                                 self.y.actual_delta_pixels())
-        if complex_pano_size:
-            self.log("  Pano requested size:")
-        else:
-            self.log("  Pano size (requested/actual):")
-        self.log("    mm: %0.3f x,  %0.3f y => %0.1f mm2" %
-                 (self.x.requested_delta_mm(), self.y.requested_delta_mm(),
-                  self.x.requested_delta_mm() * self.y.requested_delta_mm()))
-        self.log(
-            "    pix: %u x,  %u y => %s" %
-            (self.x.requested_delta_pixels(), self.y.requested_delta_pixels(),
-             pix_str(self.x.requested_delta_pixels() *
-                     self.y.requested_delta_pixels())))
-        if complex_pano_size:
-            self.log("    end: %u x,  %us" %
-                     (self.x.requested_end, self.y.requested_end))
-
-        if complex_pano_size:
-            self.log("  Pano actual size:")
-            self.log("    mm: %0.3f x,  %0.3f y => %0.1f mm2" %
-                     (self.x.actual_delta_mm(), self.y.actual_delta_mm(),
-                      self.x.actual_delta_mm() * self.y.actual_delta_mm()))
-            self.log(
-                "    pix: %u x,  %u y => %s" %
-                (self.x.actual_delta_pixels(), self.y.actual_delta_pixels(),
-                 pix_str(self.x.actual_delta_pixels() *
-                         self.y.actual_delta_pixels())))
-            self.log("    end: %u x,  %us" %
-                     (self.x.actual_end, self.y.actual_end))
-
-        self.log("  Image size:")
-        self.log(
-            "    mm: %0.3f x,  %0.3f y => %0.1f mm2" %
-            (self.x.view_mm, self.y.view_mm, self.x.view_mm * self.y.view_mm))
-        self.log("    pix: %u x,  %u y => %0.1f MP" %
-                 (self.x.view_pixels, self.y.view_pixels,
-                  self.x.view_pixels * self.y.view_pixels / 1e6))
-        self.log("  Derived:")
-        self.log('    Ideal pictures: %0.1f x, %0.1f y => %0.1f' %
-                 (self.x.images_ideal(), self.y.images_ideal(),
-                  self.x.images_ideal() * self.y.images_ideal()))
-        self.log('    Actual pictures: %u x, %u y => %u' %
-                 (self.x.images_actual(), self.y.images_actual(),
-                  self.x.images_actual() * self.y.images_actual()))
-        self.log('    Generated positions: %u' % self.n_xy_cache)
-        self.log('    step: %0.3f x, %0.3f y' % (self.x.step(), self.y.step()))
 
     def iterate(self, state):
         self.max_move = {'x': 0, 'y': 0}
@@ -492,7 +482,7 @@ class PointGenerator2P(PlannerPlugin):
             self.itered_xy_points += 1
             self.log('')
             self.log('XY2P: generated point: %u / %u' %
-                     (self.itered_xy_points, self.n_xy_cache))
+                     (self.itered_xy_points, self.points_expected()))
 
             self.motion.move_absolute({'x': cur_x, 'y': cur_y})
 
@@ -523,17 +513,17 @@ class PointGenerator2P(PlannerPlugin):
 
     def log_scan_end(self):
         self.log('XY2P: generated points: %u / %u' %
-                 (self.itered_xy_points, self.n_xy_cache))
+                 (self.itered_xy_points, self.points_expected()))
         self.log('  Max x: %0.3f, y: %0.3f' %
                  (self.max_move['x'], self.max_move['y']))
         #self.log('  G0 X%0.3f Y%0.3f' %
         #         (self.max_move['x'], self.max_move['y']))
         # excluded points should not be in counts
         # if len(self.pc.j.get('exclude', [])) == 0 and self.itered_xy_points != self.n_xy_cache:
-        if self.itered_xy_points != self.n_xy_cache:
+        if self.itered_xy_points != self.points_expected():
             raise Exception(
                 'pictures taken mismatch (taken: %d, to take: %d)' %
-                (self.itered_xy_points, self.n_xy_cache))
+                (self.itered_xy_points, self.points_expected()))
 
     def gen_meta(self, meta):
         points = OrderedDict()
@@ -544,11 +534,213 @@ class PointGenerator2P(PlannerPlugin):
         for axisc, axis in self.axes.items():
             axes[axisc] = axis.meta()
         meta["points-xy2p"] = {
-            'points_to_generate': self.n_xy_cache,
+            'points_to_generate': self.points_expected(),
             'points_generated': self.itered_xy_points,
             "points": points,
             "axes": axes,
         }
+
+
+"""
+PoC using much more restrictive parameters than PointGenerator2P:
+-Only ll origin supported
+-Will overscan if needed in lieu of shrinking canvas
+
+TODO: consider leaving Z along if all three points are the same or is omitted entirely
+"""
+
+
+class PointGenerator3P(PlannerPlugin):
+    def __init__(self, planner):
+        super().__init__(planner=planner)
+        """
+        x,y must be defined
+        z is optional
+        
+        corners:
+        -upper left
+        -lower left (origin)
+        -lower right
+        """
+        self.setup_bounds()
+        self.setup_axes()
+        self.calc_per_rc()
+        self.itered_xy_points = 0
+
+    def setup_bounds(self):
+        corners = self.pc.j["points-xy3p"]["corners"]
+        assert len(corners) == 3
+        pos0 = self.planner.motion.pos()
+        self.corners = {}
+        self.ax_min = {}
+        self.ax_max = {}
+        self.log("Corners")
+        for cornerk, corner in corners.items():
+            corner = dict(corner)
+            corner.setdefault("z", pos0["z"])
+            self.log("  %s x=%0.3f, y=%0.3f, z=%0.3f" %
+                     (cornerk, corner["x"], corner["y"], corner["z"]))
+            self.corners[cornerk] = corner
+            for ax in "xyz":
+                self.ax_min[ax] = min(self.ax_min.get(ax, +float('inf')),
+                                      corner[ax])
+                self.ax_max[ax] = max(self.ax_max.get(ax, -float('inf')),
+                                      corner[ax])
+
+        self.log("Bounding box")
+        for axis in "xyz":
+            self.log("  %c: %0.3f to %0.3f" %
+                     (axis, self.ax_min[axis], self.ax_max[axis]))
+
+    def setup_axes(self):
+        x_mm = self.pc.x_view()
+        image_wh = self.planner.image_wh()
+        mm_per_pix = x_mm / image_wh[0]
+        image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
+        """
+        Assuming angles are small this should be a good approximation
+        Revisit later / as figure out something better
+        The actual soution might involve some trig to get linear distances
+        """
+        if 0:
+            x_min = self.ax_min["x"]
+            x_max = self.ax_max["x"]
+            y_min = self.ax_min["y"]
+            y_max = self.ax_max["y"]
+        else:
+            # The actual coordinates aren't used directly
+            # Think of it as a different coordinate space
+            # Just get the magnitude correct so it can calculate effective rows/cols
+            x_min = 0.0
+            y_min = 0.0
+
+            def xy_distance(p1, p2):
+                return ((p1["x"] - p2["x"])**2 + (p1["y"] - p2["y"])**2)**0.5
+
+            # absolute min/max isn't correct as we are tracking skew
+            # however these should be accurate
+            x_max = xy_distance(self.corners["ll"], self.corners["lr"])
+            y_max = xy_distance(self.corners["ll"], self.corners["ul"])
+
+        self.axes = OrderedDict([
+            ('x',
+             PlannerAxis('X',
+                         self.pc.ideal_overlap("x"),
+                         image_wh_mm[0],
+                         image_wh[0],
+                         x_min,
+                         x_max,
+                         log=self.log)),
+            ('y',
+             PlannerAxis('Y',
+                         self.pc.ideal_overlap("y"),
+                         image_wh_mm[1],
+                         image_wh[1],
+                         y_min,
+                         y_max,
+                         log=self.log)),
+        ])
+        self.x = self.axes['x']
+        self.y = self.axes['y']
+        self.cols = self.x.images_actual()
+        self.rows = self.y.images_actual()
+
+    def calc_per_rc(self):
+        """
+        Next: calculate linear solution
+        Need to get dependence of xyz on row and column
+        Do this by assuming self.corners[1] as origin and using linear parameters from above
+
+        The three points form a plane
+        However as we have two angles vs origin the linear solution is slightly overconstrained
+        Calculate both and average them maybe
+        Or maybe just take one for now
+        """
+        """
+        dy = self.corners[2]["y"] - self.corners[1]["y"]
+        dx = self.corners[2]["x"] - self.corners[1]["x"]
+        # corner2 should be to the right
+        assert dx > 0
+        """
+
+        # Compute one axis as a time
+        # Dependence of x on col
+        self.per_col = {}
+        self.per_row = {}
+        for axis in "xyz":
+
+            def corner_trim(corner):
+                """
+                Need to be linear across movement so take out image size
+                """
+                ret = dict(self.corners[corner])
+                if corner == "ul":
+                    ret["y"] -= self.y.view_mm
+                if corner == "lr":
+                    ret["x"] -= self.x.view_mm
+                return ret
+
+            # Discard constants here and use corners[1] instead
+            # At right => use to calculate col dependency
+            if self.cols == 1:
+                self.per_col[axis] = 0.0
+            else:
+                xs = (0, self.cols - 1)
+                ys = (self.corners["ll"][axis], corner_trim("lr")[axis])
+                self.log("per_col xs %s, ys %s" % (xs, ys))
+                self.per_col[axis] = polyfit(xs, ys, 1)[0]
+            # At top => use to calculate row dependency
+            if self.rows == 1:
+                self.per_row[axis] = 0.0
+            else:
+                xs = (0, self.rows - 1)
+                ys = (self.corners["ll"][axis], corner_trim("ul")[axis])
+                self.log("per_row xs %s, ys %s" % (xs, ys))
+                self.per_row[axis] = polyfit(xs, ys, 1)[0]
+
+    def points_expected(self):
+        return self.rows * self.cols
+
+    def images_expected(self):
+        return self.rows * self.cols
+
+    def gen_xycr(self):
+        for row in range(self.y.images_actual()):
+            for col in range(self.x.images_actual()):
+                yield (self.calc_pos(col, row), (col, row))
+
+    def calc_pos(self, col, row):
+        ret = {}
+        for axis in "xyz":
+            ret[axis] = self.per_row[axis] * row + self.per_col[
+                axis] * col + self.corners["ll"][axis]
+        return ret
+
+    def iterate(self, state):
+        for row in range(self.rows):
+            for col in range(self.cols):
+                self.log('')
+                pos = self.calc_pos(col, row)
+                self.itered_xy_points += 1
+                self.log(
+                    "XY3P: %u / %u @ c=%u, r=%u, x=%0.3f, y=%0.3f, z=%0.3f" %
+                    (self.itered_xy_points, self.images_expected(), col, row,
+                     pos["x"], pos["y"], pos["z"]))
+                self.motion.move_absolute(pos)
+
+                modifiers = {
+                    "filename_part": 'c%03u_r%03u' % (col, row),
+                }
+                replace_keys = {}
+                yield modifiers, replace_keys
+
+    def scan_end(self, state):
+        # Return to start position
+        self.motion.move_absolute(self.corners["ll"])
+
+    def log_scan_begin(self):
+        self.log("XY3P")
+        log_scan_xy_begin(self)
 
 
 """
@@ -694,7 +886,6 @@ class PlannerKinematics(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
         self.tsettle = self.pc.tsettle()
-        self.tsettle = 0.1
 
     def log_scan_begin(self):
         self.log("tsettle: %0.2f" % self.tsettle)
@@ -817,6 +1008,7 @@ class PlannerScraper(PlannerPlugin):
 
 def register_plugins():
     register_plugin("points-xy2p", PointGenerator2P)
+    register_plugin("points-xy3p", PointGenerator3P)
     register_plugin("points-stacker", PlannerStacker)
     # FIXME: needs review / testing
     # register_plugin("hdr", PlannerHDR)

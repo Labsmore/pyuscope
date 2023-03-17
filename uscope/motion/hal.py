@@ -45,6 +45,7 @@ def sign(delta):
 class MotionModifier:
     def __init__(self, motion):
         self.motion = motion
+        self.log = self.motion.log
 
     def pos(self, pos):
         pass
@@ -71,12 +72,9 @@ class MotionModifier:
         pass
 
 
-'''
-Backlash compensation
-0: no compensation
--1: compensated for decreasing
-+1: compensated for increasing
-'''
+"""
+Do active backlash compensation on absolute and relative moves
+"""
 
 
 # TODO: consider simplifying options
@@ -137,6 +135,7 @@ class BacklashMM(MotionModifier):
             if axis not in pos:
                 continue
             if not self.enabled.get(axis, False):
+                self.compensated[axis] = False
                 continue
             if self.backlash[axis] == 0.0:
                 continue
@@ -160,6 +159,16 @@ class BacklashMM(MotionModifier):
                         axis] == -1 and delta <= -self.backlash[axis]:
                 self.compensated[axis] = True
                 continue
+
+            if 1 and axis == "z":
+                self.log("z comp trig ")
+                self.log("  compensation: %s" % (self.compensation[axis], ))
+                self.log("  backlash: %f" % (self.backlash[axis], ))
+                self.log("  compensated: %s" % (self.compensated[axis], ))
+                self.log("  delta: %f" % (delta, ))
+                self.log("  val: %f" % (val, ))
+                self.log("  cur_pos: %f" % (cur_pos[axis], ))
+
             # Need to manually compensate
             # ex: +compensation => need to do negative backlash move first
             corrections[axis] = -self.compensation[axis] * self.backlash[axis]
@@ -175,12 +184,19 @@ class BacklashMM(MotionModifier):
     def move_relative_pre(self, pos, options={}):
         if self.recursing:
             return
-        self.move_absolute_pre(self.motion.estimate_relative_pos(pos))
+        self.move_absolute_pre(
+            self.motion.estimate_relative_pos(
+                pos, cur_pos=self.motion.cur_pos_cache()))
 
     def jog(self, scalars, options={}):
         # Don't modify jog commands, but invalidate compensation
         for axis in scalars.keys():
             self.compensated[axis] = False
+
+
+"""
+Throw an exception if axis out of expected range
+"""
 
 
 class SoftLimitMM(MotionModifier):
@@ -200,10 +216,19 @@ class SoftLimitMM(MotionModifier):
                     (axis, axmin, axpos, axmax))
 
     def move_relative_pre(self, pos, options={}):
-        self.move_absolute_pre(self.motion.estimate_relative_pos(pos))
+        self.move_absolute_pre(
+            self.motion.estimate_relative_pos(
+                pos, cur_pos=self.motion.cur_pos_cache()))
 
     def jog(self, scalars, options={}):
-        self.move_absolute_pre(self.motion.estimate_relative_pos(scalars))
+        self.move_absolute_pre(
+            self.motion.estimate_relative_pos(
+                scalars, cur_pos=self.motion.cur_pos_cache()))
+
+
+"""
+Scale axes such as for a gearbox or to reverse direction
+"""
 
 
 class ScalarMM(MotionModifier):
@@ -229,7 +254,9 @@ class ScalarMM(MotionModifier):
             pos[k] = v / self.scalars.get(k, 1.0)
 
     def pos(self, pos):
+        # print('pos scaling1 %s' % pos)
         self.scale_i2e(pos)
+        # print('pos scaling2 %s' % pos)
 
     def move_absolute_pre(self, pos, options={}):
         self.scale_e2i(pos)
@@ -239,7 +266,9 @@ class ScalarMM(MotionModifier):
 
     def update_status(self, status):
         if "pos" in status:
+            # print('status scaling1 %s' % status["pos"])
             self.scale_i2e(status["pos"])
+            # print('status scaling2 %s' % status["pos"])
 
 
 class MotionHAL:
@@ -318,10 +347,12 @@ class MotionHAL:
         self._cur_pos_cache = None
 
     def update_status(self, status):
+        # print("update_status begin: %s" % (status,))
         for modifier in self.modifiers.values():
             modifier.update_status(status)
         for cb in self.status_cbs:
             cb(status)
+        # print("update_status end: %s" % (status,))
 
     def close(self):
         # Most users want system to idle if they lose control
@@ -340,11 +371,17 @@ class MotionHAL:
         '''Return to origin'''
         self.move_absolute(dict([(k, 0.0) for k in self.axes()]))
 
-    def pos(self):
-        '''Return current position for all axes'''
-        pos = self._pos()
+    def process_pos(self, pos):
+        # print("pos init %s" % (pos,))
         for modifier in self.modifiers.values():
             modifier.pos(pos)
+        # print("pos final %s" % (pos,))
+
+    def pos(self):
+        '''Return current position for all axes'''
+        # print("")
+        pos = self._pos()
+        self.process_pos(pos)
         return pos
 
     def _pos(self):
@@ -376,9 +413,10 @@ class MotionHAL:
     def update_backlash(self, cur_pos, abs_pos):
         pass
 
-    def estimate_relative_pos(self, pos):
+    def estimate_relative_pos(self, pos, cur_pos=None):
         abs_pos = {}
-        cur_pos = self.pos()
+        if cur_pos is None:
+            cur_pos = self.pos()
         for axis, axdelta in pos.items():
             abs_pos[axis] = cur_pos[axis] + axdelta
         return abs_pos

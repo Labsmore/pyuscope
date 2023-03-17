@@ -14,6 +14,7 @@ from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import config
 from uscope.motion import motion_util
 import json
+from collections import OrderedDict
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -469,6 +470,197 @@ class XYPlanner2PWidget(PlannerWidget):
         self.plan_y1_le.setText('%0.3f' % y1)
 
 
+class XYPlanner3PWidget(PlannerWidget):
+    def __init__(self, ac, scan_widget, objective_widget, parent=None):
+        super().__init__(ac=ac,
+                         scan_widget=scan_widget,
+                         objective_widget=objective_widget,
+                         parent=parent)
+
+    def initUI(self):
+        gl = QGridLayout()
+        row = 0
+
+        gl.addWidget(QLabel("X (mm)"), row, 1)
+        gl.addWidget(QLabel("Y (mm)"), row, 2)
+        gl.addWidget(QLabel("Z (mm)"), row, 3)
+        row += 1
+
+        self.axis_pos_label = {}
+        gl.addWidget(QLabel("Current"), row, 0)
+        label = QLabel("?")
+        gl.addWidget(label, row, 1)
+        self.axis_pos_label['x'] = label
+        label = QLabel("?")
+        gl.addWidget(label, row, 2)
+        self.axis_pos_label['y'] = label
+        label = QLabel("?")
+        gl.addWidget(label, row, 3)
+        self.axis_pos_label['z'] = label
+        row += 1
+
+        self.corner_widgets = OrderedDict()
+
+        def make_corner_widget(key, button_text):
+            pb = QPushButton(button_text)
+
+            def clicked():
+                self.corner_clicked(key)
+
+            pb.clicked.connect(clicked)
+            gl.addWidget(pb, row, 0)
+            x_le = QLineEdit("")
+            gl.addWidget(x_le, row, 1)
+            y_le = QLineEdit("")
+            gl.addWidget(y_le, row, 2)
+            z_le = QLineEdit("")
+            gl.addWidget(z_le, row, 3)
+            self.corner_widgets[key] = {
+                "pb": pb,
+                "x_le": x_le,
+                "y_le": y_le,
+                "z_le": z_le,
+            }
+
+        make_corner_widget("ll", "Lower left")
+        row += 1
+        make_corner_widget("ul", "Upper left")
+        row += 1
+        make_corner_widget("lr", "Lower right")
+        row += 1
+
+        self.setLayout(gl)
+
+    def corner_clicked(self, key):
+        pos_cur = self.ac.motion_thread.pos_cache
+        widgets = self.corner_widgets[key]
+
+        x_view = self.x_view()
+        im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
+        y_view = 1.0 * x_view * im_h_pix / im_w_pix
+
+        # End position has to include the sensor size
+        pos = dict(pos_cur)
+        if key == "ll":
+            pass
+        elif key == "ul":
+            pos["y"] += y_view
+        elif key == "lr":
+            pos["x"] += x_view
+        else:
+            assert 0
+
+        widgets["x_le"].setText('%0.3f' % pos['x'])
+        widgets["y_le"].setText('%0.3f' % pos['y'])
+        widgets["z_le"].setText('%0.3f' % pos['z'])
+
+    def post_ui_init(self):
+        self.position_poll_timer = QTimer()
+        self.position_poll_timer.timeout.connect(self.poll_update_pos)
+        self.position_poll_timer.start(200)
+
+    def poll_update_pos(self):
+        last_pos = self.ac.motion_thread.pos_cache
+        if last_pos:
+            self.update_pos(last_pos)
+        # FIXME: hack to avoid concurrency issues with planner and motion thread fighting
+        # merge them together?
+        if not self.ac.pt:
+            self.ac.motion_thread.update_pos_cache()
+        # 400 => 100: allow more frequent updates now that flicker issue is solved
+        self.position_poll_timer.start(100)
+
+    def update_pos(self, pos):
+        # FIXME: this is causing screen flickering
+        # https://github.com/Labsmore/pyuscope/issues/34
+        # self.ac.log("update_pos(), %s" % (pos,))
+        for axis, axis_pos in pos.items():
+            # hack...not all systems use z but is included by default
+            if axis == 'z' and axis not in self.axis_pos_label:
+                continue
+            self.axis_pos_label[axis].setText('%0.3f' % axis_pos)
+
+    def mk_corner_json(self):
+        corners = OrderedDict()
+        for name, widgets in self.corner_widgets.items():
+            try:
+                x = float(widgets["x_le"].text())
+                y = float(widgets["y_le"].text())
+                z = float(widgets["z_le"].text())
+            except ValueError:
+                self.ac.log("Bad scan x/y")
+                return None
+            corners[name] = {"x": x, "y": y, "z": z}
+
+        return corners
+
+    def get_current_scan_config(self):
+        corner_json = self.mk_corner_json()
+        if not corner_json:
+            return
+
+        objective = self.get_objective()
+        pconfig = microscope_to_planner_config(self.ac.usj,
+                                               objective=objective,
+                                               corners=corner_json)
+
+        self.ac.update_pconfig(pconfig)
+
+        # Ignored app specific metadata
+        pconfig["app"] = {
+            "app": "argus",
+            "objective": objective,
+            "microscope": self.ac.microscope,
+        }
+
+        out_dir = self.get_out_dir()
+        if os.path.exists(out_dir):
+            self.ac.log("Refusing to create config: dir already exists: %s" %
+                        out_dir)
+            return None
+
+        return {
+            "pconfig": pconfig,
+            "out_dir": out_dir,
+        }
+
+    def set_start_pos(self):
+        '''
+        try:
+            lex = float(self.plan_x0_le.text())
+        except ValueError:
+            self.ac.log('WARNING: bad X value')
+
+        try:
+            ley = float(self.plan_y0_le.text())
+        except ValueError:
+            self.ac.log('WARNING: bad Y value')
+        '''
+        # take as upper left corner of view area
+        # this is the current XY position
+        pos = self.ac.motion_thread.pos_cache
+        #self.ac.log("Updating start pos w/ %s" % (str(pos)))
+        self.plan_x0_le.setText('%0.3f' % pos['x'])
+        self.plan_y0_le.setText('%0.3f' % pos['y'])
+
+    def x_view(self):
+        # XXX: maybe put better abstraction on this
+        return self.objective_widget.obj_config["x_view"]
+
+    def set_end_pos(self):
+        # take as lower right corner of view area
+        # this is the current XY position + view size
+        pos = self.ac.motion_thread.pos_cache
+        #self.ac.log("Updating end pos from %s" % (str(pos)))
+        x_view = self.x_view()
+        im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
+        y_view = 1.0 * x_view * im_h_pix / im_w_pix
+        x1 = pos['x'] + x_view
+        y1 = pos['y'] + y_view
+        self.plan_x1_le.setText('%0.3f' % x1)
+        self.plan_y1_le.setText('%0.3f' % y1)
+
+
 """
 Monitors the current scan
 Set output job name
@@ -736,10 +928,17 @@ class MainTab(ArgusTab):
             ac=ac,
             go_currnet_pconfig=self.go_currnet_pconfig,
             setControlsEnabled=self.setControlsEnabled)
-        self.planner_widget = XYPlanner2PWidget(
-            ac=ac,
-            scan_widget=self.scan_widget,
-            objective_widget=self.objective_widget)
+        # FIXME: integrate better
+        if os.getenv("XY3P") == "Y":
+            self.planner_widget = XYPlanner3PWidget(
+                ac=ac,
+                scan_widget=self.scan_widget,
+                objective_widget=self.objective_widget)
+        else:
+            self.planner_widget = XYPlanner2PWidget(
+                ac=ac,
+                scan_widget=self.scan_widget,
+                objective_widget=self.objective_widget)
 
         self.motion_widget = MotionWidget(ac=self.ac,
                                           motion_thread=self.ac.motion_thread,
@@ -759,7 +958,10 @@ class MainTab(ArgusTab):
         def get_axes_gb():
             layout = QVBoxLayout()
             # TODO: support other planner sources (ex: 3 point)
-            self.planner_widget_tabs.addTab(self.planner_widget, "XY2P")
+            if os.getenv("XY3P") == "Y":
+                self.planner_widget_tabs.addTab(self.planner_widget, "XY3P")
+            else:
+                self.planner_widget_tabs.addTab(self.planner_widget, "XY2P")
             layout.addWidget(self.planner_widget_tabs)
             layout.addWidget(self.motion_widget)
             gb = QGroupBox("Motion")

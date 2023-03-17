@@ -5,6 +5,10 @@ import time
 from uscope.planner.plugin import PlannerPlugin, register_plugin
 from PIL import Image
 from uscope.imager.imager_util import get_scaled
+try:
+    from scipy import polyfit
+except ImportError:
+    scipy = None
 
 
 class PlannerAxis:
@@ -552,6 +556,148 @@ class PointGenerator2P(PlannerPlugin):
 
 
 """
+PoC using much more restrictive parameters than PointGenerator2P:
+-Only ll origin supported
+-Will overscan if needed in lieu of shrinking canvas
+"""
+
+
+class PointGenerator3P(PlannerPlugin):
+    def __init__(self, planner):
+        super().__init__(planner=planner)
+        """
+        x,y must be defined
+        z is optional
+        
+        corners:
+        -upper left
+        -lower left (origin)
+        -lower right
+        """
+        corners = self.pc.j["points-xy3p"]["corners"]
+        assert len(corners) == 3
+        pos0 = self.planner.motion.pos()
+        self.corners = {}
+        self.ax_min = {}
+        self.ax_max = {}
+        self.log("Corners")
+        for cornerk, corner in corners.items():
+            corner = dict(corner)
+            corner.setdefault("z", pos0["z"])
+            self.log("  %s x=%0.3f, y=%0.3f, z=%0.3f" %
+                     (cornerk, corner["x"], corner["y"], corner["z"]))
+            self.corners[cornerk] = corner
+            for ax in "xyz":
+                self.ax_min[ax] = min(self.ax_min.get(ax, +float('inf')),
+                                      corner[ax])
+                self.ax_max[ax] = max(self.ax_max.get(ax, -float('inf')),
+                                      corner[ax])
+
+        self.log("Bounding box")
+        for axis in "xyz":
+            self.log("  %c: %0.3f to %0.3f" %
+                     (axis, self.ax_min[axis], self.ax_max[axis]))
+
+        x_mm = self.pc.x_view()
+        image_wh = self.planner.image_wh()
+        mm_per_pix = x_mm / image_wh[0]
+        image_wh_mm = (image_wh[0] * mm_per_pix, image_wh[1] * mm_per_pix)
+        """
+        Assuming angles are small this should be a good approximation
+        Revisit later / as figure out something better
+        The actual soution might involve some trig to get linear distances
+        """
+        self.axes = OrderedDict([
+            ('x',
+             PlannerAxis('X',
+                         self.pc.ideal_overlap("x"),
+                         image_wh_mm[0],
+                         image_wh[0],
+                         self.ax_min["x"],
+                         self.ax_max["x"],
+                         log=self.log)),
+            ('y',
+             PlannerAxis('Y',
+                         self.pc.ideal_overlap("y"),
+                         image_wh_mm[1],
+                         image_wh[1],
+                         self.ax_min["y"],
+                         self.ax_max["y"],
+                         log=self.log)),
+        ])
+        self.x = self.axes['x']
+        self.y = self.axes['y']
+        self.cols = self.x.images_actual()
+        self.rows = self.y.images_actual()
+        """
+        Next: calculate linear solution
+        Need to get dependence of xyz on row and column
+        Do this by assuming self.corners[1] as origin and using linear parameters from above
+
+        The three points form a plane
+        However as we have two angles vs origin the linear solution is slightly overconstrained
+        Calculate both and average them maybe
+        Or maybe just take one for now
+        """
+        """
+        dy = self.corners[2]["y"] - self.corners[1]["y"]
+        dx = self.corners[2]["x"] - self.corners[1]["x"]
+        # corner2 should be to the right
+        assert dx > 0
+        """
+
+        # Compute one axis as a time
+        # Dependence of x on col
+        self.per_col = {}
+        self.per_row = {}
+        for axis in "xyz":
+            # Discard constants here and use corners[1] instead
+            # At right => use to calculate col dependency
+            self.per_col[axis] = polyfit(
+                (0, self.cols - 1),
+                (self.corners["ll"][axis], self.corners["lr"][axis]), 1)[0]
+            # At top => use to calculate row dependency
+            self.per_row[axis] = polyfit(
+                (0, self.rows - 1),
+                (self.corners["ll"][axis], self.corners["ul"][axis]), 1)[0]
+
+        self.itered_xy_points = 0
+
+    def images_expected(self):
+        return self.rows * self.cols
+
+    def gen_xycr(self):
+        for row in range(self.y.images_actual()):
+            for col in range(self.y.images_actual()):
+                yield (self.calc_pos(col, row), (col, row))
+
+    def calc_pos(self, col, row):
+        ret = {}
+        for axis in "xyz":
+            ret[axis] = self.per_row[axis] * row + self.per_col[
+                axis] * col + self.corners["ll"][axis]
+        return ret
+
+    def iterate(self, state):
+        for row in range(self.rows):
+            for col in range(self.cols):
+                self.log('')
+                pos = self.calc_pos(col, row)
+                self.itered_xy_points += 1
+                self.log(
+                    "XY3P: %u / %u @ c=%u, r=%u, x=%0.3f, y=%0.3f, z=%0.3f" %
+                    (self.itered_xy_points, self.images_expected(), col, row,
+                     pos["x"], pos["y"], pos["z"]))
+                self.motion.move_absolute(pos)
+
+                modifiers = {
+                    "filename_part": 'c%03u_r%03u' % (col, row),
+                }
+                replace_keys = {}
+                yield modifiers, replace_keys
+
+
+"""
 Focus around Z axis
 """
 
@@ -817,6 +963,7 @@ class PlannerScraper(PlannerPlugin):
 
 def register_plugins():
     register_plugin("points-xy2p", PointGenerator2P)
+    register_plugin("points-xy3p", PointGenerator3P)
     register_plugin("points-stacker", PlannerStacker)
     # FIXME: needs review / testing
     # register_plugin("hdr", PlannerHDR)

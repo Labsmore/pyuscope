@@ -8,6 +8,7 @@ from uscope.planner.planner_util import microscope_to_planner_config, get_planne
 from uscope.motion.plugins import get_motion_hal
 from uscope.util import default_date_dir
 import os
+from collections import OrderedDict
 
 
 def main():
@@ -21,6 +22,11 @@ def main():
     parser.add_argument('--end',
                         default="0,0",
                         help="countour.end x,y. Default: 0,0")
+    parser.add_argument(
+        '--corners',
+        default=None,
+        help=
+        "points-3p corners as ll,ul,lr as x0,y0:x1,y1:x2,y2 or x0,y0,z0,...")
     parser.add_argument('--postfix', default="", help="Log file postfix")
     parser.add_argument('--microscope', help="Which microscope config to use")
     parser.add_argument('--objective',
@@ -36,18 +42,38 @@ def main():
     parser.add_argument("out", nargs="?", help="File to save to")
     args = parser.parse_args()
 
-    x0, y0 = [float(x) for x in args.start.split(",")]
-    x1, y1 = [float(x) for x in args.end.split(",")]
-    contour = {
-        "start": {
-            "x": x0,
-            "y": y0,
-        },
-        "end": {
-            "x": x1,
-            "y": y1,
-        },
-    }
+    contour = None
+    corners = None
+    if args.corners:
+        corners = OrderedDict()
+        big_parts = args.corners.split(":")
+        assert len(big_parts) == 3, big_parts
+
+        for cornerk, pointstr in zip(["ll", "ul", "ur"], big_parts):
+            parts = [float(x) for x in pointstr.split(",")]
+            if len(parts) == 2:
+                corners[cornerk] = {"x": parts[0], "y": parts[1]}
+            elif len(parts) == 3:
+                corners[cornerk] = {
+                    "x": parts[0],
+                    "y": parts[1],
+                    "z": parts[2]
+                }
+            else:
+                assert 0
+    else:
+        x0, y0 = [float(x) for x in args.start.split(",")]
+        x1, y1 = [float(x) for x in args.end.split(",")]
+        contour = {
+            "start": {
+                "x": x0,
+                "y": y0,
+            },
+            "end": {
+                "x": x1,
+                "y": y1,
+            },
+        }
 
     usc = get_usc(name=args.microscope)
     usj = usc.usj
@@ -56,6 +82,7 @@ def main():
         args.objectivei = int(args.objectivei)
     pconfig = microscope_to_planner_config(usj,
                                            contour=contour,
+                                           corners=corners,
                                            objectivestr=args.objective,
                                            objectivei=objectivei)
     root_dir = "out"

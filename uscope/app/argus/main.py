@@ -530,7 +530,27 @@ class XYPlanner3PWidget(PlannerWidget):
         make_corner_widget("lr", "Lower right")
         row += 1
 
+        gl.addWidget(QLabel("Track Z?"), row, 0)
+        self.move_z = QCheckBox()
+        self.move_z.stateChanged.connect(self.move_z_changed)
+        self.move_z_changed(None)
+        gl.addWidget(self.move_z, row, 1)
+        row += 1
+
         self.setLayout(gl)
+
+    def moving_z(self):
+        return self.move_z.isChecked()
+
+    def move_z_changed(self, arg):
+        for corner_widgets in self.corner_widgets.values():
+            le = corner_widgets["z_le"]
+            if self.moving_z():
+                le.setReadOnly(False)
+                le.setStyleSheet(None)
+            else:
+                le.setReadOnly(True)
+                le.setStyleSheet("background-color: rgb(240, 240, 240);")
 
     def corner_clicked(self, key):
         pos_cur = self.ac.motion_thread.pos_cache
@@ -587,11 +607,15 @@ class XYPlanner3PWidget(PlannerWidget):
             try:
                 x = float(widgets["x_le"].text())
                 y = float(widgets["y_le"].text())
-                z = float(widgets["z_le"].text())
+                if self.moving_z():
+                    z = float(widgets["z_le"].text())
             except ValueError:
                 self.ac.log("Bad scan x/y")
                 return None
-            corners[name] = {"x": x, "y": y, "z": z}
+            corner = {"x": x, "y": y}
+            if self.moving_z():
+                corner["z"] = z
+            corners[name] = corner
 
         return corners
 
@@ -763,7 +787,9 @@ class ScanWidget(AWidget):
         self.log_fd = None
         self.ac.pt = None
 
-        self.ac.stitchingTab.scan_completed(self.current_scan_config)
+        # FIXME: better way if telling if ok
+        if os.path.exists(self.current_scan_config["out_dir"] + "/uscan.json"):
+            self.ac.stitchingTab.scan_completed(self.current_scan_config)
         self.current_scan_config = None
 
         # More scans?
@@ -1611,7 +1637,9 @@ class MotionWidget(AWidget):
 
             layout.addWidget(QLabel("Backlash compensate?"))
             self.move_abs_backlash_cb = QCheckBox()
-            self.move_abs_backlash_cb.setChecked(False)
+            self.move_abs_backlash_cb.setChecked(True)
+            # FIXME: always enabled right now
+            self.move_abs_backlash_cb.setEnabled(False)
             layout.addWidget(self.move_abs_backlash_cb)
 
             return layout

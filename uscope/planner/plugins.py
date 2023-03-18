@@ -567,6 +567,16 @@ class PointGenerator3P(PlannerPlugin):
         self.calc_per_rc()
         self.itered_xy_points = 0
 
+    def has_z(self, corners):
+        ret = None
+        for corner in corners.values():
+            this = corner.get("z") is not None
+            if ret is None:
+                ret = this
+            elif ret != this:
+                raise ValueError("Inconsistent z keys")
+        return ret
+
     def setup_bounds(self):
         corners = self.pc.j["points-xy3p"]["corners"]
         assert len(corners) == 3
@@ -574,10 +584,14 @@ class PointGenerator3P(PlannerPlugin):
         self.corners = {}
         self.ax_min = {}
         self.ax_max = {}
-        self.log("Corners")
+        self.tracking_z = self.has_z(corners)
+        self.log("Corners (tracking_z=%u)" % (self.tracking_z, ))
         for cornerk, corner in corners.items():
             corner = dict(corner)
-            corner.setdefault("z", pos0["z"])
+            # Fill in a dummy consistent value to make matrix solve
+            # It will be dropped during moves
+            if not self.tracking_z:
+                corner["z"] = pos0["z"]
             self.log("  %s x=%0.3f, y=%0.3f, z=%0.3f" %
                      (cornerk, corner["x"], corner["y"], corner["z"]))
             self.corners[cornerk] = corner
@@ -716,6 +730,12 @@ class PointGenerator3P(PlannerPlugin):
                 axis] * col + self.corners["ll"][axis]
         return ret
 
+    def move_absolute(self, pos):
+        pos = dict(pos)
+        if not self.tracking_z and "z" in pos:
+            del pos["z"]
+        self.motion.move_absolute(pos)
+
     def iterate(self, state):
         for row in range(self.rows):
             for col in range(self.cols):
@@ -726,17 +746,19 @@ class PointGenerator3P(PlannerPlugin):
                     "XY3P: %u / %u @ c=%u, r=%u, x=%0.3f, y=%0.3f, z=%0.3f" %
                     (self.itered_xy_points, self.images_expected(), col, row,
                      pos["x"], pos["y"], pos["z"]))
-                self.motion.move_absolute(pos)
+                self.move_absolute(pos)
 
+                # Translate between CNC (ll) and image (ul) coordinate system
+                fn_row = self.rows - row - 1
                 modifiers = {
-                    "filename_part": 'c%03u_r%03u' % (col, row),
+                    "filename_part": 'c%03u_r%03u' % (col, fn_row),
                 }
                 replace_keys = {}
                 yield modifiers, replace_keys
 
     def scan_end(self, state):
         # Return to start position
-        self.motion.move_absolute(self.corners["ll"])
+        self.move_absolute(self.corners["ll"])
 
     def log_scan_begin(self):
         self.log("XY3P")

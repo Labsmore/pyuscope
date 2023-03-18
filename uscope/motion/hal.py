@@ -604,10 +604,7 @@ class DryHal(MotionHAL):
     def __init__(self, hal, log=None):
         self.hal = hal
 
-        self._posd = {}
-        # Assume starting at 0.0 until causes problems
-        for axis in self.axes():
-            self._posd[axis] = 0.0
+        self._posd = self.hal.pos()
 
         super().__init__(
             # Don't re-apply pipeline

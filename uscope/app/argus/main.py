@@ -780,17 +780,19 @@ class ScanWidget(AWidget):
         else:
             pass
 
-    def plannerDone(self, run_next=True):
-        self.ac.log('RX planner done')
+    def plannerDone(self, result, run_next=True):
+        self.ac.log("RX planner done, result: %s" % (result["result"], ))
+
+        # Reset any planner specific configuration
         self.go_pause_pb.setText("Go")
         # Cleanup camera objects
         self.log_fd = None
         self.ac.pt = None
-
-        # FIXME: better way if telling if ok
-        if os.path.exists(self.current_scan_config["out_dir"] + "/uscan.json"):
-            self.ac.stitchingTab.scan_completed(self.current_scan_config)
+        last_scan_config = self.current_scan_config
         self.current_scan_config = None
+
+        if result["result"] == "ok":
+            self.ac.stitchingTab.scan_completed(last_scan_config, result)
 
         # More scans?
         if run_next and self.scan_configs:
@@ -820,7 +822,7 @@ class ScanWidget(AWidget):
             if "hdr" in pconfig["imager"] and self.ac.auto_exposure_enabled():
                 self.ac.log(
                     "Run aborted: requested HDR but auto-exposure enabled")
-                self.plannerDone(run_next=False)
+                self.plannerDone({"result": "init_failure"}, run_next=False)
                 return
 
             def emitCncProgress(state):
@@ -878,7 +880,7 @@ class ScanWidget(AWidget):
 
             self.ac.pt.start()
         except:
-            self.plannerDone(run_next=False)
+            self.plannerDone({"result": "init_failure"}, run_next=False)
             raise
 
     def go_scan_configs(self, scan_configs):
@@ -1397,7 +1399,7 @@ class StitchingTab(ArgusTab):
     def stitch_begin_manual(self):
         self.stitch_begin(str(self.manual_stitch_dir.text()))
 
-    def scan_completed(self, scan_config):
+    def scan_completed(self, scan_config, result):
         if self.ac.mainTab.scan_widget.stitch_cb.isChecked():
             self.stitch_begin(scan_config["out_dir"])
 

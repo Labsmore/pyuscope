@@ -1,4 +1,5 @@
 from uscope.planner.planner_util import get_planner
+from uscope.planner.planner import PlannerStop
 from uscope.benchmark import Benchmark
 from uscope.motion.hal import AxisExceeded, MotionHAL
 from PyQt5.QtCore import QThread, pyqtSignal
@@ -322,6 +323,9 @@ class PlannerThread(QThread):
             self.planner.stop()
 
     def run(self):
+        ret = {
+            "result": None,
+        }
         try:
             self.log('Initializing planner!')
             # print("Planner thread started: %s" % (threading.get_ident(), ))
@@ -334,15 +338,20 @@ class PlannerThread(QThread):
             self.log()
             self.log()
             self.log()
-            self.planner.run()
+            ret["meta"] = self.planner.run()
+            ret["result"] = "ok"
             b.stop()
             self.log('Planner done!  Took : %s' % str(b))
+        except PlannerStop as e:
+            ret["result"] = "stopped"
         except Exception as e:
             self.log('WARNING: planner thread crashed: %s' % str(e))
             traceback.print_exc()
+            ret["result"] = "exception"
+            ret["exception"] = e
             #raise
         finally:
-            self.plannerDone.emit()
+            self.plannerDone.emit(ret)
 
 
 class StitcherThread(QThread):

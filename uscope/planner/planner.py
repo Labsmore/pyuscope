@@ -26,7 +26,7 @@ from uscope.config import PC
 from uscope.planner.plugin import get_planner_plugin
 
 
-class Stop(Exception):
+class PlannerStop(Exception):
     pass
 
 
@@ -135,7 +135,7 @@ class Planner:
 
     def check_running(self):
         if not self.running:
-            raise Stop()
+            raise PlannerStop()
 
     def log(self, msg='', verbosity=2):
         if verbosity <= self.v:

@@ -566,6 +566,7 @@ class PointGenerator3P(PlannerPlugin):
         self.setup_axes()
         self.calc_per_rc()
         self.itered_xy_points = 0
+        assert self.pc.motion_origin() == "ll"
 
     def has_z(self, corners):
         ret = None
@@ -616,25 +617,19 @@ class PointGenerator3P(PlannerPlugin):
         Revisit later / as figure out something better
         The actual soution might involve some trig to get linear distances
         """
-        if 0:
-            x_min = self.ax_min["x"]
-            x_max = self.ax_max["x"]
-            y_min = self.ax_min["y"]
-            y_max = self.ax_max["y"]
-        else:
-            # The actual coordinates aren't used directly
-            # Think of it as a different coordinate space
-            # Just get the magnitude correct so it can calculate effective rows/cols
-            x_min = 0.0
-            y_min = 0.0
+        # The actual coordinates aren't used directly
+        # Think of it as a different coordinate space
+        # Just get the magnitude correct so it can calculate effective rows/cols
+        x_min = 0.0
+        y_min = 0.0
 
-            def xy_distance(p1, p2):
-                return ((p1["x"] - p2["x"])**2 + (p1["y"] - p2["y"])**2)**0.5
+        def xy_distance(p1, p2):
+            return ((p1["x"] - p2["x"])**2 + (p1["y"] - p2["y"])**2)**0.5
 
-            # absolute min/max isn't correct as we are tracking skew
-            # however these should be accurate
-            x_max = xy_distance(self.corners["ll"], self.corners["lr"])
-            y_max = xy_distance(self.corners["ll"], self.corners["ul"])
+        # absolute min/max isn't correct as we are tracking skew
+        # however these should be accurate
+        x_max = xy_distance(self.corners["ll"], self.corners["lr"])
+        y_max = xy_distance(self.corners["ll"], self.corners["ul"])
 
         self.axes = OrderedDict([
             ('x',
@@ -718,17 +713,23 @@ class PointGenerator3P(PlannerPlugin):
     def images_expected(self):
         return self.rows * self.cols
 
-    def gen_xycr(self):
-        for row in range(self.y.images_actual()):
-            for col in range(self.x.images_actual()):
-                yield (self.calc_pos(col, row), (col, row))
-
     def calc_pos(self, col, row):
         ret = {}
         for axis in "xyz":
             ret[axis] = self.per_row[axis] * row + self.per_col[
                 axis] * col + self.corners["ll"][axis]
         return ret
+
+    def gen_pos_ll_ul_serp(self):
+        for ll_row in range(self.rows):
+            for ll_col in range(self.cols):
+                if ll_row % 2 == 1:
+                    ll_col = self.cols - 1 - ll_col
+
+                pos = self.calc_pos(ll_col, ll_row)
+                ul_col = ll_col
+                ul_row = self.rows - 1 - ll_row
+                yield (pos, (ll_col, ll_row), (ul_col, ul_row))
 
     def move_absolute(self, pos):
         pos = dict(pos)
@@ -737,24 +738,19 @@ class PointGenerator3P(PlannerPlugin):
         self.motion.move_absolute(pos)
 
     def iterate(self, state):
-        for row in range(self.rows):
-            for col in range(self.cols):
-                self.log('')
-                pos = self.calc_pos(col, row)
-                self.itered_xy_points += 1
-                self.log(
-                    "XY3P: %u / %u @ c=%u, r=%u, x=%0.3f, y=%0.3f, z=%0.3f" %
-                    (self.itered_xy_points, self.images_expected(), col, row,
-                     pos["x"], pos["y"], pos["z"]))
-                self.move_absolute(pos)
+        for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul_serp():
+            self.log('')
+            self.itered_xy_points += 1
+            self.log("XY3P: %u / %u @ c=%u, r=%u, x=%0.3f, y=%0.3f, z=%0.3f" %
+                     (self.itered_xy_points, self.images_expected(), ul_col,
+                      ul_row, pos["x"], pos["y"], pos["z"]))
+            self.move_absolute(pos)
 
-                # Translate between CNC (ll) and image (ul) coordinate system
-                fn_row = self.rows - row - 1
-                modifiers = {
-                    "filename_part": 'c%03u_r%03u' % (col, fn_row),
-                }
-                replace_keys = {}
-                yield modifiers, replace_keys
+            modifiers = {
+                "filename_part": 'c%03u_r%03u' % (ul_col, ul_row),
+            }
+            replace_keys = {}
+            yield modifiers, replace_keys
 
     def scan_end(self, state):
         # Return to start position

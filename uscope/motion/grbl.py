@@ -5,7 +5,7 @@ ok
 Case insensitive best I can tell
 """
 
-from uscope.motion.hal import MotionHAL, format_t, AxisExceeded
+from uscope.motion.hal import MotionHAL, MotionCritical
 
 from uscope import util
 from uscope.motion.motion_util import parse_move
@@ -607,11 +607,13 @@ class GRBL:
         self.pos_cache = None
         self.verbose = verbose if verbose is not None else bool(
             int(os.getenv("GRBL_VERBOSE", "0")))
+        self.port = None
         if gs is None:
             if port == "mock":
                 gs = MockGRBLSer(verbose=verbose)
             else:
                 gs = GRBLSer(port=port, verbose=verbose)
+                self.port = port
         assert gs
         self.gs = gs
         if flush:
@@ -698,7 +700,7 @@ class GRBL:
                 if not retry:
                     raise
                 if tryi == tries - 2:
-                    raise
+                    raise MotionCritical("Unable to recover GRBL comms")
                 continue
 
     def set_pos_cache(self, pos):

@@ -8,7 +8,6 @@ from uscope.imager.imager_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
-from uscope.motion.plugins import get_motion_hal
 from uscope.app.argus.threads import MotionThread, PlannerThread, StitcherThread, boto3
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import util
@@ -52,6 +51,10 @@ def error(msg, code=1):
         prefix = '\33[91m' + prefix + '\33[0m'
     print('{} {}'.format(prefix, msg))
     exit(code)
+
+
+class ArgusShutdown(Exception):
+    pass
 
 
 """
@@ -366,7 +369,7 @@ class XYPlanner2PWidget(PlannerWidget):
             self.update_pos(last_pos)
         # FIXME: hack to avoid concurrency issues with planner and motion thread fighting
         # merge them together?
-        if not self.ac.pt:
+        if not self.ac.planner_thread:
             self.ac.motion_thread.update_pos_cache()
         # 400 => 100: allow more frequent updates now that flicker issue is solved
         self.position_poll_timer.start(100)
@@ -586,7 +589,7 @@ class XYPlanner3PWidget(PlannerWidget):
             self.update_pos(last_pos)
         # FIXME: hack to avoid concurrency issues with planner and motion thread fighting
         # merge them together?
-        if not self.ac.pt:
+        if not self.ac.planner_thread:
             self.ac.motion_thread.update_pos_cache()
         # 400 => 100: allow more frequent updates now that flicker issue is solved
         self.position_poll_timer.start(100)
@@ -787,7 +790,7 @@ class ScanWidget(AWidget):
         self.go_pause_pb.setText("Go")
         # Cleanup camera objects
         self.log_fd = None
-        self.ac.pt = None
+        self.ac.planner_thread = None
         last_scan_config = self.current_scan_config
         self.current_scan_config = None
 
@@ -810,6 +813,7 @@ class ScanWidget(AWidget):
     def run_next_scan_config(self):
         try:
             self.current_scan_config = self.scan_configs[0]
+            assert self.current_scan_config
             del self.scan_configs[0]
 
             dry = self.dry()
@@ -857,11 +861,11 @@ class ScanWidget(AWidget):
                 #"verbosity": 2,
             }
 
-            self.ac.pt = PlannerThread(self,
-                                       planner_args,
-                                       progress_cb=emitCncProgress)
-            self.ac.pt.log_msg.connect(self.ac.log)
-            self.ac.pt.plannerDone.connect(self.plannerDone)
+            self.ac.planner_thread = PlannerThread(self,
+                                                   planner_args,
+                                                   progress_cb=emitCncProgress)
+            self.ac.planner_thread.log_msg.connect(self.ac.log)
+            self.ac.planner_thread.plannerDone.connect(self.plannerDone)
             self.setControlsEnabled(False)
             if dry:
                 self.log_fd = StringIO()
@@ -878,7 +882,7 @@ class ScanWidget(AWidget):
                 self.ac.control_scroll.set_push_gui(False)
                 self.ac.control_scroll.set_push_prop(False)
 
-            self.ac.pt.start()
+            self.ac.planner_thread.start()
         except:
             self.plannerDone({"result": "init_failure"}, run_next=False)
             raise
@@ -914,22 +918,22 @@ class ScanWidget(AWidget):
 
     def go_pause_clicked(self):
         # CNC already running? pause/continue
-        if self.ac.pt:
+        if self.ac.planner_thread:
             # Pause
-            if self.ac.pt.is_paused():
+            if self.ac.planner_thread.is_paused():
                 self.go_pause_pb.setText("Pause")
-                self.ac.pt.unpause()
+                self.ac.planner_thread.unpause()
             else:
                 self.go_pause_pb.setText("Continue")
-                self.ac.pt.pause()
+                self.ac.planner_thread.pause()
         # Go go go!
         else:
             self.go_currnet_pconfig()
 
     def stop_clicked(self):
-        if self.ac.pt:
+        if self.ac.planner_thread:
             self.ac.log('Stop requested')
-            self.ac.pt.stop()
+            self.ac.planner_thread.stop()
 
 
 def awidgets_initUI(awidgets):
@@ -1056,8 +1060,11 @@ class MainTab(ArgusTab):
             self.log_fd.flush()
 
     def go_currnet_pconfig(self):
-        self.scan_widget.go_scan_configs(
-            [self.planner_widget.get_current_scan_config()])
+        scan_config = self.planner_widget.get_current_scan_config()
+        # Leave image controls at current value when not batching
+        self.log("FIXME: uncomment after testing")
+        # del scan_config["pconfig"]["imager"]["properties"]
+        self.scan_widget.go_scan_configs([scan_config])
 
     def setControlsEnabled(self, yes):
         self.snapshot_widget.snapshot_pb.setEnabled(yes)
@@ -1076,6 +1083,9 @@ class ImagerTab(ArgusTab):
         self.layout.addWidget(self.ac.control_scroll)
 
         self.setLayout(self.layout)
+
+    def update_pconfig(self, pconfig):
+        pconfig["imager"]["properties"] = self.ac.imager.get_properties()
 
 
 class BatchImageTab(ArgusTab):
@@ -1844,7 +1854,7 @@ class ArgusCommon(QObject):
         self.update_pconfigs = []
 
         self.motion_thread = None
-        self.pt = None
+        self.planner_thread = None
         self.microscope = microscope
         self.usj = get_usj(name=microscope)
         self.usc = USC(usj=self.usj)
@@ -1882,10 +1892,9 @@ class ArgusCommon(QObject):
         # Requires video pipeline already setup
         self.control_scroll = get_control_scroll(self.vidpip, usc=self.usc)
 
-        self.pt = None
-        motion = get_motion_hal(usc=self.usc, log=self.emit_log)
+        self.planner_thread = None
         # motion.progress = self.hal_progress
-        self.motion_thread = MotionThread(motion=motion)
+        self.motion_thread = MotionThread(usc=self.usc)
         self.motion_thread.log_msg.connect(self.log)
 
     def initUI(self):
@@ -1900,12 +1909,11 @@ class ArgusCommon(QObject):
 
     def shutdown(self):
         if self.motion_thread:
-            self.motion_thread.hal.ar_stop()
-            self.motion_thread.thread_stop()
+            self.motion_thread.stop()
             self.motion_thread = None
-        if self.pt:
-            self.pt.stop()
-            self.pt = None
+        if self.planner_thread:
+            self.planner_thread.thread_stop()
+            self.planner_thread = None
 
     def init_imager(self):
         source = self.vidpip.source_name
@@ -1937,6 +1945,15 @@ class ArgusCommon(QObject):
             self.log("Wait for snapshot to complete before CNC'ing")
             return False
         return True
+
+    def poll_misc(self):
+        """
+        Mostly looking for crashes in other contexts to propagate up
+        """
+        if self.motion_thread.motion is None:
+            raise ArgusShutdown("Motion thread crashed")
+        if not self.vidpip.ok:
+            raise ArgusShutdown("Video pipeline crashed")
 
 
 class MainWindow(QMainWindow):
@@ -2005,6 +2022,16 @@ class MainWindow(QMainWindow):
 
         dbg("initUI done")
 
+    def poll_misc(self):
+        # FIXME: maybe better to do this with events
+        # Loose the log window on shutdown...should log to file?
+        try:
+            self.ac.poll_misc()
+        except ArgusShutdown:
+            print(traceback.format_exc())
+            self.ac.shutdown()
+            QCoreApplication.exit(1)
+
     def post_ui_init(self):
         self.ac.update_pconfigs.append(self.advancedTab.update_pconfig)
         # Start services
@@ -2015,6 +2042,11 @@ class MainWindow(QMainWindow):
         self.batchTab.post_ui_init()
         self.advancedTab.post_ui_init()
         self.stitchingTab.post_ui_init()
+
+        self.poll_timer = QTimer()
+        self.poll_timer.setSingleShot(False)
+        self.poll_timer.timeout.connect(self.poll_misc)
+        self.poll_timer.start(200)
 
     def keyPressEvent(self, event):
         k = event.key()

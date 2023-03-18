@@ -83,6 +83,15 @@ class GstGUIImager(Imager):
         log("    Final scaled image: %uw x %uh" %
             (cropw * scalar, croph * scalar))
 
+    # FIXME: should maybe actually use low level properties
+    # Start with this as PoC since its safer for GUI updates though
+
+    def set_properties(self, vals):
+        self.ac.control_scroll.set_disp_properties(vals)
+
+    def get_properties(self):
+        return self.ac.control_scroll.get_disp_properties()
+
 
 def get_gui_imager(source, gui):
     # WARNING: only gst- sources are supported

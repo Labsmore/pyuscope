@@ -1,7 +1,8 @@
 from uscope.planner.planner_util import get_planner
 from uscope.planner.planner import PlannerStop
 from uscope.benchmark import Benchmark
-from uscope.motion.hal import AxisExceeded, MotionHAL
+from uscope.motion.hal import AxisExceeded, MotionHAL, MotionCritical
+from uscope.motion.plugins import get_motion_hal
 from PyQt5.QtCore import QThread, pyqtSignal
 import traceback
 try:
@@ -71,11 +72,12 @@ class MotionThreadMotion(MotionHAL):
 class MotionThread(QThread):
     log_msg = pyqtSignal(str)
 
-    def __init__(self, motion):
+    def __init__(self, usc):
         QThread.__init__(self)
+        self.usc = usc
         self.verbose = False
         self.queue = queue.Queue()
-        self.motion = motion
+        self.motion = None
         self.running = threading.Event()
         self.idle = threading.Event()
         self.idle.set()
@@ -87,6 +89,14 @@ class MotionThread(QThread):
         self.pos_cache = None
         self._stop = False
         self._estop = False
+        # XXX: add config directive
+        self.allow_motion_reboot = False
+
+        # Seed state / refuse to start without motion
+        self.init_motion()
+
+    def init_motion(self):
+        self.motion = get_motion_hal(usc=self.usc, log=self.log)
 
     def log(self, msg):
         self.log_msg.emit(msg)
@@ -174,6 +184,9 @@ class MotionThread(QThread):
     def get_planner_motion(self):
         return MotionThreadMotion(self)
 
+    def thread_stop(self):
+        self.running.clear()
+
     def run(self):
         self.verbose and print("Motion thread started: %s" %
                                (threading.get_ident(), ))
@@ -190,6 +203,22 @@ class MotionThread(QThread):
         try:
             while self.running.is_set():
                 self.lock.set()
+
+                if not self.motion:
+                    if not self.allow_motion_reboot:
+                        self.log("Fatal error: motion controller is dead")
+                        break
+                    else:
+                        # See if its back...
+                        try:
+                            self.init_motion()
+                            self.motion.on()
+                        except Exception as e:
+                            self.log(
+                                "Failed to reboot motion controller :( %s" %
+                                (str(e), ))
+                            time.sleep(3)
+                        continue
 
                 if self._estop:
                     self.motion.estop()
@@ -259,6 +288,17 @@ class MotionThread(QThread):
                 }.get(command, default)
                 try:
                     ret = f(*args)
+                # Depending on the motion controller this may be a bad idea
+                # Only some of them retain the old coordinate system / may need re-home
+                except MotionCritical as e:
+                    print("")
+                    print("ERROR: motion controller crashed w/ critical error")
+                    print(traceback.format_exc())
+                    self.motion.close()
+                    self.motion = None
+                    if command_done:
+                        command_done(command, args, e)
+                    continue
                 except Exception as e:
                     print("")
                     print("WARNING: motion thread crashed")
@@ -271,10 +311,9 @@ class MotionThread(QThread):
                     command_done(command, args, ret)
 
         finally:
-            self.motion.stop()
-
-    def thread_stop(self):
-        self.running.clear()
+            if self.motion:
+                self.motion.stop()
+                # self.motion.ar_stop()
 
 
 """
@@ -286,7 +325,7 @@ plannerj: planner configuration JSON. Written to disk
 
 
 class PlannerThread(QThread):
-    plannerDone = pyqtSignal()
+    plannerDone = pyqtSignal(dict)
     log_msg = pyqtSignal(str)
 
     def __init__(self, parent, planner_args, progress_cb):

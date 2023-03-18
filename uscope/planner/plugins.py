@@ -122,7 +122,7 @@ class PlannerAxis:
         # if within 0.1% of requested image size, take it
         ideal = self.images_ideal()
         min_images = int(ideal)
-        if ideal - min_images < 0.0001:
+        if ideal - min_images < 0.01:
             ret = min_images
         else:
             ret = int(math.ceil(ideal))
@@ -395,46 +395,9 @@ class PointGenerator2P(PlannerPlugin):
         ((x, y), (col, row))
         """
         for p in self.gen_xycr_serp():
-            self.validate_point(p)
             if self.exclude(p):
                 continue
             yield p
-
-    def validate_point(self, p):
-        (cur_x, cur_y), (cur_col, cur_row) = p
-
-        xmax = cur_x + self.x.view_mm
-        ymax = cur_y + self.y.view_mm
-
-        fail = False
-
-        if cur_col < 0 or cur_col >= self.x.images_actual():
-            self.log('Col out of range 0 <= %d < %d' %
-                     (cur_col, self.x.images_actual()))
-            fail = True
-        if cur_x < self.x.start - self.x.mm_tol or xmax > self.x.actual_end + self.x.mm_tol:
-            self.log('X out of range')
-            fail = True
-
-        if cur_row < 0 or cur_row >= self.y.images_actual():
-            self.log('Row out of range 0 <= %d < %d' %
-                     (cur_row, self.y.images_actual()))
-            fail = True
-        if cur_y < self.y.start - self.y.mm_tol or ymax > self.y.actual_end + self.y.mm_tol:
-            self.log('Y out of range')
-            fail = True
-
-        if fail:
-            self.log('Bad point:')
-            self.log('  X: %g' % cur_x)
-            self.log('  Y: %g' % cur_y)
-            self.log('  Row: %g' % cur_row)
-            self.log('  Col: %g' % cur_col)
-            raise Exception(
-                'Bad point (%g + %g = %g, %g + %g = %g) for range (%g, %g) to (%g, %g)'
-                % (cur_x, self.x.view_mm, xmax, cur_y, self.y.view_mm, ymax,
-                   self.x.start, self.y.start, self.x.actual_end,
-                   self.y.actual_end))
 
     def exclude(self, p):
         (_xy, (cur_row, cur_col)) = p
@@ -608,6 +571,8 @@ class PointGenerator3P(PlannerPlugin):
                      (axis, self.ax_min[axis], self.ax_max[axis]))
 
     def setup_axes(self):
+        # FIXME: w/h should be sin/cos distances
+        # Over estimated as is
         x_mm = self.pc.x_view()
         image_wh = self.planner.image_wh()
         mm_per_pix = x_mm / image_wh[0]
@@ -920,6 +885,13 @@ class PlannerCaptureImage(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
         self.images_captured = 0
+
+    def scan_begin(self, state):
+        properties = self.pc.j["imager"].get("properties")
+        if not properties:
+            return
+        self.log("Imager: setting %u properties" % (len(properties), ))
+        self.imager.set_properties(properties)
 
     def scan_end(self, state):
         state["images_captured"] = self.images_captured

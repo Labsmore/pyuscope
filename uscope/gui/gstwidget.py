@@ -188,6 +188,8 @@ class GstVideoPipeline:
 
         # Needs to be done early so elements can be added before main setup
         self.player = Gst.Pipeline.new("player")
+        # Clear if anything bad happens and shouldn't be trusted
+        self.ok = True
 
     def get_widget(self, name):
         """
@@ -549,11 +551,12 @@ class GstVideoPipeline:
         # print("on_message", message, t)
         if t == Gst.MessageType.EOS:
             self.player.set_state(Gst.State.NULL)
-            print("End of stream")
+            print("GstVP: End of stream")
         elif t == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
-            print("Error: %s" % err, debug)
+            print("GstVP error: %s" % err, debug)
             self.player.set_state(Gst.State.NULL)
+            self.ok = False
         elif t == Gst.MessageType.STATE_CHANGED:
             pass
 

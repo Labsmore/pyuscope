@@ -42,6 +42,13 @@ def sign(delta):
         return -1
 
 
+# An un-recoverable error
+# Ex: socket closed, serial port removed
+# Restart motion controller to recover
+class MotionCritical(Exception):
+    pass
+
+
 class MotionModifier:
     def __init__(self, motion):
         self.motion = motion

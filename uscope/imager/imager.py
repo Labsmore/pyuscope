@@ -59,6 +59,16 @@ class Imager:
     def log_planner_header(self, log):
         pass
 
+    """
+    Set application specific properties like exposure time
+    """
+
+    def set_properties(self, vals):
+        pass
+
+    def get_properties(self):
+        return {}
+
 
 class MockImager(Imager):
     def __init__(self, verbose=False, width=640, height=480):

@@ -57,7 +57,9 @@ A minimal configuration to do basic testing
         "width": 4928,
         "height": 4928,
     },
-    //BigEye
+
+    /*
+    //250 border
     "imager": {
         "source":"gst-toupcamsrc",
         "width": 3704,
@@ -82,5 +84,38 @@ A minimal configuration to do basic testing
             "name":"100X",
             "x_view": 0.15
         },
-    ]
+    ],
+    */
+    //BigEye
+    //250 border => 3204 wide => 3.0 mm at 5x
+    //500 border => 2704 wide => 2.53 mm at 5x
+    //15% reduction but more reliable
+    //need circular stitching...
+    "imager": {
+        "source":"gst-toupcamsrc",
+        "width": 3704,
+        "height": 2778,
+        //250 is still slightly visible
+        "crop": {
+            "top": 500,
+            "bottom": 500,
+            "left": 500,
+            "right": 500,
+        },
+    },
+    //500 border
+    "objectives": [
+        {
+            "name":"5X",
+            "x_view": 2.530
+        },
+        {
+            "name":"20X",
+            "x_view": 0.6325
+        },
+          {
+            "name":"100X",
+            "x_view": 0.1265
+        },
+    ],
 }

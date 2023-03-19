@@ -798,6 +798,7 @@ class ScanWidget(AWidget):
             del self.scan_configs[0]
 
             dry = self.dry()
+            self.current_scan_config["dry"] = dry
 
             out_dir_config = self.current_scan_config["out_dir_config"]
             out_dir = out_dir_config_to_dir(
@@ -1059,9 +1060,9 @@ class MainTab(ArgusTab):
 
     def go_currnet_pconfig(self):
         scan_config = self.active_planner_widget().get_current_scan_config()
-        # Leave image controls at current value when not batching
-        self.log("FIXME: uncomment after testing")
-        # del scan_config["pconfig"]["imager"]["properties"]
+        # Leave image controls at current value when not batching?
+        # Should be a nop but better to just leave alone
+        del scan_config["pconfig"]["imager"]["properties"]
         self.scan_widget.go_scan_configs([scan_config])
 
     def setControlsEnabled(self, yes):
@@ -1228,15 +1229,6 @@ class AdvancedTab(ArgusTab):
             layout = QGridLayout()
             row = 0
 
-            if 0:
-                # FIXME: dropbox
-                # althouh center is probably ideal anyway
-                layout.addWidget(QLabel("Start mode: relative or center"), row,
-                                 0)
-                self.stacker_start_mode_le = QLineEdit("center")
-                layout.addWidget(self.stacker_start_mode_le, row, 1)
-                row += 1
-
             layout.addWidget(QLabel("Distance"), row, 0)
             # Is there a reasonable default here?
             self.stacker_distance_le = QLineEdit("0.000")
@@ -1373,6 +1365,7 @@ class StitchingTab(ArgusTab):
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
         self.stitcher_thread = None
+        self.stitch_queue = []
 
     def initUI(self):
         layout = QGridLayout()
@@ -1435,17 +1428,22 @@ class StitchingTab(ArgusTab):
             self.log("WARNING: CloudStitch unavailible (require boto3)")
 
     def stitch_begin_manual(self):
-        self.stitch_begin(str(self.manual_stitch_dir.text()))
+        self.stitch_add(str(self.manual_stitch_dir.text()))
 
     def scan_completed(self, scan_config, result):
-        if self.ac.mainTab.scan_widget.stitch_cb.isChecked():
-            self.stitch_begin(scan_config["out_dir"])
+        if self.ac.mainTab.scan_widget.stitch_cb.isChecked(
+        ) and not scan_config["dry"]:
+            self.stitch_add(scan_config["out_dir"])
+
+    def stitch_add(self, directory):
+        self.ac.log(f"Stitch: requested {directory}")
+        assert os.path.exists(directory)
+        self.stitch_queue.append(directory)
+        self.stitch_check()
 
     def stitch_begin(self, directory):
-        self.ac.log(f"Requested stitch on {directory}")
-        if self.stitcher_thread:
-            self.ac.log("Stitch already running")
-            return
+        self.ac.log(f"Stitch: starting {directory}")
+        assert not self.stitcher_thread
 
         # Offload uploads etc to thread since they might take a while
         self.stitcher_thread = StitcherThread(
@@ -1460,8 +1458,19 @@ class StitchingTab(ArgusTab):
         self.stitcher_thread.stitcherDone.connect(self.stitch_end)
         self.stitcher_thread.start()
 
+    def stitch_check(self):
+        if len(self.stitch_queue) == 0:
+            self.ac.log("Stitch: idle")
+        elif self.stitcher_thread:
+            self.ac.log("Stitch: waiting until previous stitch completes")
+        else:
+            directory = self.stitch_queue[0]
+            del self.stitch_queue[0]
+            self.stitch_begin(directory)
+
     def stitch_end(self):
         self.stitcher_thread = None
+        self.stitch_check()
 
 
 class USCArgus:

@@ -1,7 +1,5 @@
-out
-snapshot
+data
 scan.json
-config
 
 # some local junk
 env.sh

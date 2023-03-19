@@ -698,6 +698,7 @@ class ScanWidget(AWidget):
         self.go_currnet_pconfig = go_currnet_pconfig
         self.setControlsEnabled = setControlsEnabled
         self.current_scan_config = None
+        self.restore_properties = None
 
     def initUI(self):
         """
@@ -786,6 +787,11 @@ class ScanWidget(AWidget):
         last_scan_config = self.current_scan_config
         self.current_scan_config = None
 
+        # Restore defaults between each run
+        # Ex: if HDR doesn't clean up simplifies things
+        if self.restore_properties:
+            self.ac.imager.set_properties(self.restore_properties)
+
         if result["result"] == "ok":
             self.ac.stitchingTab.scan_completed(last_scan_config, result)
 
@@ -796,6 +802,7 @@ class ScanWidget(AWidget):
             self.run_next_scan_config()
         else:
             self.scan_configs = None
+            self.restore_properties = None
             self.setControlsEnabled(True)
             # Prevent accidental start after done
             self.dry_cb.setChecked(True)
@@ -910,6 +917,8 @@ class ScanWidget(AWidget):
         dry = self.dry()
         if dry:
             dbg('Dry run checked')
+        if not dry:
+            self.restore_properties = self.ac.imager.get_properties()
 
         base_out_dir = self.ac.usc.app("argus").scan_dir()
         if not dry and not os.path.exists(base_out_dir):
@@ -1172,8 +1181,9 @@ class BatchImageTab(ArgusTab):
 
     def add_cb(self, scan_config):
         self.scani += 1
-        self.pconfig_cb.addItem(f"Batch {self.scani}: " +
-                                os.path.basename(scan_config["output_dir"]))
+        self.pconfig_cb.addItem(
+            f"Batch {self.scani}: " +
+            os.path.basename(scan_config["out_dir_config"]["user_basename"]))
 
     def add_clicked(self):
         scan_config = self.get_scan_config()
@@ -2084,6 +2094,7 @@ class MainWindow(QMainWindow):
         self.stitchingTab = StitchingTab(ac=self.ac, parent=self)
         self.ac.mainTab = self.mainTab
         self.ac.stitchingTab = self.stitchingTab
+        self.ac.batchTab = self.batchTab
 
     def initUI(self):
         self.ac.initUI()
@@ -2131,6 +2142,7 @@ class MainWindow(QMainWindow):
 
     def post_ui_init(self):
         self.ac.update_pconfigs.append(self.advancedTab.update_pconfig)
+        self.ac.update_pconfigs.append(self.imagerTab.update_pconfig)
         # Start services
         self.ac.post_ui_init()
         # Tabs

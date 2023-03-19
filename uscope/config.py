@@ -481,7 +481,7 @@ def get_data_dir():
 
 
 def get_configs_dir():
-    return get_data_dir() + "/configs/"
+    return "configs/"
 
 
 def get_usj(config_dir=None, name=None):
@@ -497,7 +497,7 @@ def get_usj(config_dir=None, name=None):
             config_dir = get_configs_dir() + name
         # Maybe just throw an exception at this point?
         else:
-            config_dir = "config"
+            config_dir = get_data_dir() + "/config"
     globals()["config_dir"] = config_dir
     fn = os.path.join(config_dir, "microscope.j5")
     if not os.path.exists(fn):

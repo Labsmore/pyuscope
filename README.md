@@ -281,7 +281,7 @@ However, I've been using this workflow for years now, and will probably continue
 
 ## 4.0.0 (WIP)
  * Compatible with
-  * gst-plugin-toupcam: v0.3.1 (WIP)
+  * gst-plugin-toupcam: v0.4.0
    * Rev for toupcamsrc automatic resolution detection
   * Motion HAL: GRBL
  * Significant code restructure (Argus, planner, motion)
@@ -293,4 +293,4 @@ However, I've been using this workflow for years now, and will probably continue
  * Batch imaging (beta)
  * WIP: fix axis soft limit bug
  * WIP: add ability to temporarily override soft limits
- * Fix GRBL Argus launch bug
+ * Fixed GRBL Argus launch bug

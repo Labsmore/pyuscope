@@ -8,6 +8,15 @@ from collections import OrderedDict
 from uscope.gui.control_scroll import GstControlScroll
 
 groups_gst = OrderedDict([
+    ("Exposure", [
+        "auto-exposure",
+        "expotime",
+        "expoagain",
+    ]),
+    ("Flip", [
+        "hflip",
+        "vflip",
+    ]),
     ("Black balance", [
         "bb-r",
         "bb-g",
@@ -28,14 +37,6 @@ groups_gst = OrderedDict([
     ("AWB", [
         "awb_rgb",
         "awb_tt",
-    ]),
-    ("Exposure", [
-        "auto-exposure",
-        "expotime",
-    ]),
-    ("Flip", [
-        "hflip",
-        "vflip",
     ]),
     (
         "Misc",

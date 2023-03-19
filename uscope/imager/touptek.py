@@ -95,6 +95,18 @@ def toupcamsrc_info():
         h = t(m.group(2))
         return w, h
 
+    def func_min_max_def(func):
+        l = func_str(func, store=False)
+        m = re.match(r"min (.+), max (.+), def (.+)", l)
+        if not m:
+            raise ValueError(l)
+        ret[func] = {
+            "min": int(m.group(1)),
+            "max": int(m.group(2)),
+            "def": int(m.group(3)),
+        }
+
+
     func_i("MaxBitDepth")
     func_i("FanMaxSpeed")
     func_i("MaxSpeed")
@@ -130,6 +142,8 @@ def toupcamsrc_info():
         eSizes[eSize] = je
     ret["eSizes"] = eSizes
 
+    func_min_max_def("ExpTimeRange")
+    func_min_max_def("ExpoAGainRange")
     func_i("Negative")
     func_i("Chrome")
     func_i("HZ")

@@ -349,6 +349,8 @@ class PointGenerator2P(PlannerPlugin):
         ])
         self.x = self.axes['x']
         self.y = self.axes['y']
+        self.cols = self.x.images_actual()
+        self.rows = self.y.images_actual()
 
     def scan_begin(self, state):
         pass

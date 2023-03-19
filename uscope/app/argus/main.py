@@ -354,21 +354,10 @@ class XYPlanner2PWidget(PlannerWidget):
 
         self.setLayout(gl)
 
-    def post_ui_init(self):
-        self.position_poll_timer = QTimer()
-        self.position_poll_timer.timeout.connect(self.poll_update_pos)
-        self.position_poll_timer.start(200)
-
-    def poll_update_pos(self):
+    def poll_misc(self):
         last_pos = self.ac.motion_thread.pos_cache
         if last_pos:
             self.update_pos(last_pos)
-        # FIXME: hack to avoid concurrency issues with planner and motion thread fighting
-        # merge them together?
-        if not self.ac.planner_thread:
-            self.ac.motion_thread.update_pos_cache()
-        # 400 => 100: allow more frequent updates now that flicker issue is solved
-        self.position_poll_timer.start(100)
 
     def update_pos(self, pos):
         # FIXME: this is causing screen flickering
@@ -572,21 +561,10 @@ class XYPlanner3PWidget(PlannerWidget):
         widgets["y_le"].setText('%0.3f' % pos['y'])
         widgets["z_le"].setText('%0.3f' % pos['z'])
 
-    def post_ui_init(self):
-        self.position_poll_timer = QTimer()
-        self.position_poll_timer.timeout.connect(self.poll_update_pos)
-        self.position_poll_timer.start(200)
-
-    def poll_update_pos(self):
+    def poll_misc(self):
         last_pos = self.ac.motion_thread.pos_cache
         if last_pos:
             self.update_pos(last_pos)
-        # FIXME: hack to avoid concurrency issues with planner and motion thread fighting
-        # merge them together?
-        if not self.ac.planner_thread:
-            self.ac.motion_thread.update_pos_cache()
-        # 400 => 100: allow more frequent updates now that flicker issue is solved
-        self.position_poll_timer.start(100)
 
     def update_pos(self, pos):
         # FIXME: this is causing screen flickering
@@ -782,7 +760,7 @@ class ScanWidget(AWidget):
         # Reset any planner specific configuration
         self.go_pause_pb.setText("Go")
         # Cleanup camera objects
-        self.log_fd = None
+        self.log_fd_scan = None
         self.ac.planner_thread = None
         last_scan_config = self.current_scan_config
         self.current_scan_config = None
@@ -876,10 +854,11 @@ class ScanWidget(AWidget):
             self.ac.planner_thread.log_msg.connect(self.ac.log)
             self.ac.planner_thread.plannerDone.connect(self.plannerDone)
             self.setControlsEnabled(False)
+            # FIXME: move to planner somehow
             if dry:
-                self.log_fd = StringIO()
+                self.log_fd_scan = StringIO()
             else:
-                self.log_fd = open(os.path.join(out_dir, "log.txt"), "w")
+                self.log_fd_scan = open(os.path.join(out_dir, "log.txt"), "w")
 
             self.go_pause_pb.setText("Pause")
 
@@ -961,7 +940,8 @@ class MainTab(ArgusTab):
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
 
-        self.log_fd = None
+        self.log_fd = open(os.path.join(get_data_dir(), "log.txt"), "w")
+        self.log_fd_scan = None
         # must be created early to accept early logging
         # not displayed until later though
         self.log_widget = QTextEdit()
@@ -981,17 +961,14 @@ class MainTab(ArgusTab):
             ac=ac,
             go_currnet_pconfig=self.go_currnet_pconfig,
             setControlsEnabled=self.setControlsEnabled)
-        # FIXME: integrate better
-        if os.getenv("XY3P") == "Y":
-            self.planner_widget = XYPlanner3PWidget(
-                ac=ac,
-                scan_widget=self.scan_widget,
-                objective_widget=self.objective_widget)
-        else:
-            self.planner_widget = XYPlanner2PWidget(
-                ac=ac,
-                scan_widget=self.scan_widget,
-                objective_widget=self.objective_widget)
+        self.planner_widget_xy3p = XYPlanner3PWidget(
+            ac=ac,
+            scan_widget=self.scan_widget,
+            objective_widget=self.objective_widget)
+        self.planner_widget_xy2p = XYPlanner2PWidget(
+            ac=ac,
+            scan_widget=self.scan_widget,
+            objective_widget=self.objective_widget)
 
         self.motion_widget = MotionWidget(ac=self.ac,
                                           motion_thread=self.ac.motion_thread,
@@ -1002,7 +979,8 @@ class MainTab(ArgusTab):
             self.snapshot_widget,
             self.objective_widget,
             self.video_widget,
-            self.planner_widget,
+            self.planner_widget_xy2p,
+            self.planner_widget_xy3p,
             self.scan_widget,
             self.motion_widget,
         ]
@@ -1011,10 +989,8 @@ class MainTab(ArgusTab):
         def get_axes_gb():
             layout = QVBoxLayout()
             # TODO: support other planner sources (ex: 3 point)
-            if os.getenv("XY3P") == "Y":
-                self.planner_widget_tabs.addTab(self.planner_widget, "XY3P")
-            else:
-                self.planner_widget_tabs.addTab(self.planner_widget, "XY2P")
+            self.planner_widget_tabs.addTab(self.planner_widget_xy2p, "XY2P")
+            self.planner_widget_tabs.addTab(self.planner_widget_xy3p, "XY3P")
             layout.addWidget(self.planner_widget_tabs)
             layout.addWidget(self.motion_widget)
             gb = QGroupBox("Motion")
@@ -1066,12 +1042,14 @@ class MainTab(ArgusTab):
         c.insertText(s)
         self.log_widget.setTextCursor(c)
 
-        if self.log_fd is not None:
-            self.log_fd.write(s)
-            self.log_fd.flush()
+        self.log_fd.write(s)
+        self.log_fd.flush()
+        if self.log_fd_scan is not None:
+            self.log_fd_scan.write(s)
+            self.log_fd_scan.flush()
 
     def go_currnet_pconfig(self):
-        scan_config = self.planner_widget.get_current_scan_config()
+        scan_config = self.active_planner_widget().get_current_scan_config()
         # Leave image controls at current value when not batching
         self.log("FIXME: uncomment after testing")
         # del scan_config["pconfig"]["imager"]["properties"]
@@ -1079,6 +1057,9 @@ class MainTab(ArgusTab):
 
     def setControlsEnabled(self, yes):
         self.snapshot_widget.snapshot_pb.setEnabled(yes)
+
+    def active_planner_widget(self):
+        return self.planner_widget_tabs.currentWidget()
 
 
 class ImagerTab(ArgusTab):
@@ -1177,7 +1158,7 @@ class BatchImageTab(ArgusTab):
 
     def get_scan_config(self):
         mainTab = self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
-        return mainTab.planner_widget.get_current_scan_config()
+        return mainTab.active_planner_widget().get_current_scan_config()
 
     def add_cb(self, scan_config):
         self.scani += 1
@@ -2131,6 +2112,10 @@ class MainWindow(QMainWindow):
         dbg("initUI done")
 
     def poll_misc(self):
+        self.ac.motion_thread.update_pos_cache()
+        self.mainTab.planner_widget_xy2p.poll_misc()
+        self.mainTab.planner_widget_xy3p.poll_misc()
+
         # FIXME: maybe better to do this with events
         # Loose the log window on shutdown...should log to file?
         try:

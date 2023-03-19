@@ -14,6 +14,7 @@ from uscope import util
 from uscope import config
 from uscope.motion import motion_util
 import json
+import json5
 from collections import OrderedDict
 
 from PyQt5 import Qt
@@ -799,6 +800,7 @@ class ScanWidget(AWidget):
             out_dir = out_dir_config_to_dir(
                 out_dir_config,
                 self.ac.usc.app("argus").scan_dir())
+            self.current_scan_config["out_dir"] = out_dir
             pconfig = self.current_scan_config["pconfig"]
 
             if os.path.exists(out_dir):
@@ -1204,7 +1206,7 @@ class BatchImageTab(ArgusTab):
         if not os.path.exists(fn):
             return
         with open(fn, "r") as f:
-            j = json.load(f)
+            j = json5.load(f)
         self.scan_configs = list(j)
         for scan_config in self.scan_configs:
             self.add_cb(scan_config)

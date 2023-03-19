@@ -158,6 +158,9 @@ class PlannerAxis:
         for i in range(self.images_actual()):
             yield self.start + i * step
 
+    def rc_pos(self, rc):
+        return self.start + rc * self.step()
+
 
 """
 Production point generators are really complicated due to backlash and other optimizations
@@ -287,8 +290,6 @@ class PointGenerator2P(PlannerPlugin):
         # Number of images_actual taken at unique x, y coordinates
         # May be different than all_imags if image stacking
         self.itered_xy_points = 0
-        # Telemetry on what was the further requested move
-        self.max_move = None
 
     def init_contour(self):
         contour = self.pc.j["points-xy2p"]["contour"]
@@ -355,52 +356,38 @@ class PointGenerator2P(PlannerPlugin):
     def scan_begin(self, state):
         pass
 
-    def filename_part(self):
-        """
-        Return filename basename excluding extension
-        ex: c001_r004
-        """
+    def filename_part(self, ul_col, ul_row):
+        return 'c%03u_r%03u' % (ul_col, ul_row)
 
-        # XXX: quick hack, look into something more proper
-        origin = self.pc.motion_origin()
-        if origin == "ll":
-            return 'c%03u_r%03u' % (self.cur_col,
-                                    self.y.images_actual() - self.cur_row - 1)
-        elif origin == "ul":
-            return 'c%03u_r%03u' % (self.cur_col, self.cur_row)
-        else:
-            assert 0, self.origin
+    def calc_pos(self, ll_col, ll_row):
+        return {"x": self.x.rc_pos(ll_col), "y": self.y.rc_pos(ll_row)}
 
-    def gen_xycr_serp(self):
-        '''Generate serpentine pattern'''
-        x_list = [x for x in self.x.points()]
-        x_list_rev = list(x_list)
-        x_list_rev.reverse()
-        row = 0
+    def gen_pos_ll_ul_serp(self):
+        for ll_row in range(self.rows):
+            for ll_col in range(self.cols):
+                if ll_row % 2 == 1:
+                    ll_col = self.cols - 1 - ll_col
 
-        active = (x_list, 0, 1)
-        nexts = (x_list_rev, len(x_list_rev) - 1, -1)
+                pos = self.calc_pos(ll_col, ll_row)
+                origin = self.pc.motion_origin()
+                if origin == "ul":
+                    ul_col = ll_col
+                    ul_row = ll_row
+                elif origin == "ll":
+                    ul_col = ll_col
+                    ul_row = self.rows - 1 - ll_row
+                elif origin == "ur":
+                    ul_col = self.cols - 1 - ll_col
+                    ul_row = ll_row
+                elif origin == "lr":
+                    ul_col = self.cols - 1 - ll_col
+                    ul_row = self.rows - 1 - ll_row
+                else:
+                    assert 0
 
-        for cur_y in self.y.points():
-            x_list, col, cold = active
+                yield (pos, (ll_col, ll_row), (ul_col, ul_row))
 
-            for cur_x in x_list:
-                yield ((cur_x, cur_y), (col, row))
-                col += cold
-            # swap direction
-            active, nexts = nexts, active
-            row += 1
-
-    def gen_xycr(self):
-        """
-        Return all image coordinates we'll visit
-        ((x, y), (col, row))
-        """
-        for p in self.gen_xycr_serp():
-            if self.exclude(p):
-                continue
-            yield p
-
+    """
     def exclude(self, p):
         (_xy, (cur_row, cur_col)) = p
         for exclusion in self.pc.exclude():
@@ -417,6 +404,7 @@ class PointGenerator2P(PlannerPlugin):
                          (cur_row, cur_col, r0, r1, c0, c1))
                 return True
         return False
+    """
 
     def gen_xys(self):
         for (x, y), _cr in self.gen_xycr():
@@ -437,28 +425,20 @@ class PointGenerator2P(PlannerPlugin):
             self.log("  ROI exclusions active")
 
     def iterate(self, state):
-        self.max_move = {'x': 0, 'y': 0}
-        self.last_row = None
-        self.last_col = None
-        self.cur_col = -1
-        self.cur_row = -1
         # columns
-        for ((cur_x, cur_y), (self.cur_col, self.cur_row)) in self.gen_xycr():
+        for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul_serp():
             self.itered_xy_points += 1
             self.log('')
             self.log('XY2P: generated point: %u / %u' %
                      (self.itered_xy_points, self.points_expected()))
 
-            self.motion.move_absolute({'x': cur_x, 'y': cur_y})
+            self.motion.move_absolute(pos)
 
             modifiers = {
-                "filename_part": self.filename_part(),
+                "filename_part": self.filename_part(ul_col, ul_row),
             }
             replace_keys = {}
             yield modifiers, replace_keys
-
-            self.last_row = self.cur_row
-            self.last_col = self.cur_col
 
     def scan_end(self, state):
         # Return to end position
@@ -479,12 +459,6 @@ class PointGenerator2P(PlannerPlugin):
     def log_scan_end(self):
         self.log('XY2P: generated points: %u / %u' %
                  (self.itered_xy_points, self.points_expected()))
-        self.log('  Max x: %0.3f, y: %0.3f' %
-                 (self.max_move['x'], self.max_move['y']))
-        #self.log('  G0 X%0.3f Y%0.3f' %
-        #         (self.max_move['x'], self.max_move['y']))
-        # excluded points should not be in counts
-        # if len(self.pc.j.get('exclude', [])) == 0 and self.itered_xy_points != self.n_xy_cache:
         if self.itered_xy_points != self.points_expected():
             raise Exception(
                 'pictures taken mismatch (taken: %d, to take: %d)' %
@@ -492,9 +466,11 @@ class PointGenerator2P(PlannerPlugin):
 
     def gen_meta(self, meta):
         points = OrderedDict()
-        for (x, y), (c, r) in self.gen_xycr():
-            k = "%uc_%ur" % (c, r)
-            points[k] = {"x": x, "y": y, "col": c, "row": r}
+        for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul_serp():
+            k = self.filename_part(ul_col, ul_row)
+            v = dict(pos)
+            v.update({"col": ul_col, "row": ul_row})
+            points[k] = v
         axes = {}
         for axisc, axis in self.axes.items():
             axes[axisc] = axis.meta()
@@ -556,6 +532,7 @@ class PointGenerator3P(PlannerPlugin):
             corner = dict(corner)
             # Fill in a dummy consistent value to make matrix solve
             # It will be dropped during moves
+            # Its also accurate in the telemetry
             if not self.tracking_z:
                 corner["z"] = pos0["z"]
             self.log("  %s x=%0.3f, y=%0.3f, z=%0.3f" %
@@ -680,12 +657,15 @@ class PointGenerator3P(PlannerPlugin):
     def images_expected(self):
         return self.rows * self.cols
 
-    def calc_pos(self, col, row):
+    def calc_pos(self, ll_col, ll_row):
         ret = {}
         for axis in "xyz":
-            ret[axis] = self.per_row[axis] * row + self.per_col[
-                axis] * col + self.corners["ll"][axis]
+            ret[axis] = self.per_row[axis] * ll_row + self.per_col[
+                axis] * ll_col + self.corners["ll"][axis]
         return ret
+
+    def filename_part(self, ul_col, ul_row):
+        return 'c%03u_r%03u' % (ul_col, ul_row)
 
     def gen_pos_ll_ul_serp(self):
         for ll_row in range(self.rows):
@@ -726,6 +706,23 @@ class PointGenerator3P(PlannerPlugin):
     def log_scan_begin(self):
         self.log("XY3P")
         log_scan_xy_begin(self)
+
+    def gen_meta(self, meta):
+        points = OrderedDict()
+        for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul_serp():
+            k = self.filename_part(ul_col, ul_row)
+            v = dict(pos)
+            v.update({"col": ul_col, "row": ul_row})
+            points[k] = v
+        axes = {}
+        for axisc, axis in self.axes.items():
+            axes[axisc] = axis.meta()
+        meta["points-xy2p"] = {
+            'points_to_generate': self.points_expected(),
+            'points_generated': self.itered_xy_points,
+            "points": points,
+            "axes": axes,
+        }
 
 
 """

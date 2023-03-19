@@ -676,6 +676,7 @@ class ScanWidget(AWidget):
         self.setControlsEnabled = setControlsEnabled
         self.current_scan_config = None
         self.restore_properties = None
+        self.log_fd_scan = None
 
     def initUI(self):
         """
@@ -759,7 +760,9 @@ class ScanWidget(AWidget):
         # Reset any planner specific configuration
         self.go_pause_pb.setText("Go")
         # Cleanup camera objects
+        self.log_fd_scan.close()
         self.log_fd_scan = None
+
         self.ac.planner_thread = None
         last_scan_config = self.current_scan_config
         self.current_scan_config = None
@@ -940,13 +943,14 @@ class MainTab(ArgusTab):
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
 
+        self.log_fd = None
+
         fn = os.path.join(get_data_dir(), "log.txt")
         existed = os.path.exists(fn)
         self.log_fd = open(fn, "w+")
         if existed:
             self.log_fd.write("\n\n\n")
             self.log_fd.flush()
-        self.log_fd_scan = None
         # must be created early to accept early logging
         # not displayed until later though
         self.log_widget = QTextEdit()
@@ -1049,9 +1053,9 @@ class MainTab(ArgusTab):
 
         self.log_fd.write(s)
         self.log_fd.flush()
-        if self.log_fd_scan is not None:
-            self.log_fd_scan.write(s)
-            self.log_fd_scan.flush()
+        if self.scan_widget.log_fd_scan is not None:
+            self.scan_widget.log_fd_scan.write(s)
+            self.scan_widget.log_fd_scan.flush()
 
     def go_currnet_pconfig(self):
         scan_config = self.active_planner_widget().get_current_scan_config()

@@ -32,7 +32,8 @@ MotionHAL is not thread safe with exception of the following:
 
 
 def pos_str(pos):
-    return ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()])
+    return ' '.join(
+        ['%c%0.3f' % (k.upper(), v) for k, v in sorted(pos.items())])
 
 
 def sign(delta):
@@ -167,7 +168,7 @@ class BacklashMM(MotionModifier):
                 self.compensated[axis] = True
                 continue
 
-            if 1 and axis == "z":
+            if 0 and axis == "z":
                 self.log("z comp trig ")
                 self.log("  compensation: %s" % (self.compensation[axis], ))
                 self.log("  backlash: %f" % (self.backlash[axis], ))

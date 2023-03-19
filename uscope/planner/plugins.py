@@ -5,6 +5,7 @@ import time
 from uscope.planner.plugin import PlannerPlugin, register_plugin
 from PIL import Image
 from uscope.imager.imager_util import get_scaled
+from uscope.motion.hal import pos_str
 try:
     from scipy import polyfit
 except ImportError:
@@ -454,6 +455,7 @@ class PointGenerator2P(PlannerPlugin):
         ret_pos = {'x': retx, 'y': rety}
         # Will be at the end of a stack
         # Put it back where it started
+        self.log("XY2P: returning XY at scan end")
         self.motion.move_absolute(ret_pos)
 
     def log_scan_end(self):
@@ -701,6 +703,7 @@ class PointGenerator3P(PlannerPlugin):
 
     def scan_end(self, state):
         # Return to start position
+        self.log("XY3P: returning XY at scan end")
         self.move_absolute(self.corners["ll"])
 
     def log_scan_begin(self):
@@ -737,37 +740,38 @@ class PlannerStacker(PlannerPlugin):
         # Most users will want to stack on z
         config = self.planner.pc.j["points-stacker"]
         self.axis = config.get("axis", "z")
-        # Position where stacking is relative to
-        # If None will be initialized at start of run
-        if "start" in config:
-            self.start = float(config["start"])
-        else:
-            self.start = None
-        # If don't have a start position take the beginning position
-        if self.start is None:
-            self.start = self.planner.motion.pos()[self.axis]
-        """
-        start: relative from absolute position
-            ie start + distance
-        center: center distance on start
-            ie start +/- (distance / 2)
-        """
-        self.start_mode = config.get("start_mode", "center")
-        self.images_per_stack = int(config["number"])
+        # Must be done per iteration as other plugins may move z
+        self.start = None
+        # self.start_mode = config.get("start_mode", "center")
+        self.mode = "center"
+        self.total_number = int(config["number"])
+        assert self.total_number >= 1
         # How far a stack should be
         # Will go self.start + self.distance
         # To stack down make distance negative
         # You probably want negative backlash compensation as well
         self.distance = float(config["distance"])
+        assert self.distance > 0
+
+        self.direction = self.get_direction()
+        if self.total_number > 1:
+            self.step = self.distance / (self.total_number -
+                                         1) * self.direction
+        else:
+            self.step = 0.0
+
+        self.first_start = None
+        self.first_end = None
+        self.first_reference = None
 
     def log_scan_begin(self):
         self.imager.log_planner_header(self.log)
-        self.log("Focus stacking from \"%s\"" % self.start_mode)
-        self.log("  Images: %s" % self.images_per_stack)
+        self.log("Focus stacking from \"%s\"" % self.mode)
+        self.log("  Images: %s" % self.total_number)
         self.log("  Distance: %0.3f" % self.distance)
 
     def images_expected(self):
-        return self.images_per_stack
+        return self.total_number
 
     def get_direction(self):
         direction = -1
@@ -779,68 +783,61 @@ class PlannerStacker(PlannerPlugin):
         return direction
 
     def points(self):
-        direction = self.get_direction()
-        if self.start_mode == "center":
-            # if self.images_per_stack % 2 != 1:
-            #    raise Exception('Center stacking requires odd n')
+        for image_number in range(self.total_number):
+            z = self.start + image_number * self.step
+            yield {self.axis: z}
 
-            # Step in the same distance as backlash compensation
-            # Start at bottom and move down
-            if direction > 0:
-                start = self.start - self.distance / 2
-            # Move to the top of the stack and move down
-            else:
-                start = self.start + self.distance / 2
-        elif self.start_mode == "start":
-            # Move to the top of the stack
-            start = self.start
-        else:
-            assert 0, "bad stack mode"
-
-        # Step in the same distance as backlash compensation
-        # Default down
-        step_distance = self.distance / (self.images_per_stack - 1) * direction
-
-        yield "start", {self.axis: start}
-        # self.planner.log("stack: distance %0.3f" % (self.distance, ))
-        # self.planner.log("stack: start %0.3f => %0.3f" % (self.start, start))
-        for image_number in range(self.images_per_stack):
-            # self.planner.move_absolute(
-            # bypass backlash compensation to keep movement smooth
-            z = start + image_number * step_distance
-            yield "point", {self.axis: z}
+    def filename_part(self, image_number):
+        return "z%02d" % image_number
 
     def iterate(self, state):
+        # Position where stacking is relative to
+        # If None will be initialized at start of run
+        self.reference = self.planner.motion.pos()[self.axis]
+        # From center
+        self.start = self.reference - self.step * (self.total_number - 1) / 2
+        self.end = self.start + (self.total_number - 1) * self.step
+
         image_number = 0
-        for ptype, point in self.points():
-            if ptype == "start":
-                # XXX: with new backlash model we can probably remove this
-                self.planner.motion.move_absolute(point)
-            elif ptype == "point":
-                image_number += 1
+        first = True
+        for point in self.points():
+            if first:
                 self.planner.log(
-                    "stack: %u / %u @ %0.3f" %
-                    (image_number, self.images_per_stack, point[self.axis]))
-                self.planner.motion.move_absolute(point)
-                modifiers = {
-                    "filename_part": "z%02d" % image_number,
-                }
-                replace_keys = {}
-                yield modifiers, replace_keys
-            else:
-                assert 0
+                    "stack %c @ reference %0.3f, start %0.3f, end %0.3f, step %0.3f, %u images"
+                    % (self.axis, self.reference, self.start, self.end,
+                       self.step, self.total_number))
+                self.first_reference = self.reference
+                self.first_start = self.start
+                self.first_end = self.end
+            first = False
+            image_number += 1
+            self.planner.log(
+                "stack: %u / %u @ %0.3f" %
+                (image_number, self.total_number, point[self.axis]))
+            self.planner.motion.move_absolute(point)
+            modifiers = {
+                "filename_part": self.filename_part(image_number),
+            }
+            replace_keys = {}
+            yield modifiers, replace_keys
+
+    def scan_end(self, state):
+        self.log("Stacker: restoring %s = %0.3f" %
+                 (self.axis, self.first_reference))
+        self.motion.move_absolute({self.axis: self.first_reference})
 
     def gen_meta(self, meta):
-        points = []
-        for ptype, point in self.points():
-            if ptype == "point":
-                points.append(point)
         meta["points-stacker"] = {
-            "images_per_stack": self.images_per_stack,
+            "per_stack": self.total_number,
             "distance": self.distance,
-            "mode": self.start_mode,
-            "points": points,
-            "start": self.start,
+            "mode": self.mode,
+            # Compromise on sometimes variable z
+            # Add the starting point
+            "first_reference": self.first_reference,
+            "first_start": self.first_start,
+            "first_end": self.first_end,
+            "step": self.step,
+            "direction": self.direction,
             # Usually z
             "axis": self.axis,
         }
@@ -898,6 +895,7 @@ class PlannerCaptureImage(PlannerPlugin):
     def iterate(self, state):
         im = None
         assert state.get("image") is None, "Pipeline already took an image"
+        self.log("Capturing at %s" % pos_str(self.motion.pos()))
         if not self.planner.dry:
             if self.planner.imager.remote():
                 self.planner.imager_take.take()

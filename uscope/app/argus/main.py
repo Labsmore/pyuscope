@@ -3,7 +3,7 @@
 from uscope.gui.gstwidget import GstVideoPipeline, gstwidget_main
 from uscope.gui.control_scrolls import get_control_scroll
 from uscope.util import add_bool_arg
-from uscope.config import get_usj, USC, PC, get_bc
+from uscope.config import get_usj, USC, PC, get_bc, get_data_dir
 from uscope.imager.imager_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
@@ -269,15 +269,6 @@ class FullROIWidget(AWidget):
         pass
 
 
-"""
-TODO:
--XY w/ third point to correct for angle skew
--XYZ w/ third point to correct for height
-    Maybe evolution / same as above
--Many point for distorted dies like packaged chip
-"""
-
-
 class PlannerWidget(AWidget):
     def __init__(self, ac, scan_widget, objective_widget, parent=None):
         super().__init__(ac=ac, parent=parent)
@@ -286,9 +277,14 @@ class PlannerWidget(AWidget):
 
     # FIXME: abstract these better
 
-    def get_out_dir(self):
-        base_out_dir = self.ac.usc.app("argus").scan_dir()
-        return self.scan_widget.jobName.getName(base_out_dir)
+    def get_out_dir_j(self):
+        j = self.scan_widget.jobNameWidget.getNameJ()
+        out_dir = out_dir_config_to_dir(j, self.ac.usc.app("argus").scan_dir())
+        if os.path.exists(out_dir):
+            self.ac.log("Refusing to create config: dir already exists: %s" %
+                        out_dir)
+            return None
+        return j
 
     def get_objective(self):
         return self.objective_widget.obj_config
@@ -426,15 +422,13 @@ class XYPlanner2PWidget(PlannerWidget):
             "microscope": self.ac.microscope,
         }
 
-        out_dir = self.get_out_dir()
-        if os.path.exists(out_dir):
-            self.ac.log("Refusing to create config: dir already exists: %s" %
-                        out_dir)
-            return None
+        out_dir_config = self.get_out_dir_j()
+        if not out_dir_config:
+            return
 
         return {
             "pconfig": pconfig,
-            "out_dir": out_dir,
+            "out_dir_config": out_dir_config,
         }
 
     def set_start_pos(self):
@@ -641,15 +635,13 @@ class XYPlanner3PWidget(PlannerWidget):
             "microscope": self.ac.microscope,
         }
 
-        out_dir = self.get_out_dir()
-        if os.path.exists(out_dir):
-            self.ac.log("Refusing to create config: dir already exists: %s" %
-                        out_dir)
-            return None
+        out_dir_config = self.get_out_dir_j()
+        if not out_dir_config:
+            return
 
         return {
             "pconfig": pconfig,
-            "out_dir": out_dir,
+            "out_dir_config": out_dir_config,
         }
 
     def set_start_pos(self):
@@ -750,8 +742,8 @@ class ScanWidget(AWidget):
 
         layout = QVBoxLayout()
         gb = QGroupBox("Scan")
-        self.jobName = getScanNameWidget()
-        layout.addWidget(self.jobName)
+        self.jobNameWidget = getScanNameWidget()
+        layout.addWidget(self.jobNameWidget)
         layout.addLayout(getProgressLayout())
         gb.setLayout(layout)
 
@@ -783,7 +775,7 @@ class ScanWidget(AWidget):
         else:
             pass
 
-    def plannerDone(self, result, run_next=True):
+    def plannerDone(self, result):
         self.ac.log("RX planner done, result: %s" % (result["result"], ))
 
         # Reset any planner specific configuration
@@ -797,6 +789,8 @@ class ScanWidget(AWidget):
         if result["result"] == "ok":
             self.ac.stitchingTab.scan_completed(last_scan_config, result)
 
+        run_next = result["result"] == "ok" or (
+            not self.ac.batchTab.abort_on_failure())
         # More scans?
         if run_next and self.scan_configs:
             self.run_next_scan_config()
@@ -818,15 +812,23 @@ class ScanWidget(AWidget):
 
             dry = self.dry()
 
-            out_dir = self.current_scan_config["out_dir"]
+            out_dir_config = self.current_scan_config["out_dir_config"]
+            out_dir = out_dir_config_to_dir(
+                out_dir_config,
+                self.ac.usc.app("argus").scan_dir())
             pconfig = self.current_scan_config["pconfig"]
+
+            if os.path.exists(out_dir):
+                self.ac.log("Run aborted: directory already exists")
+                self.plannerDone({"result": "init_failure"})
+                return
             if not dry:
                 os.mkdir(out_dir)
 
             if "hdr" in pconfig["imager"] and self.ac.auto_exposure_enabled():
                 self.ac.log(
                     "Run aborted: requested HDR but auto-exposure enabled")
-                self.plannerDone({"result": "init_failure"}, run_next=False)
+                self.plannerDone({"result": "init_failure"})
                 return
 
             def emitCncProgress(state):
@@ -884,7 +886,7 @@ class ScanWidget(AWidget):
 
             self.ac.planner_thread.start()
         except:
-            self.plannerDone({"result": "init_failure"}, run_next=False)
+            self.plannerDone({"result": "init_failure"})
             raise
 
     def go_scan_configs(self, scan_configs):
@@ -1115,8 +1117,12 @@ class BatchImageTab(ArgusTab):
         self.abort_cb = QCheckBox()
         self.layout.addWidget(self.abort_cb)
 
-        # FIXME: instead just set to the MainTab's name
-        self.scan_name = QLineEdit()
+        # FIXME: allow editing scan parameters
+        """
+        self.layout.addWidget(QLabel("Output directory"))
+        self.output_dir = QLineEdit()
+        self.output_dir.setReadOnly(True)
+        """
 
         # Which tab to get config from
         # In advanced setups multiple algorithms are possible
@@ -1127,7 +1133,7 @@ class BatchImageTab(ArgusTab):
 
         self.pconfig_cb = QComboBox()
         self.layout.addWidget(self.pconfig_cb)
-        self.pconfig_cb.currentIndexChanged.connect(self.update_cb)
+        self.pconfig_cb.currentIndexChanged.connect(self.update_state)
 
         self.display = QTextEdit()
         self.display.setReadOnly(True)
@@ -1138,6 +1144,8 @@ class BatchImageTab(ArgusTab):
         self.scan_configs = []
         self.scani = 0
 
+        self.cache_load()
+
     def abort_on_failure(self):
         return self.abort_cb.isChecked()
 
@@ -1145,7 +1153,7 @@ class BatchImageTab(ArgusTab):
         self.pconfig_sources.append(widget)
         self.pconfig_source_cb.addItem(name)
 
-    def update_cb(self):
+    def update_state(self):
         if not len(self.scan_configs):
             self.display.setText("None")
             return
@@ -1156,37 +1164,57 @@ class BatchImageTab(ArgusTab):
                        indent=4,
                        separators=(",", ": "))
         self.display.setPlainText(json.dumps(s))
+        self.cache_save()
 
     def get_scan_config(self):
         mainTab = self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
         return mainTab.planner_widget.get_current_scan_config()
 
-    def add_clicked(self):
+    def add_cb(self, scan_config):
         self.scani += 1
-        name = str(self.scan_name.text())
-        if not name:
-            name = "Batch %u" % self.scani
-        else:
-            name = "Batch %u: %s" % (self.scani, name)
-        self.pconfig_cb.addItem(name)
-        self.scan_configs.append(self.get_scan_config())
-        self.update_cb()
+        self.pconfig_cb.addItem(f"Batch {self.scani}: " +
+                                os.path.basename(scan_config["output_dir"]))
+
+    def add_clicked(self):
+        scan_config = self.get_scan_config()
+        self.add_cb(scan_config)
+        self.scan_configs.append(scan_config)
+        self.update_state()
 
     def del_clicked(self):
         if len(self.scan_configs):
             index = self.pconfig_cb.currentIndex()
             del self.scan_configs[index]
             self.pconfig_cb.removeItem(index)
-        self.update_cb()
+        self.update_state()
 
     def del_all_clicked(self):
         for _i in range(len(self.scan_configs)):
             del self.scan_configs[0]
             self.pconfig_cb.removeItem(0)
-        self.update_cb()
+        self.update_state()
 
     def run_all_clicked(self):
         self.ac.mainTab.scan_widget.go_scan_configs(self.scan_configs)
+
+    def cache_save(self):
+        s = json.dumps(self.scan_configs,
+                       sort_keys=True,
+                       indent=4,
+                       separators=(",", ": "))
+        with open(self.ac.usc.app("argus").batch_cache_fn(), "w") as f:
+            f.write(s)
+
+    def cache_load(self):
+        fn = self.ac.usc.app("argus").batch_cache_fn()
+        if not os.path.exists(fn):
+            return
+        with open(fn, "r") as f:
+            j = json.load(f)
+        self.scan_configs = list(j)
+        for scan_config in self.scan_configs:
+            self.add_cb(scan_config)
+        self.update_state()
 
 
 class AdvancedTab(ArgusTab):
@@ -1452,10 +1480,28 @@ class USCArgus:
         Where scan jobs go
         Change to "scan"?
         """
-        return self.j.get("scan_dir", "out")
+        ret = self.j.get("scan_dir")
+        if ret:
+            return ret
+        else:
+            return os.path.join(get_data_dir(), "scan")
 
     def snapshot_dir(self):
-        return self.j.get("snapshot_dir", "snapshot")
+        """
+        Where snapshots are saved
+        """
+        ret = self.j.get("snapshot_dir")
+        if ret:
+            return ret
+        else:
+            return os.path.join(get_data_dir(), "snapshot")
+
+    def batch_cache_fn(self):
+        ret = self.j.get("batch_cache_file")
+        if ret:
+            return ret
+        else:
+            return os.path.join(get_data_dir(), "batch_cache.j5")
 
     def dry_default(self):
         """
@@ -1513,8 +1559,48 @@ def snapshot_fn(user, extension, parent):
         return fn_full
 
 
-def scan_dir_fn(user, parent):
-    return snapshot_fn(user=user, extension="", parent=parent)
+"""
+TODO:
+-XY w/ third point to correct for angle skew
+-XYZ w/ third point to correct for height
+    Maybe evolution / same as above
+-Many point for distorted dies like packaged chip
+"""
+
+
+def out_dir_config_to_dir(j, parent):
+    """
+    {
+        "dt_prefix": True,
+        "user_basename": str(self.le.text()),
+    }
+    """
+    prefix = ''
+    # if self.prefix_date_cb.isChecked():
+    if j.get("dt_prefix"):
+        # 2020-08-12_06-46-21
+        prefix = datetime.datetime.utcnow().isoformat().replace(
+            'T', '_').replace(':', '-').split('.')[0] + "_"
+
+    mod = None
+    while True:
+        mod_str = ''
+        if mod:
+            mod_str = '_%u' % mod
+        fn_full = os.path.join(
+            parent,
+            prefix + j["user_basename"] + mod_str + j.get("extension", ""))
+        if os.path.exists(fn_full):
+            if mod is None:
+                mod = 1
+            else:
+                mod += 1
+            continue
+        return fn_full
+
+
+# def scan_dir_fn(user, parent):
+#    return snapshot_fn(user=user, extension="", parent=parent)
 
 
 class JogListener(QPushButton):
@@ -1768,8 +1854,12 @@ class SimpleScanNameWidget(QWidget):
 
         self.setLayout(layout)
 
-    def getName(self, parent):
-        return scan_dir_fn(user=str(self.le.text()), parent=parent)
+    def getNameJ(self):
+        # return scan_dir_fn(user=str(self.le.text()), parent=parent)
+        return {
+            "dt_prefix": True,
+            "user_basename": str(self.le.text()),
+        }
 
 
 class SiPr0nScanNameWidget(QWidget):
@@ -1806,7 +1896,7 @@ class SiPr0nScanNameWidget(QWidget):
 
         self.setLayout(layout)
 
-    def getName(self, parent):
+    def getNameJ(self):
         # old: freeform
         # return str(self.job_name_le.text())
         vendor = str(self.vendor_name_le.text())
@@ -1826,7 +1916,10 @@ class SiPr0nScanNameWidget(QWidget):
             objective = "unkx"
 
         ret = vendor + "_" + product + "_" + layer + "_" + objective
-        return os.path.join(parent, ret)
+        # return os.path.join(parent, ret)
+        return {
+            "user_basename": ret,
+        }
 
 
 """
@@ -1852,6 +1945,10 @@ class ArgusCommon(QObject):
         self.mw = mw
         self.logs = []
         self.update_pconfigs = []
+
+        data_dir = get_data_dir()
+        if not os.path.isdir(data_dir):
+            os.mkdir(data_dir)
 
         self.motion_thread = None
         self.planner_thread = None

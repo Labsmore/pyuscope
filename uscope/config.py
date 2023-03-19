@@ -42,6 +42,7 @@ defaults = {}
 usj = None
 usc = None
 config_dir = None
+data_dir = None
 """
 Calibration broken out into separate file to allow for easier/safer frequent updates
 Ideally we'd also match on S/N or something like that
@@ -475,6 +476,14 @@ def set_usj(j):
     usj = j
 
 
+def get_data_dir():
+    return os.getenv("PYUSCOPE_DATA_DIR", "data")
+
+
+def get_configs_dir():
+    return get_data_dir() + "/configs/"
+
+
 def get_usj(config_dir=None, name=None):
     global usj
 
@@ -485,7 +494,7 @@ def get_usj(config_dir=None, name=None):
         if not name:
             name = os.getenv("PYUSCOPE_MICROSCOPE")
         if name:
-            config_dir = "configs/" + name
+            config_dir = get_configs_dir() + name
         # Maybe just throw an exception at this point?
         else:
             config_dir = "config"

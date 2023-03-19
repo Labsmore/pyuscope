@@ -106,7 +106,6 @@ def toupcamsrc_info():
             "def": int(m.group(3)),
         }
 
-
     func_i("MaxBitDepth")
     func_i("FanMaxSpeed")
     func_i("MaxSpeed")

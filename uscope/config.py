@@ -42,67 +42,54 @@ defaults = {}
 usj = None
 usc = None
 config_dir = None
-data_dir = None
 """
 Calibration broken out into separate file to allow for easier/safer frequent updates
 Ideally we'd also match on S/N or something like that
 """
 
 
-def cal_fn(mkdir=False):
-    if not config_dir:
-        return None
-    if mkdir and not os.path.exists(config_dir):
-        os.mkdir(config_dir)
-    return os.path.join(config_dir, "imager_calibration.j5")
+def cal_fn_microscope(name=None):
+    return os.path.join(get_config_dir(name=name), "imager_calibration.j5")
 
 
-def cal_load(source):
-    fn = cal_fn()
-    if fn is None or not os.path.exists(fn):
-        return {}
-    configj = readj(fn)
-    configs = configj["configs"]
-    for config in configs:
-        if config["source"] == source:
-            return config["properties"]
-    return {}
+def cal_fn_data():
+    return os.path.join(get_data_dir(), "imager_calibration.j5")
 
 
-def cal_load_all(source):
-    fn = cal_fn()
-    if not os.path.exists(fn):
-        return
-    configj = readj(fn)
-    configs = configj["configs"]
-    for config in configs:
-        if config["source"] == source:
-            return config
-    return None
-
-
-def cal_save(source, j):
-    fn = cal_fn(mkdir=True)
-    if not os.path.exists(fn):
-        configj = {"configs": []}
-    else:
+def cal_load(source, name=None):
+    def load_config(fn):
+        if not fn:
+            return {"properties": {}, "source": source}
+        if not os.path.exists(fn):
+            return {"properties": {}, "source": source}
         configj = readj(fn)
+        config = configj["configs"]["default"]
+        if config["source"] != source:
+            raise ValueError("Source mismatches in config file")
+        assert "properties" in config
+        return config
 
-    configs = configj["configs"]
+    assert source
+    # Take defaults from dataj, the user directory
+    microscopej = load_config(cal_fn_microscope(name=name))
+    dataj = load_config(cal_fn_data())
+    for k, v in microscopej["properties"].items():
+        dataj["properties"][k] = v
+    return dataj["properties"]
 
-    jout = {"source": source, "properties": j}
 
-    # Replace old config if exists
-    for configi, config in enumerate(configs):
-        if config["source"] == source:
-            configs[configi] = jout
-            break
-    # Otherwise create new config
-    else:
-        configs.append(jout)
-
-    print("Saving cal to %s" % fn)
-    writej(fn, configj)
+def cal_save_to_data(source, properties, mkdir=False):
+    if mkdir and not os.path.exists(get_data_dir()):
+        os.mkdir(get_data_dir())
+    jout = {
+        "configs": {
+            "default": {
+                "source": source,
+                "properties": properties
+            }
+        }
+    }
+    writej(cal_fn_data(), jout)
 
 
 class USCImager:
@@ -484,21 +471,30 @@ def get_configs_dir():
     return "configs/"
 
 
+def get_config_dir(name=None):
+    global config_dir
+
+    if config_dir:
+        return config_dir
+
+    if not name:
+        name = os.getenv("PYUSCOPE_MICROSCOPE")
+    if not name:
+        raise Exception("Must specify microscope")
+
+    config_dir = get_configs_dir() + name
+    return config_dir
+
+
 def get_usj(config_dir=None, name=None):
     global usj
 
     if usj is not None:
         return usj
-
     if not config_dir:
-        if not name:
-            name = os.getenv("PYUSCOPE_MICROSCOPE")
-        if name:
-            config_dir = get_configs_dir() + name
-        # Maybe just throw an exception at this point?
-        else:
-            config_dir = get_data_dir() + "/config"
+        config_dir = get_config_dir(name=name)
     globals()["config_dir"] = config_dir
+
     fn = os.path.join(config_dir, "microscope.j5")
     if not os.path.exists(fn):
         fn = os.path.join(config_dir, "microscope.json")

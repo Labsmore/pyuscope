@@ -17,11 +17,13 @@ groups_gst = OrderedDict([
         "hflip",
         "vflip",
     ]),
-    ("AWB", [
-        "awb_rgb",
-        # not sure what this is but doesn't work
-        #"awb_tt",
-    ]),
+    (
+        "AWB",
+        [
+            "awb_rgb",
+            # not sure what this is but doesn't work
+            #"awb_tt",
+        ]),
     # software based, leave out for now
     #("Black balance", [
     #    "bb-r",

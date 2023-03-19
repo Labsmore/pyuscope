@@ -300,8 +300,9 @@ class ImagerControlScroll(QScrollArea):
         self.prop_policy("auto-exposure", self.prop_read("auto-exposure"))
 
     def cal_save(self):
-        config.cal_save(source=self.vidpip.source_name,
-                        j=self.get_disp_properties())
+        config.cal_save_to_data(source=self.vidpip.source_name,
+                                properties=self.get_disp_properties(),
+                                mkdir=True)
 
     def run(self):
         if self.update_timer:

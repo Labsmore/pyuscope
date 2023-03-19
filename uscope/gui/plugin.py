@@ -7,7 +7,6 @@ Control Scroll (imager GUI controls)
 """
 
 from uscope.imager.imager import Imager, MockImager
-from uscope.config import cal_load_all
 from uscope.imager.imager_util import get_scaled
 
 from PyQt5 import Qt
@@ -16,7 +15,6 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
 import threading
-import time
 from PIL import Image
 """
 WARNING: early on there was some variety in maybe different imagers

@@ -278,6 +278,9 @@ class ScalarMM(MotionModifier):
             self.scale_i2e(status["pos"])
             # print('status scaling2 %s' % status["pos"])
 
+    def jog(self, scalars, options={}):
+        self.scale_e2i(scalars)
+
 
 class MotionHAL:
     def __init__(self, options, log=None, verbose=None):

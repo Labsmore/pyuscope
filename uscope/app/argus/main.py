@@ -100,14 +100,12 @@ class ObjectiveWidget(AWidget):
         self.obj_cb.currentIndexChanged.connect(self.update_obj_config)
         self.obj_view = QLabel("")
         cl.addWidget(self.obj_view, row, 2)
-        # seed it
-        self.reload_obj_cb()
         row += 1
 
         self.setLayout(cl)
 
     def post_ui_init(self):
-        self.update_obj_config()
+        self.reload_obj_cb()
 
     def reload_obj_cb(self):
         '''Re-populate the objective combo box'''
@@ -940,7 +938,12 @@ class MainTab(ArgusTab):
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
 
-        self.log_fd = open(os.path.join(get_data_dir(), "log.txt"), "w")
+        fn = os.path.join(get_data_dir(), "log.txt")
+        existed = os.path.exists(fn)
+        self.log_fd = open(fn, "w+")
+        if existed:
+            self.log_fd.write("\n\n\n")
+            self.log_fd.flush()
         self.log_fd_scan = None
         # must be created early to accept early logging
         # not displayed until later though
@@ -2126,6 +2129,11 @@ class MainWindow(QMainWindow):
             QCoreApplication.exit(1)
 
     def post_ui_init(self):
+        self.ac.log("pyuscope starting")
+        self.ac.log("https://github.com/Labsmore/pyuscope/")
+        self.ac.log("For enquiries contact support@labsmore.com")
+        self.ac.log("")
+
         self.ac.update_pconfigs.append(self.advancedTab.update_pconfig)
         self.ac.update_pconfigs.append(self.imagerTab.update_pconfig)
         # Start services

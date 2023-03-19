@@ -17,32 +17,35 @@ groups_gst = OrderedDict([
         "hflip",
         "vflip",
     ]),
-    ("Black balance", [
-        "bb-r",
-        "bb-g",
-        "bb-b",
+    ("AWB", [
+        "awb_rgb",
+        # not sure what this is but doesn't work
+        #"awb_tt",
     ]),
+    # software based, leave out for now
+    #("Black balance", [
+    #    "bb-r",
+    #    "bb-g",
+    #    "bb-b",
+    #]),
     ("White balance", [
         "wb-r",
         "wb-g",
         "wb-b",
     ]),
-    ("HSV+", [
-        "hue",
-        "saturation",
-        "brightness",
-        "contrast",
-        "gamma",
-    ]),
-    ("AWB", [
-        "awb_rgb",
-        "awb_tt",
-    ]),
-    (
-        "Misc",
-        [
-            #"name": "esize", "ro": True,
-        ]),
+    # also software based
+    #("HSV+", [
+    #    "hue",
+    #    "saturation",
+    #    "brightness",
+    #    "contrast",
+    #    "gamma",
+    #]),
+    #(
+    #    "Misc",
+    #    [
+    #        #"name": "esize", "ro": True,
+    #    ]),
 ])
 
 

@@ -93,8 +93,8 @@ def get_planner(pconfig,
     if "points-stacker" in pconfig:
         pipeline_names.append("points-stacker")
     # FIXME: needs review / testing
-    # if "hdr" in pconfig["imager"]:
-    #    pipeline_names.append("hdr")
+    if "hdr" in pconfig["imager"]:
+        pipeline_names.append("hdr")
     pipeline_names.append("kinematics")
     pipeline_names.append("image-capture")
     if not imager.remote():

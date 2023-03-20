@@ -335,9 +335,9 @@ class XYPlanner2PWidget(PlannerWidget):
         self.plan_start_pb.clicked.connect(self.set_start_pos)
         self.plan_start_pb.setIcon(QIcon(start_icon))
         gl.addWidget(self.plan_start_pb, row, 0)
-        self.plan_x0_le = QLineEdit('0.000')
+        self.plan_x0_le = QLineEdit("")
         gl.addWidget(self.plan_x0_le, row, 1)
-        self.plan_y0_le = QLineEdit('0.000')
+        self.plan_y0_le = QLineEdit("")
         gl.addWidget(self.plan_y0_le, row, 2)
         row += 1
 
@@ -345,9 +345,9 @@ class XYPlanner2PWidget(PlannerWidget):
         self.plan_end_pb.clicked.connect(self.set_end_pos)
         self.plan_end_pb.setIcon(QIcon(end_icon))
         gl.addWidget(self.plan_end_pb, row, 0)
-        self.plan_x1_le = QLineEdit('0.000')
+        self.plan_x1_le = QLineEdit("")
         gl.addWidget(self.plan_x1_le, row, 1)
-        self.plan_y1_le = QLineEdit('0.000')
+        self.plan_y1_le = QLineEdit("")
         gl.addWidget(self.plan_y1_le, row, 2)
         row += 1
 
@@ -730,9 +730,6 @@ class ScanWidget(AWidget):
         layout.addWidget(gb)
         self.setLayout(layout)
 
-    def post_ui_init(self):
-        pass
-
     def dry(self):
         return self.dry_cb.isChecked()
 
@@ -1060,6 +1057,9 @@ class MainTab(ArgusTab):
 
     def go_currnet_pconfig(self):
         scan_config = self.active_planner_widget().get_current_scan_config()
+        if scan_config is None:
+            self.ac.log("Failed to get scan config :(")
+            return
         # Leave image controls at current value when not batching?
         # Should be a nop but better to just leave alone
         del scan_config["pconfig"]["imager"]["properties"]
@@ -1087,7 +1087,8 @@ class ImagerTab(ArgusTab):
         self.setLayout(self.layout)
 
     def update_pconfig(self, pconfig):
-        pconfig["imager"]["properties"] = self.ac.imager.get_properties()
+        pconfig.setdefault("imager",
+                           {})["properties"] = self.ac.imager.get_properties()
 
 
 class BatchImageTab(ArgusTab):
@@ -1346,15 +1347,15 @@ class AdvancedTab(ArgusTab):
         raw = str(self.hdr_le.text())
         if not raw:
             return
-        properties = []
+        properties_list = []
         for val in [int(x) for x in raw.split(",")]:
-            properties.append({"expotime": val})
+            properties_list.append({"expotime": val})
         ret = {
-            "properties": properties,
+            "properties_list": properties_list,
             # this is probably a good approximation for now
-            "tsettle": self.usc.planner.hdr_tsettle()
+            "tsettle": self.ac.usc.planner.hdr_tsettle()
         }
-        pconfig["imager"]["hdr"] = ret
+        pconfig.setdefault("imager", {})["hdr"] = ret
 
     def update_pconfig(self, pconfig):
         self.update_pconfig_stack(pconfig)

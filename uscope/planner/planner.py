@@ -209,6 +209,8 @@ class Planner:
         self.emit_progress(state)
 
     def scan_end(self):
+        self.log("")
+        self.log("Cleaning up scan")
         state = {
             "type": "end",
             "images_to_capture": self.images_expected(),

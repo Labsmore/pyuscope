@@ -820,6 +820,8 @@ class PlannerStacker(PlannerPlugin):
             }
             replace_keys = {}
             yield modifiers, replace_keys
+        # If point generator doesn't set Z we'll drift without returning to original
+        self.planner.motion.move_absolute({self.axis: self.reference})
 
     def scan_end(self, state):
         self.log("Stacker: restoring %s = %0.3f" %
@@ -846,19 +848,49 @@ class PlannerStacker(PlannerPlugin):
 class PlannerHDR(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
-        self.config = self.pc.j["imager"]["hdr"]
+        config = self.pc.j["imager"]["hdr"]
+        self.properties_list = config["properties_list"]
+        self.tsettle = config.get("tsettle", 0.0)
+        self.begin_properties = None
+
+    def scan_begin(self, state):
+        self.begin_properties = self.imager.get_properties()
+
+    def properties_used(self):
+        ret = set()
+        for properties in self.properties_list:
+            ret.update(properties.keys())
+        return ret
+
+    def scan_end(self, state):
+        # Only set the ones we touch to reduce the chance of collisions
+        properties = {}
+        for k in self.properties_used():
+            properties[k] = self.begin_properties[k]
+        self.log("HDR: restoring %u imager properties" % len(properties))
+        if not self.dry:
+            self.imager.set_properties(properties)
 
     def iterate(self, state):
-        for hdri, hdrv in enumerate(self.config["properties"]):
-            # print("hdr: set %u %s" % (hdri, hdrv))
-            assert 0, "FIXME: needs review"
-            # self.emitter.change_properties.emit(hdrv)
-            self.imager.set_properties(hdrv)
+        for hdri, hdrv in enumerate(self.properties_list):
+            self.log("HDR: setting %s" % (hdrv, ))
+            if not self.dry:
+                self.imager.set_properties(hdrv)
+                time.sleep(self.tsettle)
             modifiers = {
                 "filename_part": "h%02u" % hdri,
             }
             replace_keys = {}
             yield modifiers, replace_keys
+
+    def images_expected(self):
+        return max(1, len(self.properties_list))
+
+    def gen_meta(self, meta):
+        meta["image-hdr"] = {
+            "properties_list": self.properties_list,
+            "tsettle": self.tsettle,
+        }
 
 
 class PlannerKinematics(PlannerPlugin):
@@ -997,8 +1029,7 @@ def register_plugins():
     register_plugin("points-xy2p", PointGenerator2P)
     register_plugin("points-xy3p", PointGenerator3P)
     register_plugin("points-stacker", PlannerStacker)
-    # FIXME: needs review / testing
-    # register_plugin("hdr", PlannerHDR)
+    register_plugin("hdr", PlannerHDR)
     register_plugin("kinematics", PlannerKinematics)
     register_plugin("image-capture", PlannerCaptureImage)
     register_plugin("image-save", PlannerSaveImage)

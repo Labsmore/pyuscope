@@ -427,7 +427,7 @@ class StitcherThread(QThread):
                               aws_secret_access_key=self.secret_key)
 
             for root, _, files in os.walk(self.directory):
-                for file in files:
+                for file in sorted(files):
                     self.log('Uploading {} to {}/{} '.format(
                         os.path.join(root, file), S3BUCKET,
                         DEST_DIR + '/' + file))

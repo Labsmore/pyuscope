@@ -562,14 +562,14 @@ Has no actual hardware associated with it
 
 
 class MockHal(MotionHAL):
-    def __init__(self, axes='xy', **kwargs):
+    def __init__(self, axes='xyz', **kwargs):
+        self._axes = list(axes)
         MotionHAL.__init__(self, **kwargs)
 
-        self._axes = list(axes)
-        self._pos = {}
+        self._pos_cache = {}
         # Assume starting at 0.0 until causes problems
         for axis in self._axes:
-            self._pos[axis] = 0.0
+            self._pos_cache[axis] = 0.0
 
     def _log(self, msg):
         self.log('Mock: ' + msg)
@@ -579,23 +579,23 @@ class MockHal(MotionHAL):
 
     def home(self, axes):
         for axis in axes:
-            self._pos[axis] = 0.0
+            self._pos_cache[axis] = 0.0
 
     def take_picture(self, file_name):
         self._log('taking picture to %s' % file_name)
 
     def _move_absolute(self, pos):
         for axis, apos in pos.items():
-            self._pos[axis] = apos
+            self._pos_cache[axis] = apos
         0 and self._log('absolute move to ' + pos_str(pos))
 
     def _move_relative(self, delta):
         for axis, adelta in delta.items():
-            self._pos[axis] += adelta
+            self._pos_cache[axis] += adelta
         0 and self._log('relative move to ' + pos_str(delta))
 
     def _pos(self):
-        return self._pos
+        return self._pos_cache
 
     def settle(self):
         # No hardware to let settle

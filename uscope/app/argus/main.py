@@ -1707,9 +1707,6 @@ class MotionWidget(AWidget):
     def __init__(self, ac, motion_thread, usc, log, parent=None):
         super().__init__(ac=ac, parent=parent)
 
-        assert self.ac.usc.motion.hal() == "grbl-ser", (
-            "FIXME", self.ac.usc.motion.hal())
-
         self.usc = usc
         self.log = log
         self.motion_thread = motion_thread
@@ -1972,7 +1969,8 @@ class ArgusCommon(QObject):
         self.vidpip = GstVideoPipeline(usc=self.usc,
                                        overview=True,
                                        overview2=True,
-                                       roi=True)
+                                       roi=True,
+                                       log=self.log)
         # FIXME: review sizing
         self.vidpip.size_widgets(frac=0.2)
         # self.capture_sink = Gst.ElementFactory.make("capturesink")

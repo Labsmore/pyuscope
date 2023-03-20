@@ -115,7 +115,8 @@ class GstVideoPipeline:
         usc=None,
         # Manually specify how many widgets are expected in widest window
         # Applicable if you have multiple tabs / windows
-        nwidgets_wide=None):
+        nwidgets_wide=None,
+        log=None):
         if usc is None:
             usc = config.get_usc(usj=usj)
         self.usc = usc
@@ -190,6 +191,11 @@ class GstVideoPipeline:
         self.player = Gst.Pipeline.new("player")
         # Clear if anything bad happens and shouldn't be trusted
         self.ok = True
+
+        if log is None:
+            def log(s):
+                print(s)
+        self.log = log
 
     def get_widget(self, name):
         """

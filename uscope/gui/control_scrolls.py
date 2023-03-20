@@ -31,6 +31,7 @@ def get_control_scroll(vidpip, usc):
     elif vidpip.source_name == "gst-v4l2src-mu800":
         return V4L2MU800ControlScroll(vidpip, usc=usc)
     else:
+        # vidpip.log eats this message
         print("WARNING: no control layout for source %s" %
               (vidpip.source_name, ))
         return DummyGstControlScroll(vidpip, usc=usc)

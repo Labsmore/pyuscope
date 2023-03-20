@@ -17,6 +17,7 @@ class ImagerControlScroll(QScrollArea):
             usc = config.get_usc()
         self.usc = usc
         self.verbose = verbose
+        self.log = lambda x: print(x)
 
         self.verbose and print("init", groups)
 
@@ -291,7 +292,11 @@ class ImagerControlScroll(QScrollArea):
         raise Exception("Required")
 
     def cal_load(self):
-        j = config.cal_load(source=self.vidpip.source_name)
+        try:
+            j = config.cal_load(source=self.vidpip.source_name)
+        except ValueError as e:
+            self.log("WARNING: Failed to load cal: %s" % (e,))
+            return
         if not j:
             return
         self.set_disp_properties(j)
@@ -449,6 +454,8 @@ class GstControlScroll(ImagerControlScroll):
                                      usc=usc,
                                      parent=parent)
         self.vidpip = vidpip
+        # FIXME: hack
+        self.log = self.vidpip.log
 
         layout = QVBoxLayout()
         layout.addLayout(self.buttonLayout())

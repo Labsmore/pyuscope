@@ -20,7 +20,8 @@ if __name__ == "__main__":
     print("  SDK Version: %s" % (info["Version"], ))
     print("  SDK Brand: %s" % (info["SDK_Brand"], ))
     print("Hardware")
-    print("  Model: %s" % (info["ModelV2"]["name"], ))
+    if "ModelV2" in info:
+        print("  Model: %s" % (info["ModelV2"]["name"], ))
     print("  SerialNumber: %s" % (info["SerialNumber"], ))
     print("  ProductionDate: %s" % (info["ProductionDate"], ))
     print("  HwVersion: %s" % (info["HwVersion"], ))

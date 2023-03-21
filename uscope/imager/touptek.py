@@ -177,14 +177,16 @@ def toupcamsrc_info():
     func_str("HwVersion")
     func_str("ProductionDate")
     func_str("FpgaVersion")
-    pop_line()
-    mv2 = {}
-    mv2["name"] = parse_kv_line("name", store=False)
-    mv2["flag"] = int(parse_kv_line("flag", store=False), 0)
-    mv2["maxspeed"] = int(parse_kv_line("maxspeed", store=False))
-    mv2["preview"] = int(parse_kv_line("preview", store=False))
-    mv2["still"] = int(parse_kv_line("still", store=False))
-    ret["ModelV2"] = mv2
+    # FIXME: hacky
+    if int(ret["Version"].split(".")[0]) >= 53:
+        pop_line()
+        mv2 = {}
+        mv2["name"] = parse_kv_line("name", store=False)
+        mv2["flag"] = int(parse_kv_line("flag", store=False), 0)
+        mv2["maxspeed"] = int(parse_kv_line("maxspeed", store=False))
+        mv2["preview"] = int(parse_kv_line("preview", store=False))
+        mv2["still"] = int(parse_kv_line("still", store=False))
+        ret["ModelV2"] = mv2
     """
       Option(PIXEL_FORMAT): 0
         RawFormat(): FourCC RGGB, BitsPerPixel 8

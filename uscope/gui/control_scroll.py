@@ -278,6 +278,9 @@ class ImagerControlScroll(QScrollArea):
         self.set_disp_properties(vals)
 
     def update_by_microscope_deafults(self):
+        # Set defaults
+        self.update_by_cam_deafults()
+        # Then override microscope specific properties
         self.cal_load(load_data_dir=False)
 
     def prop_policy(self, name, value):

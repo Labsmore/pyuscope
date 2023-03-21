@@ -74,7 +74,7 @@ def cal_fn_data(name=None):
                         "imager_calibration.j5")
 
 
-def cal_load(source, name=None):
+def cal_load(source, name=None, load_data_dir=True):
     def load_config(fn):
         if not fn:
             return {"properties": {}, "source": source}
@@ -85,15 +85,19 @@ def cal_load(source, name=None):
         if config["source"] != source:
             raise ValueError("Source mismatches in config file")
         assert "properties" in config
-        return config
+        return config["properties"]
 
     assert source
-    # Take defaults from dataj, the user directory
+    # configs/ls-hvy-1/imager_calibration.j5
     microscopej = load_config(cal_fn_microscope(name=name))
+    if not load_data_dir:
+        return microscopej
+    # Take defaults from dataj, the user directory
+    # data/microscopes/ls-hvy-1/imager_calibration.j5
     dataj = load_config(cal_fn_data(name))
-    for k, v in microscopej["properties"].items():
-        dataj["properties"][k] = v
-    return dataj["properties"]
+    for k, v in dataj.items():
+        microscopej[k] = v
+    return microscopej
 
 
 def cal_save_to_data(source, properties, mkdir=False):

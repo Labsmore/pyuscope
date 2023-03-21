@@ -63,9 +63,14 @@ class ImagerControlScroll(QScrollArea):
     def buttonLayout(self):
         layout = QHBoxLayout()
 
-        self.default_pb = QPushButton("Default")
-        layout.addWidget(self.default_pb)
-        self.default_pb.clicked.connect(self.update_by_deafults)
+        self.cam_default_pb = QPushButton("Camera default")
+        layout.addWidget(self.cam_default_pb)
+        self.cam_default_pb.clicked.connect(self.update_by_cam_deafults)
+
+        self.microscope_default_pb = QPushButton("Microscope default")
+        layout.addWidget(self.microscope_default_pb)
+        self.microscope_default_pb.clicked.connect(
+            self.update_by_microscope_deafults)
 
         self.cal_save_pb = QPushButton("Cal save")
         layout.addWidget(self.cal_save_pb)
@@ -73,7 +78,7 @@ class ImagerControlScroll(QScrollArea):
 
         self.cal_load_pb = QPushButton("Cal load")
         layout.addWidget(self.cal_load_pb)
-        self.cal_load_pb.clicked.connect(self.cal_load)
+        self.cal_load_pb.clicked.connect(self.cal_load_clicked)
 
         return layout
 
@@ -260,7 +265,7 @@ class ImagerControlScroll(QScrollArea):
                 vals[disp_name] = val
         self.set_disp_properties(vals)
 
-    def update_by_deafults(self):
+    def update_by_cam_deafults(self):
         """
         Update state based on default value
         """
@@ -270,6 +275,9 @@ class ImagerControlScroll(QScrollArea):
                 continue
             vals[disp_name] = prop["default"]
         self.set_disp_properties(vals)
+
+    def update_by_microscope_deafults(self):
+        self.cal_load(load_data_dir=False)
 
     def prop_policy(self, name, value):
         # Auto-exposure quickly fights with GUI
@@ -291,9 +299,13 @@ class ImagerControlScroll(QScrollArea):
     def raw_prop_read(self, name):
         raise Exception("Required")
 
-    def cal_load(self):
+    def cal_load_clicked(self, checked):
+        self.cal_load(load_data_dir=True)
+
+    def cal_load(self, load_data_dir=True):
         try:
-            j = config.cal_load(source=self.vidpip.source_name)
+            j = config.cal_load(source=self.vidpip.source_name,
+                                load_data_dir=load_data_dir)
         except ValueError as e:
             self.log("WARNING: Failed to load cal: %s" % (e, ))
             return

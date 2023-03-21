@@ -77,9 +77,9 @@ def cal_fn_data(name=None):
 def cal_load(source, name=None, load_data_dir=True):
     def load_config(fn):
         if not fn:
-            return {"properties": {}, "source": source}
+            return {}
         if not os.path.exists(fn):
-            return {"properties": {}, "source": source}
+            return {}
         configj = readj(fn)
         config = configj["configs"]["default"]
         if config["source"] != source:

@@ -233,7 +233,8 @@ class ImagerControlScroll(QScrollArea):
             try:
                 prop = self.disp2prop[disp_name]
             except:
-                print("oops", self.disp2prop.keys())
+                print("Widget properites:", self.disp2prop.keys())
+                print("Set properites:", vals)
                 raise
             # Rely on GUI signal writing API unless GUI updates are disabled
             if not prop["push_gui"]:

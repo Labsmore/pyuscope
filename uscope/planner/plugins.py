@@ -438,7 +438,10 @@ class PointGenerator2P(PlannerPlugin):
             modifiers = {
                 "filename_part": self.filename_part(ul_col, ul_row),
             }
-            replace_keys = {}
+            replace_keys = {
+                "col": ul_col,
+                "row": ul_row,
+            }
             yield modifiers, replace_keys
 
     def scan_end(self, state):
@@ -698,7 +701,10 @@ class PointGenerator3P(PlannerPlugin):
             modifiers = {
                 "filename_part": 'c%03u_r%03u' % (ul_col, ul_row),
             }
-            replace_keys = {}
+            replace_keys = {
+                "col": ul_col,
+                "row": ul_row,
+            }
             yield modifiers, replace_keys
 
     def scan_end(self, state):
@@ -798,10 +804,8 @@ class PlannerStacker(PlannerPlugin):
         self.start = self.reference - self.step * (self.total_number - 1) / 2
         self.end = self.start + (self.total_number - 1) * self.step
 
-        image_number = 0
-        first = True
-        for point in self.points():
-            if first:
+        for pointi, point in enumerate(self.points()):
+            if pointi == 0:
                 self.planner.log(
                     "stack %c @ reference %0.3f, start %0.3f, end %0.3f, step %0.3f, %u images"
                     % (self.axis, self.reference, self.start, self.end,
@@ -809,16 +813,15 @@ class PlannerStacker(PlannerPlugin):
                 self.first_reference = self.reference
                 self.first_start = self.start
                 self.first_end = self.end
-            first = False
-            image_number += 1
-            self.planner.log(
-                "stack: %u / %u @ %0.3f" %
-                (image_number, self.total_number, point[self.axis]))
+            self.planner.log("stack: %u / %u @ %0.3f" %
+                             (pointi + 1, self.total_number, point[self.axis]))
             self.planner.motion.move_absolute(point)
             modifiers = {
-                "filename_part": self.filename_part(image_number),
+                "filename_part": self.filename_part(pointi),
             }
-            replace_keys = {}
+            replace_keys = {
+                "stacki": pointi,
+            }
             yield modifiers, replace_keys
         # If point generator doesn't set Z we'll drift without returning to original
         self.planner.motion.move_absolute({self.axis: self.reference})
@@ -880,7 +883,10 @@ class PlannerHDR(PlannerPlugin):
             modifiers = {
                 "filename_part": "h%02u" % hdri,
             }
-            replace_keys = {}
+            replace_keys = {
+                "image-properties": dict(hdrv),
+                "hdri": hdri,
+            }
             yield modifiers, replace_keys
 
     def images_expected(self):
@@ -968,6 +974,7 @@ class PlannerSaveImage(PlannerPlugin):
         self.extension = self.pc.imager.save_extension()
         self.quality = self.pc.imager.save_quality()
         assert not self.planner.imager.remote()
+        self.metadata = {}
 
     def log_scan_begin(self):
         self.log("Output dir: %s" % self.planner.out_dir)
@@ -987,6 +994,21 @@ class PlannerSaveImage(PlannerPlugin):
                 im.save(fn_full, quality=self.quality)
             else:
                 im.save(fn_full)
+            meta = {
+                "position": self.motion.pos(),
+            }
+            # FIXME: move this to modifiers so its more automatic per plugin
+            if "col" in state:
+                meta["col"] = state["col"]
+                meta["row"] = state["row"]
+            if "stacki" in state:
+                meta["stacki"] = state["stacki"]
+            if "image-properties" in state:
+                meta["image-properties"] = state["image-properties"]
+            if "hdri" in state:
+                meta["hdri"] = state["hdri"]
+            self.metadata[os.path.basename(fn_full)] = meta
+
         # yield {}, self.state_add_dict(state, "image", "filename_rel", fn_full)
         yield {}, {"image_filename_rel": fn_full}
 
@@ -996,6 +1018,7 @@ class PlannerSaveImage(PlannerPlugin):
             "quality": self.quality,
             "saved": self.images_saved,
         }
+        meta["files"] = self.metadata
 
 
 """

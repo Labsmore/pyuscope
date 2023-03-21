@@ -193,8 +193,10 @@ class GstVideoPipeline:
         self.ok = True
 
         if log is None:
+
             def log(s):
                 print(s)
+
         self.log = log
 
     def get_widget(self, name):

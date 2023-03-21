@@ -295,7 +295,7 @@ class ImagerControlScroll(QScrollArea):
         try:
             j = config.cal_load(source=self.vidpip.source_name)
         except ValueError as e:
-            self.log("WARNING: Failed to load cal: %s" % (e,))
+            self.log("WARNING: Failed to load cal: %s" % (e, ))
             return
         if not j:
             return

@@ -1954,10 +1954,6 @@ class ArgusCommon(QObject):
         self.logs = []
         self.update_pconfigs = []
 
-        data_dir = get_data_dir()
-        if not os.path.isdir(data_dir):
-            os.mkdir(data_dir)
-
         self.motion_thread = None
         self.planner_thread = None
         self.microscope = microscope

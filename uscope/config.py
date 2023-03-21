@@ -42,18 +42,36 @@ defaults = {}
 usj = None
 usc = None
 config_dir = None
+default_microscope_name_cache = None
 """
 Calibration broken out into separate file to allow for easier/safer frequent updates
 Ideally we'd also match on S/N or something like that
 """
 
 
+def default_microscope_name(name):
+    global default_microscope_name_cache
+
+    if name:
+        default_microscope_name_cache = name
+        return name
+    if default_microscope_name_cache:
+        return default_microscope_name_cache
+    name = os.getenv("PYUSCOPE_MICROSCOPE")
+    if name:
+        default_microscope_name_cache = name
+        return name
+    raise Exception("Must specify microscope")
+
+
 def cal_fn_microscope(name=None):
     return os.path.join(get_config_dir(name=name), "imager_calibration.j5")
 
 
-def cal_fn_data():
-    return os.path.join(get_data_dir(), "imager_calibration.j5")
+def cal_fn_data(name=None):
+    name = default_microscope_name(name)
+    return os.path.join(get_data_dir(), "microscopes", name,
+                        "imager_calibration.j5")
 
 
 def cal_load(source, name=None):
@@ -72,7 +90,7 @@ def cal_load(source, name=None):
     assert source
     # Take defaults from dataj, the user directory
     microscopej = load_config(cal_fn_microscope(name=name))
-    dataj = load_config(cal_fn_data())
+    dataj = load_config(cal_fn_data(name))
     for k, v in microscopej["properties"].items():
         dataj["properties"][k] = v
     return dataj["properties"]
@@ -467,6 +485,26 @@ def get_data_dir():
     return os.getenv("PYUSCOPE_DATA_DIR", "data")
 
 
+def init_data_dir(microscope_name):
+    microscope_name = default_microscope_name(microscope_name)
+    data_dir = get_data_dir()
+
+    if not os.path.exists(data_dir):
+        os.mkdir(data_dir)
+    scan_dir = os.path.join(data_dir, "scan")
+    if not os.path.exists(scan_dir):
+        os.mkdir(scan_dir)
+    snapshot_dir = os.path.join(data_dir, "snapshot")
+    if not os.path.exists(snapshot_dir):
+        os.mkdir(snapshot_dir)
+    microscopes_dir = os.path.join(data_dir, "microscopes")
+    if not os.path.exists(microscopes_dir):
+        os.mkdir(microscopes_dir)
+    microscope_name_dir = os.path.join(microscopes_dir, microscope_name)
+    if not os.path.exists(microscope_name_dir):
+        os.mkdir(microscope_name_dir)
+
+
 def get_configs_dir():
     return "configs/"
 
@@ -476,13 +514,9 @@ def get_config_dir(name=None):
 
     if config_dir:
         return config_dir
+    microscope_name = default_microscope_name(name)
 
-    if not name:
-        name = os.getenv("PYUSCOPE_MICROSCOPE")
-    if not name:
-        raise Exception("Must specify microscope")
-
-    config_dir = get_configs_dir() + name
+    config_dir = get_configs_dir() + microscope_name
     return config_dir
 
 
@@ -512,6 +546,10 @@ def get_usj(config_dir=None, name=None):
 
     default(j, defaults)
     usj = j
+
+    if name:
+        init_data_dir(name)
+
     return usj
 
 

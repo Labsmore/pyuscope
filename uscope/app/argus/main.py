@@ -1394,6 +1394,7 @@ class StitchingTab(ArgusTab):
             # Is there a reasonable default here?
             self.stitch_idkey = QLineEdit(
                 self.ac.bc.labsmore_stitch_aws_id_key())
+            self.stitch_idkey.setEchoMode(QLineEdit.Password)
             layout.addWidget(self.stitch_idkey, row, 1)
             row += 1
 

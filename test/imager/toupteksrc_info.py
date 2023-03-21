@@ -15,3 +15,15 @@ if __name__ == "__main__":
     for esize, v in info["eSizes"].items():
         print("  esize %u: %uw x %u h" %
               (esize, v["StillResolution"]["w"], v["StillResolution"]["h"]))
+    print("")
+    print("Host software")
+    print("  SDK Version: %s" % (info["Version"], ))
+    print("  SDK Brand: %s" % (info["SDK_Brand"], ))
+    print("Hardware")
+    print("  Model: %s" % (info["ModelV2"]["name"], ))
+    print("  SerialNumber: %s" % (info["SerialNumber"], ))
+    print("  ProductionDate: %s" % (info["ProductionDate"], ))
+    print("  HwVersion: %s" % (info["HwVersion"], ))
+    print("  Revision: %s" % (info["Revision"], ))
+    print("  FwVersion: %s" % (info["FwVersion"], ))
+    print("  FpgaVersion: %s" % (info["FpgaVersion"], ))

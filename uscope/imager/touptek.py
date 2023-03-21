@@ -63,11 +63,6 @@ def toupcamsrc_info():
         del lines[0]
         return ret
 
-    while True:
-        if pop_line().find("Camera info") >= 0:
-            break
-    ret = {}
-
     def func_str(func, store=True):
         l = pop_line()
         m = re.match(r"[ ]+%s\(.*\): (.+)" % func, l)
@@ -106,6 +101,35 @@ def toupcamsrc_info():
             "def": int(m.group(3)),
         }
 
+    while True:
+        debug_line = pop_line()
+        if debug_line.find("toupcam debug info for Version") >= 0:
+            break
+    ret = {}
+
+    def parse_version_line(l):
+        m = re.search(r"Version\(\): (.+)", l)
+        if not m:
+            raise ValueError(l)
+        s = m.group(1)
+        ret["Version"] = s
+        return s
+
+    def parse_kv_line(s, store=True, store_key=None):
+        #     key: value
+        l = pop_line()
+        m = re.match(r"[ ]+%s: (.+)" % s, l)
+        if not m:
+            raise ValueError(l)
+        ret2 = m.group(1)
+        if store:
+            if store_key is None:
+                store_key = s
+            ret[store_key] = ret2
+        return ret2
+
+    parse_version_line(debug_line)
+    parse_kv_line("SDK_Brand")
     func_i("MaxBitDepth")
     func_i("FanMaxSpeed")
     func_i("MaxSpeed")
@@ -153,6 +177,14 @@ def toupcamsrc_info():
     func_str("HwVersion")
     func_str("ProductionDate")
     func_str("FpgaVersion")
+    pop_line()
+    mv2 = {}
+    mv2["name"] = parse_kv_line("name", store=False)
+    mv2["flag"] = int(parse_kv_line("flag", store=False), 0)
+    mv2["maxspeed"] = int(parse_kv_line("maxspeed", store=False))
+    mv2["preview"] = int(parse_kv_line("preview", store=False))
+    mv2["still"] = int(parse_kv_line("still", store=False))
+    ret["ModelV2"] = mv2
     """
       Option(PIXEL_FORMAT): 0
         RawFormat(): FourCC RGGB, BitsPerPixel 8

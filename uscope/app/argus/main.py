@@ -1427,7 +1427,7 @@ class StitchingTab(ArgusTab):
 
     def post_ui_init(self):
         if not boto3:
-            self.log("WARNING: CloudStitch unavailible (require boto3)")
+            self.ac.log("WARNING: CloudStitch unavailible (require boto3)")
 
     def stitch_begin_manual(self):
         self.stitch_add(str(self.manual_stitch_dir.text()))

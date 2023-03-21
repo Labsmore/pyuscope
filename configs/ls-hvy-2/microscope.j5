@@ -11,7 +11,6 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
     "motion": {
         "hal": "grbl-ser",
         "backlash": 0.05,
-        //FIXME: not calibrated
         "scalars": {
             "x": -2.5,
             "y": 4.0,
@@ -25,6 +24,32 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
             "xmax": 35.0,
             "ymin": -5.0,
             "ymax": 35.0,
+        },
+
+        "grbl": {
+            "rc": [
+                //$100, $101 and $102 – [X,Y,Z] steps/mm
+                //Use soft limits instead of scaling here to avoid losing precision
+                "$100=800.000", "$101=800.000", "$102=800.000",
+
+                //2023-02-24: suspect missing steps. Make less aggressive
+                //X - Max Rate (mm/min)
+                //Default
+                //"$110=1000.000", "$111=1000.000", "$112=600.000",
+                //Target around 125 mm / min absolute speed (ie after soft scalars)
+                "$110=312.500", "$111=500.000", "$112=300.000",
+                //$120, $121, $122 – [X,Y,Z] Acceleration, mm/sec^2
+                //Default
+                //"$120=30.000", "$121=30.000", "$122=30.000",
+                //max rate / 20
+                "$120=15.625", "$121=25.000", "$122=25.000",
+
+                //G54: zero out offsets
+                //Could use P0 but better to make state canonical
+                "G10 L2 P1 X0 Y0 Z0",
+                //Select G54 coordinate system
+                "G54",
+            ],
         },
     },
     //E3ISPM20000KPA

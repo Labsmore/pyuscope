@@ -33,15 +33,13 @@ UT100 NEMA23 stages
                 //Disable homing
                 "$22=0",
                 //$100, $101 and $102 – [X,Y,Z] steps/mm
-                "$100=1600.000",
-                "$101=1600.000",
+                "$100=1600.000", "$101=1600.000",
                 //X - Max Rate (mm/min)
-                "$110=1000.000",
-                "$111=1000.000",
+                //Target around 125 mm / min absolute speed (ie after soft scalars)
+                "$110=125.000", "$111=125.000", "$112=125.000",
                 //$120, $121, $122 – [X,Y,Z] Acceleration, mm/sec^2
-                //Default values, didn't try changing
-                "$120=30.000",
-                "$121=30.000",
+                //Target max vel / 20
+                "$120=6.25", "$121=6.25", "$122=6.25",
                 //$130, $131, $132 – [X,Y,Z] Max travel, mm
                 //Set slightly above pyuscope limit
                 //homg disabled => not usable

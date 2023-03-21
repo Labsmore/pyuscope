@@ -664,9 +664,12 @@ class BaseConfig:
 
 
 def get_bcj():
-    with open(os.path.join(Path.home(), ".pyuscope")) as f:
-        j = json5.load(f, object_pairs_hook=OrderedDict)
-    return j
+    try:
+        with open(os.path.join(Path.home(), ".pyuscope")) as f:
+            j = json5.load(f, object_pairs_hook=OrderedDict)
+        return j
+    except FileNotFoundError:
+        return {}
 
 
 bc = None

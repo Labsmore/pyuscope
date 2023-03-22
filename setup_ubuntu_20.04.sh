@@ -60,6 +60,7 @@ install_gst_plugin_toupcam() {
         echo "gst-plugin-toupcam: already installed"
     else
         echo "gst-plugin-toupcam: installing"
+        git submodule init
         git submodule update --remote
         pushd gst-plugin-toupcam
         sudo apt-get install -y autoconf libtool dpkg-dev devscripts gstreamer1.0-tools libgstreamer-plugins-base1.0-dev

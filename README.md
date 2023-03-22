@@ -16,7 +16,9 @@ Features:
 
 # Quick start
 
-The most tested is Ubuntu 20.04. If you'd like a basic setup:
+OS: we primarily test on Ubuntu 20.04 but other versions of Linux or MacOS might work
+
+If you'd like a basic setup:
 
 PYUSCOPE_MICROSCOPE=none setup_ubuntu_20.04.sh
 
@@ -214,6 +216,9 @@ various instruments easy into my workflows.
  * Motion HAL V2 (now plugin based)
  * XY3P algorithm (beta)
  * Batch imaging (beta)
+ * Fixed GRBL Argus launch bug
+
+## 4.1.0 (WIP)
  * WIP: fix axis soft limit bug
  * WIP: add ability to temporarily override soft limits
- * Fixed GRBL Argus launch bug
+ * WIP: calibration GUI

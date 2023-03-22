@@ -41,10 +41,10 @@ for script in scripts:
 
 setup(
     name="pyuscope",
-    version="3.2.0",
+    version="4.0.0",
     author="John McMaster",
-    author_email='JohnDMcMaster@gmail.com',
-    description=("Microscope panorama GUI"),
+    author_email='john@labsmore.com',
+    description=("Digital microscope controller"),
     license="BSD",
     keywords="microscope touptek",
     url='https://github.com/Labsmore/pyuscope',

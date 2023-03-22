@@ -5,6 +5,20 @@
 
 set -ex
 
+if [ -z "$PYUSCOPE_MICROSCOPE" ] ; then
+    echo "Must specify PYUSCOPE_MICROSCOPE to install. Ex: PYUSCOPE_MICROSCOPE=mock ./setup_ubuntu_20.04.sh"
+    echo "Ex: PYUSCOPE_MICROSCOPE=ls-hvy-2 ./setup_ubuntu_20.04.sh"
+    echo "Ex: PYUSCOPE_MICROSCOPE=none ./setup_ubuntu_20.04.sh"
+    find configs -maxdepth 1 -mindepth 1 -type d |sort
+    exit 1
+fi
+if [ "$PYUSCOPE_MICROSCOPE" = "none" ] ; then
+    true
+elif [ '!' -d "configs/$PYUSCOPE_MICROSCOPE" ] ; then
+    echo "Invalid PYUSCOPE_MICROSCOPE given"
+    exit 1
+fi
+
 if [ \! -d configs ] ; then
     echo "Must be run from the root dir"
     exit 1
@@ -20,7 +34,11 @@ install_toupcam_sdk() {
         echo "toupcamsdk: installing"
         mkdir -p download
         pushd download
-        wget -c http://www.touptek.com/upload/download/toupcamsdk.zip
+        # 2023-03-21: latest version on site is old (50.x)
+        # Get the newer one
+        # wget -c http://www.touptek.com/upload/download/toupcamsdk.zip
+        wget -c https://microwiki.org/media/touptek/toupcamsdk_53.21907.20221217.zip
+        mv toupcamsdk_53.21907.20221217.zip toupcamsdk.zip
         mkdir toupcamsdk
         pushd toupcamsdk
         unzip ../toupcamsdk.zip
@@ -57,39 +75,24 @@ install_gst_plugin_toupcam() {
     fi
 }
 
-install_stitching() {
-    sudo apt install -y hugin hugin-tools enblend imagemagick python3-psutil
-    sudo pip3 install Pillow
-
-    if [ -f "$(which xy-ts)" ] ; then
-        echo "xy-stitch: already installed"
-    else
-        echo "xy-stitch: installing"
-        pushd xystitch
-        sudo python3 setup.py develop
-        popd
-    fi
-}
-
 install_pyuscope() {
     sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb python3-opencv python3-serial
     sudo pip3 install json5
     sudo python3 setup.py develop
-    # Set default configuration
-    if [ -d "config" ] ; then
-        echo "Default config already set, skipping"
-    else
-        ln -s configs/lip-a1 config
-        echo "export PYUSCOPE_MICROSCOPE=lip-a1" >> ~/.profile
-    fi
 }
 
 # Misc
 sudo usermod -a -G dialout $USER
 
 install_gst_plugin_toupcam
-install_stitching
 install_pyuscope
+
+if [ "$PYUSCOPE_MICROSCOPE" != "none" ] ; then
+    # Found some systems don't read .profile....shrug
+    echo "Adding default microscope to .profile and .bashrc"
+    echo "export PYUSCOPE_MICROSCOPE=$PYUSCOPE_MICROSCOPE" >> ~/.profile
+    echo "export PYUSCOPE_MICROSCOPE=$PYUSCOPE_MICROSCOPE" >> ~/.bashrc
+fi
 
 # usermod is finicky requires login / logout
 # GST_PLUGIN_PATH can be similar

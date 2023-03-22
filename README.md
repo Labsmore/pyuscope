@@ -1,110 +1,32 @@
-pyuscope is a collection of python based microscope utilities. In particular:
-* Complete microscope applications for a few "official" configurations
-* Framework for advanced users
+pyuscope controls digital microscopes using Python.
+It primarily focuses on metallurgical microscopes with an emphasis on high resolution panoramas and advanced scripting.
 
-The flagship application creates panoramic scans using:
-* LinuxCNC for motion control
-* ToupTek cameras (via gstreamer) to take pictures
+Interested in purchasing a microscope? Please reach out to support@labsmore.com
 
-These panoramic scans are typically chip images (ex: see http://siliconpr0n.org/)
+Features:
+* Argus GUI for easy imaging
+  * Panoramic imaging including simple 2D and advanced 3D tracking
+  * Focus stacking
+  * HDR capture
+  * Chain batch jobs together
+  * Automatic panorama image stitching CloudStitch
+* CLI applications for batch jobs
+* Simple Python API for advanced applications
 
-Notable applications:
-  * main_gui/main.py: primary GUI
-  * touptek/tvl.py: for testing touptek plugin
-  * demo/*.py: small tech demos
+
+# Quick start
+
+The most tested is Ubuntu 20.04. If you'd like a basic setup:
+
+PYUSCOPE_MICROSCOPE=none setup_ubuntu_20.04.sh
+
+Alternatively if you know your microscope configuration file (ie a dir in configs/) do something like this:
+
+PYUSCOPE_MICROSCOPE=ls-hvy-2 setup_ubuntu_20.04.sh
+
 
 # Supported hardware
-
-## Supported configurations
-
-"pr0nscope"
-* Laptop: ThinkPad T430
-* OS: Ubuntu 20.04
-* Camera: ToupTek E3ISPM20000KPA
-* Motion control: LinuxCNC via machinekit (BBB)
-* Microscope: Olympus BH2 based
-
-WIP: 3018 GRBL
-* Laptop: ThinkPad T430
-* OS: Ubuntu 20.04
-* Camera: ToupTek E3ISPM20000KPA
-* Motion control: Grbl 1.1f
-* Microscope: Olympus BH2 based
-
-Why does the laptop matter?
-Mostly for the screen resolution to make the GUI nice
-
-## Supported hardware
-
-See some high level usage notes here: https://microwiki.org/wiki/index.php/McScope
-
-Supported gstreamer image sources:
-  * toupcamsrc (primary)
-  * v4l2src
-  * Other sources may work but without calibration
-
-Supported movement sources:
-  * linuxcnc
-  * Others, but they aren't well maintained
-
-# Quick start touptek
-
-FIXME: clean up instructions
-
-You might be able to run this to get a turnkey setup: ./configs/lip-a1/setup_ubuntu_20.04.sh
-
-Otherwise start by installing https://github.com/JohnDMcMaster/gst-plugin-toupcam
-
-
-# Quick start V4L2
-
-```
-sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb
-
-# install for v4l2
-# https://github.com/antmicro/python3-v4l2
-```
-
-First you might be able to try this GUI which will try to auto-detect v4l2:
-
-```
-python3 util/prop_gui.py
-```
-
-If that doesn't work or you want the full GUI, try this:
-
-```
-cp -r configs/v4l2_example/ config
-```
-
-Edit config/microscope.json and set desired width/height.
-You may need to use a program like "cheese" to see what the options are
-
-```
-python3 main_gui/main.py
-```
-
-# Installation
-
-To install:
-
-```
-sudo python3 setup.py install
-```
-
-Or for development:
-
-```
-sudo python3 setup.py develop
-```
-
-Setup environment before running:
-
-```
-export PYTHONPATH=$PYTHONPATH:$PWD
-export GST_PLUGIN_PATH=~/gst-plugin-toupcam/src/.libs/:$PWD
-python3 main_gui/main.py
-```
+Microscopes tend to be based on a GRBL motion controller + a Touptek camera. There are some older LinuxCNC and/or v4l flows but they aren't currently actively developed.
 
 # User Guide
 
@@ -178,10 +100,11 @@ This area provides logging output and debug information.
 
 # Why?
 
-Originally I needed to support specialized hardware and had a burning hated for Java
-which is used by MicroManager, the flagship FOSS microchip software.
-I've warmed up to Java slightly, and its possible MicroManager is a better fit for most people.
-However, I've been using this workflow for years now, and will probably continue to do so
+Originally I needed to support specialized hardware and wasn't enthusiastic to use Java for
+MicroManager, the flagship FOSS microchip software.
+In general the security and lab automation communities continue to revolve around Python which makes integrating
+various instruments easy into my workflows.
+
 
 # Version history
 

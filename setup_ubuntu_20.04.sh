@@ -71,6 +71,7 @@ install_gst_plugin_toupcam() {
 
         sudo make install
         echo "export GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0" >> ~/.profile
+        echo "export GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0" >> ~/.bashrc
         popd
     fi
 }

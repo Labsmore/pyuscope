@@ -204,7 +204,7 @@ various instruments easy into my workflows.
   * Reduce console verbosity
   * Unit test suite significantly expanded
 
-## 4.0.0 (WIP)
+## 4.0.0
  * Compatible with
   * gst-plugin-toupcam: v0.4.0
    * Rev for toupcamsrc automatic resolution detection

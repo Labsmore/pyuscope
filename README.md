@@ -26,9 +26,21 @@ Alternatively if you know your microscope configuration file (ie a dir in config
 
 PYUSCOPE_MICROSCOPE=ls-hvy-2 setup_ubuntu_20.04.sh
 
+After rebooting your system you can launch the PYUSCOPE_MICROSCOPE default microscope with:
+
+./app/argus.py
+
+If you want to explicitly specify a microscope:
+
+./app/argus.py --microscope mock
+
 
 # Supported hardware
-Microscopes tend to be based on a GRBL motion controller + a Touptek camera. There are some older LinuxCNC and/or v4l flows but they aren't currently actively developed.
+Microscopes tend to be based on a GRBL motion controller + a Touptek USB camera. There are some older LinuxCNC and/or v4l flows but they aren't currently actively developed.
+
+It's also possible to use the motion HAL / planner without gstreamer if you are ok launching from the CLI or writing your own GUI. Ex: we may add some basic SEM support this way
+
+
 
 # User Guide
 
@@ -206,8 +218,8 @@ various instruments easy into my workflows.
 
 ## 4.0.0
  * Compatible with
-  * gst-plugin-toupcam: v0.4.0
-   * Rev for toupcamsrc automatic resolution detection
+   * gst-plugin-toupcam: v0.4.0
+     * Rev for toupcamsrc automatic resolution detection
   * Motion HAL: GRBL
  * Significant code restructure (Argus, planner, motion)
  * Config API clean up

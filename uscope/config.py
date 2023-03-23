@@ -485,8 +485,11 @@ def set_usj(j):
     usj = j
 
 
-def get_data_dir():
-    return os.getenv("PYUSCOPE_DATA_DIR", "data")
+def get_data_dir(mkdir=True):
+    ret = os.getenv("PYUSCOPE_DATA_DIR", "data")
+    if not os.path.exists(ret):
+        os.mkdir(ret)
+    return ret
 
 
 def init_data_dir(microscope_name):

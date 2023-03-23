@@ -230,7 +230,7 @@ various instruments easy into my workflows.
  * Batch imaging (beta)
  * Fixed GRBL Argus launch bug
 
-## 4.0.2
+## 4.0.1
   * Fix race condition on creating data dir
 
 ## 4.1.0 (WIP)

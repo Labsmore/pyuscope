@@ -9,29 +9,52 @@ import numpy
 from PIL import Image
 
 parser = argparse.ArgumentParser(
-    description='Create an animated GIF zooming into specific location in the image.')
-parser.add_argument('--zoom_factor', type=float,
-                    help='Zoom factor (float).', default=0.05)
-parser.add_argument('--zoom_steps', type=int,
-                    help='Number of times to zoom in (int).', default=35)
-parser.add_argument('--infile', help='Input image filename',
+    description=
+    'Create an animated GIF zooming into specific location in the image.')
+parser.add_argument('--zoom_factor',
+                    type=float,
+                    help='Zoom factor (float).',
+                    default=0.05)
+parser.add_argument('--zoom_steps',
+                    type=int,
+                    help='Number of times to zoom in (int).',
+                    default=35)
+parser.add_argument('--infile',
+                    help='Input image filename',
                     default='image.png')
+parser.add_argument('--outfile',
+                    help='Output image filename',
+                    default='zoomed.gif')
+parser.add_argument('--x',
+                    type=int,
+                    help='X of point to zoom into.',
+                    default=50)
+parser.add_argument('--y',
+                    type=int,
+                    help='Y of point to zoom into.',
+                    default=50)
+parser.add_argument('--outfile_scale',
+                    type=float,
+                    help='Output file size scale (float).',
+                    default=1)
 parser.add_argument(
-    '--outfile', help='Output image filename', default='zoomed.gif')
-parser.add_argument(
-    '--x', type=int, help='X of point to zoom into.', default=50)
-parser.add_argument(
-    '--y', type=int, help='Y of point to zoom into.', default=50)
-parser.add_argument('--outfile_scale', type=float,
-                    help='Output file size scale (float).', default=1)
-parser.add_argument('--infile_scale', type=float,
-                    help='Pre-scale input image (This is not recommended, use outfile_scale). (float).')
-parser.add_argument('--duration', type=float,
-                    help='Gif frame delay (float).', default=0.1)
-parser.add_argument('--endframes', type=int,
-                    help='Number of frames to hold on max zoom.', default=5)
-parser.add_argument('--startframes', type=int,
-                    help='Number of frames to hold on before zoom.', default=5)
+    '--infile_scale',
+    type=float,
+    help=
+    'Pre-scale input image (This is not recommended, use outfile_scale). (float).'
+)
+parser.add_argument('--duration',
+                    type=float,
+                    help='Gif frame delay (float).',
+                    default=0.1)
+parser.add_argument('--endframes',
+                    type=int,
+                    help='Number of frames to hold on max zoom.',
+                    default=5)
+parser.add_argument('--startframes',
+                    type=int,
+                    help='Number of frames to hold on before zoom.',
+                    default=5)
 args = parser.parse_args()
 
 im = Image.open(args.infile)
@@ -40,7 +63,7 @@ im = Image.open(args.infile)
 # quality. Prefer to scale down the output file.
 if (args.infile_scale):
     im = im.resize((int(im.size[0] * args.infile_scale),
-                   int(im.size[1] * args.infile_scale)))
+                    int(im.size[1] * args.infile_scale)))
     # Also scale the target x and y coordinates
     args.x = int(args.x * args.infile_scale)
     args.y = int(args.y * args.infile_scale)

@@ -233,6 +233,9 @@ various instruments easy into my workflows.
 ## 4.0.1
   * Fix race condition on creating data dir
 
+## 4.0.2
+  * Config file rename
+
 ## 4.1.0 (WIP)
  * WIP: fix axis soft limit bug
  * WIP: add ability to temporarily override soft limits

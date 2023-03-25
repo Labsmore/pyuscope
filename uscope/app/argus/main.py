@@ -760,7 +760,8 @@ class ScanWidget(AWidget):
         # Reset any planner specific configuration
         self.go_pause_pb.setText("Go")
         # Cleanup camera objects
-        self.log_fd_scan.close()
+        if self.log_fd_scan:
+            self.log_fd_scan.close()
         self.log_fd_scan = None
 
         self.ac.planner_thread = None

@@ -8,7 +8,7 @@ from uscope.imager.imager_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
-from uscope.app.argus.threads import MotionThread, PlannerThread, StitcherThread, boto3
+from uscope.app.argus.threads import MotionThread, PlannerThread, StitcherThread
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import util
 from uscope import config
@@ -72,6 +72,9 @@ class AWidget(QWidget):
         pass
 
     def post_ui_init(self):
+        pass
+
+    def shutdown(self):
         pass
 
 
@@ -1366,7 +1369,6 @@ class StitchingTab(ArgusTab):
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
         self.stitcher_thread = None
-        self.stitch_queue = []
 
     def initUI(self):
         layout = QGridLayout()
@@ -1426,53 +1428,34 @@ class StitchingTab(ArgusTab):
         self.setLayout(layout)
 
     def post_ui_init(self):
-        if not boto3:
-            self.ac.log("WARNING: CloudStitch unavailible (require boto3)")
+        self.stitcher_thread = StitcherThread(parent=self)
+        self.stitcher_thread.log_msg.connect(self.ac.log)
+        self.stitcher_thread.start()
+
+    def shutdown(self):
+        if self.stitcher_thread:
+            self.stitcher_thread.thread_stop()
+            self.stitcher_thread = None
 
     def stitch_begin_manual(self):
-        self.stitch_add(str(self.manual_stitch_dir.text()))
+        self.cloud_stitch_add(str(self.manual_stitch_dir.text()))
 
     def scan_completed(self, scan_config, result):
         if self.ac.mainTab.scan_widget.stitch_cb.isChecked(
         ) and not scan_config["dry"]:
-            self.stitch_add(scan_config["out_dir"])
+            self.cloud_stitch_add(scan_config["out_dir"])
 
-    def stitch_add(self, directory):
+    def cloud_stitch_add(self, directory):
         self.ac.log(f"Stitch: requested {directory}")
         assert os.path.exists(directory)
-        self.stitch_queue.append(directory)
-        self.stitch_check()
-
-    def stitch_begin(self, directory):
-        self.ac.log(f"Stitch: starting {directory}")
-        assert not self.stitcher_thread
-
         # Offload uploads etc to thread since they might take a while
-        self.stitcher_thread = StitcherThread(
+        self.stitcher_thread.cloud_stitch_add(
             directory=directory,
             access_key=str(self.stitch_accesskey.text()),
             secret_key=str(self.stitch_secretkey.text()),
             id_key=str(self.stitch_idkey.text()),
             notification_email=str(self.stitch_email.text()),
-            parent=self,
         )
-        self.stitcher_thread.log_msg.connect(self.ac.log)
-        self.stitcher_thread.stitcherDone.connect(self.stitch_end)
-        self.stitcher_thread.start()
-
-    def stitch_check(self):
-        if len(self.stitch_queue) == 0:
-            self.ac.log("Stitch: idle")
-        elif self.stitcher_thread:
-            self.ac.log("Stitch: waiting until previous stitch completes")
-        else:
-            directory = self.stitch_queue[0]
-            del self.stitch_queue[0]
-            self.stitch_begin(directory)
-
-    def stitch_end(self):
-        self.stitcher_thread = None
-        self.stitch_check()
 
 
 class USCArgus:
@@ -2077,6 +2060,7 @@ class MainWindow(QMainWindow):
                 self.ac.shutdown()
         except AttributeError:
             pass
+        self.stitchingTab.shutdown()
 
     def init_objects(self, microscope=None):
         self.ac = ArgusCommon(microscope=microscope, mw=self)

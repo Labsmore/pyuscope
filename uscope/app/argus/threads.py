@@ -3,18 +3,16 @@ from uscope.planner.planner import PlannerStop
 from uscope.benchmark import Benchmark
 from uscope.motion.hal import AxisExceeded, MotionHAL, MotionCritical
 from uscope.motion.plugins import get_motion_hal
+from uscope import cloud_stitch
 from PyQt5.QtCore import QThread, pyqtSignal
 import traceback
-try:
-    import boto3
-except ImportError:
-    boto3 = None
 import datetime
 import io
 import os
 import queue
 import threading
 import time
+from queue import Queue, Empty
 
 
 def dbg(*args):
@@ -394,55 +392,65 @@ class PlannerThread(QThread):
 
 
 class StitcherThread(QThread):
-    stitcherDone = pyqtSignal()
+    # stitcherDone = pyqtSignal()
     log_msg = pyqtSignal(str)
 
-    def __init__(self,
-                 directory,
-                 access_key,
-                 secret_key,
-                 id_key,
-                 notification_email,
-                 parent=None):
+    def __init__(self, parent=None):
         QThread.__init__(self, parent)
-        self.directory = directory
-        self.access_key = access_key
-        self.secret_key = secret_key
-        self.id_key = id_key
-        self.notification_email = notification_email
+        self.queue = Queue()
+        self.running = threading.Event()
+        self.running.set()
 
     def log(self, msg):
         self.log_msg.emit(msg)
 
+    def shutdown(self):
+        self.running.clear()
+
+    # Offload uploads etc to thread since they might take a while
+    def cloud_stitch_add(
+        self,
+        directory,
+        access_key,
+        secret_key,
+        id_key,
+        notification_email,
+    ):
+
+        j = {
+            "type": "CloudStitch",
+            "directory": directory,
+            "access_key": access_key,
+            "secret_key": secret_key,
+            "id_key": id_key,
+            "notification_email": notification_email,
+        }
+        self.queue.put(j)
+
     def run(self):
         try:
-            self.log("Sending cloud stitching job...")
-            if not boto3:
-                raise Exception("Requires boto3 library")
-            S3BUCKET = 'labsmore-mosaic-service'
-            DEST_DIR = self.id_key + '/' + os.path.basename(
-                os.path.abspath(self.directory))
-            s3 = boto3.client('s3',
-                              aws_access_key_id=self.access_key,
-                              aws_secret_access_key=self.secret_key)
+            if not cloud_stitch.boto3:
+                self.ac.log("WARNING: CloudStitch unavailible (require boto3)")
+            while self.running:
+                try:
+                    j = self.queue.get(block=True, timeout=0.1)
+                except Empty:
+                    continue
+                assert j["type"] == "CloudStitch"
+                if not cloud_stitch.boto3:
+                    raise Exception("Requires boto3 library")
+                cloud_stitch.upload_dir(
+                    directory=j["directory"],
+                    id_key=j["id_key"],
+                    access_key=j["access_key"],
+                    secret_key=j["secret_key"],
+                    notification_email=j["notification_email"],
+                    log=self.log,
+                    running=self.running)
 
-            for root, _, files in os.walk(self.directory):
-                for file in sorted(files):
-                    self.log('Uploading {} to {}/{} '.format(
-                        os.path.join(root, file), S3BUCKET,
-                        DEST_DIR + '/' + file))
-                    s3.upload_file(os.path.join(root, file), S3BUCKET,
-                                   DEST_DIR + '/' + file)
-
-            MOSAIC_RUN_CONTENT = u'{{ "email": "{}" }}'.format(
-                self.notification_email)
-            mosaic_run_json = io.BytesIO(
-                bytes(MOSAIC_RUN_CONTENT, encoding='utf8'))
-            s3.upload_fileobj(mosaic_run_json, S3BUCKET,
-                              DEST_DIR + '/' + 'mosaic_run.json')
-            self.log("Sent stitching job.")
         except Exception as e:
             self.log('WARNING: stitcher thread crashed: %s' % str(e))
             traceback.print_exc()
         finally:
-            self.stitcherDone.emit()
+            # self.stitcherDone.emit()
+            pass

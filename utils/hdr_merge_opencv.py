@@ -4,14 +4,17 @@ import numpy as np
 import glob
 import re
 import os
+import subprocess
 
 
 # https://docs.opencv.org/3.4/d2/df0/tutorial_py_hdr.html
-def process_image(fns_in,
-                  exposure_times,
-                  fn_out_debevec=None,
-                  fn_out_robertson=None,
-                  fn_out_mertens=None):
+def process_image_cv(
+    fns_in,
+    exposure_times,
+    fn_out_debevec=None,
+    fn_out_robertson=None,
+    fn_out_mertens=None,
+):
     print("Processing", fns_in, exposure_times)
     # Loading exposure images into a list
     img_list = [cv.imread(fn) for fn in fns_in]
@@ -40,7 +43,7 @@ def process_image(fns_in,
         cv.imwrite(fn_out_robertson, res_robertson_8bit)
         print("  Saving", fn_out_robertson)
 
-    if 1:
+    if fn_out_mertens:
         # Exposure fusion using Mertens
         merge_mertens = cv.createMergeMertens()
         res_mertens = merge_mertens.process(img_list)
@@ -50,11 +53,13 @@ def process_image(fns_in,
         print("  Saving", fn_out_mertens)
 
 
-def run(dir_in,
-        exposures,
-        debevec_dir=None,
-        robertson_dir=None,
-        mertens_dir=None):
+def run(
+    dir_in,
+    exposures,
+    debevec_dir=None,
+    robertson_dir=None,
+    mertens_dir=None,
+):
     # Bucket [fn_base][exposures]
     fns = {}
     for fn in glob.glob(dir_in + "/*.jpg"):
@@ -73,6 +78,9 @@ def run(dir_in,
         os.mkdir(mertens_dir)
 
     for prefix, hdrs in sorted(fns.items()):
+        debevec_fn = None
+        robertson_fn = None
+        mertens_fn = None
         if debevec_dir:
             debevec_fn = os.path.join(debevec_dir, prefix + ".jpg")
         if robertson_dir:
@@ -80,12 +88,14 @@ def run(dir_in,
         if mertens_dir:
             mertens_fn = os.path.join(mertens_dir, prefix + ".jpg")
         print(hdrs.items())
-        fns = [fn for i, fn in sorted(hdrs.items())]
-        process_image(fns,
-                      exposures,
-                      fn_out_debevec=debevec_fn,
-                      fn_out_robertson=robertson_fn,
-                      fn_out_mertens=mertens_fn)
+        fns = [fn for _i, fn in sorted(hdrs.items())]
+        process_image_cv(
+            fns,
+            exposures,
+            fn_out_debevec=debevec_fn,
+            fn_out_robertson=robertson_fn,
+            fn_out_mertens=mertens_fn,
+        )
 
 
 def main():
@@ -99,10 +109,13 @@ def main():
     parser.add_argument("dir_in")
     args = parser.parse_args()
 
-    run(args.dir_in, [int(x) for x in args.exposures.split(',')],
+    run(
+        args.dir_in,
+        [int(x) for x in args.exposures.split(',')],
         debevec_dir=args.debevec_dir,
         robertson_dir=args.robertson_dir,
-        mertens_dir=args.mertens_dir)
+        mertens_dir=args.mertens_dir,
+    )
 
 
 if __name__ == "__main__":

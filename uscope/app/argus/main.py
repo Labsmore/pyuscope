@@ -1085,13 +1085,44 @@ class ImagerTab(ArgusTab):
 
         # screws up the original
         self.layout.addWidget(self.ac.vidpip.get_widget("overview2"))
+
+        def hdr_gb():
+            layout = QGridLayout()
+            row = 0
+
+            layout.addWidget(QLabel("HDR exposure sequence (csv in us)"), row,
+                             0)
+            self.hdr_le = QLineEdit("")
+            layout.addWidget(self.hdr_le, row, 1)
+            row += 1
+
+            gb = QGroupBox("HDR")
+            gb.setLayout(layout)
+            return gb
+
+        self.layout.addWidget(hdr_gb())
         self.layout.addWidget(self.ac.control_scroll)
 
         self.setLayout(self.layout)
 
+    def update_pconfig_hdr(self, pconfig):
+        raw = str(self.hdr_le.text())
+        if not raw:
+            return
+        properties_list = []
+        for val in [int(x) for x in raw.split(",")]:
+            properties_list.append({"expotime": val})
+        ret = {
+            "properties_list": properties_list,
+            # this is probably a good approximation for now
+            "tsettle": self.ac.usc.planner.hdr_tsettle()
+        }
+        pconfig.setdefault("imager", {})["hdr"] = ret
+
     def update_pconfig(self, pconfig):
         pconfig.setdefault("imager",
                            {})["properties"] = self.ac.imager.get_properties()
+        self.update_pconfig_hdr(pconfig)
 
 
 class BatchImageTab(ArgusTab):
@@ -1251,11 +1282,6 @@ class AdvancedTab(ArgusTab):
         layout.addWidget(stack_gb(), row, 0)
         row += 1
 
-        layout.addWidget(QLabel("HDR exposure sequence (csv in us)"), row, 0)
-        self.hdr_le = QLineEdit("")
-        layout.addWidget(self.hdr_le, row, 1)
-        row += 1
-
         # FIXME: display for now, but should make editable
         def planner_gb():
             layout = QGridLayout()
@@ -1346,23 +1372,8 @@ class AdvancedTab(ArgusTab):
             "distance": distance,
         }
 
-    def update_pconfig_hdr(self, pconfig):
-        raw = str(self.hdr_le.text())
-        if not raw:
-            return
-        properties_list = []
-        for val in [int(x) for x in raw.split(",")]:
-            properties_list.append({"expotime": val})
-        ret = {
-            "properties_list": properties_list,
-            # this is probably a good approximation for now
-            "tsettle": self.ac.usc.planner.hdr_tsettle()
-        }
-        pconfig.setdefault("imager", {})["hdr"] = ret
-
     def update_pconfig(self, pconfig):
         self.update_pconfig_stack(pconfig)
-        self.update_pconfig_hdr(pconfig)
 
 
 class StitchingTab(ArgusTab):

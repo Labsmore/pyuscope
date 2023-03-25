@@ -13,6 +13,7 @@ import queue
 import threading
 import time
 from queue import Queue, Empty
+import subprocess
 
 
 def dbg(*args):
@@ -407,6 +408,14 @@ class StitcherThread(QThread):
     def shutdown(self):
         self.running.clear()
 
+    def cli_stitch_add(self, directory, command):
+        j = {
+            "type": "cli",
+            "directory": directory,
+            "command": command,
+        }
+        self.queue.put(j)
+
     # Offload uploads etc to thread since they might take a while
     def cloud_stitch_add(
         self,
@@ -428,29 +437,44 @@ class StitcherThread(QThread):
         self.queue.put(j)
 
     def run(self):
-        try:
-            if not cloud_stitch.boto3:
-                self.ac.log("WARNING: CloudStitch unavailible (require boto3)")
-            while self.running:
-                try:
-                    j = self.queue.get(block=True, timeout=0.1)
-                except Empty:
-                    continue
-                assert j["type"] == "CloudStitch"
-                if not cloud_stitch.boto3:
-                    raise Exception("Requires boto3 library")
-                cloud_stitch.upload_dir(
-                    directory=j["directory"],
-                    id_key=j["id_key"],
-                    access_key=j["access_key"],
-                    secret_key=j["secret_key"],
-                    notification_email=j["notification_email"],
-                    log=self.log,
-                    running=self.running)
+        if not cloud_stitch.boto3:
+            self.ac.log("WARNING: CloudStitch unavailible (require boto3)")
+        while self.running:
+            try:
+                j = self.queue.get(block=True, timeout=0.1)
+            except Empty:
+                continue
+            try:
+                if j["type"] == "CloudStitch":
+                    if not cloud_stitch.boto3:
+                        raise Exception("Requires boto3 library")
+                    cloud_stitch.upload_dir(
+                        directory=j["directory"],
+                        id_key=j["id_key"],
+                        access_key=j["access_key"],
+                        secret_key=j["secret_key"],
+                        notification_email=j["notification_email"],
+                        log=self.log,
+                        running=self.running)
+                elif j["type"] == "cli":
+                    self.log(
+                        f"Stitch CLI: kicking off {j['command']} {j['directory']}"
+                    )
+                    # Hacky but good enough for now
+                    # Check terminal for process output
+                    print("")
+                    print("")
+                    print("")
+                    print(
+                        f"Stitch CLI: kicking off {j['command']} {j['directory']}"
+                    )
+                    subprocess.check_call([j['command'], j['directory']])
+                    self.log(f"Stitch CLI: finished job")
+                    print(f"Stitch CLI: finished job")
 
-        except Exception as e:
-            self.log('WARNING: stitcher thread crashed: %s' % str(e))
-            traceback.print_exc()
-        finally:
-            # self.stitcherDone.emit()
-            pass
+            except Exception as e:
+                self.log('WARNING: stitcher thread crashed: %s' % str(e))
+                traceback.print_exc()
+            finally:
+                # self.stitcherDone.emit()
+                pass

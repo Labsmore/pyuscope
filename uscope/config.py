@@ -707,6 +707,18 @@ class BaseConfig:
     def labsmore_stitch_notification_email(self):
         return self.j.get("labsmore_stitch", {}).get("notification_email")
 
+    def argus_stitch_cli(self):
+        """
+        Call given program with the scan output directory as the argument
+        """
+        return self.j.get("argus_stitch_cli", None)
+
+    def dev_mode(self):
+        """
+        Display unsightly extra information
+        """
+        return self.j.get("dev_mode", False)
+
 
 def get_bcj():
     try:

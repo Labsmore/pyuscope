@@ -1409,14 +1409,32 @@ class StitchingTab(ArgusTab):
             layout.addWidget(self.stitch_email, row, 1)
             row += 1
 
+            if self.ac.bc.dev_mode():
+                layout.addWidget(QLabel("Stitch CLI command"), row, 0)
+                self.stitch_cli = QLineEdit(self.ac.bc.argus_stitch_cli())
+                layout.addWidget(self.stitch_cli, row, 1)
+                row += 1
+            else:
+                # Keep it idle / blank
+                self.stitch_cli = QLineEdit()
+
             layout.addWidget(QLabel("Manual stitch directory"), row, 0)
             self.manual_stitch_dir = QLineEdit("")
             layout.addWidget(self.manual_stitch_dir, row, 1)
             row += 1
 
-            self.stitch_pb = QPushButton("Manual stitch")
-            self.stitch_pb.clicked.connect(self.stitch_begin_manual)
-            layout.addWidget(self.stitch_pb, row, 1)
+            self.cs_pb = QPushButton("Manual CloudStitch")
+            self.cs_pb.clicked.connect(self.stitch_begin_manual_cs)
+            layout.addWidget(self.cs_pb, row, 1)
+            row += 1
+
+            if self.ac.bc.dev_mode():
+                self.cli_pb = QPushButton("Manual CLI stitch")
+                self.cli_pb.clicked.connect(self.stitch_begin_manual_cli)
+                layout.addWidget(self.cli_pb, row, 1)
+                row += 1
+            else:
+                self.cli_pb = None
 
             gb = QGroupBox("Cloud Stitching")
             gb.setLayout(layout)
@@ -1437,17 +1455,27 @@ class StitchingTab(ArgusTab):
             self.stitcher_thread.thread_stop()
             self.stitcher_thread = None
 
-    def stitch_begin_manual(self):
+    def stitch_begin_manual_cs(self):
         self.cloud_stitch_add(str(self.manual_stitch_dir.text()))
 
+    def stitch_begin_manual_cli(self):
+        self.cli_stitch_add(str(self.manual_stitch_dir.text()))
+
     def scan_completed(self, scan_config, result):
-        if self.ac.mainTab.scan_widget.stitch_cb.isChecked(
-        ) and not scan_config["dry"]:
+        if scan_config["dry"]:
+            return
+
+        if self.ac.mainTab.scan_widget.stitch_cb.isChecked():
             self.cloud_stitch_add(scan_config["out_dir"])
+        elif str(self.stitch_cli.text()):
+            self.cli_stitch_add(scan_config["out_dir"])
 
     def cloud_stitch_add(self, directory):
-        self.ac.log(f"Stitch: requested {directory}")
-        assert os.path.exists(directory)
+        self.ac.log(f"CloudStitch: requested {directory}")
+        if not os.path.exists(directory):
+            self.ac.log(
+                f"Aborting stitch: directory does not exist: {directory}")
+            return
         # Offload uploads etc to thread since they might take a while
         self.stitcher_thread.cloud_stitch_add(
             directory=directory,
@@ -1456,6 +1484,18 @@ class StitchingTab(ArgusTab):
             id_key=str(self.stitch_idkey.text()),
             notification_email=str(self.stitch_email.text()),
         )
+
+    def cli_stitch_add(self, directory):
+        command = str(self.stitch_cli.text())
+        self.ac.log(f"CLI stitch: requested {command} {directory}")
+        if not os.path.exists(directory):
+            self.ac.log(
+                f"Aborting stitch: directory does not exist: {directory}")
+            return
+        if not command:
+            self.ac.log(f"Aborting stitch: need command")
+            return
+        self.stitcher_thread.cli_stitch_add(directory, command)
 
 
 class USCArgus:
@@ -2046,6 +2086,7 @@ class MainWindow(QMainWindow):
         QMainWindow.__init__(self)
         self.verbose = verbose
         self.ac = None
+        self.stitchingTab = None
         self.init_objects(microscope=microscope)
         self.ac.logs.append(self.mainTab.log)
         self.initUI()
@@ -2060,7 +2101,8 @@ class MainWindow(QMainWindow):
                 self.ac.shutdown()
         except AttributeError:
             pass
-        self.stitchingTab.shutdown()
+        if self.stitchingTab:
+            self.stitchingTab.shutdown()
 
     def init_objects(self, microscope=None):
         self.ac = ArgusCommon(microscope=microscope, mw=self)

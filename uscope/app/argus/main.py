@@ -1078,6 +1078,7 @@ class MainTab(ArgusTab):
 class ImagerTab(ArgusTab):
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
+        self.exposure_property = "expotime"
 
     def initUI(self):
         # Most of the layout is filled in from the ControlScroll
@@ -1096,6 +1097,21 @@ class ImagerTab(ArgusTab):
             layout.addWidget(self.hdr_le, row, 1)
             row += 1
 
+            layout.addWidget(QLabel("Auto-HDR?"), row, 0)
+            self.hdr_auto = QCheckBox()
+            layout.addWidget(self.hdr_auto, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("+/- stops"), row, 0)
+            self.hdr_auto_stops = QLineEdit("1")
+            layout.addWidget(self.hdr_auto_stops, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Stops per exposure"), row, 0)
+            self.hdr_auto_stops_per = QLineEdit("2")
+            layout.addWidget(self.hdr_auto_stops_per, row, 1)
+            row += 1
+
             gb = QGroupBox("HDR")
             gb.setLayout(layout)
             return gb
@@ -1104,6 +1120,35 @@ class ImagerTab(ArgusTab):
         self.layout.addWidget(self.ac.control_scroll)
 
         self.setLayout(self.layout)
+
+    def poll_misc(self):
+        auto = self.hdr_auto.isChecked()
+        self.hdr_auto_stops.setReadOnly(not auto)
+        self.hdr_auto_stops_per.setReadOnly(not auto)
+        if not auto:
+            return
+
+        val = self.ac.imager.get_property(self.exposure_property)
+        if val is None:
+            return None
+        pm_stops = int(self.hdr_auto_stops.text())
+        stops_per = int(self.hdr_auto_stops_per.text())
+
+        hdr_seq = []
+        # add in reverse then reverse list
+        val_tmp = val
+        for _stopi in range(pm_stops):
+            val_tmp /= 2**stops_per
+            hdr_seq.append(val_tmp)
+        hdr_seq.reverse()
+        hdr_seq.append(val)
+        val_tmp = val
+        for _stopi in range(pm_stops):
+            val_tmp *= 2**stops_per
+            hdr_seq.append(val_tmp)
+
+        le_str = ",".join(["%u" % x for x in hdr_seq])
+        self.hdr_le.setText(le_str)
 
     def update_pconfig_hdr(self, pconfig):
         raw = str(self.hdr_le.text())
@@ -2166,6 +2211,7 @@ class MainWindow(QMainWindow):
         self.ac.motion_thread.update_pos_cache()
         self.mainTab.planner_widget_xy2p.poll_misc()
         self.mainTab.planner_widget_xy3p.poll_misc()
+        self.imagerTab.poll_misc()
 
         # FIXME: maybe better to do this with events
         # Loose the log window on shutdown...should log to file?

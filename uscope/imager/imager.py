@@ -69,6 +69,9 @@ class Imager:
     def get_properties(self):
         return {}
 
+    def get_property(self, name, default=None):
+        return self.get_properties().get(name, default)
+
 
 class MockImager(Imager):
     def __init__(self, verbose=False, width=640, height=480):

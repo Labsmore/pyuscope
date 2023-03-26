@@ -349,9 +349,10 @@ class ImagerControlScroll(QScrollArea):
         """
         val = bool(val)
         all_disp_names = self.get_disp_properties().keys()
-        for disp_name in disp_names:
-            if disp_name not in all_disp_names:
-                raise ValueError("Invalid property %s" % (disp_name, ))
+        if disp_names:
+            for disp_name in disp_names:
+                if disp_name not in all_disp_names:
+                    raise ValueError("Invalid property %s" % (disp_name, ))
         for disp_name in all_disp_names:
             if disp_names and disp_name not in disp_names:
                 continue

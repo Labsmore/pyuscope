@@ -3,6 +3,7 @@ import os
 from collections import OrderedDict
 from uscope.util import writej, readj
 from pathlib import Path
+import copy
 '''
 There is a config directory with two primary config files:
 -microscope.j5: inherent config that doesn't really change
@@ -152,8 +153,8 @@ class USCImager:
         w = int(self.j['width'])
         h = int(self.j['height'])
 
-        if "crop" in usj["imager"]:
-            crop = usj["imager"]["crop"]
+        crop = self.crop_tblr()
+        if crop:
             w = w - crop["left"] - crop["right"]
             h = h - crop["top"] - crop["bottom"]
 
@@ -169,14 +170,34 @@ class USCImager:
 
         Returns either None or a dict with 4 keys
         """
-        ret = self.j.get("crop", {})
-        if not ret:
-            return None
-        for k in list(ret.keys()):
-            if k not in ("top", "bottom", "left", "right"):
-                raise ValueError("Unexpected key" % (k, ))
-            ret[k] = int(ret.get(k, 0))
-        return ret
+        assert not "crop" in self.j, "Obsolete crop in config. Please update to crop_fractions"
+        # Explicit config by pixels
+        ret = {
+            "top": 0,
+            "bottom": 0,
+            "left": 0,
+            "right": 0,
+        }
+        tmp = self.j.get("crop_pixels", {})
+        if tmp:
+            for k in list(tmp.keys()):
+                if k not in ("top", "bottom", "left", "right"):
+                    raise ValueError("Unexpected key" % (k, ))
+                ret[k] = int(tmp.get(k, 0))
+            return ret
+        # Convert config based on fraction of sensor size
+        tmp = self.j.get("crop_fractions", {})
+        if tmp:
+            w, h = self.raw_wh()
+            for k in list(ret.keys()):
+                if k in ("top", "bottom"):
+                    ret[k] = int(tmp.get(k, 0.0) * h)
+                elif k in ("left", "right"):
+                    ret[k] = int(tmp.get(k, 0.0) * w)
+                else:
+                    raise ValueError("Unexpected key" % (k, ))
+            return ret
+        return None
 
     def source_properties(self):
         """
@@ -380,7 +401,7 @@ class USCMotion:
 
 
 class USCPlanner:
-    def __init__(self, j=None):
+    def __init__(self, j={}):
         """
         j: usj["planner"]
         """
@@ -399,19 +420,27 @@ class USCPlanner:
         """
         return float(self.j.get("border", 0.0))
 
-    def tsettle(self):
-        """
-        How much time to wait after moving to take an image
-        A factor of vibration + time to clear a frame
-        """
-        return float(self.j.get("tsettle", 0.0))
 
-    def hdr_tsettle(self):
+class USCKinematics:
+    def __init__(self, j={}):
+        """
+        j: usj["kinematics"]
+        """
+        self.j = j
+
+    def tsettle_motion(self):
         """
         How much time to wait after moving to take an image
         A factor of vibration + time to clear a frame
         """
-        return float(self.j.get("hdr_tsettle", self.tsettle()))
+        return float(self.j.get("tsettle_motion", 0.0))
+
+    def tsettle_hdr(self):
+        """
+        How much time to wait after moving to take an image
+        A factor of vibration + time to clear a frame
+        """
+        return float(self.j.get("tsettle_hdr", 0.0))
 
 
 # Microscope usj config parser
@@ -422,7 +451,8 @@ class USC:
         self.usj = usj
         self.imager = USCImager(self.usj.get("imager"))
         self.motion = USCMotion(self.usj.get("motion"))
-        self.planner = USCPlanner(self.usj.get("planner"))
+        self.planner = USCPlanner(self.usj.get("planner", {}))
+        self.kinematics = USCKinematics(self.usj.get("kinematics", {}))
         self.apps = {}
 
     def app_register(self, name, cls):
@@ -434,6 +464,56 @@ class USC:
 
     def app(self, name):
         return self.apps[name]
+
+    def get_scaled_objective(self, index):
+        """
+        Return objective w/ automatic sizing (if applicable) applied
+        """
+        return self.get_scaled_objectives()[index]
+
+    def get_scaled_objectives(self):
+        """
+        Return objectives w/ automatic sizing (if applicable) applied
+        """
+        objectives = copy.deepcopy(self.usj['objectives'])
+
+        # Assume easiest to measure at lowest mag
+        reference_objective = objectives[0]
+        # In raw sensor pixels
+        reference_um_per_pix = reference_objective.get("um_per_pixel")
+        if reference_um_per_pix:
+            cropped_w, _cropped_h = self.imager.cropped_wh()
+            # Objectives must support magnification to scale
+            for objective in objectives:
+                um_per_pix = reference_objective[
+                    "um_per_pixel"] * reference_objective[
+                        "magnification"] / objective["magnification"]
+                # um to mm
+                objective["x_view"] = cropped_w * um_per_pix / 1000
+
+        # Sanity check
+        for objective in objectives:
+            assert "x_view" in objective
+
+        # tsleep is referenced at the highest mag objective / worst case
+        reference_objective = objectives[-1]
+        # Amount of time to settle after moving
+        # Scale per NA. ie a lower resolution objective requires proportionately less settling time
+        reference_tsleep = reference_objective.get("tsettle_motion")
+        if reference_tsleep:
+            # Objectives must support magnification to scale
+            for objective in objectives:
+                # Ex: 2.0 sec sleep at 100x 1.0 NA => 20x 0.42 NA => 0.84 sec sleep
+                objective["tsettle_motion"] = reference_objective[
+                    "tsettle_motion"] * objective["na"] / reference_objective[
+                        "na"]
+        """
+        if 0:
+            import json
+            print("objectives")
+            print(json.dumps(objectives, sort_keys=True, indent=4, separators=(",", ": ")))
+        """
+        return objectives
 
 
 def validate_usj(usj):
@@ -476,8 +556,8 @@ def validate_usj(usj):
     # Planner
     usc.planner.step()
     usc.planner.border()
-    usc.planner.tsettle()
-    usc.planner.hdr_tsettle()
+    usc.planner.tsettle_motion()
+    usc.planner.tsettle_hdr()
 
 
 def set_usj(j):
@@ -611,6 +691,17 @@ class PCMotion:
         return USCMotion.validate_axes_dict(self, *args, **kwargs)
 
 
+class PCKinematics:
+    def __init__(self, j=None):
+        self.j = j
+
+    def tsettle_motion(self):
+        return self.j.get("tsettle_motion", 0.0)
+
+    def tsettle_hdr(self):
+        return self.j.get("tsettle_hdr", 0.0)
+
+
 """
 Planner configuration
 """
@@ -621,10 +712,8 @@ class PC:
         self.j = j
         self.imager = PCImager(self.j.get("imager"))
         self.motion = PCMotion(self.j.get("motion", {}))
+        self.kinematics = PCKinematics(self.j.get("kinematics", {}))
         self.apps = {}
-
-    def tsettle(self):
-        return self.j.get("tsettle", 0.0)
 
     def exclude(self):
         return self.j.get('exclude', [])

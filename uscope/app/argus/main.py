@@ -8,7 +8,7 @@ from uscope.imager.imager_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
-from uscope.app.argus.threads import MotionThread, PlannerThread, StitcherThread
+from uscope.app.argus.threads import MotionThread, PlannerThread, StitcherThread, ImageProcessingThread
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import util
 from uscope import config
@@ -116,13 +116,13 @@ class ObjectiveWidget(AWidget):
         self.obj_cb.clear()
         self.obj_config = None
         self.obj_configi = None
-        for objective in self.ac.usj["objectives"]:
+        for objective in self.ac.usc.get_scaled_objectives():
             self.obj_cb.addItem(objective['name'])
 
     def update_obj_config(self):
         '''Make resolution display reflect current objective'''
         self.obj_configi = self.obj_cb.currentIndex()
-        self.obj_config = self.ac.usj['objectives'][self.obj_configi]
+        self.obj_config = self.ac.usc.get_scaled_objective(self.obj_configi)
         self.ac.log('Selected objective %s' % self.obj_config['name'])
 
         im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
@@ -703,6 +703,7 @@ class ScanWidget(AWidget):
             self.dry_cb.setChecked(self.ac.usc.app("argus").dry_default())
             layout.addWidget(self.dry_cb)
 
+            # Used as generic "should stitch", although is labeled CloudStitch
             layout.addWidget(QLabel('CloudStitch?'))
             self.stitch_cb = QCheckBox()
             self.stitch_cb.setChecked(False)
@@ -995,6 +996,7 @@ class MainTab(ArgusTab):
             self.scan_widget,
             self.motion_widget,
         ]
+        self.image_processing_thread = None
 
     def initUI(self):
         def get_axes_gb():
@@ -1041,6 +1043,13 @@ class MainTab(ArgusTab):
     def post_ui_init(self):
         awidgets_post_ui_init(self.awidgets)
 
+        self.image_processing_thread = ImageProcessingThread(
+            motion_thread=self.ac.motion_thread,
+            imager=self.ac.imager,
+            parent=self)
+        self.image_processing_thread.log_msg.connect(self.ac.log)
+        self.image_processing_thread.start()
+
     def log(self, s='', newline=True):
         s = str(s)
         # print("LOG: %s" % s)
@@ -1058,6 +1067,11 @@ class MainTab(ArgusTab):
         if self.scan_widget.log_fd_scan is not None:
             self.scan_widget.log_fd_scan.write(s)
             self.scan_widget.log_fd_scan.flush()
+
+    def shutdown(self):
+        if self.image_processing_thread:
+            self.image_processing_thread.shutdown()
+            self.image_processing_thread = None
 
     def go_currnet_pconfig(self):
         scan_config = self.active_planner_widget().get_current_scan_config()
@@ -1161,7 +1175,7 @@ class ImagerTab(ArgusTab):
         ret = {
             "properties_list": properties_list,
             # this is probably a good approximation for now
-            "tsettle": self.ac.usc.planner.hdr_tsettle()
+            "tsettle": self.ac.usc.kinematics.tsettle_hdr()
         }
         pconfig.setdefault("imager", {})["hdr"] = ret
 
@@ -1343,10 +1357,17 @@ class AdvancedTab(ArgusTab):
             layout.addWidget(self.gutter_le, row, 1)
             row += 1
 
-            layout.addWidget(QLabel("tsettle"), row, 0)
-            self.tsettle_le = QLineEdit("%f" % pc.tsettle())
-            self.tsettle_le.setReadOnly(True)
-            layout.addWidget(self.tsettle_le, row, 1)
+            layout.addWidget(QLabel("tsettle_motion"), row, 0)
+            self.tsettle_motion_le = QLineEdit("%f" %
+                                               pc.kinematics.tsettle_motion())
+            self.tsettle_motion_le.setReadOnly(True)
+            layout.addWidget(self.tsettle_motion_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("tsettle_hdr"), row, 0)
+            self.tsettle_hdr_le = QLineEdit("%f" % pc.kinematics.tsettle_hdr())
+            self.tsettle_hdr_le.setReadOnly(True)
+            layout.addWidget(self.tsettle_hdr_le, row, 1)
             row += 1
 
             layout.addWidget(QLabel("Ideal overlap X"), row, 0)
@@ -1509,7 +1530,7 @@ class StitchingTab(ArgusTab):
 
     def shutdown(self):
         if self.stitcher_thread:
-            self.stitcher_thread.thread_stop()
+            self.stitcher_thread.shutdown()
             self.stitcher_thread = None
 
     def stitch_begin_manual_cs(self):
@@ -1523,9 +1544,12 @@ class StitchingTab(ArgusTab):
             return
 
         if self.ac.mainTab.scan_widget.stitch_cb.isChecked():
-            self.cloud_stitch_add(scan_config["out_dir"])
-        elif str(self.stitch_cli.text()):
-            self.cli_stitch_add(scan_config["out_dir"])
+            # CLI box is special => take priority
+            # CLI may launch CloudStitch under the hood
+            if str(self.stitch_cli.text()):
+                self.cli_stitch_add(scan_config["out_dir"])
+            else:
+                self.cloud_stitch_add(scan_config["out_dir"])
 
     def cloud_stitch_add(self, directory):
         self.ac.log(f"CloudStitch: requested {directory}")
@@ -2091,10 +2115,10 @@ class ArgusCommon(QObject):
 
     def shutdown(self):
         if self.motion_thread:
-            self.motion_thread.stop()
+            self.motion_thread.shutdown()
             self.motion_thread = None
         if self.planner_thread:
-            self.planner_thread.thread_stop()
+            self.planner_thread.shutdown()
             self.planner_thread = None
 
     def init_imager(self):
@@ -2158,6 +2182,8 @@ class MainWindow(QMainWindow):
                 self.ac.shutdown()
         except AttributeError:
             pass
+        if self.mainTab:
+            self.mainTab.shutdown()
         if self.stitchingTab:
             self.stitchingTab.shutdown()
 

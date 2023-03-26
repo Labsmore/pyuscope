@@ -6,6 +6,7 @@ from uscope.planner.plugin import PlannerPlugin, register_plugin
 from PIL import Image
 from uscope.imager.imager_util import get_scaled
 from uscope.motion.hal import pos_str
+from uscope.motion.kinematics import Kinematics
 try:
     from scipy import polyfit
 except ImportError:
@@ -899,19 +900,31 @@ class PlannerHDR(PlannerPlugin):
         }
 
 
+# FIXME: move kinematics to dedicated object
+# Argus would like to use this without planner overhead
 class PlannerKinematics(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
-        self.tsettle = self.pc.tsettle()
+        self.kinematics = Kinematics(
+            motion=self.motion,
+            imager=self.imager,
+            tsettle_motion=self.pc.kinematics.tsettle_motion(),
+            tsettle_hdr=self.pc.kinematics.tsettle_hdr(),
+            log=self.log,
+        )
 
     def log_scan_begin(self):
-        self.log("tsettle: %0.2f" % self.tsettle)
+        self.log("tsettle_motion: %0.3f" % self.kinematics.tsettle_motion)
+        self.log("tsettle_hdr: %0.3f" % self.kinematics.tsettle_hdr)
 
     def iterate(self, state):
-        # FIXME: refine
+        # wait for movement + flush image
         if not self.dry:
-            time.sleep(self.tsettle)
-        self.planner.wait_imaging_ok()
+            tstart = time.time()
+            self.kinematics.wait_imaging_ok()
+            tend = time.time()
+            self.log("FIXME TMP: net kinematics took %0.3f" %
+                     (tend - tstart, ))
         yield None
 
 
@@ -938,7 +951,12 @@ class PlannerCaptureImage(PlannerPlugin):
             if self.planner.imager.remote():
                 self.planner.imager_take.take()
             else:
+                tstart = time.time()
                 images = self.planner.imager.get()
+                tend = time.time()
+                self.log("FIXME TMP: actual capture took %0.3f" %
+                         (tend - tstart, ))
+
                 assert len(images) == 1, "Expecting single image"
                 im = list(images.values())[0]
 

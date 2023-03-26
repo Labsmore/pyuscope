@@ -4,16 +4,20 @@ from uscope.benchmark import Benchmark
 from uscope.motion.hal import AxisExceeded, MotionHAL, MotionCritical
 from uscope.motion.plugins import get_motion_hal
 from uscope import cloud_stitch
+from uscope import config
+from uscope.planner.plugins import PlannerKinematics
 from PyQt5.QtCore import QThread, pyqtSignal
 import traceback
 import datetime
-import io
-import os
 import queue
 import threading
 import time
 from queue import Queue, Empty
 import subprocess
+import cv2 as cv
+import numpy as np
+from uscope.planner.planner_util import microscope_to_planner_config
+from uscope.motion.kinematics import Kinematics
 
 
 def dbg(*args):
@@ -183,7 +187,7 @@ class MotionThread(QThread):
     def get_planner_motion(self):
         return MotionThreadMotion(self)
 
-    def thread_stop(self):
+    def shutdown(self):
         self.running.clear()
 
     def run(self):
@@ -356,7 +360,7 @@ class PlannerThread(QThread):
         if self.planner:
             self.planner.unpause()
 
-    def stop(self):
+    def shutdown(self):
         if self.planner:
             self.planner.stop()
 
@@ -471,6 +475,91 @@ class StitcherThread(QThread):
                     subprocess.check_call([j['command'], j['directory']])
                     self.log(f"Stitch CLI: finished job")
                     print(f"Stitch CLI: finished job")
+                else:
+                    assert 0, j
+
+            except Exception as e:
+                self.log('WARNING: stitcher thread crashed: %s' % str(e))
+                traceback.print_exc()
+            finally:
+                # self.stitcherDone.emit()
+                pass
+
+
+class ImageProcessingThread(QThread):
+    log_msg = pyqtSignal(str)
+
+    def __init__(self, motion_thread, imager, parent=None):
+        QThread.__init__(self, parent)
+        self.queue = Queue()
+        self.running = threading.Event()
+        self.running.set()
+        self.motion_thread = motion_thread
+        self.imager = imager
+        self.usc = config.get_usc()
+
+    def init_kinematics(self):
+        # Probably better to break out to a Kinematics object that the planner uses
+        # For now assume last / highest mag objective => most stringement kimenatics
+        # also kind of weird using planner config but good enough for now
+        pc = microscope_to_planner_config(
+            self.ac.usj,
+            objectivei=len(self.ac.usj["objectives"]) - 1,
+            contour={})
+        self.kinematics = Kinematics(
+            motion=self.motion,
+            imager=self.imager,
+            tsettle_motion=pc.tsettle_motion(),
+            tsettle_hdr=pc.tsettle_hdr(),
+            log=self.log,
+        )
+
+    def log(self, msg):
+        self.log_msg.emit(msg)
+
+    def shutdown(self):
+        self.running.clear()
+
+    def auto_focus(self):
+        j = {
+            "type": "auto_focus",
+        }
+        self.queue.put(j)
+
+    def move_absolute(self, pos):
+        self.motion_thread.move_absolute(pos, block=True)
+        self.kinematics.wait_imaging_ok()
+
+    def pos(self, pos):
+        return self.motion_thread.pos()
+
+    def do_auto_focus(self):
+        def get_score(image, blur=9):
+            filtered = cv.medianBlur(image, blur)
+            laplacian = cv.Laplacian(filtered, cv.CV_64F)
+            return laplacian.var()
+
+        def image_pil2cv(im):
+            return np.array(im)[:, :, ::-1].copy()
+
+        step_pm = 2
+        start_pos = self.pos()
+        im_pil = self.imager.get()["0"]
+        im_cv = image_pil2cv(im_pil)
+        score = get_score(im_cv)
+        self.log("Current score: %0.3f" % score)
+
+    def run(self):
+        while self.running:
+            try:
+                j = self.queue.get(block=True, timeout=0.1)
+            except Empty:
+                continue
+            try:
+                if j["type"] == "auto_focus":
+                    self.do_auto_focus()
+                else:
+                    assert 0, j
 
             except Exception as e:
                 self.log('WARNING: stitcher thread crashed: %s' % str(e))

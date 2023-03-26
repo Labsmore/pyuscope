@@ -27,6 +27,11 @@ def camera_in_use():
 class Imager:
     def __init__(self, verbose=False):
         self.verbose = verbose
+        # Used to flush pipeline with changing HDR properties
+        self.last_properties_change = time.time()
+
+    def since_properties_change(self):
+        return time.time() - self.last_properties_change
 
     def wh(self):
         """Return width, height in pixels"""
@@ -64,9 +69,17 @@ class Imager:
     """
 
     def set_properties(self, vals):
+        self.last_properties_change = time.time()
+        self._set_properties(vals)
+
+    def _set_properties(self, vals):
         pass
 
     def get_properties(self):
+        # For consistency with _set_properties(), but same for now
+        return self._get_properties()
+
+    def _get_properties(self):
         return {}
 
     def get_property(self, name, default=None):

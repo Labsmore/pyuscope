@@ -1,5 +1,6 @@
 from uscope.planner.planner import Planner
 from uscope.planner.plugins import register_plugins as _register_plugins
+from uscope.config import USC
 
 
 def get_objective(usj, objectivei=None, objectivestr=None):
@@ -20,6 +21,7 @@ def microscope_to_planner_config(usj,
                                  objectivei=None,
                                  contour=None,
                                  corners=None):
+    usc = USC(usj)
     if objective is None:
         objective = get_objective(usj=usj,
                                   objectivei=objectivei,
@@ -29,6 +31,7 @@ def microscope_to_planner_config(usj,
             "x_view": objective["x_view"],
         },
         "motion": {},
+        "kinematics": {},
     }
 
     if contour is not None:
@@ -61,6 +64,12 @@ def microscope_to_planner_config(usj,
     v = usj["motion"].get("backlash_compensation")
     if v:
         ret["motion"]["backlash_compensation"] = v
+
+    # Hmm lets make these add
+    # Allows essentially making a linear equation if you really want to tune it
+    ret["kinematics"]["tsettle_motion"] = usc.kinematics.tsettle_motion(
+    ) + objective.get("tsettle_motion", 0.0)
+    ret["kinematics"]["tsettle_hdr"] = usc.kinematics.tsettle_hdr()
 
     # By definition anything in planner section is planner config
     # give more thought to precedence at some point

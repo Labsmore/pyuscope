@@ -11,13 +11,6 @@ class PlannerPlugin:
         self.dry = self.planner.dry
         self.log = self.planner.log
 
-    def wait_imaging_ok(self):
-        """
-        Return once its safe to image
-        Could be due to vibration, exposure settings, frame sync, etc
-        """
-        pass
-
     def scan_begin(self, state):
         """
         Called once when the scan is starting

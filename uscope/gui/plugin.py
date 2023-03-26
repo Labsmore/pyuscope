@@ -84,10 +84,10 @@ class GstGUIImager(Imager):
     # FIXME: should maybe actually use low level properties
     # Start with this as PoC since its safer for GUI updates though
 
-    def set_properties(self, vals):
+    def _set_properties(self, vals):
         self.ac.control_scroll.set_disp_properties(vals)
 
-    def get_properties(self):
+    def _get_properties(self):
         return self.ac.control_scroll.get_disp_properties()
 
 

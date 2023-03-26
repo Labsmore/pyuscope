@@ -357,6 +357,9 @@ class MotionHAL:
     def cur_pos_cache_invalidate(self):
         self._cur_pos_cache = None
 
+    def since_last_motion(self):
+        return time.time() - self.mv_lastt
+
     def update_status(self, status):
         # print("update_status begin: %s" % (status,))
         for modifier in self.modifiers.values():

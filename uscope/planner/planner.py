@@ -115,10 +115,6 @@ class Planner:
         self.unpaused.set()
         self.running = True
 
-    def wait_imaging_ok(self):
-        for plugin in self.pipeline.values():
-            plugin.wait_imaging_ok()
-
     def make_pipeline(self, pipeline):
         # Currently pipeline elements must be unique by name
         ret = OrderedDict()

@@ -57,7 +57,8 @@ def run(directory,
         cs_directory = directory
     else:
         print("HDR: yes. Processing")
-        hdr_dir = os.path.join(directory, "hdr")
+        # dir name needs to be reasonable for CloudStitch to name it well
+        hdr_dir = os.path.join(directory, os.path.basename(directory) + "_hdr")
         hdr_run(directory, hdr_dir, ewf=ewf)
         cs_directory = hdr_dir
 

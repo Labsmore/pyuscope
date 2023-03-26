@@ -495,18 +495,21 @@ class USC:
         for objective in objectives:
             assert "x_view" in objective
 
-        # tsleep is referenced at the highest mag objective / worst case
+        # tsettle is referenced at the highest mag objective / worst case
         reference_objective = objectives[-1]
         # Amount of time to settle after moving
         # Scale per NA. ie a lower resolution objective requires proportionately less settling time
-        reference_tsleep = reference_objective.get("tsettle_motion")
-        if reference_tsleep:
-            # Objectives must support magnification to scale
-            for objective in objectives:
-                # Ex: 2.0 sec sleep at 100x 1.0 NA => 20x 0.42 NA => 0.84 sec sleep
-                objective["tsettle_motion"] = reference_objective[
+        reference_tsettle = reference_objective.get("tsettle_motion")
+        # Objectives must support magnification to scale
+        for objective in objectives:
+            # Ex: 2.0 sec sleep at 100x 1.0 NA => 20x 0.42 NA => 0.84 sec sleep
+            if reference_tsettle:
+                tsettle_motion = reference_objective[
                     "tsettle_motion"] * objective["na"] / reference_objective[
                         "na"]
+            else:
+                tsettle_motion = 0.0
+            objective["tsettle_motion"] = tsettle_motion
         """
         if 0:
             import json

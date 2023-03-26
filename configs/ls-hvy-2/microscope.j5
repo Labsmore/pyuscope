@@ -4,8 +4,9 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
 */
 {
     "planner": {
-        "border": 0.1,
-        "tsettle": 1.2,
+        //FIXME: not tuned
+        "tsettle_motion": 0.1,
+        "tsettle_hdr": 0.1,
     },
 
     "motion": {
@@ -69,35 +70,47 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
         },
     },
     "objectives": [
+        //OBJ-106
 		{
-			"name":"5X",
+			"name":"NeoSPlan 5X",
+            "magnification": 5,
+            "na": 0.13,
 			"suffix": "ns5x",
-			"scalar": 0.5,
-			"x_view": 3.55
+			"x_view": 3.55,
 		},
+		//OBJ-102
 		{
-			"name":"10X",
+			"name":"NeoSPlan 10X",
+            "magnification": 10,
+            "na": 0.30,
 			"suffix": "ns10x",
-			"scalar": 0.5,
-			"x_view": 1.78
+			"x_view": 1.78,
 		},
+		//OBJ-110
 		{
-			"name":"20X",
+			"name":"NeoSPlan 20X",
+            "magnification": 20,
+            "na": 0.46,
 			"suffix": "ns20x",
-			"scalar": 0.5,
-			"x_view": 0.89
+			"x_view": 0.89,
 		},
+		//OBJ-111
 		{
-			"name":"50X",
-			"suffix": "ns50x",
-			"scalar": 0.5,
-			"x_view": 0.356
+			"name":"NeoDPlan 50X",
+            "magnification": 50,
+            "na": 0.75,
+			"suffix": "nd50x",
+			"x_view": 0.356,
 		},
+		//OBJ-114
 		{
-			"name":"100X",
+			"name":"NeoSPlan 100X",
+            "magnification": 100,
+            "na": 0.90,
 			"suffix": "ns100x",
-			"scalar": 0.5,
-			"x_view": 0.178
+			"x_view": 0.178,
+            //FIXME: not tuned
+            "tsettle_motion": 1.0,
 		}
     ]
 }

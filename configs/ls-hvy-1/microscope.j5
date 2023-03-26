@@ -9,8 +9,9 @@ Original "pr0nscope" mk2 BH2 CNC microscope
         },
     },
     "planner": {
-        "border": 0.1,
-        "tsettle": 1.2,
+        //FIXME: not tuned
+        "tsettle_motion": 0.1,
+        "tsettle_hdr": 0.1,
     },
 
     "motion": {
@@ -70,50 +71,65 @@ Original "pr0nscope" mk2 BH2 CNC microscope
         "source_properties": {
             "esize": 0
         },
-		"scalar": 0.50
+		"scalar": 0.50,
+        "source_properties_mod": {
+            //In us. Can go up to 15 sec which is impractical for typical usage
+            "expotime": {
+                "max": 200000
+            },
+        },
     },
     "objectives": [
 		{
 			"name":"Mitutoyo Apo 20X",
+            "magnification": 20,
+            "na": 0.42,
 			"suffix": "mit20x2",
-			"scalar": 0.5,
-			"x_view": 0.820
+			"x_view": 0.820,
 		},
 		{
 			"name":"Mitutoyo Apo 2X",
+            "magnification": 2,
+            "na": 0.055,
 			"suffix": "mit2x2",
-			"scalar": 0.5,
-			"x_view": 8.20
+			"x_view": 8.20,
 		},
 		{
 			"name":"Mitutoyo Apo 5X",
+            "magnification": 5,
+            "na": 0.14,
 			"suffix": "mit5x2",
-			"scalar": 0.5,
-			"x_view": 3.280
+			"x_view": 3.280,
 		},
 		{
 			"name":"Mitutoyo Apo 10X",
+            "magnification": 10,
+            "na": 0.28,
 			"suffix": "mit10x2",
-			"scalar": 0.5,
-			"x_view": 1.64
+			"x_view": 1.64,
 		},
 		{
 			"name":"Mitutoyo Apo 50X",
+            "magnification": 50,
+            "na": 0.55,
 			"suffix": "mit50x2",
-			"scalar": 0.5,
 			"x_view": 0.328
 		},
 		{
 			"name":"VC 60X",
+            "magnification": 60,
+            "na": 1.40,
 			"suffix": "vc60x2",
-			"scalar": 0.5,
-			"x_view": 0.273
+			"x_view": 0.273,
 		},
 		{
 			"name":"Mitutoyo Apo 100X",
+            "magnification": 100,
+            "na": 0.70,
 			"suffix": "mit100x2",
-			"scalar": 0.5,
-			"x_view": 0.164
+			"x_view": 0.164,
+            //FIXME: not tuned
+            "tsettle_motion": 1.0,
 		}
     ]
 }

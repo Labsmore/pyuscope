@@ -2,9 +2,10 @@
 A minimal configuration to do basic testing
 */
 {
-    "planner": {
-        //"border": 0.1,
-        "tsettle": 1.2,
+    "kinematics": {
+        //FIXME: not tuned
+        "tsettle_motion": 0.1,
+        "tsettle_hdr": 0.1,
     },
     "motion": {
         "hal": "grbl-ser",
@@ -55,34 +56,6 @@ A minimal configuration to do basic testing
         },
     },
 
-    /*
-    //250 border
-    "imager": {
-        "source":"gst-toupcamsrc",
-        "width": 3704,
-        "height": 2778,
-        "crop": {
-            "top": 250,
-            "bottom": 250,
-            "left": 250,
-            "right": 250,
-        },
-    },
-    "objectives": [
-        {
-            "name":"5X",
-            "x_view": 3.0
-        },
-        {
-            "name":"20X",
-            "x_view": 0.75
-        },
-          {
-            "name":"100X",
-            "x_view": 0.15
-        },
-    ],
-    */
     //BigEye
     //250 border => 3204 wide => 3.0 mm at 5x
     //500 border => 2704 wide => 2.53 mm at 5x
@@ -93,7 +66,7 @@ A minimal configuration to do basic testing
         "width": 3704,
         "height": 2778,
         //250 is still slightly visible
-        "crop": {
+        "crop_pixels": {
             "top": 500,
             "bottom": 500,
             "left": 500,
@@ -104,15 +77,23 @@ A minimal configuration to do basic testing
     "objectives": [
         {
             "name":"5X",
-            "x_view": 2.530
+            "magnification": 5,
+            "x_view": 2.530,
+            "na": 0.14,
         },
         {
             "name":"20X",
-            "x_view": 0.6325
+            "magnification": 20,
+            "x_view": 0.6325,
+            "na": 0.42,
         },
           {
             "name":"100X",
-            "x_view": 0.1265
-        },
+            "magnification": 100,
+            "x_view": 0.1265,
+            "na": 0.70,
+             //FIXME: not tuned
+            "tsettle_motion": 1.0,
+       },
     ],
 }

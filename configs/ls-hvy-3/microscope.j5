@@ -5,8 +5,9 @@ UT100 NEMA23 stages
 */
 {
     "planner": {
-        "border": 0.1,
-        "tsettle": 1.2,
+        //FIXME: not tuned
+        "tsettle_motion": 0.1,
+        "tsettle_hdr": 0.1,
     },
     /*
     2mm / rev
@@ -83,35 +84,47 @@ UT100 NEMA23 stages
         },
     },
     "objectives": [
+		//OBJ-107
 		{
-			"name":"5X",
-			"suffix": "ns5x",
-			"scalar": 0.5,
-			"x_view": 3.55
+			"name":"NeoDPlan 5X",
+            "magnification": 5,
+            "na": 0.10,
+			"suffix": "nd5x",
+			"x_view": 3.55,
 		},
+		//OBJ-108
 		{
-			"name":"10X",
-			"suffix": "ns10x",
-			"scalar": 0.5,
-			"x_view": 1.78
+			"name":"NeoDPlan 10X",
+            "magnification": 10,
+            "na": 0.25,
+			"suffix": "nd10x",
+			"x_view": 1.78,
 		},
+		//OBJ-103
 		{
-			"name":"20X",
+			"name":"NeoSPlan 20X",
+            "magnification": 20,
+            "na": 0.46,
 			"suffix": "ns20x",
-			"scalar": 0.5,
-			"x_view": 0.89
+			"x_view": 0.89,
 		},
+		//OBJ-112
 		{
-			"name":"50X",
-			"suffix": "ns50x",
-			"scalar": 0.5,
-			"x_view": 0.356
+			"name":"NeoDPlan 50X",
+            "magnification": 50,
+            "na": 0.75,
+			"suffix": "nd50x",
+			"x_view": 0.356,
 		},
+		//OBJ-113
 		{
-			"name":"100X",
+			"name":"NeoSPlan 100X",
+            "magnification": 100,
+            "na": 0.90,
 			"suffix": "ns100x",
-			"scalar": 0.5,
-			"x_view": 0.178
+			"x_view": 0.178,
+            //FIXME: not tuned
+            "tsettle_motion": 1.0,
 		}
     ]
 }

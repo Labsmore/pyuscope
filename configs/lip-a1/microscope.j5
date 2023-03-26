@@ -6,8 +6,9 @@ AMA100 relay lens
 */
 {
     "planner": {
-        //"border": 0.1,
-        "tsettle": 1.2,
+        //FIXME: not tuned
+        "tsettle_motion": 1.0,
+        "tsettle_hdr": 0.1,
     },
     "motion": {
         "hal": "grbl-ser",

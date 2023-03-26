@@ -238,7 +238,10 @@ class ImagerControlScroll(QScrollArea):
                 raise
             # Rely on GUI signal writing API unless GUI updates are disabled
             if not prop["push_gui"]:
-                self.prop_write(prop["prop_name"], val)
+                # Best to just leave alone
+                # Just let the library control these
+                # self.prop_write(prop["prop_name"], val)
+                pass
             widgets = self.disp2widgets[disp_name]
             if prop["type"] == "int":
                 slider, value_label = widgets
@@ -292,6 +295,7 @@ class ImagerControlScroll(QScrollArea):
                               disp_names=["expotime", "expoagain"])
 
     def prop_write(self, name, value):
+        # print(f"prop_write() {name} = {value}")
         self.raw_prop_write(name, value)
         self.prop_policy(name, value)
 

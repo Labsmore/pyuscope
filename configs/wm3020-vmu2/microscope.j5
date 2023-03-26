@@ -65,11 +65,22 @@ A minimal configuration to do basic testing
         "height": 2778,
         //250 is still slightly visible
         //FIXME: convert to fraction
+        /*
         "crop_fractions": {
             "top": 0.07,
             "bottom": 0.07,
             "left": 0.1775,
             "right": 0.1775,
+        },
+        */
+        //FIXME: some values cause crash
+        //Some weird rounding issue
+        //So continue to hard code for now :(
+        "crop_pixels": {
+            "top": 194,
+            "bottom": 194,
+            "left": 656,
+            "right": 656,
         },
     },
     //500 border

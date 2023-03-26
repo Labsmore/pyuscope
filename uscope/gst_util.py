@@ -114,6 +114,11 @@ class CaptureSink(CbSink):
         # TODO: should pass rawer/lossless image to PIL instead of jpg?
         # open("tmp.bin", "wb").write(ret)
         if raw_input:
+            # xxx: sometimes get too much data...is this the right fix?
+            # buf = buf[0:width * height * 3]
+            assert len(buf) == width * height * 3, (
+                "Wanted %u, got %u, w=%u, h=%u" %
+                (width * height * 3, len(buf), width, height))
             # Need 59535360 bytes, got 59535360
             # print("Need %u bytes, got %u" % (3 * width * height, len(buf)))
             return Image.frombytes('RGB', (width, height), bytes(buf), 'raw',

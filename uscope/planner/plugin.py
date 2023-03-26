@@ -3,6 +3,7 @@ import threading
 
 class PlannerPlugin:
     def __init__(self, planner):
+        self.verbose = False
         self.planner = planner
         # Convenience shortcut. Might remove after cleanup
         self.pc = self.planner.pc

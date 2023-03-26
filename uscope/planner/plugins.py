@@ -923,8 +923,8 @@ class PlannerKinematics(PlannerPlugin):
             tstart = time.time()
             self.kinematics.wait_imaging_ok()
             tend = time.time()
-            self.log("FIXME TMP: net kinematics took %0.3f" %
-                     (tend - tstart, ))
+            self.verbose and self.log("FIXME TMP: net kinematics took %0.3f" %
+                                      (tend - tstart, ))
         yield None
 
 
@@ -954,8 +954,8 @@ class PlannerCaptureImage(PlannerPlugin):
                 tstart = time.time()
                 images = self.planner.imager.get()
                 tend = time.time()
-                self.log("FIXME TMP: actual capture took %0.3f" %
-                         (tend - tstart, ))
+                self.verbose and self.log(
+                    "FIXME TMP: actual capture took %0.3f" % (tend - tstart, ))
 
                 assert len(images) == 1, "Expecting single image"
                 im = list(images.values())[0]

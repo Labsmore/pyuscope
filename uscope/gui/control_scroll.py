@@ -288,7 +288,8 @@ class ImagerControlScroll(QScrollArea):
         # Disable the control when its activated
         if name == "auto-exposure":
             push_expotime = not value
-            self.set_push_gui(push_expotime, disp_names=["expotime"])
+            self.set_push_gui(push_expotime,
+                              disp_names=["expotime", "expoagain"])
 
     def prop_write(self, name, value):
         self.raw_prop_write(name, value)
@@ -343,7 +344,11 @@ class ImagerControlScroll(QScrollArea):
             iterable: only these
         """
         val = bool(val)
-        for disp_name in self.get_disp_properties().keys():
+        all_disp_names = self.get_disp_properties().keys()
+        for disp_name in disp_names:
+            if disp_name not in all_disp_names:
+                raise ValueError("Invalid property %s" % (disp_name, ))
+        for disp_name in all_disp_names:
             if disp_names and disp_name not in disp_names:
                 continue
             prop = self.disp2prop[disp_name]

@@ -59,6 +59,8 @@ A minimal configuration to do basic testing
     //BigEye
     "imager": {
         "source":"gst-toupcamsrc",
+        //2778*(1−0.07*2) = 2389.08
+        //3704*(1−0.1775*2) = 2389.08
         "width": 3704,
         "height": 2778,
         //250 is still slightly visible
@@ -66,9 +68,8 @@ A minimal configuration to do basic testing
         "crop_fractions": {
             "top": 0.07,
             "bottom": 0.07,
-            //Square at (3704 - 2704) / 2 / 3704 = 0.135
-            "left": 0.205,
-            "right": 0.205,
+            "left": 0.1775,
+            "right": 0.1775,
         },
     },
     //500 border

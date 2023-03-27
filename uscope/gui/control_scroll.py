@@ -8,6 +8,11 @@ import os
 from collections import OrderedDict
 
 from uscope import config
+"""
+Some properties are controlled via library
+Some are driven via GUI
+
+"""
 
 
 class ImagerControlScroll(QScrollArea):
@@ -17,6 +22,7 @@ class ImagerControlScroll(QScrollArea):
             usc = config.get_usc()
         self.usc = usc
         self.verbose = verbose
+        # self.verbose = True
         self.log = lambda x: print(x)
 
         self.verbose and print("init", groups)
@@ -57,9 +63,6 @@ class ImagerControlScroll(QScrollArea):
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.update_by_prop)
 
-        # self.set_push_gui(True)
-        # self.set_push_prop(True)
-
     def buttonLayout(self):
         layout = QHBoxLayout()
 
@@ -85,19 +88,20 @@ class ImagerControlScroll(QScrollArea):
     def _assemble_int(self, prop, layoutg, row):
         def gui_changed(prop, slider, value_label):
             def f():
+                # Race conditon?
+                if not prop["gui_driven"]:
+                    return
                 try:
                     val = int(slider.value())
                 except ValueError:
                     pass
                 else:
                     self.verbose and print(
-                        '%s (%s) req => %d, allowed %d' %
+                        '%s (%s) GUI changed to %d, push_gui %d' %
                         (prop["disp_name"], prop["prop_name"], val,
                          prop["push_gui"]))
-                    assert type(prop["push_gui"]) is bool
-                    if prop["push_gui"]:
-                        self.prop_write(prop["prop_name"], val)
-                        value_label.setText(str(val))
+                    self.prop_write(prop["prop_name"], val)
+                    value_label.setText(str(val))
 
             return f
 
@@ -120,11 +124,13 @@ class ImagerControlScroll(QScrollArea):
     def _assemble_bool(self, prop, layoutg, row):
         def gui_changed(prop):
             def f(val):
+                # Race conditon?
+                if not prop["gui_driven"]:
+                    return
                 self.verbose and print('%s (%s) req => %d, allowed %d' %
                                        (prop["disp_name"], prop["prop_name"],
                                         val, prop["push_gui"]))
-                if prop["push_gui"]:
-                    self.prop_write(prop["prop_name"], val)
+                self.prop_write(prop["prop_name"], val)
 
             return f
 
@@ -155,11 +161,7 @@ class ImagerControlScroll(QScrollArea):
         # Read only property
         # Don't let user change it
         default("ro", False)
-        # Push updates from property changing automatically
-        default("push_prop", not ret["ro"])
-        # Push updates from user changing GUI
-        default("push_gui", not ret["ro"])
-        assert type(ret["push_gui"]) is bool
+        default("gui_driven", not ret["ro"])
 
         if ret["type"] == "int":
             assert "min" in ret
@@ -237,7 +239,9 @@ class ImagerControlScroll(QScrollArea):
                 print("Set properites:", vals)
                 raise
             # Rely on GUI signal writing API unless GUI updates are disabled
-            if not prop["push_gui"]:
+            if not prop["gui_driven"]:
+                # May be 100% excluded by policy
+                self.verbose and print(f"set_disp() {prop['prop_name']} {val}")
                 # Set directly in the library,
                 # but might as well also update GUI immediately?
                 self.prop_write(prop["prop_name"], val)
@@ -264,7 +268,7 @@ class ImagerControlScroll(QScrollArea):
         vals = {}
         for disp_name, val in self.get_disp_properties().items():
             # print("Should update %s: %s" % (disp_name, self.disp2prop[disp_name]["push_prop"]))
-            if self.disp2prop[disp_name]["push_prop"]:
+            if not self.disp2prop[disp_name]["gui_driven"]:
                 vals[disp_name] = val
         self.set_disp_properties(vals)
 
@@ -289,9 +293,8 @@ class ImagerControlScroll(QScrollArea):
         # Auto-exposure quickly fights with GUI
         # Disable the control when its activated
         if name == "auto-exposure":
-            push_expotime = not value
-            self.set_push_gui(push_expotime,
-                              disp_names=["expotime", "expoagain"])
+            self.set_gui_driven(not value,
+                                disp_names=["expotime", "expoagain"])
 
     def prop_write(self, name, value):
         # print(f"prop_write() {name} = {value}")
@@ -337,7 +340,23 @@ class ImagerControlScroll(QScrollArea):
         # Seems to be working, good enough
         QTimer.singleShot(500, self.cal_load)
 
-    def set_push_gui(self, val, disp_names=None):
+    def user_controls_enabled(self, enabled):
+        """
+        Enable or disable the entire pane
+        Controls disabled during imaging runs
+        """
+        for disp_name in self.get_disp_properties().keys():
+            prop = self.disp2prop[disp_name]
+            widgets = self.disp2widgets[disp_name]
+            if prop["type"] == "int":
+                slider, _value_label = widgets
+                slider.setEnabled(enabled)
+            elif prop["type"] == "bool":
+                widgets.setEnabled(enabled)
+            else:
+                assert 0, prop
+
+    def set_gui_driven(self, val, disp_names=None):
         """
         val
             true: when the value changes in the GUI set that value onto the device
@@ -356,7 +375,7 @@ class ImagerControlScroll(QScrollArea):
             if disp_names and disp_name not in disp_names:
                 continue
             prop = self.disp2prop[disp_name]
-            prop["push_gui"] = val
+            prop["gui_driven"] = val
 
             widgets = self.disp2widgets[disp_name]
             if prop["type"] == "int":
@@ -366,21 +385,6 @@ class ImagerControlScroll(QScrollArea):
                 widgets.setEnabled(val)
             else:
                 assert 0, prop
-
-    def set_push_prop(self, val, disp_names=None):
-        """
-        val
-            true: when the value changes pon the device set that value in the GUI
-            false: do nothing when device value changes
-        disp_names
-            None: all values
-            iterable: only these
-        """
-        val = bool(val)
-        for disp_name in self.get_disp_properties().keys():
-            if disp_names and disp_name not in disp_names:
-                continue
-            self.disp2prop[disp_name]["push_prop"] = val
 
 
 """

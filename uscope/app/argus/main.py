@@ -923,10 +923,7 @@ class ScanWidget(AWidget):
             self.setControlsEnabled(True)
             # Prevent accidental start after done
             self.dry_cb.setChecked(True)
-
-            # Return to normal state if HDR was enabled
-            self.ac.control_scroll.set_push_gui(True)
-            self.ac.control_scroll.set_push_prop(True)
+            self.ac.control_scroll.user_controls_enabled(True)
 
     def run_next_scan_config(self):
         try:
@@ -1002,15 +999,7 @@ class ScanWidget(AWidget):
                 self.log_fd_scan = open(os.path.join(out_dir, "log.txt"), "w")
 
             self.go_pause_pb.setText("Pause")
-
-            hdr = pconfig["imager"].get("hdr")
-            if hdr:
-                # Actively driving properties during operation may cause signal thrashing
-                # Only take explicit external updates
-                # GUI will continue to update to reflect state though
-                self.ac.control_scroll.set_push_gui(False)
-                self.ac.control_scroll.set_push_prop(False)
-
+            self.ac.control_scroll.user_controls_enabled(False)
             self.ac.planner_thread.start()
         except:
             self.plannerDone({"result": "init_failure"})

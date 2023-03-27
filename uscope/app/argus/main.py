@@ -63,19 +63,60 @@ Argus Widget
 """
 
 
+# TODO: register events in lieu of callbacks
 class AWidget(QWidget):
     def __init__(self, ac, parent=None):
-        super().__init__(parent=None)
+        """
+        Low level objects should be instantiated here
+        """
+        super().__init__(parent=parent)
         self.ac = ac
+        self.awidgets = OrderedDict()
+
+    def add_awidget(self, name, awidget):
+        assert name not in self.awidgets, name
+        self.awidgets[name] = awidget
 
     def initUI(self):
-        pass
+        """
+        Called to initialize GUI elements
+        """
+        for awidget in self.awidgets.values():
+            awidget.initUI()
 
     def post_ui_init(self):
-        pass
+        """
+        Called after all GUI elements are instantiated
+        """
+        for awidget in self.awidgets.values():
+            awidget.post_ui_init()
 
     def shutdown(self):
-        pass
+        """
+        Called when GUI is shutting down
+        """
+        for awidget in self.awidgets.values():
+            awidget.shutdown()
+
+    def cache_save(self, cachej):
+        """
+        Called when saving GUI state to file
+        Add your state to JSON object j
+        """
+        for awidget in self.awidgets.values():
+            awidget.cache_save(cachej)
+
+    def cache_load(self, cachej):
+        """
+        Called when loading GUI state from file
+        Read your state from JSON object j
+        """
+        for awidget in self.awidgets.values():
+            awidget.cache_load(cachej)
+
+    def poll_misc(self):
+        for awidget in self.awidgets.values():
+            awidget.poll_misc()
 
 
 class ArgusTab(AWidget):
@@ -356,6 +397,21 @@ class XYPlanner2PWidget(PlannerWidget):
 
         self.setLayout(gl)
 
+    def cache_save(self, cachej):
+        cachej["XY2P"] = {
+            "x0": str(self.plan_x0_le.text()),
+            "y0": str(self.plan_y0_le.text()),
+            "x1": str(self.plan_x1_le.text()),
+            "y1": str(self.plan_y1_le.text()),
+        }
+
+    def cache_load(self, cachej):
+        j = cachej.get("XY2P")
+        self.plan_x0_le.setText(j.get("x0", ""))
+        self.plan_y0_le.setText(j.get("y0", ""))
+        self.plan_x1_le.setText(j.get("x1", ""))
+        self.plan_y1_le.setText(j.get("y0", ""))
+
     def poll_misc(self):
         last_pos = self.ac.motion_thread.pos_cache
         if last_pos:
@@ -519,18 +575,41 @@ class XYPlanner3PWidget(PlannerWidget):
         row += 1
 
         gl.addWidget(QLabel("Track Z?"), row, 0)
-        self.move_z = QCheckBox()
-        self.move_z.stateChanged.connect(self.move_z_changed)
-        self.move_z_changed(None)
-        gl.addWidget(self.move_z, row, 1)
+        self.track_z_cb = QCheckBox()
+        self.track_z_cb.stateChanged.connect(self.track_z_cb_changed)
+        self.track_z_cb_changed(None)
+        gl.addWidget(self.track_z_cb, row, 1)
         row += 1
 
         self.setLayout(gl)
 
-    def moving_z(self):
-        return self.move_z.isChecked()
+    def cache_save(self, cachej):
+        j1 = {}
+        j1["track_z"] = self.track_z_cb.isChecked()
+        for group in ("ll", "ul", "lr"):
+            widgets = self.corner_widgets[group]
+            j2 = {
+                "x_le": str(widgets["x_le"].text()),
+                "y_le": str(widgets["y_le"].text()),
+                "z_le": str(widgets["z_le"].text()),
+            }
+            j1[group] = j2
+        cachej["XY3P"] = j1
 
-    def move_z_changed(self, arg):
+    def cache_load(self, cachej):
+        j1 = cachej.get("XY3P")
+        self.track_z_cb.setChecked(j1.get("track_z", 0))
+        for group in ("ll", "ul", "lr"):
+            widgets = self.corner_widgets[group]
+            j2 = j1.get(group)
+            widgets["x_le"].setText(j2.get("x_le", ""))
+            widgets["y_le"].setText(j2.get("y_le", ""))
+            widgets["z_le"].setText(j2.get("z_le", ""))
+
+    def moving_z(self):
+        return self.track_z_cb.isChecked()
+
+    def track_z_cb_changed(self, arg):
         for corner_widgets in self.corner_widgets.values():
             le = corner_widgets["z_le"]
             if self.moving_z():
@@ -933,12 +1012,12 @@ class ScanWidget(AWidget):
 
 
 def awidgets_initUI(awidgets):
-    for awidget in awidgets:
+    for awidget in awidgets.values():
         awidget.initUI()
 
 
 def awidgets_post_ui_init(awidgets):
-    for awidget in awidgets:
+    for awidget in awidgets.values():
         awidget.post_ui_init()
 
 
@@ -963,8 +1042,11 @@ class MainTab(ArgusTab):
         self.ac.log_msg.connect(self.log)
 
         self.snapshot_widget = SnapshotWidget(ac=ac)
+        self.add_awidget("snapshot", self.snapshot_widget)
         self.objective_widget = ObjectiveWidget(ac=ac)
+        self.add_awidget("objective", self.objective_widget)
         self.video_widget = FullROIWidget(ac=ac)
+        self.add_awidget("video", self.video_widget)
 
         self.planner_widget_tabs = QTabWidget()
         # First sets up algorithm specific parameters
@@ -973,29 +1055,24 @@ class MainTab(ArgusTab):
             ac=ac,
             go_currnet_pconfig=self.go_currnet_pconfig,
             setControlsEnabled=self.setControlsEnabled)
-        self.planner_widget_xy3p = XYPlanner3PWidget(
-            ac=ac,
-            scan_widget=self.scan_widget,
-            objective_widget=self.objective_widget)
+        self.add_awidget("scan", self.scan_widget)
         self.planner_widget_xy2p = XYPlanner2PWidget(
             ac=ac,
             scan_widget=self.scan_widget,
             objective_widget=self.objective_widget)
+        self.add_awidget("XY2P", self.planner_widget_xy2p)
+        self.planner_widget_xy3p = XYPlanner3PWidget(
+            ac=ac,
+            scan_widget=self.scan_widget,
+            objective_widget=self.objective_widget)
+        self.add_awidget("XY3P", self.planner_widget_xy3p)
 
         self.motion_widget = MotionWidget(ac=self.ac,
                                           motion_thread=self.ac.motion_thread,
                                           usc=self.ac.usc,
                                           log=self.ac.log)
+        self.add_awidget("motion", self.motion_widget)
 
-        self.awidgets = [
-            self.snapshot_widget,
-            self.objective_widget,
-            self.video_widget,
-            self.planner_widget_xy2p,
-            self.planner_widget_xy3p,
-            self.scan_widget,
-            self.motion_widget,
-        ]
         self.image_processing_thread = None
 
     def initUI(self):
@@ -1239,7 +1316,7 @@ class BatchImageTab(ArgusTab):
         self.scan_configs = []
         self.scani = 0
 
-        self.cache_load()
+        self.batch_cache_load()
 
     def abort_on_failure(self):
         return self.abort_cb.isChecked()
@@ -1259,7 +1336,7 @@ class BatchImageTab(ArgusTab):
                        indent=4,
                        separators=(",", ": "))
         self.display.setPlainText(json.dumps(s))
-        self.cache_save()
+        self.batch_cache_save()
 
     def get_scan_config(self):
         mainTab = self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
@@ -1293,16 +1370,16 @@ class BatchImageTab(ArgusTab):
     def run_all_clicked(self):
         self.ac.mainTab.scan_widget.go_scan_configs(self.scan_configs)
 
-    def cache_save(self):
+    def batch_cache_save(self):
         s = json.dumps(self.scan_configs,
                        sort_keys=True,
                        indent=4,
                        separators=(",", ": "))
-        with open(self.ac.usc.app("argus").batch_cache_fn(), "w") as f:
+        with open(self.ac.aconfig.batch_cache_fn(), "w") as f:
             f.write(s)
 
-    def cache_load(self):
-        fn = self.ac.usc.app("argus").batch_cache_fn()
+    def batch_cache_load(self):
+        fn = self.ac.aconfig.batch_cache_fn()
         if not os.path.exists(fn):
             return
         with open(fn, "r") as f:
@@ -1610,6 +1687,12 @@ class USCArgus:
             return ret
         else:
             return os.path.join(get_data_dir(), "snapshot")
+
+    def cache_fn(self):
+        """
+        Main persistent GUI cache file
+        """
+        return os.path.join(get_data_dir(), "argus.j5")
 
     def batch_cache_fn(self):
         ret = self.j.get("batch_cache_file")
@@ -2063,6 +2146,8 @@ class ArgusCommon(QObject):
         self.microscope = microscope
         self.usj = get_usj(name=microscope)
         self.usc = USC(usj=self.usj)
+        self.usc.app_register("argus", USCArgus)
+        self.aconfig = self.usc.app("argus")
         self.bc = get_bc()
 
         self.scan_configs = None
@@ -2167,8 +2252,10 @@ class MainWindow(QMainWindow):
         QMainWindow.__init__(self)
         self.verbose = verbose
         self.ac = None
-        self.stitchingTab = None
-        self.init_objects(microscope=microscope)
+        self.ac = ArgusCommon(microscope=microscope, mw=self)
+        self.polli = 0
+        self.awidgets = OrderedDict()
+        self.init_objects()
         self.ac.logs.append(self.mainTab.log)
         self.initUI()
         self.post_ui_init()
@@ -2176,26 +2263,47 @@ class MainWindow(QMainWindow):
     def __del__(self):
         self.shutdown()
 
+    def cache_load(self):
+        fn = self.ac.aconfig.cache_fn()
+        with open(fn, "r") as f:
+            cachej = json5.load(f)
+        for tab in self.awidgets.values():
+            tab.cache_load(cachej)
+
+    def cache_save(self):
+        cachej = {}
+        for tab in self.awidgets.values():
+            tab.cache_save(cachej)
+        fn = self.ac.aconfig.cache_fn()
+        with open(fn, "w") as f:
+            json.dump(cachej,
+                      f,
+                      sort_keys=True,
+                      indent=4,
+                      separators=(",", ": "))
+
     def shutdown(self):
+        self.cache_save()
+        for tab in self.awidgets.values():
+            tab.shutdown()
         try:
             if self.ac:
                 self.ac.shutdown()
         except AttributeError:
             pass
-        if self.mainTab:
-            self.mainTab.shutdown()
-        if self.stitchingTab:
-            self.stitchingTab.shutdown()
 
-    def init_objects(self, microscope=None):
-        self.ac = ArgusCommon(microscope=microscope, mw=self)
-        self.ac.usc.app_register("argus", USCArgus)
+    def init_objects(self):
         # Tabs
         self.mainTab = MainTab(ac=self.ac, parent=self)
+        self.awidgets["Main"] = self.mainTab
         self.imagerTab = ImagerTab(ac=self.ac, parent=self)
+        self.awidgets["Imager"] = self.imagerTab
         self.batchTab = BatchImageTab(ac=self.ac, parent=self)
+        self.awidgets["Batch"] = self.batchTab
         self.advancedTab = AdvancedTab(ac=self.ac, parent=self)
+        self.awidgets["Advanced"] = self.advancedTab
         self.stitchingTab = StitchingTab(ac=self.ac, parent=self)
+        self.awidgets["CloudStitch"] = self.stitchingTab
         self.ac.mainTab = self.mainTab
         self.ac.stitchingTab = self.stitchingTab
         self.ac.batchTab = self.batchTab
@@ -2204,41 +2312,25 @@ class MainWindow(QMainWindow):
         self.ac.initUI()
         self.setWindowTitle("pyuscope")
         self.setWindowIcon(QIcon(config.GUI.icon_files["logo"]))
-        """
-        tabs = [
-            ("Main", MainTab),
-            ("Imager", MainTab),
-            ("Batch", MainTab),
-            ("Advanced", MainTab),
-            ]
-        """
-        self.tabs = QTabWidget()
 
-        # Setup UI based on objects
-        self.mainTab.initUI()
-        self.tabs.addTab(self.mainTab, "Main")
-        self.imagerTab.initUI()
-        self.tabs.addTab(self.imagerTab, "Imager")
-        self.batchTab.initUI()
-        self.tabs.addTab(self.batchTab, "Batch")
-        self.advancedTab.initUI()
-        self.tabs.addTab(self.advancedTab, "Advanced")
-        self.stitchingTab.initUI()
-        self.tabs.addTab(self.stitchingTab, "CloudStitch")
+        self.tab_widget = QTabWidget()
+
+        for tab_name, tab in self.awidgets.items():
+            tab.initUI()
+            self.tab_widget.addTab(tab, tab_name)
+        self.cache_load()
 
         self.batchTab.add_pconfig_source(self.mainTab, "Main tab")
 
-        self.setCentralWidget(self.tabs)
+        self.setCentralWidget(self.tab_widget)
         self.showMaximized()
         self.show()
 
         dbg("initUI done")
 
     def poll_misc(self):
+        self.polli += 1
         self.ac.motion_thread.update_pos_cache()
-        self.mainTab.planner_widget_xy2p.poll_misc()
-        self.mainTab.planner_widget_xy3p.poll_misc()
-        self.imagerTab.poll_misc()
 
         # FIXME: maybe better to do this with events
         # Loose the log window on shutdown...should log to file?
@@ -2248,6 +2340,16 @@ class MainWindow(QMainWindow):
             print(traceback.format_exc())
             self.ac.shutdown()
             QCoreApplication.exit(1)
+            return
+
+        # FIXME: convert to plugin iteration
+        self.mainTab.planner_widget_xy2p.poll_misc()
+        self.mainTab.planner_widget_xy3p.poll_misc()
+        self.imagerTab.poll_misc()
+
+        # Save ocassionally / once 3 seconds
+        if self.polli % 15 == 0:
+            self.cache_save()
 
     def post_ui_init(self):
         self.ac.log("pyuscope starting")
@@ -2259,12 +2361,10 @@ class MainWindow(QMainWindow):
         self.ac.update_pconfigs.append(self.imagerTab.update_pconfig)
         # Start services
         self.ac.post_ui_init()
+
         # Tabs
-        self.mainTab.post_ui_init()
-        self.imagerTab.post_ui_init()
-        self.batchTab.post_ui_init()
-        self.advancedTab.post_ui_init()
-        self.stitchingTab.post_ui_init()
+        for tab in self.awidgets.values():
+            tab.post_ui_init()
 
         self.poll_timer = QTimer()
         self.poll_timer.setSingleShot(False)

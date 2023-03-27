@@ -349,6 +349,7 @@ class XYPlanner2PWidget(PlannerWidget):
     def initUI(self):
         gl = QGridLayout()
         row = 0
+        self.pb_gos = {}
 
         gl.addWidget(QLabel("X (mm)"), row, 1)
         gl.addWidget(QLabel("Y (mm)"), row, 2)
@@ -383,6 +384,12 @@ class XYPlanner2PWidget(PlannerWidget):
         gl.addWidget(self.plan_x0_le, row, 1)
         self.plan_y0_le = QLineEdit("")
         gl.addWidget(self.plan_y0_le, row, 2)
+        self.pb_gos["0"] = {
+            "x_le": self.plan_x0_le,
+            "y_le": self.plan_y0_le,
+            "pb": QPushButton("Go"),
+        }
+        gl.addWidget(self.pb_gos["0"]["pb"], row, 3)
         row += 1
 
         self.plan_end_pb = QPushButton(end_label)
@@ -393,7 +400,22 @@ class XYPlanner2PWidget(PlannerWidget):
         gl.addWidget(self.plan_x1_le, row, 1)
         self.plan_y1_le = QLineEdit("")
         gl.addWidget(self.plan_y1_le, row, 2)
+        self.pb_gos["1"] = {
+            "x_le": self.plan_x1_le,
+            "y_le": self.plan_y1_le,
+            "pb": QPushButton("Go"),
+        }
+        gl.addWidget(self.pb_gos["1"]["pb"], row, 3)
         row += 1
+
+        for corner_name in ("0", "1"):
+
+            def go_clicked():
+                pos = self.get_corner_move_pos("0")
+                if pos is not None:
+                    self.ac.motion_thread.move_absolute(pos)
+
+            self.pb_gos[corner_name]["pb"].clicked.connect(go_clicked)
 
         self.setLayout(gl)
 
@@ -501,18 +523,36 @@ class XYPlanner2PWidget(PlannerWidget):
         # XXX: maybe put better abstraction on this
         return self.objective_widget.obj_config["x_view"]
 
+    def get_view(self):
+        x_view = self.x_view()
+        im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
+        y_view = 1.0 * x_view * im_h_pix / im_w_pix
+        return x_view, y_view
+
     def set_end_pos(self):
         # take as lower right corner of view area
         # this is the current XY position + view size
         pos = self.ac.motion_thread.pos_cache
         #self.ac.log("Updating end pos from %s" % (str(pos)))
-        x_view = self.x_view()
-        im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
-        y_view = 1.0 * x_view * im_h_pix / im_w_pix
+        x_view, y_view = self.get_view()
         x1 = pos['x'] + x_view
         y1 = pos['y'] + y_view
         self.plan_x1_le.setText('%0.3f' % x1)
         self.plan_y1_le.setText('%0.3f' % y1)
+
+    def get_corner_move_pos(self, corner_name):
+        widgets = self.pb_gos[corner_name]
+        try:
+            x = float(widgets["x_le"].text())
+            y = float(widgets["y_le"].text())
+        except ValueError:
+            self.ac.log("Bad scan x/y")
+            return None
+        if corner_name == "1":
+            x_view, y_view = self.get_view()
+            x -= x_view
+            y -= y_view
+        return {"x": x, "y": y}
 
 
 class XYPlanner3PWidget(PlannerWidget):
@@ -546,25 +586,36 @@ class XYPlanner3PWidget(PlannerWidget):
 
         self.corner_widgets = OrderedDict()
 
-        def make_corner_widget(key, button_text):
-            pb = QPushButton(button_text)
+        def make_corner_widget(corner_name, button_text):
+            pb_set = QPushButton(button_text)
+            pb_go = QPushButton("Go")
 
-            def clicked():
-                self.corner_clicked(key)
+            def set_clicked():
+                self.corner_clicked(corner_name)
 
-            pb.clicked.connect(clicked)
-            gl.addWidget(pb, row, 0)
+            pb_set.clicked.connect(set_clicked)
+
+            def go_clicked():
+                pos = self.get_corner_move_pos(corner_name)
+                if pos is not None:
+                    self.ac.motion_thread.move_absolute(pos)
+
+            pb_go.clicked.connect(go_clicked)
+
+            gl.addWidget(pb_set, row, 0)
             x_le = QLineEdit("")
             gl.addWidget(x_le, row, 1)
             y_le = QLineEdit("")
             gl.addWidget(y_le, row, 2)
             z_le = QLineEdit("")
             gl.addWidget(z_le, row, 3)
-            self.corner_widgets[key] = {
-                "pb": pb,
+            gl.addWidget(pb_go, row, 4)
+            self.corner_widgets[corner_name] = {
+                "pb": pb_set,
                 "x_le": x_le,
                 "y_le": y_le,
                 "z_le": z_le,
+                "pb_go": pb_go,
             }
 
         make_corner_widget("ll", "Lower left")
@@ -619,29 +670,6 @@ class XYPlanner3PWidget(PlannerWidget):
                 le.setReadOnly(True)
                 le.setStyleSheet("background-color: rgb(240, 240, 240);")
 
-    def corner_clicked(self, key):
-        pos_cur = self.ac.motion_thread.pos_cache
-        widgets = self.corner_widgets[key]
-
-        x_view = self.x_view()
-        im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
-        y_view = 1.0 * x_view * im_h_pix / im_w_pix
-
-        # End position has to include the sensor size
-        pos = dict(pos_cur)
-        if key == "ll":
-            pass
-        elif key == "ul":
-            pos["y"] += y_view
-        elif key == "lr":
-            pos["x"] += x_view
-        else:
-            assert 0
-
-        widgets["x_le"].setText('%0.3f' % pos['x'])
-        widgets["y_le"].setText('%0.3f' % pos['y'])
-        widgets["z_le"].setText('%0.3f' % pos['z'])
-
     def poll_misc(self):
         last_pos = self.ac.motion_thread.pos_cache
         if last_pos:
@@ -659,18 +687,8 @@ class XYPlanner3PWidget(PlannerWidget):
 
     def mk_corner_json(self):
         corners = OrderedDict()
-        for name, widgets in self.corner_widgets.items():
-            try:
-                x = float(widgets["x_le"].text())
-                y = float(widgets["y_le"].text())
-                if self.moving_z():
-                    z = float(widgets["z_le"].text())
-            except ValueError:
-                self.ac.log("Bad scan x/y")
-                return None
-            corner = {"x": x, "y": y}
-            if self.moving_z():
-                corner["z"] = z
+        for name in self.corner_widgets.keys():
+            corner = self.get_corner_move_pos(name)
             corners[name] = corner
 
         return corners
@@ -726,18 +744,56 @@ class XYPlanner3PWidget(PlannerWidget):
         # XXX: maybe put better abstraction on this
         return self.objective_widget.obj_config["x_view"]
 
-    def set_end_pos(self):
-        # take as lower right corner of view area
-        # this is the current XY position + view size
-        pos = self.ac.motion_thread.pos_cache
-        #self.ac.log("Updating end pos from %s" % (str(pos)))
+    def get_view(self):
         x_view = self.x_view()
         im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
         y_view = 1.0 * x_view * im_h_pix / im_w_pix
-        x1 = pos['x'] + x_view
-        y1 = pos['y'] + y_view
-        self.plan_x1_le.setText('%0.3f' % x1)
-        self.plan_y1_le.setText('%0.3f' % y1)
+        return x_view, y_view
+
+    def corner_clicked(self, corner_name):
+        pos_cur = self.ac.motion_thread.pos_cache
+        widgets = self.corner_widgets[corner_name]
+
+        x_view, y_view = self.get_view()
+
+        # End position has to include the sensor size
+        pos = dict(pos_cur)
+        if corner_name == "ll":
+            pass
+        elif corner_name == "ul":
+            pos["y"] += y_view
+        elif corner_name == "lr":
+            pos["x"] += x_view
+        else:
+            assert 0
+
+        widgets["x_le"].setText('%0.3f' % pos['x'])
+        widgets["y_le"].setText('%0.3f' % pos['y'])
+        widgets["z_le"].setText('%0.3f' % pos['z'])
+
+    def get_corner_move_pos(self, corner_name):
+        widgets = self.corner_widgets[corner_name]
+        try:
+            x = float(widgets["x_le"].text())
+            y = float(widgets["y_le"].text())
+            if self.moving_z():
+                z = float(widgets["z_le"].text())
+        except ValueError:
+            self.ac.log("Bad scan x/y")
+            return None
+        x_view, y_view = self.get_view()
+        if corner_name == "ll":
+            pass
+        elif corner_name == "ul":
+            y -= y_view
+        elif corner_name == "lr":
+            x -= x_view
+        else:
+            assert 0
+        corner = {"x": x, "y": y}
+        if self.moving_z():
+            corner["z"] = z
+        return corner
 
 
 """

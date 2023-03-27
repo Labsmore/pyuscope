@@ -1927,7 +1927,11 @@ class JogSlider(QWidget):
 
         self.setLayout(self.layout)
 
-    def get_val(self):
+    def get_feedrate_val(self):
+        """
+        Return feedrate (without fine adjustment)
+        This is the main value displayed
+        """
         verbose = 0
         slider_val = float(self.slider.value())
         v = math.log(slider_val, 10)
@@ -1946,6 +1950,27 @@ class JogSlider(QWidget):
                           (slider_val, ret, v))
         return ret
 
+    def get_jog_val(self):
+        """
+        Return a proportion of how to scale the jog distance
+        """
+        if 0:
+            slider_val = float(self.slider.value())
+            return slider_val / self.slider_max
+        else:
+            val = self.get_feedrate_val()
+            return val / self.jog_max
+
+    def increase_key(self):
+        slider_val = min(self.slider_max,
+                         float(self.slider.value()) + self.slider_max * 0.2)
+        self.slider.setValue(slider_val)
+
+    def decrease_key(self):
+        slider_val = max(self.slider_min,
+                         float(self.slider.value()) - self.slider_max * 0.2)
+        self.slider.setValue(slider_val)
+
 
 class MotionWidget(AWidget):
     def __init__(self, ac, motion_thread, usc, log, parent=None):
@@ -1954,6 +1979,7 @@ class MotionWidget(AWidget):
         self.usc = usc
         self.log = log
         self.motion_thread = motion_thread
+        self.fine_move = False
 
         self.axis_map = {
             # Upper left origin
@@ -1971,7 +1997,8 @@ class MotionWidget(AWidget):
         self.setWindowTitle('Demo')
 
         layout = QVBoxLayout()
-        self.listener = JogListener("Jog", self)
+        self.listener = JogListener("XXX", self)
+        self.update_jog_text()
         layout.addWidget(self.listener)
         self.slider = JogSlider(usc=self.usc)
         layout.addWidget(self.slider)
@@ -2038,8 +2065,25 @@ class MotionWidget(AWidget):
 
     # XXX: make this a proper signal emitting changed value
     def sliderChanged(self):
-        self.jog_cur = self.slider.get_val()
+        self.update_jog()
+
+    def update_jog(self):
+        jog_cur = self.slider.get_feedrate_val()
+        if self.fine_move:
+            jog_cur /= 20
+        # Feedrate must be at least 1?
+        # Feels like a bug, might have a bad format string somewhere
+        # wm3020: hmm feedrates below some whole number are all the same
+        self.jog_cur = int(max(1, jog_cur))
+        # print("update_jog() scale %u => %u" % (jog_cur, self.jog_cur))
         self.motion_thread.set_jog_rate(self.jog_cur)
+
+    def update_jog_text(self):
+        if self.fine_move:
+            label = "Jog (fine)"
+        else:
+            label = "Jog"
+        self.listener.setText(label)
 
     def keyPressEventCaptured(self, event):
         k = event.key()
@@ -2047,26 +2091,50 @@ class MotionWidget(AWidget):
         if 0 and event.isAutoRepeat():
             return
 
-        # spamming too many commands and queing up
-        if time.time() - self.last_send < 0.1:
+        if k == Qt.Key_F:
+            self.fine_move = not self.fine_move
+            self.update_jog_text()
+            self.update_jog()
             return
-        self.last_send = time.time()
+        elif k == Qt.Key_Z:
+            self.slider.decrease_key()
+        elif k == Qt.Key_C:
+            self.slider.increase_key()
+        elif self.axis_map.get(k):
+            # spamming too many commands and queing up
+            if time.time() - self.last_send < 0.1:
+                return
+            self.last_send = time.time()
 
-        # Focus is sensitive...should step slower?
-        # worry sonce focus gets re-integrated
+            # Focus is sensitive...should step slower?
+            # worry sonce focus gets re-integrated
 
-        axis = self.axis_map.get(k, None)
-        # print("press %s" % (axis, ))
-        # return
-        if axis:
-            axis, sign = axis
+            # TODO: scale to selected objective
+            axis, scalar = self.axis_map[k]
+            # print("got", axis, scalar)
+            scalar *= self.slider.get_jog_val()
+            # print("slider scaled", axis, scalar)
+            if self.fine_move:
+                if axis == "z":
+                    scalar /= 20
+                else:
+                    scalar /= 100
+            if scalar < 0:
+                scalar = min(-0.0001, scalar)
+            else:
+                scalar = max(+0.0001, scalar)
+
+            # print("scalar %0.3f" % scalar, "fine", self.fine_move)
             # print("Key jogging %s%c" % (axis, {1: '+', -1: '-'}[sign]))
             # don't spam events if its not done processing
             if self.motion_thread.qsize() <= 1:
-                self.motion_thread.jog({axis: sign})
+                self.motion_thread.jog({axis: scalar})
             else:
                 # print("qsize drop jog")
                 pass
+        else:
+            pass
+            # print("unknown key %s" % (k, ))
 
     def keyReleaseEventCaptured(self, event):
         # Don't move around with moving around text boxes, etc

@@ -1053,7 +1053,7 @@ class ScanWidget(AWidget):
     def stop_clicked(self):
         if self.ac.planner_thread:
             self.ac.log('Stop requested')
-            self.ac.planner_thread.stop()
+            self.ac.planner_thread.shutdown()
 
 
 def awidgets_initUI(awidgets):

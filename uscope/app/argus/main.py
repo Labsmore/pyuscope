@@ -176,6 +176,26 @@ class ObjectiveWidget(AWidget):
                 suffix = self.obj_config.get("name")
             self.objective_name_le.setText(suffix)
 
+    """
+    FIXME: these are microscpoe specific
+    Probably need a per microscope cache for this
+    Might also be better to select by name
+    """
+
+    def cache_save(self, cachej):
+        cachej["objective"] = {
+            "index": self.obj_configi,
+        }
+
+    def cache_load(self, cachej):
+        j = cachej.get("objective", {})
+        index = j.get("index", 0)
+        if index >= self.obj_cb.count():
+            self.ac.log(
+                "Warning: Argus cache loaded invalid selected objective")
+            index = 0
+        self.obj_cb.setCurrentIndex(index)
+
 
 """
 Save a snapshot to a file
@@ -428,7 +448,7 @@ class XYPlanner2PWidget(PlannerWidget):
         }
 
     def cache_load(self, cachej):
-        j = cachej.get("XY2P")
+        j = cachej.get("XY2P", {})
         self.plan_x0_le.setText(j.get("x0", ""))
         self.plan_y0_le.setText(j.get("y0", ""))
         self.plan_x1_le.setText(j.get("x1", ""))
@@ -648,11 +668,11 @@ class XYPlanner3PWidget(PlannerWidget):
         cachej["XY3P"] = j1
 
     def cache_load(self, cachej):
-        j1 = cachej.get("XY3P")
+        j1 = cachej.get("XY3P", {})
         self.track_z_cb.setChecked(j1.get("track_z", 0))
         for group in ("ll", "ul", "lr"):
             widgets = self.corner_widgets[group]
-            j2 = j1.get(group)
+            j2 = j1.get(group, {})
             widgets["x_le"].setText(j2.get("x_le", ""))
             widgets["y_le"].setText(j2.get("y_le", ""))
             widgets["z_le"].setText(j2.get("z_le", ""))

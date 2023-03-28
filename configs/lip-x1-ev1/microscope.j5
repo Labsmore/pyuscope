@@ -105,16 +105,16 @@ A minimal configuration to do basic testing
     //500 border
     "objectives": [
         {
-            "name":"20X",
-            "magnification": 20,
-            "x_view": 0.6325,
-            "na": 0.42,
-        },
-        {
             "name":"5X",
             "magnification": 5,
             "x_view": 2.530,
             "na": 0.14,
+        },
+        {
+            "name":"20X",
+            "magnification": 20,
+            "x_view": 0.6325,
+            "na": 0.42,
         },
         {
             "name":"100X",

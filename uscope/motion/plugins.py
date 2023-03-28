@@ -89,6 +89,7 @@ def get_motion_hal(usc=None, usc_motion=None, log=print):
             "backlash": usc_motion.backlash(),
             "backlash_compensation": usc_motion.backlash_compensation(),
             "soft_limits": usc_motion.soft_limits(),
+            "use_wcs_offsets": usc_motion.use_wcs_offsets(),
         },
         "log": log,
     }

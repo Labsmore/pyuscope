@@ -399,6 +399,9 @@ class USCMotion:
         self.validate_axes_dict(ret)
         return ret
 
+    def use_wcs_offsets(self):
+        return bool(self.j.get("use_wcs_offsets", 0))
+
 
 class USCPlanner:
     def __init__(self, j={}):

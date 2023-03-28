@@ -146,6 +146,21 @@ config_i2s = {
 }
 
 
+class GrblError(Exception):
+    def __init__(self, msg):
+        # error:9
+        try:
+            if "error" in msg:
+                code = int(msg.split(":")[1])
+                human = error_i2s[code]
+                new_msg = f"error {code} ({human})"
+            else:
+                new_msg = f"unknown error {msg}"
+        except:
+            new_msg = f"unknown error {msg}"
+        super().__init__(new_msg)
+
+
 class GRBLSer:
     def __init__(
         self,
@@ -278,7 +293,7 @@ class GRBLSer:
             elif l == "ok":
                 return ret
             elif l.find("error") == 0:
-                raise Exception(l)
+                raise GrblError(l)
             else:
                 if trim_data:
                     ret.append(trim_data_line(l))
@@ -748,8 +763,23 @@ class GRBL:
         assert 0
 
     def mpos(self):
-        """Return current absolute position"""
+        """Return current absolute machine position (as opposed to WCS)"""
         return self.qstatus()["MPos"]
+
+    def wcs_offsets(self):
+        """
+        https://github.com/Labsmore/pyuscope/issues/135
+        Take offsets from WCS1 but operate on WCS2
+        Consider making this configurable / explicit
+        """
+        for l in self.gs.hash():
+            if "G54" not in l:
+                continue
+            # [G54:0.000,0.000,0.000]
+            l = l.split(":")[1].replace("]", "")
+            parts = [float(x) for x in l.split(",")]
+            return dict(zip("xyz", parts))
+        assert 0, "Failed to parse WCS offset"
 
     def move_absolute(self, pos, f, blocking=True):
         tries = 3
@@ -848,12 +878,12 @@ class GRBL:
 class GrblHal(MotionHAL):
     def __init__(self, verbose=None, port=None, grbl=None, **kwargs):
         self.grbl = None
-        MotionHAL.__init__(self, verbose=verbose, **kwargs)
         self.feedrate = None
         if grbl:
             self.grbl = grbl
         else:
             self.grbl = GRBL(port=port, verbose=verbose)
+        MotionHAL.__init__(self, verbose=verbose, **kwargs)
         self.grbl.set_qstatus_updated_cb(self.qstatus_updated)
 
     def qstatus_updated(self, status):
@@ -862,6 +892,9 @@ class GrblHal(MotionHAL):
 
     def axes(self):
         return {'x', 'y', 'z'}
+
+    def _wcs_offsets(self):
+        return self.grbl.wcs_offsets()
 
     def command(self, cmd):
         return "\n".join(self.grbl.gs.txrxs(cmd))

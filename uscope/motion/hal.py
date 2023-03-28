@@ -240,11 +240,17 @@ Scale axes such as for a gearbox or to reverse direction
 
 
 class ScalarMM(MotionModifier):
-    def __init__(self, motion, scalars):
+    def __init__(self, motion, scalars=None, wcs_offsets=None):
         super().__init__(motion)
+        if not scalars:
+            scalars = {}
         self.scalars = scalars
+        if not wcs_offsets:
+            wcs_offsets = {}
+        self.wcs_offsets = wcs_offsets
+        # print(f"tmp offsets {self.wcs_offsets}")
 
-    def scale_e2i(self, pos):
+    def scale_e2i_rel(self, pos):
         """
         Scale an external coordinate system to an internal coordinate system
         External: what user sees
@@ -254,32 +260,53 @@ class ScalarMM(MotionModifier):
         for k, v in dict(pos).items():
             pos[k] = v * self.scalars.get(k, 1.0)
 
-    def scale_i2e(self, pos):
+    def scale_e2i_abs(self, pos):
+        """
+        Scale an external coordinate system to an internal coordinate system
+        External: what user sees
+        Internal: what the machine uses
+        Fixup layer for gearboxes and such
+        """
+        pos_in = dict(pos)
+        for k, v in dict(pos).items():
+            pos[k] = v * self.scalars.get(k, 1.0) + self.wcs_offsets.get(
+                k, 0.0)
+        # print(f"tmp scale_e2i_abs {pos_in} => {pos}")
+
+    def scale_i2e_rel(self, pos):
         """
         Opposite of scale_e2i
         """
         for k, v in dict(pos).items():
             pos[k] = v / self.scalars.get(k, 1.0)
 
+    def scale_i2e_abs(self, pos):
+        """
+        Opposite of scale_e2i
+        """
+        for k, v in dict(pos).items():
+            pos[k] = (v - self.wcs_offsets.get(k, 0.0)) / self.scalars.get(
+                k, 1.0)
+
     def pos(self, pos):
         # print('pos scaling1 %s' % pos)
-        self.scale_i2e(pos)
+        self.scale_i2e_abs(pos)
         # print('pos scaling2 %s' % pos)
 
     def move_absolute_pre(self, pos, options={}):
-        self.scale_e2i(pos)
+        self.scale_e2i_abs(pos)
 
     def move_relative_pre(self, pos, options={}):
-        self.scale_e2i(pos)
+        self.scale_e2i_rel(pos)
 
     def update_status(self, status):
         if "pos" in status:
             # print('status scaling1 %s' % status["pos"])
-            self.scale_i2e(status["pos"])
+            self.scale_i2e_abs(status["pos"])
             # print('status scaling2 %s' % status["pos"])
 
     def jog(self, scalars, options={}):
-        self.scale_e2i(scalars)
+        self.scale_e2i_rel(scalars)
 
 
 class MotionHAL:
@@ -287,6 +314,7 @@ class MotionHAL:
         # Per axis? Currently is global
         self.jog_rate = 0
         self.stop_on_del = True
+        self.use_wcs_offsets = bool(options.get("use_wcs_offsets", False))
 
         # dict containing (min, min) for each axis
         if log is None:
@@ -324,8 +352,11 @@ class MotionHAL:
             self.modifiers["soft-limit"] = SoftLimitMM(self,
                                                        soft_limits=soft_limits)
         scalars = self.options.get("scalars")
-        if scalars:
-            self.modifiers["scalar"] = ScalarMM(self, scalars=scalars)
+        wcs_offsets = self.wcs_offsets()
+        if scalars or wcs_offsets:
+            self.modifiers["scalar"] = ScalarMM(self,
+                                                scalars=scalars,
+                                                wcs_offsets=wcs_offsets)
 
     def __del__(self):
         self.close()
@@ -398,6 +429,28 @@ class MotionHAL:
         self.process_pos(pos)
         return pos
 
+    def wcs_offsets(self):
+        """
+        Cancel out WCS (ie G54) style offsets
+        At a low level always operate in machine coordinates
+        Add supplied offset to coordinates to be sent to low level
+
+        Ex: after homing you get:
+        G54:-297.000,-197.000,-3.000'
+        Idle|MPos:-297.000,-197.000,-3.000|Bf:35,254|FS:0,0
+        '$130=300.000', '$131=200.000', '$132=60.000'
+        Subtract current x position -297 from offset -297
+        -297 - -297 = 0.0
+        """
+        # or maybe return None to entirely cancel out?
+        if self.use_wcs_offsets:
+            return self._wcs_offsets()
+        else:
+            return None
+
+    def _wcs_offsets(self):
+        return None
+
     def _pos(self):
         '''Return current position for all axes'''
         raise NotSupported("Required for planner")
@@ -432,6 +485,7 @@ class MotionHAL:
         if cur_pos is None:
             cur_pos = self.pos()
         for axis, axdelta in pos.items():
+            # print(f"estimate_relative_pos() {cur_pos[axis]} + {axdelta}")
             abs_pos[axis] = cur_pos[axis] + axdelta
         return abs_pos
 

@@ -148,8 +148,6 @@ class ObjectiveWidget(AWidget):
         row += 1
 
         self.setLayout(cl)
-
-    def post_ui_init(self):
         self.reload_obj_cb()
 
     def reload_obj_cb(self):

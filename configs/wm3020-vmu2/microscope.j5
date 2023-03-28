@@ -111,6 +111,15 @@ A minimal configuration to do basic testing
             "left": 656,
             "right": 656,
         },
+        "source_properties_mod": {
+            //In us. Can go up to 15 sec which is impractical for typical usage
+            "expotime": {
+                "max": 1000000
+            },
+            "expoagain": {
+                "max": 1000
+            },
+        },
     },
     //500 border
     "objectives": [

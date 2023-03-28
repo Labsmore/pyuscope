@@ -2398,8 +2398,10 @@ class MainWindow(QMainWindow):
 
     def cache_load(self):
         fn = self.ac.aconfig.cache_fn()
-        with open(fn, "r") as f:
-            cachej = json5.load(f)
+        cachej = {}
+        if os.path.exists(fn):
+            with open(fn, "r") as f:
+                cachej = json5.load(f)
         for tab in self.awidgets.values():
             tab.cache_load(cachej)
 

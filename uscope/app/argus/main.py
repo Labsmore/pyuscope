@@ -2385,9 +2385,9 @@ class MainWindow(QMainWindow):
         QMainWindow.__init__(self)
         self.verbose = verbose
         self.ac = None
-        self.ac = ArgusCommon(microscope=microscope, mw=self)
-        self.polli = 0
         self.awidgets = OrderedDict()
+        self.polli = 0
+        self.ac = ArgusCommon(microscope=microscope, mw=self)
         self.init_objects()
         self.ac.logs.append(self.mainTab.log)
         self.initUI()
@@ -2404,6 +2404,8 @@ class MainWindow(QMainWindow):
             tab.cache_load(cachej)
 
     def cache_save(self):
+        if not self.ac:
+            return
         cachej = {}
         for tab in self.awidgets.values():
             tab.cache_save(cachej)

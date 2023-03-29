@@ -17,7 +17,15 @@ import threading
 import glob
 
 
-class Timeout(Exception):
+class GrblException(Exception):
+    pass
+
+
+class Timeout(GrblException):
+    pass
+
+
+class HomingFailed(GrblException):
     pass
 
 
@@ -178,6 +186,7 @@ class GRBLSer:
         # For debugging concurrency issue
         self.poison_threads = False
         self.last_thread = None
+        self.ser_timeout = ser_timeout
 
         self.verbose and print("opening %s in thread %s" %
                                (port, threading.get_ident()))
@@ -279,17 +288,22 @@ class GRBLSer:
                 util.hexdump(b)
         return b.decode("ascii").strip()
 
-    def txrxs(self, out, nl=True, trim_data=True):
+    def txrxs(self, out, nl=True, trim_data=True, timeout=None):
         """
         Send a command and return array of lines before ok line
         """
+        if timeout is None:
+            timeout = self.ser_timeout
         self.tx(out, nl=nl)
         ret = []
+        tstart = time.time()
         while True:
+            if time.time() - tstart > timeout:
+                raise Timeout()
             l = self.readline().strip()
             self.verbose and print("rx '%s'" % (l, ))
             if not l:
-                raise Timeout()
+                continue
             elif l == "ok":
                 return ret
             elif l.find("error") == 0:
@@ -425,7 +439,27 @@ class GRBLSer:
 
     def h(self):
         """
+        run homing cycle
+        Can take a long time, easily 85 seconds
+        Doesn't seem to be a way to get status while its running
+        
+        From homed positioned it took about 85 seconds to re-home
+        
+        from really far on z
+        actually crashed and rebooted...
+        10 or 15 sec
+        output
+            ALARM:9
+            ok
+            
+            Grbl 1.1h ['$' for help]
+            [MSG:'$H'|'$X' to unlock]
         """
+
+        lines = self.txrxs("$H", trim_data=False, timeout=120)
+        for line in lines:
+            if line.find("ALARM") >= 0:
+                raise HomingFailed()
 
     def i(self):
         """

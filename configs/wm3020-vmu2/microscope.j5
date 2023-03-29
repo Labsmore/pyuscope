@@ -87,6 +87,7 @@ A minimal configuration to do basic testing
 
     //BigEye
     "imager": {
+        //"save_extension": ".tif",
         "source":"gst-toupcamsrc",
         //2778*(1−0.07*2) = 2389.08
         //3704*(1−0.1775*2) = 2389.08

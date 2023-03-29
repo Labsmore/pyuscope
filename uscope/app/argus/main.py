@@ -467,26 +467,15 @@ class XYPlanner2PWidget(PlannerWidget):
             self.axis_pos_label[axis].setText('%0.3f' % axis_pos)
 
     def mk_contour_json(self):
-        try:
-            x0 = float(self.plan_x0_le.text())
-            y0 = float(self.plan_y0_le.text())
-            x1 = float(self.plan_x1_le.text())
-            y1 = float(self.plan_y1_le.text())
-        except ValueError:
-            self.ac.log("Bad scan x/y")
-            return None
+        pos0 = self.get_corner_planner_pos("0")
+        if pos0 is None:
+            return
+        pos1 = self.get_corner_planner_pos("1")
+        if pos1 is None:
+            return
 
         # Planner will sort order as needed
-        ret = {
-            "start": {
-                "x": x0,
-                "y": y0,
-            },
-            "end": {
-                "x": x1,
-                "y": y1,
-            }
-        }
+        ret = {"start": pos0, "end": pos1}
 
         return ret
 
@@ -552,13 +541,10 @@ class XYPlanner2PWidget(PlannerWidget):
         # this is the current XY position + view size
         pos = self.ac.motion_thread.pos_cache
         #self.ac.log("Updating end pos from %s" % (str(pos)))
-        x_view, y_view = self.get_view()
-        x1 = pos['x'] + x_view
-        y1 = pos['y'] + y_view
-        self.plan_x1_le.setText('%0.3f' % x1)
-        self.plan_y1_le.setText('%0.3f' % y1)
+        self.plan_x1_le.setText('%0.3f' % pos["x"])
+        self.plan_y1_le.setText('%0.3f' % pos["y"])
 
-    def get_corner_move_pos(self, corner_name):
+    def get_corner_widget_pos(self, corner_name):
         widgets = self.pb_gos[corner_name]
         try:
             x = float(widgets["x_le"].text())
@@ -566,11 +552,26 @@ class XYPlanner2PWidget(PlannerWidget):
         except ValueError:
             self.ac.log("Bad scan x/y")
             return None
-        if corner_name == "1":
-            x_view, y_view = self.get_view()
-            x -= x_view
-            y -= y_view
+
         return {"x": x, "y": y}
+
+    def get_corner_move_pos(self, corner_name):
+        return self.get_corner_widget_pos(corner_name)
+
+    def get_corner_planner_pos(self, corner_name):
+        pos = self.get_corner_widget_pos(corner_name)
+        x_view, y_view = self.get_view()
+        # ll
+        if corner_name == "0":
+            pos["x"] -= x_view / 2
+            pos["y"] -= y_view / 2
+        # ur
+        elif corner_name == "1":
+            pos["x"] += x_view / 2
+            pos["y"] += y_view / 2
+        else:
+            assert 0, corner_name
+        return pos
 
 
 class XYPlanner3PWidget(PlannerWidget):
@@ -706,7 +707,7 @@ class XYPlanner3PWidget(PlannerWidget):
     def mk_corner_json(self):
         corners = OrderedDict()
         for name in self.corner_widgets.keys():
-            corner = self.get_corner_move_pos(name)
+            corner = self.get_corner_planner_pos(name)
             corners[name] = corner
 
         return corners
@@ -772,24 +773,11 @@ class XYPlanner3PWidget(PlannerWidget):
         pos_cur = self.ac.motion_thread.pos_cache
         widgets = self.corner_widgets[corner_name]
 
-        x_view, y_view = self.get_view()
+        widgets["x_le"].setText('%0.3f' % pos_cur['x'])
+        widgets["y_le"].setText('%0.3f' % pos_cur['y'])
+        widgets["z_le"].setText('%0.3f' % pos_cur['z'])
 
-        # End position has to include the sensor size
-        pos = dict(pos_cur)
-        if corner_name == "ll":
-            pass
-        elif corner_name == "ul":
-            pos["y"] += y_view
-        elif corner_name == "lr":
-            pos["x"] += x_view
-        else:
-            assert 0
-
-        widgets["x_le"].setText('%0.3f' % pos['x'])
-        widgets["y_le"].setText('%0.3f' % pos['y'])
-        widgets["z_le"].setText('%0.3f' % pos['z'])
-
-    def get_corner_move_pos(self, corner_name):
+    def get_corner_widget_pos(self, corner_name):
         widgets = self.corner_widgets[corner_name]
         try:
             x = float(widgets["x_le"].text())
@@ -799,19 +787,34 @@ class XYPlanner3PWidget(PlannerWidget):
         except ValueError:
             self.ac.log("Bad scan x/y")
             return None
-        x_view, y_view = self.get_view()
-        if corner_name == "ll":
-            pass
-        elif corner_name == "ul":
-            y -= y_view
-        elif corner_name == "lr":
-            x -= x_view
-        else:
-            assert 0
         corner = {"x": x, "y": y}
         if self.moving_z():
             corner["z"] = z
         return corner
+
+    def get_corner_move_pos(self, corner_name):
+        return self.get_corner_widget_pos(corner_name)
+
+    def get_corner_planner_pos(self, corner_name):
+        assert self.ac.usc.motion.origin(
+        ) == "ll", "fixme: support other origin"
+
+        pos = self.get_corner_widget_pos(corner_name)
+        if pos is None:
+            return pos
+        x_view, y_view = self.get_view()
+        if corner_name == "ll":
+            pos["x"] -= x_view / 2
+            pos["y"] -= y_view / 2
+        elif corner_name == "ul":
+            pos["x"] -= x_view / 2
+            pos["y"] += y_view / 2
+        elif corner_name == "lr":
+            pos["x"] += x_view / 2
+            pos["y"] -= y_view / 2
+        else:
+            assert 0
+        return pos
 
 
 """

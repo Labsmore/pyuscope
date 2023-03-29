@@ -158,10 +158,11 @@ class PlannerAxis:
     def points(self):
         step = self.step()
         for i in range(self.images_actual()):
-            yield self.start + i * step
+            # Imager is referenced to center
+            yield self.start + self.view_mm / 2 + i * step
 
     def rc_pos(self, rc):
-        return self.start + rc * self.step()
+        return self.start + self.view_mm / 2 + rc * self.step()
 
 
 """
@@ -446,21 +447,10 @@ class PointGenerator2P(PlannerPlugin):
             yield modifiers, replace_keys
 
     def scan_end(self, state):
-        # Return to end position
-        end_at = self.pc.end_at()
-        if end_at == "start":
-            retx = float(self.pc.contour()['start']['x'])
-            rety = float(self.pc.contour()['start']['y'])
-        elif end_at == "zero":
-            retx = 0.0
-            rety = 0.0
-        else:
-            raise Exception("Unknown end_at: %s" % end_at)
-        ret_pos = {'x': retx, 'y': rety}
         # Will be at the end of a stack
         # Put it back where it started
         self.log("XY2P: returning XY at scan end")
-        self.motion.move_absolute(ret_pos)
+        self.motion.move_absolute(self.calc_pos(0, 0))
 
     def log_scan_end(self):
         self.log('XY2P: generated points: %u / %u' %
@@ -666,8 +656,15 @@ class PointGenerator3P(PlannerPlugin):
     def calc_pos(self, ll_col, ll_row):
         ret = {}
         for axis in "xyz":
+            # Project from corner
+            # Adjust from center of imager
+            offset = self.corners["ll"][axis]
+            if axis == "x":
+                offset += self.x.view_mm / 2
+            elif axis == "y":
+                offset += self.y.view_mm / 2
             ret[axis] = self.per_row[axis] * ll_row + self.per_col[
-                axis] * ll_col + self.corners["ll"][axis]
+                axis] * ll_col + offset
         return ret
 
     def filename_part(self, ul_col, ul_row):
@@ -711,7 +708,7 @@ class PointGenerator3P(PlannerPlugin):
     def scan_end(self, state):
         # Return to start position
         self.log("XY3P: returning XY at scan end")
-        self.move_absolute(self.corners["ll"])
+        self.move_absolute(self.calc_pos(0, 0))
 
     def log_scan_begin(self):
         self.log("XY3P")

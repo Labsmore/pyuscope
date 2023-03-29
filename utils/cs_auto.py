@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+"""
+Pre-process files for cloud stitch
+CloudStitch only operates on .jpg right now (bandwidth etc)
+So pre-process files / tifs individually first
+
+TODO: parallel
+"""
 
 from uscope import cloud_stitch
 from uscope.util import add_bool_arg
@@ -103,49 +110,49 @@ def index_scan_images(dir_in):
             Nobody is going to be impressed with my regular expression skills
             but this should work
             """
-            m = re.match(r"(c[0-9]+*_r[0-9]+*)_(z[0-9]+)_h([0-9]+)(\.[a-z]+)",
+            m = re.match(r"c([0-9]+)_r([0-9]+)_z([0-9]+)_h([0-9]+)(\.[a-z]+)",
                          basename)
             if m:
                 return {
                     "col": int(m.group(1)),
-                    "col_str": m.group(1),
+                    "col_str": "c" + m.group(1),
                     "row": int(m.group(2)),
-                    "row_str": m.group(2),
+                    "row_str": "r" + m.group(2),
                     "stack": int(m.group(3)),
-                    "stack_str": m.group(3),
+                    "stack_str": "z" + m.group(3),
                     "hdr": int(m.group(4)),
-                    "hdr_str": m.group(4),
+                    "hdr_str": "h" + m.group(4),
                     "extension": m.group(5),
                 }
-            m = re.match(r"(c[0-9]+*_r[0-9]+*)_(z[0-9]+)_(\.[a-z]+)", basename)
+            m = re.match(r"c([0-9]+)_r([0-9]+)_z([0-9]+)(\.[a-z]+)", basename)
             if m:
                 return {
                     "col": int(m.group(1)),
-                    "col_str": m.group(1),
+                    "col_str": "c" + m.group(1),
                     "row": int(m.group(2)),
-                    "row_str": m.group(2),
+                    "row_str": "r" + m.group(2),
                     "stack": int(m.group(3)),
-                    "stack_str": m.group(3),
+                    "stack_str": "z" + m.group(3),
                     "extension": m.group(4),
                 }
-            m = re.match(r"(c[0-9]+_r[0-9]+*)_h([0-9]+)(\.[a-z]+)", basename)
+            m = re.match(r"c([0-9]+)_r([0-9]+)_h([0-9]+)(\.[a-z]+)", basename)
             if m:
                 return {
                     "col": int(m.group(1)),
-                    "col_str": m.group(1),
+                    "col_str": "c" + m.group(1),
                     "row": int(m.group(2)),
-                    "row_str": m.group(2),
+                    "row_str": "r" + m.group(2),
                     "hdr": int(m.group(3)),
-                    "hdr_str": m.group(3),
+                    "hdr_str": "h" + m.group(3),
                     "extension": m.group(4),
                 }
-            m = re.match(r"(c[0-9]+_r[0-9]+*)(\.[a-z]+)", basename)
+            m = re.match(r"c([0-9]+)_r([0-9]+)(\.[a-z]+)", basename)
             if m:
                 return {
                     "col": int(m.group(1)),
-                    "col_str": m.group(1),
+                    "col_str": "c" + m.group(1),
                     "row": int(m.group(2)),
-                    "row_str": m.group(2),
+                    "row_str": "r" + m.group(2),
                     "extension": m.group(3),
                 }
             return None
@@ -197,7 +204,10 @@ def hdr_run(iindex_in, dir_out, ewf=None, lazy=True, best_effort=True):
 
     # Must be in exposure order?
     for fn_prefix, hdrs in sorted(buckets.items()):
-        fns = [fn for _hdri, fn in sorted(hdrs.items())]
+        fns = [
+            os.path.join(iindex_in["dir"], fn)
+            for _i, fn in sorted(hdrs.items())
+        ]
         fn_out = os.path.join(dir_out, fn_prefix + image_suffix)
         if lazy and os.path.exists(fn_out):
             print(f"lazy: skip {fn_out}")
@@ -226,7 +236,10 @@ def stack_run(iindex_in, dir_out, lazy=True, best_effort=True):
         # Must be in stack order?
         for fn_prefix, stacks in sorted(buckets.items()):
             print(stacks.items())
-            fns = [fn for _hdri, fn in sorted(stacks.items())]
+            fns = [
+                os.path.join(iindex_in["dir"], fn)
+                for _i, fn in sorted(stacks.items())
+            ]
             fn_out = os.path.join(dir_out, fn_prefix + image_suffix)
             if lazy and os.path.exists(fn_out):
                 print(f"lazy: skip {fn_out}")
@@ -293,8 +306,7 @@ def run(directory,
         verbose=True):
     print("Reading metadata...")
 
-    working_dir = directory
-    working_iindex = index_scan_images(working_dir)
+    working_iindex = index_scan_images(directory)
 
     print("")
 
@@ -303,14 +315,15 @@ def run(directory,
     else:
         print("HDR: yes. Processing")
         # dir name needs to be reasonable for CloudStitch to name it well
-        hdr_dir = os.path.join(working_dir,
-                               os.path.basename(working_dir) + "_hdr")
+        next_dir = os.path.join(
+            working_iindex["dir"],
+            os.path.basename(working_iindex["dir"]) + "_hdr")
         hdr_run(working_iindex,
-                hdr_dir,
+                next_dir,
                 ewf=ewf,
                 lazy=lazy,
                 best_effort=best_effort)
-        working_iindex = index_scan_images(working_dir)
+        working_iindex = index_scan_images(next_dir)
 
     print("")
 
@@ -319,32 +332,29 @@ def run(directory,
     else:
         print("Stacker: yes. Processing")
         # dir name needs to be reasonable for CloudStitch to name it well
-        stacker_dir = os.path.join(working_dir,
-                                   os.path.basename(working_dir) + "_stacked")
-        stack_run(working_iindex,
-                  stacker_dir,
-                  lazy=lazy,
-                  best_effort=best_effort)
-        working_dir = stacker_dir
-        working_iindex = index_scan_images(working_dir)
+        next_dir = os.path.join(
+            working_iindex["dir"],
+            os.path.basename(working_iindex["dir"]) + "_stack")
+        stack_run(working_iindex, next_dir, lazy=lazy, best_effort=best_effort)
+        working_iindex = index_scan_images(next_dir)
 
     # CloudStitch currently only supports .jpg
-    if need_jpg_conversion(working_dir):
+    if need_jpg_conversion(working_iindex["dir"]):
         print("")
         print("Converting to jpg")
-        jpg_dir = os.path.join(working_dir,
-                               os.path.basename(working_dir) + "_jpg")
-        tif2jpg_dir(working_iindex, jpg_dir, lazy=lazy)
-        working_dir = jpg_dir
-        working_iindex = index_scan_images(working_dir)
+        next_dir = os.path.join(
+            working_iindex["dir"],
+            os.path.basename(working_iindex["dir"]) + "_jpg")
+        tif2jpg_dir(working_iindex, next_dir, lazy=lazy)
+        working_iindex = index_scan_images(next_dir)
 
     print("")
 
     if not upload:
         print("CloudStitch: skip")
     else:
-        print(f"Ready to stitch {working_dir}")
-        cloud_stitch.upload_dir(working_dir,
+        print("Ready to stitch " + working_iindex["dir"])
+        cloud_stitch.upload_dir(working_iindex["dir"],
                                 access_key=access_key,
                                 secret_key=secret_key,
                                 id_key=id_key,

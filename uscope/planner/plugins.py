@@ -7,10 +7,7 @@ from PIL import Image
 from uscope.imager.imager_util import get_scaled
 from uscope.motion.hal import pos_str
 from uscope.motion.kinematics import Kinematics
-try:
-    from scipy import polyfit
-except ImportError:
-    scipy = None
+from scipy import polyfit
 
 
 class PlannerAxis:

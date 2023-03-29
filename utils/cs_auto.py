@@ -17,6 +17,7 @@ import subprocess
 import shutil
 from collections import OrderedDict
 import traceback
+from uscope import config
 
 
 def process_hdr_image_enfuse(fns_in, fn_out, ewf=None, best_effort=True):
@@ -380,6 +381,9 @@ def run(directory,
         print("CloudStitch: skip (requested)")
     elif not healthy:
         print("CloudStitch: skip (incomplete data)")
+    elif not access_key and not config.get_bc().labsmore_stitch_aws_access_key(
+    ):
+        print("CloudStitch: skip (missing credidentials)")
     else:
         print("Ready to stitch " + working_iindex["dir"])
         cloud_stitch.upload_dir(working_iindex["dir"],

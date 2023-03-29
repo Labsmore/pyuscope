@@ -98,6 +98,8 @@ def index_scan_images(dir_in):
     """
     ret = OrderedDict()
     images = OrderedDict()
+    cols = 0
+    rows = 0
     hdrs = 0
     stacks = 0
     for fn_full in sorted(
@@ -163,6 +165,8 @@ def index_scan_images(dir_in):
         images[basename] = v
         hdrs = max(hdrs, v.get("hdr", -1) + 1)
         stacks = max(stacks, v.get("stack", -1) + 1)
+        rows = max(rows, v.get("row") + 1)
+        cols = max(cols, v.get("col") + 1)
 
     # xxx: maybe this removes /
     # yes
@@ -174,6 +178,8 @@ def index_scan_images(dir_in):
     ret["images"] = images
     ret["hdrs"] = hdrs
     ret["stacks"] = stacks
+    ret["cols"] = cols
+    ret["rows"] = rows
     return ret
 
 
@@ -294,6 +300,24 @@ def tif2jpg_dir(iindex_in, dir_out, lazy=True):
             subprocess.check_call(args)
 
 
+def inspect_final_dir(working_iindex):
+    healthy = True
+    n_healthy = working_iindex["cols"] * working_iindex["rows"]
+    n_actual = len(working_iindex["images"])
+    print("Have %u / %u images" % (n_actual, n_healthy))
+    open_set = set()
+    for col in range(working_iindex["cols"]):
+        for row in range(working_iindex["rows"]):
+            open_set.add((col, row))
+    for filev in working_iindex["images"].values():
+        open_set.remove((filev["col"], filev["row"]))
+    print("Failed to find: %u files" % (len(open_set)))
+    for (col, row) in sorted(open_set):
+        print("  c%03u_r%03u.jpg" % (col, row))
+        healthy = False
+    return healthy
+
+
 def run(directory,
         access_key=None,
         secret_key=None,
@@ -349,9 +373,13 @@ def run(directory,
         working_iindex = index_scan_images(next_dir)
 
     print("")
+    healthy = inspect_final_dir(working_iindex)
+    print("")
 
     if not upload:
-        print("CloudStitch: skip")
+        print("CloudStitch: skip (requested)")
+    elif not healthy:
+        print("CloudStitch: skip (incomplete data)")
     else:
         print("Ready to stitch " + working_iindex["dir"])
         cloud_stitch.upload_dir(working_iindex["dir"],

@@ -82,7 +82,11 @@ def cal_load(source, name=None, load_data_dir=True):
         if not os.path.exists(fn):
             return {}
         configj = readj(fn)
-        config = configj["configs"]["default"]
+        configs = configj["configs"]
+        if type(configs) is list:
+            raise ValueError(
+                "Old style calibration, please update from list to dict")
+        config = configs["default"]
         if config["source"] != source:
             raise ValueError("Source mismatches in config file")
         assert "properties" in config

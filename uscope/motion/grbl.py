@@ -943,9 +943,11 @@ class GrblHal(MotionHAL):
         return self.grbl.qstatus()["MPos"]
 
     def _move_absolute(self, pos, tries=3):
+        # print("grbl mv_abs", pos)
         self.grbl.move_absolute(pos, f=1000)
 
     def _move_relative(self, pos):
+        # print("grbl mv_rel", pos)
         self.grbl.move_relative(pos, f=1000)
 
     def _jog(self, scalars):

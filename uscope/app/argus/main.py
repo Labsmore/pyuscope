@@ -294,6 +294,15 @@ class SnapshotWidget(AWidget):
     def post_ui_init(self):
         pass
 
+    def cache_save(self, cachej):
+        cachej["snapshot"] = {
+            "file_name": str(self.snapshot_fn_le.text()),
+        }
+
+    def cache_load(self, cachej):
+        j = cachej.get("snapshot", {})
+        self.snapshot_fn_le.setText(j.get("file_name", "snapshot"))
+
 
 """
 Provides camera overview and ROI side by side
@@ -873,15 +882,16 @@ class ScanWidget(AWidget):
         def getScanNameWidget():
             name = self.ac.usc.app("argus").scan_name_widget()
             if name == "simple":
-                return SimpleScanNameWidget()
+                return SimpleScanNameWidget(self.ac)
             elif name == "sipr0n":
-                return SiPr0nScanNameWidget()
+                return SiPr0nScanNameWidget(self.ac)
             else:
                 raise ValueError(name)
 
         layout = QVBoxLayout()
         gb = QGroupBox("Scan")
         self.jobNameWidget = getScanNameWidget()
+        self.awidgets["job_name"] = self.jobNameWidget
         layout.addWidget(self.jobNameWidget)
         layout.addLayout(getProgressLayout())
         gb.setLayout(layout)
@@ -2168,12 +2178,12 @@ class MotionWidget(AWidget):
             self.motion_thread.stop()
 
 
-class SimpleScanNameWidget(QWidget):
+class SimpleScanNameWidget(AWidget):
     """
     Job name is whatever the user wants
     """
-    def __init__(self, parent=None):
-        super().__init__(parent=parent)
+    def __init__(self, ac, parent=None):
+        super().__init__(ac, parent=parent)
 
         layout = QHBoxLayout()
 
@@ -2190,13 +2200,22 @@ class SimpleScanNameWidget(QWidget):
             "user_basename": str(self.le.text()),
         }
 
+    def cache_save(self, cachej):
+        cachej["scan_name"] = {
+            "file_name": str(self.le.text()),
+        }
 
-class SiPr0nScanNameWidget(QWidget):
+    def cache_load(self, cachej):
+        j = cachej.get("scan_name", {})
+        self.le.setText(j.get("file_name", "unknown"))
+
+
+class SiPr0nScanNameWidget(AWidget):
     """
     Force a name compatible with siliconpr0n.org naming convention
     """
-    def __init__(self, parent=None):
-        super().__init__(parent=parent)
+    def __init__(self, ac, parent=None):
+        super().__init__(ac, parent=parent)
 
         layout = QHBoxLayout()
 
@@ -2512,7 +2531,7 @@ class MainWindow(QMainWindow):
     def keyPressEvent(self, event):
         k = event.key()
         if k == Qt.Key_Escape:
-            self.mainTab.stop()
+            self.ac.motion_thread.stop()
 
 
 def parse_args():

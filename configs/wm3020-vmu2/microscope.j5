@@ -93,6 +93,7 @@ A minimal configuration to do basic testing
         //3704*(1−0.1775*2) = 2389.08
         "width": 3704,
         "height": 2778,
+        "scalar": 0.5,
         //250 is still slightly visible
         //FIXME: convert to fraction
         /*

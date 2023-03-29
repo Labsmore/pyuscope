@@ -94,6 +94,7 @@ A minimal configuration to do basic testing
         "source":"gst-toupcamsrc",
         "width": 3704,
         "height": 2778,
+        "scalar": 0.5,
         //250 is still slightly visible
         "crop_pixels": {
             "top": 500,

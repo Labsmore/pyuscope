@@ -3,17 +3,18 @@ from uscope.planner.plugins import register_plugins as _register_plugins
 from uscope.config import USC
 
 
-def get_objective(usj=None, objectivei=None, objectivestr=None):
+def get_objective(usc=None, objectivei=None, objectivestr=None):
+    objectives = usc.get_scaled_objectives()
     if objectivestr:
-        for objective in usj["objectives"]:
+        for objective in objectives:
             if objective["name"] == objectivestr:
                 return objective
         raise ValueError("Failed to find named objective")
     if objectivei is not None:
-        return usj["objectives"][objectivei]
+        return objectives[objectivei]
     # Only one objective? Default to it
-    if objectivei is None and not objectivestr and len(usj["objectives"]) == 0:
-        return usj["objectives"][0]
+    if len(objectives) == 1:
+        return objectives[0]
     assert 0, "Ambiguous objective, must specify"
 
 
@@ -28,7 +29,7 @@ def microscope_to_planner_config(usj=None,
         usc = USC(usj)
     usj = usc.usj
     if objective is None:
-        objective = get_objective(usj=usc.usj,
+        objective = get_objective(usc=usc,
                                   objectivei=objectivei,
                                   objectivestr=objectivestr)
     ret = {

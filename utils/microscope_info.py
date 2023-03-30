@@ -21,9 +21,10 @@ def run(microscope_name=None, verbose=True):
     print("Objectives")
     for objective in usc.get_scaled_objectives():
         print(f"  {objective['name']}")
-        print("    x_view: %0.3f mm" % objective['x_view'])
+        print("    x_view (post-crop): %0.3f mm" % objective['x_view'])
         print("    magnification: %s" % objective.get("magnification"))
-        print("    um_per_pixel: %0.3f" % objective["um_per_pixel"])
+        print("    um_per_pixel (post-scale): %0.3f" %
+              objective["um_per_pixel"])
         na = objective.get("na", 0)
         print("    na: %0.3f" % na)
         if na:

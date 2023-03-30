@@ -93,7 +93,8 @@ A minimal configuration to do basic testing
         //3704*(1−0.1775*2) = 2389.08
         "width": 3704,
         "height": 2778,
-        "scalar": 0.5,
+        //400 nm @ 5x will loose resolution
+        //"scalar": 0.5,
         //250 is still slightly visible
         //FIXME: convert to fraction
         /*
@@ -123,12 +124,27 @@ A minimal configuration to do basic testing
             },
         },
     },
-    //500 border
+    /*
+    20x
+    snapshot of cal slide
+    final @ 20x
+        214 pix / 0.1 mm => 2140 pix / mm
+        um per pix: 100 / 214 = 0.46728972
+
+        1196 pix wide final
+        x_view: 1196 * 0.46728972 = 558 um
+    raw
+        split between two pixels => each gets half as much um
+        0.46728972 / 2 = 0.23364486
+
+    Scale ot 5x
+    raw um per pix = 0.23364486 * 4 = 0.93457944
+    */
     "objectives": [
         {
             "name":"5X",
             "magnification": 5,
-            "um_per_pixel": 0.936,
+            "um_per_pixel_raw": 0.93457944,
             "na": 0.14,
         },
         {

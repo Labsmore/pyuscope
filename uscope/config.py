@@ -515,23 +515,36 @@ class USC:
         # In raw sensor pixels before scaling
         # That way can adjust scaling w/o adjusting
         # This is the now preferred way to set configuration
-        reference_um_per_pix = reference_objective.get("um_per_pixel")
-        if reference_um_per_pix:
-            raw_w, _raw_h = self.imager.final_wh()
+        reference_raw_um_per_pix = reference_objective.get("um_per_pixel_raw")
+        reference_final_um_per_pix = reference_objective.get("um_per_pixel")
+        # raw_w, _raw_h = self.imager.raw_wh()
+        final_w, _final_h = self.imager.final_wh()
+
+        def scale_reference(ref_um_per_pix, ref_w_pix, scalar):
             # Objectives must support magnification to scale
             for objective in objectives:
-                um_per_pix = reference_objective[
-                    "um_per_pixel"] * reference_objective[
-                        "magnification"] / objective["magnification"]
-                objective["um_per_pixel"] = um_per_pix
+                mag_scalar = reference_objective["magnification"] / objective[
+                    "magnification"]
+                objective[
+                    "um_per_pixel"] = ref_um_per_pix * mag_scalar * scalar
                 # um to mm
-                objective["x_view"] = raw_w * um_per_pix / 1000
+                objective[
+                    "x_view"] = ref_w_pix * objective["um_per_pixel"] / 1000
+
+        if reference_raw_um_per_pix:
+            """
+            image scalar 0.5 => multiply effective pixel um by 2
+            """
+            scale_reference(reference_raw_um_per_pix, final_w,
+                            1 / usc.imager.scalar())
+        elif reference_final_um_per_pix:
+            scale_reference(reference_final_um_per_pix, final_w, 1.0)
         # x_view is in the actual observed field of view after cropping
         # Doesn't care about scaling
         # x_view should be specified for each then
         # Calculate um_per_pix
         else:
-            final_w, _cropped_h = self.imager.final_wh()
+            final_w, _final_h = self.imager.final_wh()
             for objective in objectives:
                 objective[
                     "um_per_pixel"] = objective["x_view"] * 1000 / final_w

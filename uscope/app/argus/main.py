@@ -438,7 +438,7 @@ class XYPlanner2PWidget(PlannerWidget):
         for corner_name in ("0", "1"):
 
             def go_clicked():
-                pos = self.get_corner_move_pos("0")
+                pos = self.get_corner_move_pos(corner_name)
                 if pos is not None:
                     self.ac.motion_thread.move_absolute(pos)
 

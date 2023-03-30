@@ -21,6 +21,7 @@ class PlannerAxis:
         # How much the imager can see (in mm)
         view_mm,
         # How much the imager can see (in pixels)
+        # After all scaling, cropping, etc applied
         view_pix,
         # start and actual_end absolute positions (in um)
         # Inclusive such that 0:0 means image at position 0 only
@@ -269,6 +270,8 @@ def log_scan_xy_begin(self):
     self.log("    pix: %u x,  %u y => %0.1f MP" %
              (self.x.view_pixels, self.y.view_pixels,
               self.x.view_pixels * self.y.view_pixels / 1e6))
+    self.log("    Note scalar %0.2f" % self.pc.image_scalar_hint())
+    self.log("    Note crop %s" % (self.pc.image_crop_tblr_hint(), ))
     self.log("  Derived:")
     self.log('    Ideal pictures: %0.1f x, %0.1f y => %0.1f' %
              (self.x.images_ideal(), self.y.images_ideal(),
@@ -953,10 +956,6 @@ class PlannerCaptureImage(PlannerPlugin):
 
                 assert len(images) == 1, "Expecting single image"
                 im = list(images.values())[0]
-
-                # factor = self.imager.scalar()
-                factor = self.pc.image_scalar()
-                im = get_scaled(im, factor, Image.ANTIALIAS)
 
         self.images_captured += 1
         modifiers = {}

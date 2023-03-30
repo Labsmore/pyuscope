@@ -1152,8 +1152,6 @@ class MainTab(ArgusTab):
                                           log=self.ac.log)
         self.add_awidget("motion", self.motion_widget)
 
-        self.image_processing_thread = None
-
     def initUI(self):
         def get_axes_gb():
             layout = QVBoxLayout()
@@ -1199,13 +1197,6 @@ class MainTab(ArgusTab):
     def post_ui_init(self):
         awidgets_post_ui_init(self.awidgets)
 
-        self.image_processing_thread = ImageProcessingThread(
-            motion_thread=self.ac.motion_thread,
-            imager=self.ac.imager,
-            parent=self)
-        self.image_processing_thread.log_msg.connect(self.ac.log)
-        self.image_processing_thread.start()
-
     def log(self, s='', newline=True):
         s = str(s)
         # print("LOG: %s" % s)
@@ -1223,11 +1214,6 @@ class MainTab(ArgusTab):
         if self.scan_widget.log_fd_scan is not None:
             self.scan_widget.log_fd_scan.write(s)
             self.scan_widget.log_fd_scan.flush()
-
-    def shutdown(self):
-        if self.image_processing_thread:
-            self.image_processing_thread.shutdown()
-            self.image_processing_thread = None
 
     def go_currnet_pconfig(self):
         scan_config = self.active_planner_widget().get_current_scan_config()
@@ -1499,32 +1485,84 @@ class AdvancedTab(ArgusTab):
         row += 1
 
         # FIXME: display for now, but should make editable
-        def planner_gb():
+        # Or maybe have it log a report instead of making widgets?
+
+        def kinematics_gb():
             layout = QGridLayout()
             row = 0
-            pconfig = microscope_to_planner_config(self.ac.usj,
-                                                   objective={"x_view": None},
-                                                   contour={})
-            pc = PC(j=pconfig)
 
-            layout.addWidget(QLabel("Border"), row, 0)
-            self.gutter_le = QLineEdit("%f" % pc.border())
-            self.gutter_le.setReadOnly(True)
-            layout.addWidget(self.gutter_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("tsettle_motion"), row, 0)
-            self.tsettle_motion_le = QLineEdit("%f" %
-                                               pc.kinematics.tsettle_motion())
+            # TODO: display objective table
+            layout.addWidget(QLabel("tsettle_motion (base constant)"), row, 0)
+            self.tsettle_motion_le = QLineEdit("")
             self.tsettle_motion_le.setReadOnly(True)
             layout.addWidget(self.tsettle_motion_le, row, 1)
             row += 1
 
             layout.addWidget(QLabel("tsettle_hdr"), row, 0)
-            self.tsettle_hdr_le = QLineEdit("%f" % pc.kinematics.tsettle_hdr())
+            self.tsettle_hdr_le = QLineEdit("")
             self.tsettle_hdr_le.setReadOnly(True)
             layout.addWidget(self.tsettle_hdr_le, row, 1)
             row += 1
+
+            layout.addWidget(QLabel("Image scalar"), row, 0)
+            self.image_scalar_le = QLineEdit("%f" %
+                                             self.ac.usc.imager.scalar())
+            self.image_scalar_le.setReadOnly(True)
+            layout.addWidget(self.image_scalar_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Motion origin"), row, 0)
+            self.motion_scalar_le = QLineEdit(self.ac.usc.motion.origin())
+            self.motion_scalar_le.setReadOnly(True)
+            layout.addWidget(self.motion_scalar_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Backlash compensation"), row, 0)
+            self.backlash_comp_le = QLineEdit(
+                str(self.ac.usc.motion.backlash_compensation()))
+            self.backlash_comp_le.setReadOnly(True)
+            layout.addWidget(self.backlash_comp_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Backlash X"), row, 0)
+            self.backlash_x_le = QLineEdit("")
+            self.backlash_x_le.setReadOnly(True)
+            layout.addWidget(self.backlash_x_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Backlash Y"), row, 0)
+            self.backlash_y_le = QLineEdit("")
+            self.backlash_y_le.setReadOnly(True)
+            layout.addWidget(self.backlash_y_le, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Backlash Z"), row, 0)
+            self.backlash_z_le = QLineEdit("")
+            self.backlash_z_le.setReadOnly(True)
+            layout.addWidget(self.backlash_z_le, row, 1)
+            row += 1
+
+            # hmm this could have been inline, think was moved here by mistake
+            backlashes = self.ac.usc.motion.backlash()
+            self.backlash_x_le.setText("%f" % backlashes["x"])
+            self.backlash_y_le.setText("%f" % backlashes["y"])
+            self.backlash_z_le.setText("%f" % backlashes["z"])
+
+            gb = QGroupBox("Misc imager / motion")
+            gb.setLayout(layout)
+            return gb
+
+        layout.addWidget(kinematics_gb(), row, 0)
+        row += 1
+
+        def planner_gb():
+            layout = QGridLayout()
+            row = 0
+
+            pconfig = microscope_to_planner_config(self.ac.usj,
+                                                   objective={"x_view": None},
+                                                   contour={})
+            pc = PC(j=pconfig)
 
             layout.addWidget(QLabel("Ideal overlap X"), row, 0)
             self.overlap_x_le = QLineEdit("%f" % pc.ideal_overlap("x"))
@@ -1538,42 +1576,10 @@ class AdvancedTab(ArgusTab):
             layout.addWidget(self.overlap_y_le, row, 1)
             row += 1
 
-            layout.addWidget(QLabel("Image scalar"), row, 0)
-            self.image_scalar_le = QLineEdit("%f" % pc.image_scalar())
-            self.image_scalar_le.setReadOnly(True)
-            layout.addWidget(self.image_scalar_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Motion origin"), row, 0)
-            self.motion_scalar_le = QLineEdit(pc.motion_origin())
-            self.motion_scalar_le.setReadOnly(True)
-            layout.addWidget(self.motion_scalar_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Backlash compensation"), row, 0)
-            self.backlash_comp_le = QLineEdit(
-                str(self.ac.usc.motion.backlash_compensation()))
-            self.backlash_comp_le.setReadOnly(True)
-            layout.addWidget(self.backlash_comp_le, row, 1)
-            row += 1
-
-            backlashes = self.ac.usc.motion.backlash()
-            layout.addWidget(QLabel("Backlash X"), row, 0)
-            self.backlash_x_le = QLineEdit("%f" % backlashes["x"])
-            self.backlash_x_le.setReadOnly(True)
-            layout.addWidget(self.backlash_x_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Backlash Y"), row, 0)
-            self.backlash_y_le = QLineEdit("%f" % backlashes["y"])
-            self.backlash_y_le.setReadOnly(True)
-            layout.addWidget(self.backlash_y_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Backlash Z"), row, 0)
-            self.backlash_z_le = QLineEdit("%f" % backlashes["z"])
-            self.backlash_z_le.setReadOnly(True)
-            layout.addWidget(self.backlash_z_le, row, 1)
+            layout.addWidget(QLabel("Border"), row, 0)
+            self.gutter_le = QLineEdit("%f" % pc.border())
+            self.gutter_le.setReadOnly(True)
+            layout.addWidget(self.gutter_le, row, 1)
             row += 1
 
             gb = QGroupBox("Planner")
@@ -1597,6 +1603,12 @@ class AdvancedTab(ArgusTab):
 
     def update_pconfig(self, pconfig):
         self.update_pconfig_stack(pconfig)
+
+    def post_ui_init(self):
+        # XXX: could in theory put this on timer since its related to selected objective
+        self.tsettle_motion_le.setText("%f" %
+                                       self.ac.kinematics.tsettle_motion)
+        self.tsettle_hdr_le.setText("%f" % self.ac.kinematics.tsettle_hdr)
 
 
 class StitchingTab(ArgusTab):
@@ -2299,6 +2311,8 @@ class ArgusCommon(QObject):
 
         self.motion_thread = None
         self.planner_thread = None
+        self.image_processing_thread = None
+
         self.microscope = microscope
         self.usj = get_usj(name=microscope)
         self.usc = USC(usj=self.usj)
@@ -2308,6 +2322,8 @@ class ArgusCommon(QObject):
 
         self.scan_configs = None
         self.imager = None
+        self.kinematics = None
+        self.motion = None
         self.vidpip = GstVideoPipeline(usc=self.usc,
                                        overview=True,
                                        overview2=True,
@@ -2343,6 +2359,7 @@ class ArgusCommon(QObject):
         # motion.progress = self.hal_progress
         self.motion_thread = MotionThread(usc=self.usc)
         self.motion_thread.log_msg.connect(self.log)
+        self.motion = self.motion_thread.motion
 
     def initUI(self):
         self.vidpip.setupWidgets()
@@ -2354,6 +2371,13 @@ class ArgusCommon(QObject):
         self.vidpip.run()
         self.init_imager()
 
+        # Needs imager which isn't initialized until gst GUI objects are made
+        self.image_processing_thread = ImageProcessingThread(
+            motion_thread=self.motion_thread, ac=self)
+        self.kinematics = self.image_processing_thread.kinematics
+        self.image_processing_thread.log_msg.connect(self.log)
+        self.image_processing_thread.start()
+
     def shutdown(self):
         if self.motion_thread:
             self.motion_thread.shutdown()
@@ -2361,6 +2385,9 @@ class ArgusCommon(QObject):
         if self.planner_thread:
             self.planner_thread.shutdown()
             self.planner_thread = None
+        if self.image_processing_thread:
+            self.image_processing_thread.shutdown()
+            self.image_processing_thread = None
 
     def init_imager(self):
         source = self.vidpip.source_name

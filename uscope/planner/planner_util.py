@@ -3,27 +3,32 @@ from uscope.planner.plugins import register_plugins as _register_plugins
 from uscope.config import USC
 
 
-def get_objective(usj, objectivei=None, objectivestr=None):
+def get_objective(usj=None, objectivei=None, objectivestr=None):
     if objectivestr:
         for objective in usj["objectives"]:
             if objective["name"] == objectivestr:
                 return objective
         raise ValueError("Failed to find named objective")
+    if objectivei is not None:
+        return usj["objectives"][objectivei]
     # Only one objective? Default to it
     if objectivei is None and not objectivestr and len(usj["objectives"]) == 0:
         return usj["objectives"][0]
     assert 0, "Ambiguous objective, must specify"
 
 
-def microscope_to_planner_config(usj,
+def microscope_to_planner_config(usj=None,
+                                 usc=None,
                                  objective=None,
                                  objectivestr=None,
                                  objectivei=None,
                                  contour=None,
                                  corners=None):
-    usc = USC(usj)
+    if usc is None:
+        usc = USC(usj)
+    usj = usc.usj
     if objective is None:
-        objective = get_objective(usj=usj,
+        objective = get_objective(usj=usc.usj,
                                   objectivei=objectivei,
                                   objectivestr=objectivestr)
     ret = {
@@ -44,9 +49,11 @@ def microscope_to_planner_config(usj,
         }
     assert "points-xy2p" in ret or "points-xy3p" in ret, (contour, corners)
 
+    # GstGUIImager does actual scaling
+    # But needed to make prints nice
     v = usj["imager"].get("scalar")
     if v:
-        ret["imager"]["scalar"] = float(v)
+        ret["imager"]["scalar_hint"] = float(v)
     v = usj["imager"].get("save_extension")
     if v:
         ret["imager"]["save_extension"] = v

@@ -125,9 +125,13 @@ class Planner:
     def image_wh(self):
         """Final snapshot image width, height after scaling"""
         raww, rawh = self.imager.wh()
-        w = int(raww * self.pc.image_scalar())
-        h = int(rawh * self.pc.image_scalar())
+        """
+        w = int(raww * self.pc.image_scalar_hint())
+        h = int(rawh * self.pc.image_scalar_hint())
         return w, h
+        """
+        # planner no longer scales the images, now the Imager does
+        return raww, rawh
 
     def check_running(self):
         if not self.running:

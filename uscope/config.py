@@ -143,6 +143,7 @@ class USCImager:
     def raw_wh(self):
         """
         The actual sensor size
+        Following are not applied yet: crop, scaling
         """
         w = int(self.j['width'])
         h = int(self.j['height'])
@@ -152,6 +153,7 @@ class USCImager:
         """
         The intended w/h after expected crop (if any) is applied
         Usually we use the full sensor but sometimes its cropped
+        Scaling, if any, is not yet applied
         (ex: if too large a sensor is used)
         """
         w = int(self.j['width'])
@@ -748,9 +750,18 @@ class PC:
         """
         return float(self.j.get("border", 0.0))
 
-    def image_scalar(self):
-        """Multiplier to go from Imager image size to output image size"""
-        return float(self.j.get("imager", {}).get("scalar", 1.0))
+    def image_crop_tblr_hint(self):
+        """
+        Only used for loggin
+        """
+        return self.j.get("imager", {}).get("crop_tblr_hint", {})
+
+    def image_scalar_hint(self):
+        """
+        Multiplier to go from Imager image size to output image size
+        Only used for logging: the Imager itself is responsible for actual scaling
+        """
+        return float(self.j.get("imager", {}).get("scalar_hint", 1.0))
 
     def motion_origin(self):
         ret = self.j.get("motion", {}).get("origin", "ll")

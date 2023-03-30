@@ -489,28 +489,29 @@ class StitcherThread(QThread):
 class ImageProcessingThread(QThread):
     log_msg = pyqtSignal(str)
 
-    def __init__(self, motion_thread, imager, parent=None):
+    def __init__(self, motion_thread, ac, parent=None):
         QThread.__init__(self, parent)
         self.queue = Queue()
         self.running = threading.Event()
         self.running.set()
         self.motion_thread = motion_thread
-        self.imager = imager
-        self.usc = config.get_usc()
+        self.ac = ac
+        self.imager = self.ac.imager
+        self.init_kinematics()
 
     def init_kinematics(self):
-        # Probably better to break out to a Kinematics object that the planner uses
         # For now assume last / highest mag objective => most stringement kimenatics
         # also kind of weird using planner config but good enough for now
-        pc = microscope_to_planner_config(
-            self.ac.usj,
+        pcj = microscope_to_planner_config(
+            usc=self.ac.usc,
             objectivei=len(self.ac.usj["objectives"]) - 1,
             contour={})
+        pc = config.PC(pcj)
         self.kinematics = Kinematics(
-            motion=self.motion,
-            imager=self.imager,
-            tsettle_motion=pc.tsettle_motion(),
-            tsettle_hdr=pc.tsettle_hdr(),
+            motion=self.ac.motion,
+            imager=self.ac.imager,
+            tsettle_motion=self.ac.usc.kinematics.tsettle_motion(),
+            tsettle_hdr=self.ac.usc.kinematics.tsettle_hdr(),
             log=self.log,
         )
 

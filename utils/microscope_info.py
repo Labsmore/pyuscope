@@ -41,6 +41,15 @@ def run(microscope_name=None, verbose=True):
             if oversampling_ratio_400 < 1.0:
                 print("      WARNING: system is under sampled")
 
+    print("Calibration (microscope default)")
+    for propk, propv in config.cal_load(name=microscope_name,
+                                        load_data_dir=False).items():
+        print("  %s: %s" % (propk, propv))
+    print("Calibration (including user)")
+    for propk, propv in config.cal_load(name=microscope_name,
+                                        load_data_dir=True).items():
+        print("  %s: %s" % (propk, propv))
+
 
 def main():
     import argparse

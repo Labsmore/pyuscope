@@ -75,7 +75,7 @@ def cal_fn_data(name=None):
                         "imager_calibration.j5")
 
 
-def cal_load(source, name=None, load_data_dir=True):
+def cal_load(source=None, name=None, load_data_dir=True):
     def load_config(fn):
         if not fn:
             return {}
@@ -87,12 +87,11 @@ def cal_load(source, name=None, load_data_dir=True):
             raise ValueError(
                 "Old style calibration, please update from list to dict")
         config = configs["default"]
-        if config["source"] != source:
+        if source and config["source"] != source:
             raise ValueError("Source mismatches in config file")
         assert "properties" in config
         return config["properties"]
 
-    assert source
     # configs/ls-hvy-1/imager_calibration.j5
     microscopej = load_config(cal_fn_microscope(name=name))
     if not load_data_dir:
@@ -628,7 +627,7 @@ def set_usj(j):
 
 def get_data_dir(mkdir=True):
     ret = os.getenv("PYUSCOPE_DATA_DIR", "data")
-    if not os.path.exists(ret):
+    if not os.path.exists(ret) and mkdir:
         os.mkdir(ret)
     return ret
 

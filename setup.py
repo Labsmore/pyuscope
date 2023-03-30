@@ -41,7 +41,7 @@ for script in scripts:
 
 setup(
     name="pyuscope",
-    version="4.0.2",
+    version="4.1.0",
     author="John McMaster",
     author_email='john@labsmore.com',
     description=("Digital microscope controller"),

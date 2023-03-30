@@ -67,8 +67,8 @@ The view in section `2` provides a magnified sub-area of the camera feed to aid 
 ![image](https://user-images.githubusercontent.com/463376/221099110-2a0b45c0-d4a8-4ea5-b2f3-69053fcce966.png)
 
 The `Motion` section provides controls to:
-  - Set the bounding box for scans.
-  - Enable `Jog` mode to move the microscope and in X, Y and Z directions.
+ * Set the bounding box for scans.
+ * Enable `Jog` mode to move the microscope and in X, Y and Z directions.
 
 #### `Jog` mode
 
@@ -79,9 +79,12 @@ Enter and exit `Jog` mode by toggling the "Jog" button.
 The slider controls the speed and amount of each motion command. Use slider value `1` for fine grained motion, and increase the slider for a larger movement amount.
 
 Enter `Jog` mode, by clicking the "Jog" button, then move the microscope via the following hotkeys:
-  - `A` and `D` for the X-axis motion
-  - `W` and `S` for the Y-axis motion
-  - `Q` and `E` for the Z-axis motion
+ * `A` and `D` for the X-axis motion
+ * `W` and `S` for the Y-axis motion
+ * `Q` and `E` for the Z-axis motion
+ * `Z` and `C` to change rate
+ * `F` to toggle fine mode
+  
   
 #### Set Scan Bounding Box Coordinates
 
@@ -220,7 +223,7 @@ various instruments easy into my workflows.
  * Compatible with
    * gst-plugin-toupcam: v0.4.0
      * Rev for toupcamsrc automatic resolution detection
-  * Motion HAL: GRBL
+   * Motion HAL: GRBL
  * Significant code restructure (Argus, planner, motion)
  * Config API clean up
  * Argus split into smaller widgets
@@ -236,7 +239,25 @@ various instruments easy into my workflows.
 ## 4.0.2
   * Config file rename
 
-## 4.1.0 (WIP)
- * WIP: fix axis soft limit bug
- * WIP: add ability to temporarily override soft limits
- * WIP: calibration GUI
+## 4.1.0
+ * Compatible with
+   * gst-plugin-toupcam: v0.4.2
+   * Motion HAL: GRBL
+ * Argus
+   * Persist some GUI state across launches
+   * Jogging fine mode, more keyboard shortcuts
+   * XY2P/XY3P "Go" to coordinate buttons
+   * HDR usability improvements. cs_auto.py can also ingest now
+ * Homing beta support
+   * Configuration: add motion.use_wcs_offsets (as opposed to MPos)
+   * utils/home_run.sh wrapper script
+ * Core
+   * New kinematics model to significantly improve image throughput
+   * Coordinates are now relative to image center (was image corner)
+ * Add microscope_info.py
+ * Misc bug fixes
+   * Argus: crash on data dir missing
+   * Argus: log crash on scan abort
+   * Argus: auto exposure issues
+   * Argus: planner thread stops more reliably
+   * Calibration fixes

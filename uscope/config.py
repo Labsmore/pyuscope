@@ -535,10 +535,10 @@ class USC:
             """
             image scalar 0.5 => multiply effective pixel um by 2
             """
-            scale_reference(reference_raw_um_per_pix, final_w,
-                            1 / usc.imager.scalar())
+            scale_reference(reference_raw_um_per_pix, final_w, 1.0)
         elif reference_final_um_per_pix:
-            scale_reference(reference_final_um_per_pix, final_w, 1.0)
+            scale_reference(reference_final_um_per_pix, final_w,
+                            1 / usc.imager.scalar())
         # x_view is in the actual observed field of view after cropping
         # Doesn't care about scaling
         # x_view should be specified for each then

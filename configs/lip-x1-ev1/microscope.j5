@@ -109,21 +109,19 @@ A minimal configuration to do basic testing
         {
             "name":"5X",
             "magnification": 5,
-            "x_view": 2.530,
+            "um_per_pixel_raw": 0.936,
             "na": 0.14,
         },
         {
             "name":"20X",
             "magnification": 20,
-            "x_view": 0.6325,
             "na": 0.42,
         },
         {
             "name":"100X",
             "magnification": 100,
-            "x_view": 0.1265,
             "na": 0.70,
-             //FIXME: not tuned
+            //FIXME: not tuned
             "tsettle_motion": 1.0,
        },
     ],

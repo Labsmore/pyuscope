@@ -1,0 +1,80 @@
+/*
+A minimal configuration to do basic testing
+
+25MP camera
+Zoom 2.5
+*/
+{
+    "planner": {
+        //FIXME: not tuned
+        "tsettle_motion": 0.1,
+        "tsettle_hdr": 0.1,
+    },
+    "motion": {
+        "hal": "grbl-ser",
+        "backlash": 0.05,
+        "use_wcs_offsets": true,
+        "grbl": {
+            "rc": [
+                //$100, $101 and $102 – [X,Y,Z] steps/mm
+                //Default
+                "$100=800.000", "$101=800.000", "$102=800.000",
+
+                //2023-02-24: suspect missing steps. Make less aggressive
+                //X - Max Rate (mm/min)
+                //Default
+                //"$110=1200.000", "$111=1200.000", "$112=1200.000",
+                "$110=600.000", "$111=600.000", "$112=600.000",
+                //$120, $121, $122 – [X,Y,Z] Acceleration, mm/sec^2
+                //Default values, didn't try changing
+                //"$120=30.000", "$121=30.000", "$122=30.000",
+                "$120=15.000", "$121=15.000", "$122=15.000",
+
+
+                //More proper homed scheme
+                "G10 L2 P1 X-297.000 Y-197.000 Z-3.000",
+                "G10 L2 P2 X0 Y0 Z0",
+                //Select WCS2
+                "G55",
+            ],
+        },
+        "backlash_compensation": -1,
+        "scalars": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 5.0,
+        },
+    },
+    //25MP
+    "imager": {
+        "source":"gst-toupcamsrc",
+        "width": 4928,
+        "height": 4928,
+        //TODO: revisit after cal checkout
+        //"scalar": 0.5,
+    },
+    //FIXME: needs cal
+    "objectives": [
+        {
+            "name":"5X",
+            "magnification": 5,
+            "na": 0.14,
+            "x_view": 0.88,
+        },
+        //L Plan 20X
+        {
+            "name":"20X",
+            "magnification": 20,
+            "na": 0.40,
+            "x_view": 0.22,
+        },
+        {
+            "name":"100X",
+            "magnification": 100,
+            "na": 0.90,
+            //FIXME: not tuned
+            "tsettle_motion": 1.0,
+            "x_view": 0.044,
+       },
+    ],
+}

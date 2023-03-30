@@ -210,7 +210,7 @@ class USCImager:
         Final expected width and height in pixels
         Should be the same for snapshots and scans
         """
-        crop = self.crop_tblr()
+        crop = self.crop_tblr() or {}
         width, height = self.raw_wh()
         width -= crop.get("left", 0) + crop.get("right", 0)
         height -= crop.get("top", 0) + crop.get("bottom", 0)
@@ -501,22 +501,40 @@ class USC:
     def get_scaled_objectives(self):
         """
         Return objectives w/ automatic sizing (if applicable) applied
+
+        returns:
+        x_view: in final scaled image how many mm wide
+        um_per_pixel: in final scaled image how many micrometers each pixel represents
+        magnification: optional
+        na: optional
         """
         objectives = copy.deepcopy(self.usj['objectives'])
 
         # Assume easiest to measure at lowest mag
         reference_objective = objectives[0]
-        # In raw sensor pixels
+        # In raw sensor pixels before scaling
+        # That way can adjust scaling w/o adjusting
+        # This is the now preferred way to set configuration
         reference_um_per_pix = reference_objective.get("um_per_pixel")
         if reference_um_per_pix:
-            cropped_w, _cropped_h = self.imager.cropped_wh()
+            raw_w, _raw_h = self.imager.final_wh()
             # Objectives must support magnification to scale
             for objective in objectives:
                 um_per_pix = reference_objective[
                     "um_per_pixel"] * reference_objective[
                         "magnification"] / objective["magnification"]
+                objective["um_per_pixel"] = um_per_pix
                 # um to mm
-                objective["x_view"] = cropped_w * um_per_pix / 1000
+                objective["x_view"] = raw_w * um_per_pix / 1000
+        # x_view is in the actual observed field of view after cropping
+        # Doesn't care about scaling
+        # x_view should be specified for each then
+        # Calculate um_per_pix
+        else:
+            final_w, _cropped_h = self.imager.final_wh()
+            for objective in objectives:
+                objective[
+                    "um_per_pixel"] = objective["x_view"] * 1000 / final_w
 
         # Sanity check
         for objective in objectives:
@@ -526,14 +544,14 @@ class USC:
         reference_objective = objectives[-1]
         # Amount of time to settle after moving
         # Scale per NA. ie a lower resolution objective requires proportionately less settling time
-        reference_tsettle = reference_objective.get("tsettle_motion")
+        reference_tsettle_motion = reference_objective.get("tsettle_motion")
+        reference_na = reference_objective.get("na")
         # Objectives must support magnification to scale
         for objective in objectives:
             # Ex: 2.0 sec sleep at 100x 1.0 NA => 20x 0.42 NA => 0.84 sec sleep
-            if reference_tsettle:
-                tsettle_motion = reference_objective[
-                    "tsettle_motion"] * objective["na"] / reference_objective[
-                        "na"]
+            if reference_tsettle_motion and reference_na and "na" in objective:
+                tsettle_motion = reference_tsettle_motion * objective[
+                    "na"] / reference_na
             else:
                 tsettle_motion = 0.0
             objective["tsettle_motion"] = tsettle_motion

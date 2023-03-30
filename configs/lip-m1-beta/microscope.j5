@@ -102,7 +102,7 @@ But not buggy like original intended camera
             "magnification": 10,
             "na": 0.28,
 			"suffix": "mit10x",
-			"x_view": 1.64,
+			"x_view": 0.35
 		},
 		{
 			"name":"Mitutoyo Apo 20X",

@@ -271,18 +271,25 @@ class SnapshotWidget(AWidget):
 
         def try_save():
             image = self.ac.capture_sink.pop_image(image_id)
+            # FIXME: should unify this with Imager better
+            # For now assertion guards help make sure pipeline is correct
+            factor = self.ac.usc.imager.scalar()
+            image = get_scaled(image, factor, filt=Image.NEAREST)
+            expected_wh = self.ac.usc.imager.final_wh()
+            assert expected_wh[0] == image.size[0] and expected_wh[
+                1] == image.size[
+                    1], "Unexpected image size: expected %s, got %s" % (
+                        expected_wh, image.size)
             fn_full = self.snapshot_fn()
             self.ac.log('Capturing %s...' % fn_full)
-            factor = self.ac.usc.imager.scalar()
             # Use a reasonably high quality filter
             try:
-                scaled = get_scaled(image, factor, Image.ANTIALIAS)
                 extension = str(self.snapshot_suffix_le.text())
                 if extension == ".jpg":
-                    scaled.save(fn_full,
-                                quality=self.ac.usc.imager.save_quality())
+                    image.save(fn_full,
+                               quality=self.ac.usc.imager.save_quality())
                 else:
-                    scaled.save(fn_full)
+                    image.save(fn_full)
             # FIXME: refine
             except Exception:
                 self.ac.log('WARNING: failed to save %s' % fn_full)

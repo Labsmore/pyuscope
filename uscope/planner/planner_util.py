@@ -51,9 +51,15 @@ def microscope_to_planner_config(usj=None,
 
     # GstGUIImager does actual scaling
     # But needed to make prints nice
+    ret["imager"]["raw_wh_hint"] = usc.imager.raw_wh()
+    ret["imager"]["final_wh_hint"] = usc.imager.final_wh()
     v = usj["imager"].get("scalar")
     if v:
         ret["imager"]["scalar_hint"] = float(v)
+    v = usc.imager.crop_tblr()
+    if v:
+        ret["imager"]["crop_tblr_hint"] = v
+
     v = usj["imager"].get("save_extension")
     if v:
         ret["imager"]["save_extension"] = v

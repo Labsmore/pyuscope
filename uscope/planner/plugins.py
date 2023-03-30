@@ -270,8 +270,26 @@ def log_scan_xy_begin(self):
     self.log("    pix: %u x,  %u y => %0.1f MP" %
              (self.x.view_pixels, self.y.view_pixels,
               self.x.view_pixels * self.y.view_pixels / 1e6))
-    self.log("    Note scalar %0.2f" % self.pc.image_scalar_hint())
-    self.log("    Note crop %s" % (self.pc.image_crop_tblr_hint(), ))
+    raw_wh = self.pc.image_raw_wh_hint()
+    if raw_wh:
+        self.log("      Step 1: raw sensor pixels: %uw x %uh" %
+                 (raw_wh[0], raw_wh[1]))
+    self.log("      Step 2: crop %s" % (self.pc.image_crop_tblr_hint(), ))
+    image_scalar = self.pc.image_scalar_hint()
+    if image_scalar:
+        self.log("      Step 3: apply scalar %0.2f" % image_scalar)
+    final_wh = self.pc.image_final_wh_hint()
+    if final_wh:
+        self.log("      Step 4: final sensor pixels: %uw x %uh" %
+                 (final_wh[0], final_wh[1]))
+        assert self.x.view_pixels == final_wh[
+            0] and self.y.view_pixels == final_wh[1], (
+                "sensor mismatch: expected, got",
+                final_wh[0],
+                final_wh[1],
+                self.x.view_pixels,
+                self.y.view_pixels,
+            )
     self.log("  Derived:")
     self.log('    Ideal pictures: %0.1f x, %0.1f y => %0.1f' %
              (self.x.images_ideal(), self.y.images_ideal(),
@@ -956,6 +974,13 @@ class PlannerCaptureImage(PlannerPlugin):
 
                 assert len(images) == 1, "Expecting single image"
                 im = list(images.values())[0]
+
+        final_wh_hint = self.pc.image_final_wh_hint()
+        if im and final_wh_hint is not None:
+            assert final_wh_hint[0] == im.size[0] and final_wh_hint[
+                1] == im.size[
+                    1], "Unexpected image size: expected %s, got %s" % (
+                        final_wh_hint, im.size)
 
         self.images_captured += 1
         modifiers = {}

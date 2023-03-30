@@ -43,7 +43,7 @@ class GstGUIImager(Imager):
         self.image_ready = threading.Event()
         self.image_id = None
         self.emitter = GstGUIImager.Emitter()
-        self.width, self.height = self.usc.imager.cropped_wh()
+        self.width, self.height = self.usc.imager.final_wh()
 
     def wh(self):
         return self.width, self.height

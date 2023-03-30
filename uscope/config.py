@@ -205,6 +205,21 @@ class USCImager:
             return ret
         return None
 
+    def final_wh(self):
+        """
+        Final expected width and height in pixels
+        Should be the same for snapshots and scans
+        """
+        crop = self.crop_tblr()
+        width, height = self.raw_wh()
+        width -= crop.get("left", 0) + crop.get("right", 0)
+        height -= crop.get("top", 0) + crop.get("bottom", 0)
+        width *= self.scalar()
+        height *= self.scalar()
+        width = int(width)
+        height = int(height)
+        return width, height
+
     def source_properties(self):
         """
         A dict of configuration specific parameters to apply to the imager
@@ -749,6 +764,12 @@ class PC:
         Convenience parameter to give a systematic fudge factor
         """
         return float(self.j.get("border", 0.0))
+
+    def image_raw_wh_hint(self):
+        return self.j.get("imager", {}).get("raw_wh_hint", None)
+
+    def image_final_wh_hint(self):
+        return self.j.get("imager", {}).get("final_wh_hint", None)
 
     def image_crop_tblr_hint(self):
         """

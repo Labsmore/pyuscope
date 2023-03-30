@@ -56,12 +56,12 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
     //E3ISPM20000KPA
     "imager": {
         "source":"gst-toupcamsrc",
-		"width": 5440,
-		"height": 3648,
+        "width": 5440,
+        "height": 3648,
         "source_properties": {
             "esize": 0
         },
-		"scalar": 0.50,
+        "scalar": 0.50,
         "source_properties_mod": {
             //In us. Can go up to 15 sec which is impractical for typical usage
             "expotime": {
@@ -71,47 +71,47 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
     },
     "objectives": [
         //OBJ-106
-		{
-			"name":"NeoSPlan 5X",
+        {
+            "name":"NeoSPlan 5X",
             "magnification": 5,
             "na": 0.13,
-			"suffix": "ns5x",
-			"x_view": 3.55,
-		},
-		//OBJ-102
-		{
-			"name":"NeoSPlan 10X",
+            "suffix": "ns5x",
+            "x_view": 3.55,
+        },
+        //OBJ-102
+        {
+            "name":"NeoSPlan 10X",
             "magnification": 10,
             "na": 0.30,
-			"suffix": "ns10x",
-			"x_view": 1.78,
-		},
-		//OBJ-110
-		{
-			"name":"NeoSPlan 20X",
+            "suffix": "ns10x",
+            "x_view": 1.78,
+        },
+        //OBJ-110
+        {
+            "name":"NeoSPlan 20X",
             "magnification": 20,
             "na": 0.46,
-			"suffix": "ns20x",
-			"x_view": 0.89,
-		},
-		//OBJ-111
-		{
-			"name":"NeoDPlan 50X",
+            "suffix": "ns20x",
+            "x_view": 0.89,
+        },
+        //OBJ-111
+        {
+            "name":"NeoDPlan 50X",
             "magnification": 50,
             "na": 0.75,
-			"suffix": "nd50x",
-			"x_view": 0.356,
-		},
-		//OBJ-114
-		{
-			"name":"NeoSPlan 100X",
+            "suffix": "nd50x",
+            "x_view": 0.356,
+        },
+        //OBJ-114
+        {
+            "name":"NeoSPlan 100X",
             "magnification": 100,
             "na": 0.90,
-			"suffix": "ns100x",
-			"x_view": 0.178,
+            "suffix": "ns100x",
+            "x_view": 0.178,
             //FIXME: not tuned
             "tsettle_motion": 1.0,
-		}
+        }
     ]
 }
 

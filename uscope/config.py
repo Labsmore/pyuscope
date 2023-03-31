@@ -69,10 +69,15 @@ def cal_fn_microscope(name=None):
     return os.path.join(get_config_dir(name=name), "imager_calibration.j5")
 
 
-def cal_fn_data(name=None):
+def cal_fn_data(name=None, mkdir=True):
     name = default_microscope_name(name)
-    return os.path.join(get_data_dir(), "microscopes", name,
-                        "imager_calibration.j5")
+    microscopes_dir = os.path.join(get_data_dir(mkdir=mkdir), "microscopes")
+    if mkdir and not os.path.exists(microscopes_dir):
+        os.mkdir(microscopes_dir)
+    microscope_dir = os.path.join(microscopes_dir, name)
+    if mkdir and not os.path.exists(microscope_dir):
+        os.mkdir(microscope_dir)
+    return os.path.join(microscope_dir, "imager_calibration.j5")
 
 
 def cal_load(source=None, name=None, load_data_dir=True):

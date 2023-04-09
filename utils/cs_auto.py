@@ -301,17 +301,54 @@ def tif2jpg_dir(iindex_in, dir_out, lazy=True):
             subprocess.check_call(args)
 
 
-def inspect_final_dir(working_iindex):
-    healthy = True
-    n_healthy = working_iindex["cols"] * working_iindex["rows"]
-    n_actual = len(working_iindex["images"])
-    print("Have %u / %u images" % (n_actual, n_healthy))
+def fix_dir(this_iindex, dir_out):
+    """
+    Make a best estimate by filling in images from directory above
+    For now assumes dir above is focus stack and the output dir is the final upload dir
+    Should cover most use cases we care about for now
+    """
+
+    if not os.path.exists(dir_out):
+        os.mkdir(dir_out)
+
+    open_set = get_open_set(this_iindex)
+    stack_iindex = index_scan_images(os.path.dirname(this_iindex["dir"]))
+    assert stack_iindex["stacks"], "fixme assumes dir above is stack"
+    stacks = stack_iindex["stacks"]
+    # Assume middle is mostly in focus
+    selected_stack = stacks // 2
+    for (col, row) in sorted(open_set):
+        src_fn = os.path.join(
+            stack_iindex["dir"],
+            "c%03u_r%03u_z%02u.jpg" % (col, row, selected_stack))
+        dst_fn = os.path.join(dir_out, "c%03u_r%03u.jpg" % (col, row))
+        print(f"cp {src_fn} {dst_fn}")
+        shutil.copyfile(src_fn, dst_fn)
+
+    # Now copy in the "real" files
+    for basename in this_iindex["images"].keys():
+        src_fn = os.path.join(this_iindex["dir"], basename)
+        dst_fn = os.path.join(dir_out, basename)
+        print(f"cp {src_fn} {dst_fn}")
+        shutil.copyfile(src_fn, dst_fn)
+
+
+def get_open_set(working_iindex):
     open_set = set()
     for col in range(working_iindex["cols"]):
         for row in range(working_iindex["rows"]):
             open_set.add((col, row))
     for filev in working_iindex["images"].values():
         open_set.remove((filev["col"], filev["row"]))
+    return open_set
+
+
+def inspect_final_dir(working_iindex):
+    healthy = True
+    n_healthy = working_iindex["cols"] * working_iindex["rows"]
+    n_actual = len(working_iindex["images"])
+    print("Have %u / %u images" % (n_actual, n_healthy))
+    open_set = get_open_set(working_iindex)
     print("Failed to find: %u files" % (len(open_set)))
     for (col, row) in sorted(open_set):
         print("  c%03u_r%03u.jpg" % (col, row))
@@ -332,6 +369,7 @@ def run(directory,
     print("Reading metadata...")
 
     working_iindex = index_scan_images(directory)
+    dst_basename = os.path.basename(os.path.abspath(directory))
 
     print("")
 
@@ -340,9 +378,7 @@ def run(directory,
     else:
         print("HDR: yes. Processing")
         # dir name needs to be reasonable for CloudStitch to name it well
-        next_dir = os.path.join(
-            working_iindex["dir"],
-            os.path.basename(working_iindex["dir"]) + "_hdr")
+        next_dir = os.path.join(working_iindex["dir"], "hdr")
         hdr_run(working_iindex,
                 next_dir,
                 ewf=ewf,
@@ -357,25 +393,39 @@ def run(directory,
     else:
         print("Stacker: yes. Processing")
         # dir name needs to be reasonable for CloudStitch to name it well
-        next_dir = os.path.join(
-            working_iindex["dir"],
-            os.path.basename(working_iindex["dir"]) + "_stack")
-        stack_run(working_iindex, next_dir, lazy=lazy, best_effort=best_effort)
+        next_dir = os.path.join(working_iindex["dir"], "stack")
+        # maybe? helps some use cases
+        if lazy and os.path.exists(next_dir):
+            print("lazy: skip stack")
+        else:
+            stack_run(working_iindex,
+                      next_dir,
+                      lazy=lazy,
+                      best_effort=best_effort)
         working_iindex = index_scan_images(next_dir)
 
     # CloudStitch currently only supports .jpg
     if need_jpg_conversion(working_iindex["dir"]):
         print("")
         print("Converting to jpg")
-        next_dir = os.path.join(
-            working_iindex["dir"],
-            os.path.basename(working_iindex["dir"]) + "_jpg")
+        next_dir = os.path.join(working_iindex["dir"], "jpg")
         tif2jpg_dir(working_iindex, next_dir, lazy=lazy)
         working_iindex = index_scan_images(next_dir)
 
     print("")
     healthy = inspect_final_dir(working_iindex)
     print("")
+
+    if not healthy and best_effort:
+        print("WARNING: data is incomplete but trying to patch")
+        next_dir = os.path.join(working_iindex["dir"], "fix")
+        fix_dir(working_iindex, next_dir)
+        working_iindex = index_scan_images(next_dir)
+        print("")
+        print("re-inspecting new dir")
+        healthy = inspect_final_dir(working_iindex)
+        assert healthy
+        print("")
 
     if not upload:
         print("CloudStitch: skip (requested)")
@@ -391,6 +441,7 @@ def run(directory,
                                 secret_key=secret_key,
                                 id_key=id_key,
                                 notification_email=notification_email,
+                                dst_basename=dst_basename,
                                 verbose=verbose)
 
 

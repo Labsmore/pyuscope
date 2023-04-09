@@ -16,7 +16,8 @@ def upload_dir(
     verbose=True,
     log=None,
     # threading.Event()
-    running=None):
+    running=None,
+    dst_basename=None):
 
     if boto3 is None:
         raise ImportError("Requires boto3")
@@ -43,6 +44,9 @@ def upload_dir(
     if not notification_email:
         raise ValueError("Requires notification_email")
 
+    if dst_basename is None:
+        dst_basename = os.path.basename(os.path.abspath(directory))
+
     if log is None:
 
         def log(s):
@@ -51,7 +55,7 @@ def upload_dir(
     log(f"CloudStitch uploading: {directory}")
 
     S3BUCKET = 'labsmore-mosaic-service'
-    DEST_DIR = id_key + '/' + os.path.basename(os.path.abspath(directory))
+    DEST_DIR = id_key + '/' + dst_basename
     s3 = boto3.client('s3',
                       aws_access_key_id=access_key,
                       aws_secret_access_key=secret_key)

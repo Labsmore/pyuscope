@@ -14,7 +14,7 @@ But not buggy like original intended camera
     "planner": {
         //FIXME: not tuned
         "tsettle_motion": 0.1,
-        "tsettle_hdr": 0.1,
+        "tsettle_hdr": 0.2,
     },
     /*
     Sherline

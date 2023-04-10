@@ -8,7 +8,7 @@ Zoom 2.5
     "planner": {
         //FIXME: not tuned
         "tsettle_motion": 0.1,
-        "tsettle_hdr": 0.1,
+        "tsettle_hdr": 0.2,
     },
     "motion": {
         "hal": "grbl-ser",

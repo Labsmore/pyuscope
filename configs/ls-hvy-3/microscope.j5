@@ -7,7 +7,7 @@ UT100 NEMA23 stages
     "planner": {
         //FIXME: not tuned
         "tsettle_motion": 0.1,
-        "tsettle_hdr": 0.1,
+        "tsettle_hdr": 0.2,
     },
     /*
     2mm / rev

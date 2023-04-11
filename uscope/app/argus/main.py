@@ -1472,15 +1472,19 @@ class AdvancedTab(ArgusTab):
         def stack_gb():
             layout = QGridLayout()
             row = 0
+            """
+            Some quick tests around 20x indicated +/- 0.010 w/ 2 um steps is good
+            """
 
-            layout.addWidget(QLabel("Distance"), row, 0)
-            # Is there a reasonable default here?
-            self.stacker_distance_le = QLineEdit("0.000")
+            layout.addWidget(QLabel("+/- each side distance"), row, 0)
+            self.stacker_distance_le = QLineEdit("0.010")
             layout.addWidget(self.stacker_distance_le, row, 1)
             row += 1
 
-            layout.addWidget(QLabel("Number"), row, 0)
-            self.stacker_number_le = QLineEdit("1")
+            # Set to non-0 to activate
+            layout.addWidget(QLabel("+/- each side snapshots (+1 center)"),
+                             row, 0)
+            self.stacker_number_le = QLineEdit("0")
             layout.addWidget(self.stacker_number_le, row, 1)
             row += 1
 
@@ -1599,13 +1603,15 @@ class AdvancedTab(ArgusTab):
         self.setLayout(layout)
 
     def update_pconfig_stack(self, pconfig):
-        images_per_stack = int(str(self.stacker_number_le.text()))
-        if images_per_stack <= 1:
+        images_pm = int(str(self.stacker_number_le.text()))
+        distance_pm = float(self.stacker_distance_le.text())
+        if not images_pm or distance_pm == 0.0:
             return
-        distance = float(self.stacker_distance_le.text())
+        # +/- but always add the center plane
+        images_per_stack = 1 + 2 * images_pm
         pconfig["points-stacker"] = {
             "number": images_per_stack,
-            "distance": distance,
+            "distance": 2 * distance_pm,
         }
 
     def update_pconfig(self, pconfig):

@@ -5,6 +5,8 @@ try:
 except ImportError:
     boto3 = None
 from uscope import config
+from uscope.util import writej
+import datetime
 
 
 def upload_dir(
@@ -18,6 +20,9 @@ def upload_dir(
     # threading.Event()
     running=None,
     dst_basename=None):
+
+    if not os.path.isdir(directory):
+        raise ValueError("Need a directory")
 
     if boto3 is None:
         raise ImportError("Requires boto3")
@@ -53,6 +58,7 @@ def upload_dir(
             print(s)
 
     log(f"CloudStitch uploading: {directory}")
+    time_start = datetime.datetime.utcnow().isoformat()
 
     S3BUCKET = 'labsmore-mosaic-service'
     DEST_DIR = id_key + '/' + dst_basename
@@ -74,4 +80,16 @@ def upload_dir(
     s3.upload_fileobj(mosaic_run_json, S3BUCKET,
                       DEST_DIR + '/' + 'mosaic_run.json')
 
+    time_end = datetime.datetime.utcnow().isoformat()
     log("CloudStitch uploaded")
+
+    outj = {
+        "type": "cloud_stitch",
+        "time_start": time_start,
+        "time_end": time_end,
+        "s3_bucket": S3BUCKET,
+        "s3_dir": DEST_DIR,
+        # maybe? ie log the operator
+        "notification_email": notification_email,
+    }
+    writej(os.path.join(directory, "cloud_stitch.json"), outj)

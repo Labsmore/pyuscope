@@ -10,7 +10,7 @@ TODO: parallel
 from uscope import cloud_stitch
 from uscope.util import add_bool_arg
 import os
-import json
+import time
 import glob
 import re
 import subprocess
@@ -30,6 +30,10 @@ def process_hdr_image_enfuse(fns_in, fn_out, ewf=None, best_effort=True):
     subprocess.check_call(args)
 
 
+delete_tmp = True
+skip_align = True
+
+
 def process_stack_image_panotools(dir_in, fns_in, fn_out, best_effort=True):
     """
     align_image_stack -m -a OUT $(ls)
@@ -47,15 +51,26 @@ def process_stack_image_panotools(dir_in, fns_in, fn_out, best_effort=True):
     """
 
     # Remove old files
-    for fn in glob.glob(os.path.join(dir_in, "aligned_*")):
-        os.unlink(fn)
+    if delete_tmp:
+        for fn in glob.glob(os.path.join(dir_in, "aligned_*")):
+            os.unlink(fn)
 
-    # Always output as .tif
-    args = ["align_image_stack", "-m", "-a", os.path.join(dir_in, "aligned_")]
-    for fn in fns_in:
-        args.append(fn)
-    print(" ".join(args))
-    subprocess.check_call(args)
+    if skip_align:
+        for imi, fn in enumerate(fns_in):
+            subprocess.check_call([
+                "convert", fn,
+                os.path.join(dir_in, "aligned_%04u.tif" % imi)
+            ])
+    else:
+        # Always output as .tif
+        args = [
+            "align_image_stack", "-l", "-i", "-v", "--use-given-order", "-a",
+            os.path.join(dir_in, "aligned_")
+        ]
+        for fn in fns_in:
+            args.append(fn)
+        print(" ".join(args))
+        subprocess.check_call(args)
 
     args = [
         "enfuse", "--exposure-weight=0", "--saturation-weight=0",
@@ -66,10 +81,11 @@ def process_stack_image_panotools(dir_in, fns_in, fn_out, best_effort=True):
     print(" ".join(args))
     subprocess.check_call(args)
 
-    # Remove old files
-    # This can also confuse globbing to find extra tifs
-    for fn in glob.glob(os.path.join(dir_in, "aligned_*")):
-        os.unlink(fn)
+    if delete_tmp:
+        # Remove old files
+        # This can also confuse globbing to find extra tifs
+        for fn in glob.glob(os.path.join(dir_in, "aligned_*")):
+            os.unlink(fn)
 
 
 def index_scan_images(dir_in):
@@ -234,9 +250,10 @@ def stack_run(iindex_in, dir_out, lazy=True, best_effort=True):
     buckets = bucket_group(iindex_in, "stack")
 
     def clean_tmp_files():
-        # Remove old files
-        for fn in glob.glob(os.path.join(iindex_in["dir"], "aligned_*")):
-            os.unlink(fn)
+        if delete_tmp:
+            # Remove old files
+            for fn in glob.glob(os.path.join(iindex_in["dir"], "aligned_*")):
+                os.unlink(fn)
 
     clean_tmp_files()
     try:
@@ -356,16 +373,22 @@ def inspect_final_dir(working_iindex):
     return healthy
 
 
-def run(directory,
-        access_key=None,
-        secret_key=None,
-        id_key=None,
-        notification_email=None,
-        ewf=None,
-        upload=True,
-        lazy=True,
-        best_effort=True,
-        verbose=True):
+def already_uploaded(directory):
+    # upload metadata file cloud_stitch.json => uploaded
+    return len(glob.glob(f'{directory}/**/cloud_stitch.json',
+                         recursive=True)) > 0
+
+
+def run_dir(directory,
+            access_key=None,
+            secret_key=None,
+            id_key=None,
+            notification_email=None,
+            ewf=None,
+            upload=True,
+            lazy=True,
+            best_effort=True,
+            verbose=True):
     print("Reading metadata...")
 
     working_iindex = index_scan_images(directory)
@@ -445,6 +468,36 @@ def run(directory,
                                 verbose=verbose)
 
 
+def run(directory_maybe, batch_sleep=2400, *args, **kwargs):
+    if directory_maybe:
+        run_dir(directory_maybe, *args, **kwargs)
+    else:
+        # Something 3 like execution units right now
+        burst_size = 2
+        uploads = 0
+        print("Scanning data dir for new scans")
+        # Only take the top directory listing
+        for root, directories, _files in os.walk(config.get_scan_dir()):
+            break
+        for basename in directories:
+            directory = os.path.join(root, basename)
+            if already_uploaded(directory):
+                print(f"{basename}: skip, already uploaded")
+                continue
+            print("")
+            print("")
+            print("")
+            print("*" * 78)
+            print(f"{basename}: not uploaded")
+            print("*" * 78)
+            if uploads >= burst_size:
+                print(
+                    "WARNING: throttling upload to let stitch server catch up")
+                time.sleep(batch_sleep)
+            run_dir(directory, *args, **kwargs)
+            uploads += 1
+
+
 def main():
     import argparse
 
@@ -468,8 +521,15 @@ def main():
     parser.add_argument("--secret-key")
     parser.add_argument("--id-key")
     parser.add_argument("--notification-email")
+    # We only have a few execution units right now
+    # If you upload a bunch it will throttle a bit
+    # Typical 400 image scans seem to complete in about 30 min
+    parser.add_argument("--batch-sleep",
+                        default=2400,
+                        type=int,
+                        help="Hack for not overloading stitch service")
     parser.add_argument("--ewf")
-    parser.add_argument("dir_in")
+    parser.add_argument("dir_in", nargs="?")
     args = parser.parse_args()
 
     run(args.dir_in,
@@ -481,6 +541,7 @@ def main():
         upload=args.upload,
         best_effort=args.best_effort,
         lazy=args.lazy,
+        batch_sleep=args.batch_sleep,
         verbose=args.verbose)
 
 

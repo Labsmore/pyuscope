@@ -637,6 +637,27 @@ def get_data_dir(mkdir=True):
     return ret
 
 
+def get_scan_dir(mkdir=True):
+    ret = os.path.join(get_data_dir(mkdir=mkdir), "scan")
+    if not os.path.exists(ret) and mkdir:
+        os.mkdir(ret)
+    return ret
+
+
+def get_snapshot_dir(mkdir=True):
+    ret = os.path.join(get_data_dir(mkdir=mkdir), "snapshot")
+    if not os.path.exists(ret) and mkdir:
+        os.mkdir(ret)
+    return ret
+
+
+def get_microscopes_dir(mkdir=True):
+    ret = os.path.join(get_data_dir(mkdir=mkdir), "microscopes")
+    if not os.path.exists(ret) and mkdir:
+        os.mkdir(ret)
+    return ret
+
+
 def init_data_dir(microscope_name):
     microscope_name = default_microscope_name(microscope_name)
     data_dir = get_data_dir()

@@ -8,7 +8,7 @@ from uscope.imager.imager_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
-from uscope.app.argus.threads import MotionThread, PlannerThread, StitcherThread, ImageProcessingThread
+from uscope.app.argus.threads import JoystickThread, MotionThread, PlannerThread, StitcherThread, ImageProcessingThread
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import util
 from uscope import config
@@ -2324,6 +2324,7 @@ class ArgusCommon(QObject):
 
         self.motion_thread = None
         self.planner_thread = None
+        self.joystick_thread = None
         self.image_processing_thread = None
 
         self.microscope = microscope
@@ -2368,6 +2369,9 @@ class ArgusCommon(QObject):
         # Requires video pipeline already setup
         self.control_scroll = get_control_scroll(self.vidpip, usc=self.usc)
 
+        self.log("XXXXXXXXX init'ing  joystick thread")
+        self.joystick_thread = JoystickThread(parent=self)
+        self.joystick_thread.log_msg.connect(self.log)
         self.planner_thread = None
         # motion.progress = self.hal_progress
         self.motion_thread = MotionThread(usc=self.usc)
@@ -2383,6 +2387,8 @@ class ArgusCommon(QObject):
         self.motion_thread.start()
         self.vidpip.run()
         self.init_imager()
+        self.log("Starting joystick thread...")
+        self.joystick_thread.start()
 
         # Needs imager which isn't initialized until gst GUI objects are made
         self.image_processing_thread = ImageProcessingThread(
@@ -2401,6 +2407,9 @@ class ArgusCommon(QObject):
         if self.image_processing_thread:
             self.image_processing_thread.shutdown()
             self.image_processing_thread = None
+        if self.joystick_thread:
+            self.joystick_thread.shutdown()
+            self.joystick_thread = None
 
     def init_imager(self):
         source = self.vidpip.source_name

@@ -568,3 +568,43 @@ class ImageProcessingThread(QThread):
             finally:
                 # self.stitcherDone.emit()
                 pass
+
+class JoystickThread(QThread):
+    # stitcherDone = pyqtSignal()
+    log_msg = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        QThread.__init__(self, parent)
+        self.queue = Queue()
+        self.running = threading.Event()
+        self.running.set()
+
+    def init_pygame_joystick(self):
+        import pygame
+        pygame.init()
+        pygame.joystick.init()
+        self.joystick = pygame.joystick.Joystick(0)
+        self.joystick.init()
+
+    def log(self, msg):
+        self.log_msg.emit(msg)
+
+    def shutdown(self):
+        self.running.clear()
+
+    def run(self):
+
+        while self.running:
+            try:
+                j = self.queue.get(block=True, timeout=0.1)
+            except Empty:
+                continue
+            try:
+                self.log("HEYXXXXXXXXXX   button: %s" % str(self.joystick.get_button(0)))
+
+            except Exception as e:
+                self.log('WARNING: joystick thread crashed: %s' % str(e))
+                traceback.print_exc()
+            finally:
+                # self.stitcherDone.emit()
+                pass

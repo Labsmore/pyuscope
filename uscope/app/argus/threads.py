@@ -3,6 +3,7 @@ from uscope.planner.planner import PlannerStop
 from uscope.benchmark import Benchmark
 from uscope.motion.hal import AxisExceeded, MotionHAL, MotionCritical
 from uscope.motion.plugins import get_motion_hal
+from uscope.motion.joystick import Joystick, pygame
 from uscope import cloud_stitch
 from uscope import config
 from uscope.planner.plugins import PlannerKinematics
@@ -570,21 +571,23 @@ class ImageProcessingThread(QThread):
                 pass
 
 class JoystickThread(QThread):
-    # stitcherDone = pyqtSignal()
+    joystickDone = pyqtSignal()
     log_msg = pyqtSignal(str)
 
     def __init__(self, parent=None):
         QThread.__init__(self, parent)
+        self.parent = parent
         self.queue = Queue()
         self.running = threading.Event()
         self.running.set()
-
-    def init_pygame_joystick(self):
-        import pygame
-        pygame.init()
-        pygame.joystick.init()
-        self.joystick = pygame.joystick.Joystick(0)
-        self.joystick.init()
+        self.enabled = True
+        try:
+            self.joystick = Joystick(parent=self.parent)
+        except:
+            # Disable joystick support if we could not initialize
+            # it correctly. This could also happen if no joystick
+            # is found.
+            self.enabled = False
 
     def log(self, msg):
         self.log_msg.emit(msg)
@@ -593,18 +596,17 @@ class JoystickThread(QThread):
         self.running.clear()
 
     def run(self):
-
+        if not pygame:
+            self.ac.log("WARNING: Joystick support unavailable (requires pygame)")
+            return
         while self.running:
             try:
-                j = self.queue.get(block=True, timeout=0.1)
-            except Empty:
-                continue
-            try:
-                self.log("HEYXXXXXXXXXX   button: %s" % str(self.joystick.get_button(0)))
-
+                time.sleep(0.2)
+                if self.enabled:
+                    #self.joystick.debug_dump()
+                    self.joystick.execute()
             except Exception as e:
                 self.log('WARNING: joystick thread crashed: %s' % str(e))
                 traceback.print_exc()
             finally:
-                # self.stitcherDone.emit()
-                pass
+                self.joystickDone.emit()

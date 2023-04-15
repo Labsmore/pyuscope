@@ -2019,6 +2019,17 @@ class JogSlider(QWidget):
                          float(self.slider.value()) - self.slider_max * 0.2)
         self.slider.setValue(slider_val)
 
+    def set_jog_slider(self, val):
+        # val is expected to be between 0.0 to 1.0
+        val_min = 0
+        val_max = 1.0
+        if (val == 0):
+            self.slider.setValue(self.slider_min)
+            return
+        old_range = val_max - val_min
+        new_range = self.slider_max - self.slider_min
+        new_value = (((val - val_min) * new_range) / old_range) + self.slider_min
+        self.slider.setValue(new_value)
 
 class MotionWidget(AWidget):
     def __init__(self, ac, motion_thread, usc, log, parent=None):
@@ -2369,7 +2380,6 @@ class ArgusCommon(QObject):
         # Requires video pipeline already setup
         self.control_scroll = get_control_scroll(self.vidpip, usc=self.usc)
 
-        self.log("XXXXXXXXX init'ing  joystick thread")
         self.joystick_thread = JoystickThread(parent=self)
         self.joystick_thread.log_msg.connect(self.log)
         self.planner_thread = None
@@ -2387,7 +2397,6 @@ class ArgusCommon(QObject):
         self.motion_thread.start()
         self.vidpip.run()
         self.init_imager()
-        self.log("Starting joystick thread...")
         self.joystick_thread.start()
 
         # Needs imager which isn't initialized until gst GUI objects are made

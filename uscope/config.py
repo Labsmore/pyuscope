@@ -857,6 +857,8 @@ class GUI(object):
     assets_dir = os.path.join(os.getcwd(), 'uscope', 'gui', 'assets')
     stylesheet_file = os.path.join(assets_dir, 'main.qss')
     icon_files = {}
+    icon_files['gamepad'] = os.path.join(
+        assets_dir, 'videogame_asset_FILL0_wght700_GRAD0_opsz48.png')
     icon_files['jog'] = os.path.join(
         assets_dir, 'directions_run_FILL1_wght700_GRAD0_opsz48.png')
     icon_files['NE'] = os.path.join(

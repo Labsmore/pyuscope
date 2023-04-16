@@ -580,14 +580,25 @@ class JoystickThread(QThread):
         self.queue = Queue()
         self.running = threading.Event()
         self.running.set()
-        self.enabled = True
+        self._state_btn = self.parent.mainTab.motion_widget.joystick_listener
         try:
             self.joystick = Joystick(parent=self.parent)
+            self._state_btn.setEnabled(True)
+            self.activate()
         except:
             # Disable joystick support if we could not initialize
             # it correctly. This could also happen if no joystick
             # is found.
-            self.enabled = False
+            self.deactivate()
+            self._state_btn.setEnabled(False)
+
+    def activate(self):
+        if not self._state_btn.isChecked():
+            self._state_btn.toggle()
+
+    def deactivate(self):
+        if self._state_btn.isChecked():
+            self._state_btn.toggle()
 
     def log(self, msg):
         self.log_msg.emit(msg)
@@ -602,7 +613,7 @@ class JoystickThread(QThread):
         while self.running:
             try:
                 time.sleep(0.2)
-                if self.enabled:
+                if self._state_btn.isChecked():
                     #self.joystick.debug_dump()
                     self.joystick.execute()
             except Exception as e:

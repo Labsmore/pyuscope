@@ -1904,6 +1904,20 @@ def out_dir_config_to_dir(j, parent):
 # def scan_dir_fn(user, parent):
 #    return snapshot_fn(user=user, extension="", parent=parent)
 
+class JoystickListener(QPushButton):
+    """
+    Widget that maintains state of joystick enabled/disabled.
+    """
+    def __init__(self, label, parent=None):
+        super().__init__(label, parent=parent)
+        self.parent = parent
+        self.setCheckable(True)
+        self.setEnabled(False)
+        self.setIcon(QIcon(config.GUI.icon_files["gamepad"]))
+
+    def hitButton(self, pos):
+        self.toggle()
+        return True
 
 class JogListener(QPushButton):
     """
@@ -2056,9 +2070,11 @@ class MotionWidget(AWidget):
         self.setWindowTitle('Demo')
 
         layout = QVBoxLayout()
+        self.joystick_listener = JoystickListener("  Joystick Contol", self)
         self.listener = JogListener("XXX", self)
         self.update_jog_text()
         layout.addWidget(self.listener)
+        layout.addWidget(self.joystick_listener)
         self.slider = JogSlider(usc=self.usc)
         layout.addWidget(self.slider)
 
@@ -2380,8 +2396,6 @@ class ArgusCommon(QObject):
         # Requires video pipeline already setup
         self.control_scroll = get_control_scroll(self.vidpip, usc=self.usc)
 
-        self.joystick_thread = JoystickThread(parent=self)
-        self.joystick_thread.log_msg.connect(self.log)
         self.planner_thread = None
         # motion.progress = self.hal_progress
         self.motion_thread = MotionThread(usc=self.usc)
@@ -2397,6 +2411,12 @@ class ArgusCommon(QObject):
         self.motion_thread.start()
         self.vidpip.run()
         self.init_imager()
+
+        # We need the joystick thread to be initialized here,
+        # after UI elements have been initialized so that it
+        # has access to the joystick UI button.
+        self.joystick_thread = JoystickThread(parent=self)
+        self.joystick_thread.log_msg.connect(self.log)
         self.joystick_thread.start()
 
         # Needs imager which isn't initialized until gst GUI objects are made

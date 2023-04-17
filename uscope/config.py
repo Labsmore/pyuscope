@@ -905,6 +905,22 @@ class BaseConfig:
         """
         return self.j.get("argus_stitch_cli", None)
 
+    def argus_joystick_cfg(self):
+        """
+        Get joystick config, or return default base config.
+        """
+        default_joystick_cfg = {
+           'scan_secs': 0.35,
+           'fn_map': {
+               'axis_set_jog_slider_value': {'id': 3},
+               'btn_capture_image': {'id': 0},
+               'axis_move_x': {'id': 0},
+               'axis_move_y': {'id': 1},
+               'hat_move_z': {'id': 0, 'idx': 1}
+           },
+        }
+        return self.j.get("joystick", default_joystick_cfg)
+
     def dev_mode(self):
         """
         Display unsightly extra information

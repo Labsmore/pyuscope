@@ -5,36 +5,56 @@ except ImportError:
     pygame = None
 
 class Joystick(object):
+    _default_axis_threshold = 0.5
+
     def __init__(self, parent):
         self.parent = parent
         pygame.init()
         pygame.joystick.init()
-        self.threshold = 0.5
-        # Use the first controller we find
-        self.joystick = pygame.joystick.Joystick(0)
+        self.joystick_cfg = self.parent.bc.argus_joystick_cfg()
+        self.joystick = pygame.joystick.Joystick(self.joystick_cfg.get('device_num', 0))
+        self.joystick_fn_map = self.joystick_cfg.get('fn_map', {})
 
     def execute(self):
         # Get events and perform actions
         pygame.event.get()
-        self.axis_set_jog_slider_value(3)
-        self.btn_capture_image(0)
-        self.axis_move_x(0)
-        self.axis_move_y(1)
-        self.hat_move_z(0, 1)
+        # Run through all the mapped funcs specified in the config
+        # Expected format of config is:
+        #     dict(fn_name(dict(fn_args))
+        # Call the fn with provided args
+        for fn in self.joystick_fn_map:
+            getattr(self, fn)(**self.joystick_fn_map[fn])
+
+    def debug_dump(self):
+        pygame.event.get()
+        print("Joystick debug dump")
+        print("Joystick name: {}".format(self.joystick.get_name()))
+        for i in range(self.joystick.get_numaxes()):
+            print("Axis({}): {}".format(i, self.joystick.get_axis(i)))
+        for i in range(self.joystick.get_numbuttons()):
+            print("Button({}): {}".format(i, self.joystick.get_button(i)))
+        for i in range(self.joystick.get_numhats()):
+            print("Hat({}): {}".format(i, self.joystick.get_hat(i)))
 
     def _move(self, axis, val):
         self.parent.motion_thread.jog({axis: val})
 
-    def axis_move_x(self, id):
+    # The following functions can be specified in the fn_map of the
+    # joystick configuration files.
+    #
+    # They are separated into mappings for controller axis (axis_),
+    # buttons (btn_) and hats (hat_).
+
+    def axis_move_x(self, id, threshold=_default_axis_threshold):
         val = self.joystick.get_axis(id)
-        if abs(val) < self.threshold:
+        if abs(val) < threshold:
             return
         val = math.copysign(self.parent.mainTab.motion_widget.slider.get_jog_val(), val)
         self._move('x', val)
 
-    def axis_move_y(self, id):
+    def axis_move_y(self, id, threshold=_default_axis_threshold):
         val = self.joystick.get_axis(id)
-        if abs(val) < self.threshold:
+        if abs(val) < threshold:
             return
         val = math.copysign(self.parent.mainTab.motion_widget.slider.get_jog_val(), val)
         self._move('y', val)
@@ -66,15 +86,4 @@ class Joystick(object):
         new_range = new_max - new_min
         new_value = (((val - val_min) * new_range) / old_range) + new_min
         self.parent.mainTab.motion_widget.slider.set_jog_slider(new_value)
-
-    def debug_dump(self):
-        pygame.event.get()
-        print("Joystick debug dump")
-        print("Joystick name: {}".format(self.joystick.get_name()))
-        for i in range(self.joystick.get_numaxes()):
-            print("Axis({}): {}".format(i, self.joystick.get_axis(i)))
-        for i in range(self.joystick.get_numbuttons()):
-            print("Button({}): {}".format(i, self.joystick.get_button(i)))
-        for i in range(self.joystick.get_numhats()):
-            print("Hat({}): {}".format(i, self.joystick.get_hat(i)))
 

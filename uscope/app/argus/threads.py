@@ -592,6 +592,7 @@ class JoystickThread(QThread):
             # is found.
             self.disable()
             self.no_joystick = True
+            self.log("Unable to initialize joystick.")
 
     def disable(self):
         # This deactivates and disables joystick
@@ -629,7 +630,7 @@ class JoystickThread(QThread):
             return
         while self.running:
             try:
-                time.sleep(0.2)
+                time.sleep(self.parent.bc.argus_joystick_cfg().get('scan_secs', 0.35))
                 # It is important to check that the button is both enabled and
                 # active before performing actions. This allows us to preserve
                 # state by disabling and enabling the button only during scans.

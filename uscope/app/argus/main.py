@@ -254,6 +254,7 @@ class SnapshotWidget(AWidget):
         self.ac.log('Requesting snapshot')
         # Disable until snapshot is completed
         self.snapshot_pb.setEnabled(False)
+        self.ac.joystick_thread.disable()
 
         def emitSnapshotCaptured(image_id):
             self.ac.log('Image captured: %s' % image_id)
@@ -297,6 +298,7 @@ class SnapshotWidget(AWidget):
         try_save()
 
         self.snapshot_pb.setEnabled(True)
+        self.ac.joystick_thread.enable()
 
     def post_ui_init(self):
         pass
@@ -968,6 +970,7 @@ class ScanWidget(AWidget):
 
     def run_next_scan_config(self):
         try:
+            self.ac.joystick_thread.disable()
             self.current_scan_config = self.scan_configs[0]
             assert self.current_scan_config
             del self.scan_configs[0]
@@ -1731,6 +1734,9 @@ class StitchingTab(ArgusTab):
                 self.cli_stitch_add(scan_config["out_dir"])
             else:
                 self.cloud_stitch_add(scan_config["out_dir"])
+
+        # Enable joystick control if appropriate
+        self.ac.joystick_thread.enable()
 
     def cloud_stitch_add(self, directory):
         self.ac.log(f"CloudStitch: requested {directory}")

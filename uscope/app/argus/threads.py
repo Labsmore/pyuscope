@@ -583,20 +583,37 @@ class JoystickThread(QThread):
         self._state_btn = self.parent.mainTab.motion_widget.joystick_listener
         try:
             self.joystick = Joystick(parent=self.parent)
-            self._state_btn.setEnabled(True)
+            self.no_joystick = False
+            self.enable()
             self.activate()
         except:
             # Disable joystick support if we could not initialize
             # it correctly. This could also happen if no joystick
             # is found.
-            self.deactivate()
-            self._state_btn.setEnabled(False)
+            self.disable()
+            self.no_joystick = True
+
+    def disable(self):
+        # This deactivates and disables joystick
+        # actions, and user cannot re-enable.
+        self._state_btn.setEnabled(False)
+
+    def enable(self):
+        # This enables activation of joystick
+        # actions by the user.
+        if self.no_joystick:
+            return
+        self._state_btn.setEnabled(True)
 
     def activate(self):
+        # This activates joystick actions, and
+        # user can deactivate.
         if not self._state_btn.isChecked():
             self._state_btn.toggle()
 
     def deactivate(self):
+        # This deactivates joystick actions but
+        # user can re-activate.
         if self._state_btn.isChecked():
             self._state_btn.toggle()
 
@@ -613,7 +630,10 @@ class JoystickThread(QThread):
         while self.running:
             try:
                 time.sleep(0.2)
-                if self._state_btn.isChecked():
+                # It is important to check that the button is both enabled and
+                # active before performing actions. This allows us to preserve
+                # state by disabling and enabling the button only during scans.
+                if self._state_btn.isEnabled() and self._state_btn.isChecked():
                     #self.joystick.debug_dump()
                     self.joystick.execute()
             except Exception as e:

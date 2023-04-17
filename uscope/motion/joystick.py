@@ -44,6 +44,23 @@ class Joystick(object):
     #
     # They are separated into mappings for controller axis (axis_),
     # buttons (btn_) and hats (hat_).
+    #
+    # In the config file, you specify the function you want to
+    # poll/trigger, and provide the necessary arguments for the
+    # function. Common arguments:
+    #   "id": (int) corresponds to the id of the button/hat/axis
+    # that should trigger this function.
+    #   "idx": (int) used by hats. sub-id of the hat's
+    # axis, usually 0 or 1.
+    #   "threshold": (float) used by axis, specifies the
+    # the minimum threshold value of the axis before we execute
+    # the function.
+    #
+    # Note, because of the different data available if the trigger is
+    # a button, a hat or an axis, we could provide a different function
+    # for each type (e.g. axis_move_x, btn_move_x_left and btn_move_x_right).
+    # Not all functions need to be mapped to triggers, and potentially
+    # multiple triggers could be mapped (use buttons or axis to move x).
 
     def axis_move_x(self, id, threshold=_default_axis_threshold):
         val = self.joystick.get_axis(id)

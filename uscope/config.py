@@ -908,6 +908,24 @@ class BaseConfig:
     def argus_joystick_cfg(self):
         """
         Get joystick config, or return default base config.
+
+        When specifying configuration for joysticks in the config file,
+        we expect it to be in this format:
+
+        { "joystick": {
+          "scan_secs": (float) in seconds, to query/run the joystick actions.
+          "fn_map": {
+            "func_from_joystick_file": dict(keyword args for the function),
+          }
+        }
+
+        The function names specified in "fn_map" are the functions to be
+        mapped/triggered, and correspond to a function exposed within
+        uscope.motion.joystick. The value for the function name is
+        a dictionary of key:vals corresponding to the required arguments
+        for the chosen function.
+
+        See the docs in joystick file for details on available functions.
         """
         default_joystick_cfg = {
            'scan_secs': 0.35,

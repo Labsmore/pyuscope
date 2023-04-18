@@ -79,7 +79,7 @@ install_gst_plugin_toupcam() {
 
 install_pyuscope() {
     sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb python3-opencv python3-serial python3-numpy python3-scipy
-    sudo pip3 install json5 boto3
+    sudo pip3 install json5 boto3 pygame
     sudo python3 setup.py develop
 }
 

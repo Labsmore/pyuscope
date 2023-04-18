@@ -928,16 +928,18 @@ class BaseConfig:
         See the docs in joystick file for details on available functions.
         """
         default_joystick_cfg = {
-           'scan_secs': 0.35,
-           'fn_map': {
-               'axis_set_jog_slider_value': {'id': 3},
-               'btn_capture_image': {'id': 0},
-               'axis_move_x': {'id': 0},
-               'axis_move_y': {'id': 1},
-               'hat_move_z': {'id': 0, 'idx': 1}
+           'joystick': {
+              'scan_secs': 0.35,
+               'fn_map': {
+                  'axis_set_jog_slider_value': {'id': 3},
+                  'btn_capture_image': {'id': 0},
+                  'axis_move_x': {'id': 0},
+                  'axis_move_y': {'id': 1},
+                  'hat_move_z': {'id': 0, 'idx': 1}
+              },
            },
         }
-        return self.j.get("joystick", default_joystick_cfg)
+        return self.j.get("joystick", default_joystick_cfg['joystick'])
 
     def dev_mode(self):
         """

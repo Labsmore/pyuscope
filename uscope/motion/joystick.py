@@ -9,10 +9,12 @@ class Joystick(object):
 
     def __init__(self, parent):
         self.parent = parent
+        self.joystick_cfg = self.parent.bc.argus_joystick_cfg()
         pygame.init()
         pygame.joystick.init()
-        self.joystick_cfg = self.parent.bc.argus_joystick_cfg()
         self.joystick = pygame.joystick.Joystick(self.joystick_cfg.get('device_num', 0))
+        # This init is required by some systems.
+        pygame.joystick.init()
         self.joystick_fn_map = self.joystick_cfg.get('fn_map', {})
 
     def execute(self):

@@ -3,6 +3,7 @@ from uscope.planner.planner import PlannerStop
 from uscope.benchmark import Benchmark
 from uscope.motion.hal import AxisExceeded, MotionHAL, MotionCritical
 from uscope.motion.plugins import get_motion_hal
+from uscope.motion.joystick import Joystick, pygame
 from uscope import cloud_stitch
 from uscope import config
 from uscope.planner.plugins import PlannerKinematics
@@ -568,3 +569,76 @@ class ImageProcessingThread(QThread):
             finally:
                 # self.stitcherDone.emit()
                 pass
+
+class JoystickThread(QThread):
+    joystickDone = pyqtSignal()
+    log_msg = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        QThread.__init__(self, parent)
+        self.parent = parent
+        self.queue = Queue()
+        self.running = threading.Event()
+        self.running.set()
+        self._state_btn = self.parent.mainTab.motion_widget.joystick_listener
+        try:
+            self.joystick = Joystick(parent=self.parent)
+            self.no_joystick = False
+            self.enable()
+            self.activate()
+        except:
+            # Disable joystick support if we could not initialize
+            # it correctly. This could also happen if no joystick
+            # is found.
+            self.disable()
+            self.no_joystick = True
+            self.log("Unable to initialize joystick.")
+
+    def disable(self):
+        # This deactivates and disables joystick
+        # actions, and user cannot re-enable.
+        self._state_btn.setEnabled(False)
+
+    def enable(self):
+        # This enables activation of joystick
+        # actions by the user.
+        if self.no_joystick:
+            return
+        self._state_btn.setEnabled(True)
+
+    def activate(self):
+        # This activates joystick actions, and
+        # user can deactivate.
+        if not self._state_btn.isChecked():
+            self._state_btn.toggle()
+
+    def deactivate(self):
+        # This deactivates joystick actions but
+        # user can re-activate.
+        if self._state_btn.isChecked():
+            self._state_btn.toggle()
+
+    def log(self, msg):
+        self.log_msg.emit(msg)
+
+    def shutdown(self):
+        self.running.clear()
+
+    def run(self):
+        if not pygame:
+            self.ac.log("WARNING: Joystick support unavailable (requires pygame)")
+            return
+        while self.running:
+            try:
+                time.sleep(self.parent.bc.argus_joystick_cfg().get('scan_secs', 0.35))
+                # It is important to check that the button is both enabled and
+                # active before performing actions. This allows us to preserve
+                # state by disabling and enabling the button only during scans.
+                if self._state_btn.isEnabled() and self._state_btn.isChecked():
+                    #self.joystick.debug_dump()
+                    self.joystick.execute()
+            except Exception as e:
+                self.log('WARNING: joystick thread crashed: %s' % str(e))
+                traceback.print_exc()
+            finally:
+                self.joystickDone.emit()

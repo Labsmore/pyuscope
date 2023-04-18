@@ -857,6 +857,8 @@ class GUI(object):
     assets_dir = os.path.join(os.getcwd(), 'uscope', 'gui', 'assets')
     stylesheet_file = os.path.join(assets_dir, 'main.qss')
     icon_files = {}
+    icon_files['gamepad'] = os.path.join(
+        assets_dir, 'videogame_asset_FILL0_wght700_GRAD0_opsz48.png')
     icon_files['jog'] = os.path.join(
         assets_dir, 'directions_run_FILL1_wght700_GRAD0_opsz48.png')
     icon_files['NE'] = os.path.join(
@@ -902,6 +904,42 @@ class BaseConfig:
         Call given program with the scan output directory as the argument
         """
         return self.j.get("argus_stitch_cli", None)
+
+    def argus_joystick_cfg(self):
+        """
+        Get joystick config, or return default base config.
+
+        When specifying configuration for joysticks in the config file,
+        we expect it to be in this format:
+
+        { "joystick": {
+          "scan_secs": (float) in seconds, to query/run the joystick actions.
+          "fn_map": {
+            "func_from_joystick_file": dict(keyword args for the function),
+          }
+        }
+
+        The function names specified in "fn_map" are the functions to be
+        mapped/triggered, and correspond to a function exposed within
+        uscope.motion.joystick. The value for the function name is
+        a dictionary of key:vals corresponding to the required arguments
+        for the chosen function.
+
+        See the docs in joystick file for details on available functions.
+        """
+        default_joystick_cfg = {
+           'joystick': {
+              'scan_secs': 0.35,
+               'fn_map': {
+                  'axis_set_jog_slider_value': {'id': 3},
+                  'btn_capture_image': {'id': 0},
+                  'axis_move_x': {'id': 0},
+                  'axis_move_y': {'id': 1},
+                  'hat_move_z': {'id': 0, 'idx': 1}
+              },
+           },
+        }
+        return self.j.get("joystick", default_joystick_cfg['joystick'])
 
     def dev_mode(self):
         """

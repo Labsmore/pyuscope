@@ -8,7 +8,7 @@ from uscope.imager.imager_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
-from uscope.app.argus.threads import MotionThread, PlannerThread, StitcherThread, ImageProcessingThread
+from uscope.app.argus.threads import JoystickThread, MotionThread, PlannerThread, StitcherThread, ImageProcessingThread
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import util
 from uscope import config
@@ -254,6 +254,7 @@ class SnapshotWidget(AWidget):
         self.ac.log('Requesting snapshot')
         # Disable until snapshot is completed
         self.snapshot_pb.setEnabled(False)
+        self.ac.joystick_thread.disable()
 
         def emitSnapshotCaptured(image_id):
             self.ac.log('Image captured: %s' % image_id)
@@ -297,6 +298,7 @@ class SnapshotWidget(AWidget):
         try_save()
 
         self.snapshot_pb.setEnabled(True)
+        self.ac.joystick_thread.enable()
 
     def post_ui_init(self):
         pass
@@ -968,6 +970,7 @@ class ScanWidget(AWidget):
 
     def run_next_scan_config(self):
         try:
+            self.ac.joystick_thread.disable()
             self.current_scan_config = self.scan_configs[0]
             assert self.current_scan_config
             del self.scan_configs[0]
@@ -1732,6 +1735,9 @@ class StitchingTab(ArgusTab):
             else:
                 self.cloud_stitch_add(scan_config["out_dir"])
 
+        # Enable joystick control if appropriate
+        self.ac.joystick_thread.enable()
+
     def cloud_stitch_add(self, directory):
         self.ac.log(f"CloudStitch: requested {directory}")
         if not os.path.exists(directory):
@@ -1904,6 +1910,20 @@ def out_dir_config_to_dir(j, parent):
 # def scan_dir_fn(user, parent):
 #    return snapshot_fn(user=user, extension="", parent=parent)
 
+class JoystickListener(QPushButton):
+    """
+    Widget that maintains state of joystick enabled/disabled.
+    """
+    def __init__(self, label, parent=None):
+        super().__init__(label, parent=parent)
+        self.parent = parent
+        self.setCheckable(True)
+        self.setEnabled(False)
+        self.setIcon(QIcon(config.GUI.icon_files["gamepad"]))
+
+    def hitButton(self, pos):
+        self.toggle()
+        return True
 
 class JogListener(QPushButton):
     """
@@ -2019,6 +2039,17 @@ class JogSlider(QWidget):
                          float(self.slider.value()) - self.slider_max * 0.2)
         self.slider.setValue(slider_val)
 
+    def set_jog_slider(self, val):
+        # val is expected to be between 0.0 to 1.0
+        val_min = 0
+        val_max = 1.0
+        if (val == 0):
+            self.slider.setValue(self.slider_min)
+            return
+        old_range = val_max - val_min
+        new_range = self.slider_max - self.slider_min
+        new_value = (((val - val_min) * new_range) / old_range) + self.slider_min
+        self.slider.setValue(new_value)
 
 class MotionWidget(AWidget):
     def __init__(self, ac, motion_thread, usc, log, parent=None):
@@ -2045,9 +2076,11 @@ class MotionWidget(AWidget):
         self.setWindowTitle('Demo')
 
         layout = QVBoxLayout()
+        self.joystick_listener = JoystickListener("  Joystick Contol", self)
         self.listener = JogListener("XXX", self)
         self.update_jog_text()
         layout.addWidget(self.listener)
+        layout.addWidget(self.joystick_listener)
         self.slider = JogSlider(usc=self.usc)
         layout.addWidget(self.slider)
 
@@ -2324,6 +2357,7 @@ class ArgusCommon(QObject):
 
         self.motion_thread = None
         self.planner_thread = None
+        self.joystick_thread = None
         self.image_processing_thread = None
 
         self.microscope = microscope
@@ -2384,6 +2418,13 @@ class ArgusCommon(QObject):
         self.vidpip.run()
         self.init_imager()
 
+        # We need the joystick thread to be initialized here,
+        # after UI elements have been initialized so that it
+        # has access to the joystick UI button.
+        self.joystick_thread = JoystickThread(parent=self)
+        self.joystick_thread.log_msg.connect(self.log)
+        self.joystick_thread.start()
+
         # Needs imager which isn't initialized until gst GUI objects are made
         self.image_processing_thread = ImageProcessingThread(
             motion_thread=self.motion_thread, ac=self)
@@ -2401,6 +2442,9 @@ class ArgusCommon(QObject):
         if self.image_processing_thread:
             self.image_processing_thread.shutdown()
             self.image_processing_thread = None
+        if self.joystick_thread:
+            self.joystick_thread.shutdown()
+            self.joystick_thread = None
 
     def init_imager(self):
         source = self.vidpip.source_name

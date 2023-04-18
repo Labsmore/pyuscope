@@ -144,9 +144,23 @@ A minimal configuration to do basic testing
     */
     "objectives": [
         {
+            "name":"1X",
+            "magnification": 1,
+            //PixelSize: 4.63 x4.63 um
+            //well what do you know...
+            //wonder if thats actually the correct value
+            "um_per_pixel_raw": 4.6728972,
+            "na": 0.025,
+        },
+        {
+            "name":"2X",
+            "magnification": 2,
+            "na": 0.055,
+        },
+        {
             "name":"5X",
             "magnification": 5,
-            "um_per_pixel_raw": 0.93457944,
+            //"um_per_pixel_raw": 0.93457944,
             "na": 0.14,
         },
         {

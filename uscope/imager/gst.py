@@ -29,8 +29,9 @@ class GstCLIImager(Imager):
     """
     Stand alone imager that doesn't rely on GUI feed
     """
-    def __init__(self, opts={}, verbose=False):
+    def __init__(self, opts={}, verbose=False, microscope=None):
         Imager.__init__(self, verbose=verbose)
+        self.microscope = microscope
         self.image_ready = threading.Event()
         self.image_id = None
         opts = copy.deepcopy(opts)
@@ -102,6 +103,9 @@ class GstCLIImager(Imager):
 
     def __del__(self):
         self.stop()
+
+    def get_sn(self):
+        return self.source.get_property("serial-number")
 
     def wh(self):
         return self.width, self.height
@@ -367,10 +371,10 @@ def apply_imager_cal(imager, verbose=False):
         imager.source.set_property(propk, propv)
 
 
-def get_cli_imager_by_config(usj=None, verbose=False):
+def get_cli_imager_by_config(usj=None, verbose=False, microscope=None):
     if usj is None:
         usj = config.get_usj()
     opts = gst_usj_to_gstcliimager_args(usj=usj)
-    imager = GstCLIImager(opts=opts)
+    imager = GstCLIImager(opts=opts, microscope=microscope)
     apply_imager_cal(imager, verbose=verbose)
     return imager

@@ -4,7 +4,8 @@ A minimal configuration to do basic testing
 {
     "kinematics": {
         //FIXME: not tuned
-        "tsettle_motion": 0.1,
+        "tsettle_motion_na1": 1.0,
+        "tsettle_motion_base": 0.1,
         "tsettle_hdr": 0.2,
     },
     "motion": {
@@ -12,6 +13,7 @@ A minimal configuration to do basic testing
 
         "backlash": 0.05,
         "backlash_compensation": -1,
+        "z_format6": true,
 
         "use_wcs_offsets": true,
         "grbl": {
@@ -19,17 +21,27 @@ A minimal configuration to do basic testing
                 //$100, $101 and $102 – [X,Y,Z] steps/mm
                 //Z is actually 5x this but we'll loose precision if here
                 //so instead apply that reduction host side
-                "$100=800.000", "$101=800.000", "$102=800.000",
+                //"$100=800.000", "$101=800.000", "$102=800.000",
+                //Eliminate rounding errors => 8/5 adjustment
+                //However we need to basically rescale everything now
+                "$100=500.000", "$101=500.000", "$102=500.000",
 
                 //2023-02-24: suspect missing steps. Make less aggressive
                 //X - Max Rate (mm/min)
                 //Default
                 //"$110=1200.000", "$111=1200.000", "$112=1200.000",
-                "$110=600.000", "$111=600.000", "$112=600.000",
+                //"$110=600.000", "$111=600.000", "$112=600.000",
+                //8/5 adjustment
+                "$110=960.000", "$111=960.000", "$112=1920.000",
                 //$120, $121, $122 – [X,Y,Z] Acceleration, mm/sec^2
                 //Default values, didn't try changing
                 //"$120=30.000", "$121=30.000", "$122=30.000",
-                "$120=15.000", "$121=15.000", "$122=15.000",
+                //8/5 adjustment
+                "$120=24.000", "$121=24.000", "$122=24.000",
+
+                //max travel
+                //"$130=300.000", "$131=200.000", "$132=60.000",
+                "$130=480.000", "$131=320.000", "$132=96.000",
 
                 /*
                 //Non-homing scheme
@@ -42,19 +54,25 @@ A minimal configuration to do basic testing
                 "G54",
                 */
                 //More proper homed scheme
-                "G10 L2 P1 X-297.000 Y-197.000 Z-3.000",
+                //"G10 L2 P1 X-297.000 Y-197.000 Z-3.000",
+                //8/5 adjustment
+                "G10 L2 P1 X-475.200 Y-315.200 Z-4.800",
                 "G10 L2 P2 X0 Y0 Z0",
                 //Select WCS2
                 "G55",
 
-                //Homing adjustments to account for gearbox
-                "$26=250", "$27=15.000",
+                //Homing adjustments to account for gearbox etc
+                //"$24=25.0","$25=500.000",
+                //"$26=250","$27=15.000",
+                //8/5 adjustment
+                "$24=40.0","$25=800.000",
+                "$26=400","$27=24.000",
             ],
         },
         "scalars": {
-            "x": 1.0,
-            "y": 1.0,
-            "z": 5.0,
+            "x": 1.6,
+            "y": 1.6,
+            "z": 8.0,
         },
         /*
         Actual limits should be:
@@ -123,41 +141,72 @@ A minimal configuration to do basic testing
                 "max": 1000
             },
         },
+        "um_per_pixel_raw_1x": 4.6728972,
     },
-    /*
-    20x
-    snapshot of cal slide
-    final @ 20x
-        214 pix / 0.1 mm => 2140 pix / mm
-        um per pix: 100 / 214 = 0.46728972
 
-        1196 pix wide final
-        x_view: 1196 * 0.46728972 = 558 um
-    raw
-        split between two pixels => each gets half as much um
-        0.46728972 / 2 = 0.23364486
 
-    Scale ot 5x
-    raw um per pix = 0.23364486 * 4 = 0.93457944
-    */
-    "objectives": [
+    "systems": [
+        //Default configuration
         {
-            "name":"5X",
-            "magnification": 5,
-            "um_per_pixel_raw": 0.93457944,
-            "na": 0.14,
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: Mitutoyo, model: 46-143, magnification: 5, na: 0.14",
+                "vendor: Mitutoyo, model: 46-144, magnification: 10, na: 0.28",
+                "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.42",
+            ],
         },
+
+        //Sticker EV1, was wm3020-vmu1
+        //On loan
         {
-            "name":"20X",
-            "magnification": 20,
-            "na": 0.42,
+            "camera_sn": "FIXME",
+            //Replaces default objectives_db
+            "objectives_db": [
+                "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.42",
+            ],
         },
+
+        //Sticker EV2, was wm3020-vmu3
+        //By door
         {
-            "name":"100X",
-            "magnification": 100,
-            "na": 0.70,
-            //FIXME: not tuned
-            "tsettle_motion": 1.0,
-       },
+            "camera_sn": "TP230221161310F5C01079C0DE4CAA5",
+            "motion": {
+                "scalars_scalar": {
+                    //5X gearbox + 1.8 => 0.9 degree motor
+                    "z": 2.0,
+                },
+            },
+            "turret": {
+                "slots": 4,
+            },
+            //Replaces default objectives_db
+            "objectives_db": [
+                "vendor: Mitutoyo, model: 58-235, magnification: 1, na: 0.025",
+                "vendor: Mitutoyo, model: 46-142, magnification: 2, na: 0.055",
+                "vendor: Mitutoyo, model: 46-143, magnification: 5, na: 0.14",
+                "vendor: Mitutoyo, model: 46-144, magnification: 10, na: 0.28",
+                "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.42",
+                "vendor: Mitutoyo, model: 46-147, magnification: 100, na: 0.70",
+            ],
+        },
+
+        //Sticker EV3, was wm3020-vmu2
+        //By probe station
+        {
+            "camera_sn": "TP211009093136C4AD0DD74ABF49936",
+            "motion": {
+                "scalars_scalar": {
+                    //5X gearbox + 1.8 => 0.9 degree motor
+                    "z": 2.0,
+                },
+            },
+            //Replaces default objectives_db
+            "objectives_db": [
+                "vendor: Mitutoyo, model: 46-143, magnification: 5, na: 0.14",
+                "vendor: Mitutoyo, model: 46-144, magnification: 10, na: 0.28",
+                "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.42",
+                "vendor: Mitutoyo, model: 46-147, magnification: 100, na: 0.70",
+            ],
+        },
     ],
 }

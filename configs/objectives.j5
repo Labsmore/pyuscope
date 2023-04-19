@@ -1,0 +1,323 @@
+{
+    "objectives": [
+
+        /******************************************************************
+        Edmund Optics
+        https://www.edmundoptics.com/f/eo-high-resolution-infinity-corrected-objectives/13116/
+        "Designed for use in Zoom Lens Systems"
+        Stock number vs model number?
+
+        McMaster:
+        got a 10x NIB
+        Does not produce good images
+        Is it not compatible with Mitutoyo system?
+        ******************************************************************/
+        {
+            "vendor": "Edmund Optics",
+            "model": "58-371",
+            "series": "M Plan Apo",
+            "magnification": 5,
+            "na": 0.225,
+            "thread": "M26",
+        },
+        {
+            //https://www.edmundoptics.com/p/10x-eo-hr-infinity-corrected-objective/15252/
+            "vendor": "Edmund Optics",
+            "model": "58-372",
+            "series": "M Plan Apo",
+            "magnification": 10,
+            "na": 0.45,
+            "thread": "M26",
+        },
+        {
+            "vendor": "Edmund Optics",
+            "model": "58-373",
+            "series": "M Plan Apo",
+            "magnification": 20,
+            "na": 0.60,
+            "thread": "M26",
+        },
+
+        /******************************************************************
+        Infinity USA
+        Nelsonian: video microscope system
+        Achrovid: objective series for Nelsonian
+        ******************************************************************/
+        {
+            "vendor": "Infinity USA",
+            "model": "Achrovid 10x",
+            "series": "Achrovid",
+            "magnification": 10,
+            "na": 0.21,
+            "thread": "M26",
+        },
+
+        /******************************************************************
+        LapSun
+        Can't reliably figure out who makes these
+        But they come with their microscopes
+        ******************************************************************/
+        {
+            "vendor": "LapSun",
+            "model": "L Plan 10X",
+            "series": "L Plan",
+            "magnification": 10,
+            "na": 0.25,
+            "wd": 17.7,
+            "thread": "RMS",
+        },
+        {
+            "vendor": "LapSun",
+            "model": "L Plan 20X",
+            "series": "L Plan",
+            "magnification": 20,
+            "na": 0.40,
+            "wd": 10.4,
+            "thread": "RMS",
+        },
+        {
+            "vendor": "LapSun",
+            "model": "LMPlan 20X",
+            "series": "LMPlan",
+            "magnification": 20,
+            "na": 0.40,
+            "thread": "RMS",
+        },
+
+        /******************************************************************
+        Mitutoyo
+        ******************************************************************/
+        {
+            "vendor": "Mitutoyo",
+            "model": "58-235",
+            "series": "M Plan Apo",
+            "magnification": 1,
+            "na": 0.025,
+            "fl": 200.0,
+            "wd": 11.0,
+            "thread": "M26",
+        },
+        {
+            "vendor": "Mitutoyo",
+            "model": "46-142",
+            "series": "M Plan Apo",
+            "magnification": 2,
+            "na": 0.055,
+            "fl": 100.0,
+            "wd": 34.0,
+            "thread": "M26",
+        },
+        //Common 5X
+        {
+            "vendor": "Mitutoyo",
+            "model": "46-143",
+            "series": "M Plan Apo",
+            "magnification": 5,
+            "na": 0.14,
+            "fl": 40.0,
+            "wd": 34.0,
+            "thread": "M26",
+        },
+        //Common 10X
+        {
+            "vendor": "Mitutoyo",
+            "model": "46-144",
+            "series": "M Plan Apo",
+            "magnification": 10,
+            "na": 0.28,
+            "fl": 20.0,
+            "wd": 34.0,
+            "thread": "M26",
+        },
+        //Common 20X
+        {
+            "vendor": "Mitutoyo",
+            "model": "46-145",
+            "series": "M Plan Apo",
+            "magnification": 20,
+            "na": 0.42,
+            "fl": 10.0,
+            "wd": 20.0,
+            "thread": "M26",
+        },
+        //Common 100X
+        {
+            "vendor": "Mitutoyo",
+            "model": "46-147",
+            "series": "M Plan Apo",
+            "magnification": 100,
+            "na": 0.70,
+            "fl": 2.0,
+            "wd": 6.0,
+            "thread": "M26",
+        },
+
+        /******************************************************************
+        Olympus
+        ******************************************************************/
+        /*
+        NeoDPlan
+        */
+        {
+            "vendor": "Olympus",
+            "model": "NeoDPlan 5X",
+            "series": "NeoDPlan",
+            "magnification": 5,
+            "na": 0.10,
+            "thread": "M26",
+        },
+        {
+            "vendor": "Olympus",
+            "model": "NeoDPlan 10X",
+            "series": "NeoDPlan",
+            "magnification": 10,
+            "na": 0.25,
+            "thread": "M26",
+        },
+        {
+            "vendor": "Olympus",
+            "model": "NeoDPlan 50X",
+            "series": "NeoDPlan",
+            "magnification": 50,
+            "na": 0.75,
+            "thread": "M26",
+        },
+        /*
+        NeoSPlan
+        */
+        {
+            "vendor": "Olympus",
+            "model": "NeoSPlan 5X",
+            "series": "NeoSPlan",
+            "magnification": 5,
+            "na": 0.13,
+            "thread": "M26",
+        },
+        {
+            "vendor": "Olympus",
+            "model": "NeoSPlan 10X",
+            "series": "NeoSPlan",
+            "magnification": 10,
+            "na": 0.30,
+            "thread": "M26",
+        },
+        {
+            "vendor": "Olympus",
+            "model": "NeoSPlan 20X",
+            "series": "NeoSPlan",
+            "magnification": 20,
+            "na": 0.46,
+            "thread": "M26",
+        },
+        {
+            "vendor": "Olympus",
+            "model": "NeoSPlan 100X",
+            "series": "NeoSPlan",
+            "magnification": 100,
+            "na": 0.90,
+            "thread": "M26",
+        },
+
+        /******************************************************************
+        Nikon
+        ******************************************************************/
+        /*
+        CF Plan
+        */
+        {
+            "vendor": "Nikon",
+            "model": "CF Plan 10X",
+            "series": "CF Plan",
+            "magnification": 10,
+            "na": 0.30,
+            "wd": 16.5,
+            "thread": "M27",
+        },
+        {
+            "vendor": "Nikon",
+            "model": "CF Plan",
+            "magnification": 20,
+            "na": 0.46,
+            "wd": 3.1,
+            "thread": "M27",
+        },
+        {
+            "vendor": "Nikon",
+            "model": "CF Plan",
+            "magnification": 50,
+            "na": 0.80,
+            "wd": 0.54,
+            "thread": "M27",
+        },
+        {
+            "vendor": "Nikon",
+            "model": "CF Plan",
+            "magnification": 100,
+            "na": 0.95,
+            "wd": 0.3,
+            "thread": "M27",
+        },
+
+        /*
+        VC
+        */
+        {
+            "vendor": "Nikon",
+            "model": "VC 60X",
+            "magnification": 60,
+            "na": 1.40,
+            "thread": "M26",
+        },
+
+
+
+        /******************************************************************
+        SouthOptics
+        https://www.southoptics.com/
+        Basically the LWD objectives you see on AliExpress
+        I'm still unclear what they make vs distribute
+        Ex: they carry ToupTek cameras which I don't think they make?
+        http://www.southoptics.com/html/29/58/60.jsp
+        ******************************************************************/
+        //Black w/ green strip
+        {
+            "vendor": "SouthOptics",
+            "model": "M Plan Apo HL 20X 0.29",
+            "series": "M Plan APO SL",
+            "magnification": 20,
+            "na": 0.29,
+            "thread": "M26",
+        },
+        //Silver with medium knurling
+        {
+            "vendor": "SouthOptics",
+            "model": "M Plan Apo SL 20X 0.34",
+            "series": "M Plan Apo SL",
+            "magnification": 20,
+            "na": 0.34,
+            "thread": "M26",
+        },
+        //Silver with slightly higher knurling
+        //"new version"
+        {
+            "vendor": "SouthOptics",
+            "model": "M Plan Apo SL 20X 0.45",
+            "series": "M Plan Apo SL",
+            "magnification": 20,
+            "na": 0.45,
+            "thread": "M26",
+        },
+
+        /******************************************************************
+        Zeiss
+        ******************************************************************/
+        {
+            "vendor": "Zeiss",
+            "model": "44 23 54",
+            "series": "Epiplan-NEOFLUAR",
+            "magnification": 50,
+            "na": 0.75,
+            "thread": "M27",
+        },
+    ],
+}

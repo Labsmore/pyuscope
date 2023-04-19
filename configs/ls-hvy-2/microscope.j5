@@ -3,12 +3,6 @@ For Ryan C
 very similar to "pr0nscope" mk2 original BH2 CNC microscope
 */
 {
-    "planner": {
-        //FIXME: not tuned
-        "tsettle_motion": 0.1,
-        "tsettle_hdr": 0.2,
-    },
-
     "motion": {
         "hal": "grbl-ser",
         "backlash": 0.05,
@@ -68,50 +62,19 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
                 "max": 200000
             },
         },
+        "um_per_pixel_raw_1x": 3.262867647,
     },
-    "objectives": [
-        //OBJ-106
+    "systems": [
+        //Default configuration
         {
-            "name":"NeoSPlan 5X",
-            "magnification": 5,
-            "na": 0.13,
-            "suffix": "ns5x",
-            "x_view": 3.55,
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: Olympus, model: NeoSPlan 5X",
+                "vendor: Olympus, model: NeoSPlan 10X",
+                "vendor: Olympus, model: NeoSPlan 20X",
+                "vendor: Olympus, model: NeoDPlan 50X",
+                "vendor: Olympus, model: NeoSPlan 10X",
+            ],
         },
-        //OBJ-102
-        {
-            "name":"NeoSPlan 10X",
-            "magnification": 10,
-            "na": 0.30,
-            "suffix": "ns10x",
-            "x_view": 1.78,
-        },
-        //OBJ-110
-        {
-            "name":"NeoSPlan 20X",
-            "magnification": 20,
-            "na": 0.46,
-            "suffix": "ns20x",
-            "x_view": 0.89,
-        },
-        //OBJ-111
-        {
-            "name":"NeoDPlan 50X",
-            "magnification": 50,
-            "na": 0.75,
-            "suffix": "nd50x",
-            "x_view": 0.356,
-        },
-        //OBJ-114
-        {
-            "name":"NeoSPlan 100X",
-            "magnification": 100,
-            "na": 0.90,
-            "suffix": "ns100x",
-            "x_view": 0.178,
-            //FIXME: not tuned
-            "tsettle_motion": 1.0,
-        }
-    ]
+    ],
 }
-

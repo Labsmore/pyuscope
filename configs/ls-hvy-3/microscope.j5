@@ -4,11 +4,6 @@ Olympus BH2-UMA measuring microscope
 UT100 NEMA23 stages
 */
 {
-    "planner": {
-        //FIXME: not tuned
-        "tsettle_motion": 0.1,
-        "tsettle_hdr": 0.2,
-    },
     /*
     2mm / rev
     200 step / rev motors?
@@ -82,50 +77,19 @@ UT100 NEMA23 stages
                 "max": 200000
             },
         },
+        "um_per_pixel_raw_1x": 3.262867647,
     },
-    "objectives": [
-        //OBJ-107
+    "systems": [
+        //Default configuration
         {
-            "name":"NeoDPlan 5X",
-            "magnification": 5,
-            "na": 0.10,
-            "suffix": "nd5x",
-            "x_view": 3.55,
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: Olympus, model: NeoDPlan 5X",
+                "vendor: Olympus, model: NeoDPlan 10X",
+                "vendor: Olympus, model: NeoSPlan 20X",
+                "vendor: Olympus, model: NeoDPlan 50X",
+                "vendor: Olympus, model: NeoSPlan 10X",
+            ],
         },
-        //OBJ-108
-        {
-            "name":"NeoDPlan 10X",
-            "magnification": 10,
-            "na": 0.25,
-            "suffix": "nd10x",
-            "x_view": 1.78,
-        },
-        //OBJ-103
-        {
-            "name":"NeoSPlan 20X",
-            "magnification": 20,
-            "na": 0.46,
-            "suffix": "ns20x",
-            "x_view": 0.89,
-        },
-        //OBJ-112
-        {
-            "name":"NeoDPlan 50X",
-            "magnification": 50,
-            "na": 0.75,
-            "suffix": "nd50x",
-            "x_view": 0.356,
-        },
-        //OBJ-113
-        {
-            "name":"NeoSPlan 100X",
-            "magnification": 100,
-            "na": 0.90,
-            "suffix": "ns100x",
-            "x_view": 0.178,
-            //FIXME: not tuned
-            "tsettle_motion": 1.0,
-        }
-    ]
+    ],
 }
-

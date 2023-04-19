@@ -15,7 +15,9 @@ def home(grbl, lazy=True):
         return
     tstart = time.time()
     # TLDR: gearbox means we need ot home several times
-    for homing_try in range(5):
+    # 2023-04-19: required 7 cycles in worst case...hmm add more wiggle room for now
+    # related to 8/5 adjustment?
+    for homing_try in range(8):
         print("Sending home command %u" % (homing_try + 1, ))
         try:
             grbl.gs.h()

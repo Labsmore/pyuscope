@@ -4,7 +4,8 @@ A minimal configuration to do basic testing
 {
     "kinematics": {
         //FIXME: not tuned
-        "tsettle_motion": 0.1,
+        "tsettle_motion_na1": 1.0,
+        "tsettle_motion_base": 0.1,
         "tsettle_hdr": 0.2,
     },
     "motion": {
@@ -12,6 +13,7 @@ A minimal configuration to do basic testing
 
         "backlash": 0.05,
         "backlash_compensation": -1,
+        "z_format6": true,
 
         "use_wcs_offsets": true,
         "grbl": {
@@ -103,26 +105,17 @@ A minimal configuration to do basic testing
             "left": 500,
             "right": 500,
         },
+        "um_per_pixel_raw_1x": 4.68,
     },
-    //500 border
-    "objectives": [
+    "systems": [
+        //Default configuration
         {
-            "name":"5X",
-            "magnification": 5,
-            "um_per_pixel_raw": 0.936,
-            "na": 0.14,
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: Mitutoyo, model: 46-143, magnification: 5, na: 0.14",
+                "vendor: Mitutoyo, model: 46-144, magnification: 10, na: 0.28",
+                "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.42",
+            ],
         },
-        {
-            "name":"20X",
-            "magnification": 20,
-            "na": 0.42,
-        },
-        {
-            "name":"100X",
-            "magnification": 100,
-            "na": 0.70,
-            //FIXME: not tuned
-            "tsettle_motion": 1.0,
-       },
     ],
 }

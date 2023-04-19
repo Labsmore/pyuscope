@@ -7,6 +7,7 @@ class PlannerPlugin:
         self.planner = planner
         # Convenience shortcut. Might remove after cleanup
         self.pc = self.planner.pc
+        self.microscope = self.planner.microscope
         self.motion = self.planner.motion
         self.imager = self.planner.imager
         self.dry = self.planner.dry

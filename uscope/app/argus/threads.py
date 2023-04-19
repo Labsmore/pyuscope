@@ -3,10 +3,9 @@ from uscope.planner.planner import PlannerStop
 from uscope.benchmark import Benchmark
 from uscope.motion.hal import AxisExceeded, MotionHAL, MotionCritical
 from uscope.motion.plugins import get_motion_hal
-from uscope.motion.joystick import Joystick, pygame
+from uscope.joystick import Joystick, JoystickNotFound
 from uscope import cloud_stitch
 from uscope import config
-from uscope.planner.plugins import PlannerKinematics
 from PyQt5.QtCore import QThread, pyqtSignal
 import traceback
 import datetime
@@ -18,7 +17,7 @@ import subprocess
 import cv2 as cv
 import numpy as np
 from uscope.planner.planner_util import microscope_to_planner_config
-from uscope.motion.kinematics import Kinematics
+from uscope.kinematics import Kinematics
 
 
 def dbg(*args):
@@ -42,12 +41,10 @@ TODO: should block?
 class MotionThreadMotion(MotionHAL):
     def __init__(self, mt):
         self.mt = mt
-        MotionHAL.__init__(
-            self,
-            # Don't re-apply pipeline (scaling, etc)
-            options={},
-            log=mt.motion.log,
-            verbose=mt.motion.verbose)
+        MotionHAL.__init__(self, log=mt.motion.log, verbose=mt.motion.verbose)
+
+        # Don't re-apply pipeline (scaling, etc)
+        self.configure({})
 
     def axes(self):
         return self.mt.motion.axes()
@@ -442,8 +439,6 @@ class StitcherThread(QThread):
         self.queue.put(j)
 
     def run(self):
-        if not cloud_stitch.boto3:
-            self.ac.log("WARNING: CloudStitch unavailible (require boto3)")
         while self.running:
             try:
                 j = self.queue.get(block=True, timeout=0.1)
@@ -451,8 +446,6 @@ class StitcherThread(QThread):
                 continue
             try:
                 if j["type"] == "CloudStitch":
-                    if not cloud_stitch.boto3:
-                        raise Exception("Requires boto3 library")
                     cloud_stitch.upload_dir(
                         directory=j["directory"],
                         id_key=j["id_key"],
@@ -498,23 +491,13 @@ class ImageProcessingThread(QThread):
         self.motion_thread = motion_thread
         self.ac = ac
         self.imager = self.ac.imager
-        self.init_kinematics()
+        self.kinematics = None
 
-    def init_kinematics(self):
-        # For now assume last / highest mag objective => most stringement kimenatics
-        # also kind of weird using planner config but good enough for now
-        pcj = microscope_to_planner_config(
-            usc=self.ac.usc,
-            objectivei=len(self.ac.usj["objectives"]) - 1,
-            contour={})
-        pc = config.PC(pcj)
         self.kinematics = Kinematics(
-            motion=self.ac.motion,
-            imager=self.ac.imager,
-            tsettle_motion=self.ac.usc.kinematics.tsettle_motion(),
-            tsettle_hdr=self.ac.usc.kinematics.tsettle_hdr(),
+            microscope=self.ac.microscope,
             log=self.log,
         )
+        self.kinematics.configure()
 
     def log(self, msg):
         self.log_msg.emit(msg)
@@ -570,29 +553,37 @@ class ImageProcessingThread(QThread):
                 # self.stitcherDone.emit()
                 pass
 
+
 class JoystickThread(QThread):
     joystickDone = pyqtSignal()
     log_msg = pyqtSignal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, ac, parent=None):
         QThread.__init__(self, parent)
+        self.joystick = None
+        self.ac = ac
         self.parent = parent
         self.queue = Queue()
         self.running = threading.Event()
         self.running.set()
-        self._state_btn = self.parent.mainTab.motion_widget.joystick_listener
         try:
-            self.joystick = Joystick(parent=self.parent)
-            self.no_joystick = False
-            self.enable()
-            self.activate()
-        except:
-            # Disable joystick support if we could not initialize
-            # it correctly. This could also happen if no joystick
-            # is found.
-            self.disable()
-            self.no_joystick = True
-            self.log("Unable to initialize joystick.")
+            self.joystick = Joystick(ac=self.ac)
+        except JoystickNotFound:
+            raise JoystickNotFound()
+        self._state_btn = None
+
+    def post_ui_init(self):
+        self._state_btn = self.parent.mainTab.motion_widget.joystick_listener
+        self.enable()
+        self.activate()
+
+    def log_info(self):
+        self.log("Joystick")
+        self.log(f"  Name: {self.joystick.joystick.name}")
+        self.log(f"  Axes: {self.joystick.joystick.numaxes}")
+        self.log(f"  Trackballs: {self.joystick.joystick.numballs}")
+        self.log(f"  Hats: {self.joystick.joystick.numhats}")
+        self.log(f"  Buttons: {self.joystick.joystick.numbuttons}")
 
     def disable(self):
         # This deactivates and disables joystick
@@ -602,8 +593,6 @@ class JoystickThread(QThread):
     def enable(self):
         # This enables activation of joystick
         # actions by the user.
-        if self.no_joystick:
-            return
         self._state_btn.setEnabled(True)
 
     def activate(self):
@@ -625,12 +614,9 @@ class JoystickThread(QThread):
         self.running.clear()
 
     def run(self):
-        if not pygame:
-            self.ac.log("WARNING: Joystick support unavailable (requires pygame)")
-            return
         while self.running:
             try:
-                time.sleep(self.parent.bc.argus_joystick_cfg().get('scan_secs', 0.35))
+                time.sleep(self.parent.bc.joystick.scan_secs())
                 # It is important to check that the button is both enabled and
                 # active before performing actions. This allows us to preserve
                 # state by disabling and enabling the button only during scans.

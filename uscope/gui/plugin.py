@@ -45,6 +45,9 @@ class GstGUIImager(Imager):
         self.emitter = GstGUIImager.Emitter()
         self.width, self.height = self.usc.imager.final_wh()
 
+    def get_sn(self):
+        return self.ac.control_scroll.raw_prop_read("serial-number")
+
     def wh(self):
         return self.width, self.height
 

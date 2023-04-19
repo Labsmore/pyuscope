@@ -20,9 +20,9 @@ groups_gst = OrderedDict([
     (
         "AWB",
         [
-            "awb_rgb",
+            "awb-rgb",
             # not sure what this is but doesn't work
-            #"awb_tt",
+            #"awb-tt",
         ]),
     # software based, leave out for now
     #("Black balance", [

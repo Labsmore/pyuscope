@@ -51,59 +51,63 @@ AMA100 relay lens
         },
         "scalar": 0.5
     },
-    /*
-    See knob at right
-    There is a notch indicating current zoom level
-    */
-    "objectives": [
+
+
+    "systems": [
+        //Default configuration
         {
-            "name":"B0.5x @ 0.7x",
-            "x_view": 37.247
+            "camera_sn": null,
+            "objectives": [
+                {
+                    "name":"B0.5x @ 0.7x",
+                    "x_view": 37.247
+                },
+                {
+                    "name":"B0.5x @ 1.5x",
+                    "x_view": 17.382
+                },
+                {
+                    "name":"B0.5x @ 3.0x",
+                    "x_view": 8.691
+                },
+                {
+                    "name":"B0.5x @ 4.5x",
+                    "x_view": 5.794
+                },
+                {
+                    "name":"B1.0x @ 0.7x",
+                    "x_view": 18.624
+                },
+                {
+                    "name":"B1.0x @ 1.5x",
+                    "x_view": 8.691
+                },
+                {
+                    "name":"B1.0x @ 3.0x",
+                    "x_view": 4.345
+                },
+                {
+                    "name":"B1.0x @ 4.5x",
+                    "x_view": 2.897
+                },
+                {
+                    "name":"B2.0x @ 0.7x",
+                    "x_view": 9.312
+                },
+                {
+                    "name":"B2.0x @ 1.5x",
+                    "x_view": 4.345
+                },
+                {
+                    "name":"B2.0x @ 3.0x",
+                    "x_view": 2.173
+                },
+                {
+                    "name":"B2.0x @ 4.5x",
+                    "x_view": 1.448
+                },
+            ],
         },
-        {
-            "name":"B0.5x @ 1.5x",
-            "x_view": 17.382
-        },
-        {
-            "name":"B0.5x @ 3.0x",
-            "x_view": 8.691
-        },
-        {
-            "name":"B0.5x @ 4.5x",
-            "x_view": 5.794
-        },
-        {
-            "name":"B1.0x @ 0.7x",
-            "x_view": 18.624
-        },
-        {
-            "name":"B1.0x @ 1.5x",
-            "x_view": 8.691
-        },
-        {
-            "name":"B1.0x @ 3.0x",
-            "x_view": 4.345
-        },
-        {
-            "name":"B1.0x @ 4.5x",
-            "x_view": 2.897
-        },
-        {
-            "name":"B2.0x @ 0.7x",
-            "x_view": 9.312
-        },
-        {
-            "name":"B2.0x @ 1.5x",
-            "x_view": 4.345
-        },
-        {
-            "name":"B2.0x @ 3.0x",
-            "x_view": 2.173
-        },
-        {
-            "name":"B2.0x @ 4.5x",
-            "x_view": 1.448
-        },
-   ]
+    ],
 }
 

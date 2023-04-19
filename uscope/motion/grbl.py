@@ -60,6 +60,15 @@ def trim_status_line(l):
     return l[1:-1]
 
 
+def format_axis3(v):
+    """
+    Rounding errors on float can cause fine positioning errors?
+    """
+    ret = "%0.3f" % v
+    # print("axis3", ret)
+    return ret
+
+
 """
 https://www.sainsmart.com/blogs/news/grbl-v1-1-quick-reference
 """
@@ -820,8 +829,10 @@ class GRBL:
         for i in range(tries):
             try:
                 # implies G1
-                ax_str = ''.join(
-                    [' %c%0.3f' % (k.upper(), v) for k, v in pos.items()])
+                ax_str = ''.join([
+                    ' %c%s' % (k.upper(), format_axis3(v))
+                    for k, v in pos.items()
+                ])
                 self.gs.j("G90 %s F%u" % (ax_str, f))
                 if blocking:
                     self.wait_idle()
@@ -852,8 +863,9 @@ class GRBL:
             return self.soft_move_relative(pos, f, blocking=blocking)
         else:
             # implies G1
-            ax_str = ''.join(
-                [' %c%0.3f' % (k.upper(), v) for k, v in pos.items()])
+            ax_str = ''.join([
+                ' %c%s' % (k.upper(), format_axis3(v)) for k, v in pos.items()
+            ])
             self.gs.j("G91 %s F%u" % (ax_str, f))
             if blocking:
                 self.wait_idle()

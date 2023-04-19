@@ -277,6 +277,9 @@ class USCImager:
         """
         return self.j.get("save_quality", 95)
 
+    def um_per_pixel_raw_1x(self):
+        return self.j.get("um_per_pixel_raw_1x", None)
+
 
 class USCMotion:
     def __init__(self, j=None):
@@ -291,6 +294,16 @@ class USCMotion:
         # hmm pconfig tries to overlay on USCMotion
         # not a good idea?
         # assert "hal" in self.j
+
+    def format_position(self, axis, position):
+        if self.j.get("z_format6") and axis == "z":
+            whole = int(position)
+            position3f = abs(position - whole) * 1000
+            position3 = int(position3f)
+            position6 = int(round((position3f - position3) * 1000))
+            return "%d.%03u %03u" % (whole, position3, position6)
+        else:
+            return "%0.3f" % position
 
     def validate_axes_dict(self, axes):
         # FIXME
@@ -314,8 +327,10 @@ class USCMotion:
             raise ValueError("Invalid hal: %s" % (ret, ))
         return ret
 
-    def scalars(self):
+    def raw_scalars(self):
         """
+        WARNING: this is without system specific tweaks applied
+
         Scale each user command by given amount when driven to physical system
         Return a dictionary, one key per axis, of the possible axes
         Or None if should not be scaled
@@ -459,19 +474,113 @@ class USCKinematics:
         """
         self.j = j
 
-    def tsettle_motion(self):
+    """
+    Full motion delay: NA / tsettle_motion_na1() + tsettle_motion()
+
+    Ex:
+    tsettle_motion = 0.1
+    tsettle_motion_na1 = 0.8
+    NA = 0.50
+    min delay: 0.50 / 0.8 + 0.1 = 0.725 sec
+    """
+
+    def tsettle_motion_base(self):
         """
-        How much time to wait after moving to take an image
+        How much *minimum* time to wait after moving to take an image
+        This is a base constant added to the NA scalar below
         A factor of vibration + time to clear a frame
         """
-        return float(self.j.get("tsettle_motion", 0.0))
+        # Set a semi-reasonable default
+        return float(self.j.get("tsettle_motion_base", 0.25))
+
+    def tsettle_motion_na1(self):
+        """
+        How much delay added to tsettle_motion for a 1.0 numerical aperture objective
+        Ex: a 0.50 NA objective will wait half as long
+        """
+        # Set a semi-reasonable default
+        return float(self.j.get("tsettle_motion_na1", 0.5))
+
+    def tsettle_motion_max(self):
+        NA_MAX = 1.4
+        return self.tsettle_motion_base() + self.tsettle_motion_na1() * NA_MAX
 
     def tsettle_hdr(self):
         """
         How much time to wait after moving to take an image
         A factor of vibration + time to clear a frame
         """
-        return float(self.j.get("tsettle_hdr", 0.0))
+        # Set a semi-reasonable default
+        return float(self.j.get("tsettle_hdr", 0.2))
+
+
+class ObjectiveDB:
+    def __init__(self, fn=None, strict=None):
+        if fn is None:
+            fn = os.path.join(get_configs_dir(), "objectives.j5")
+        with open(fn) as f:
+            self.j = json5.load(f, object_pairs_hook=OrderedDict)
+        # Index by (vendor, model)
+        self.db = OrderedDict()
+        for entry in self.j["objectives"]:
+            assert entry["vendor"]
+            assert entry["model"]
+            # na, magnification is highly encouraged but not required?
+            k = (entry["vendor"].upper(), entry["model"].upper())
+            self.db[k] = entry
+        # hack in case needed to bypass short term
+        if strict is None:
+            strict = os.getenv("PYUSCOPE_STRICT_OBJECTIVEDB", "Y") == "Y"
+        self.strict = strict
+
+    def get(self, vendor, model):
+        return self.db[(vendor.upper(), model.upper())]
+
+    def set_defaults(self, objectivejs):
+        for objectivej in objectivejs:
+            self.set_default(objectivej)
+
+    def set_default(self, objectivej):
+        """
+        if vendor/model is found in db fill in default values from db
+        """
+
+        # experimental shorthand
+        # vendor, model is required to match
+        # other fields can be specified to make readable
+        # however they are optional and just checked for consistency
+        if "db_find" not in objectivej:
+            return
+        """
+        "db_find": "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.28",
+        """
+        fields = {}
+        for entry in objectivej["db_find"].split(","):
+            k, v = entry.split(":")
+            k = k.strip()
+            v = v.strip()
+            if k == "magnification":
+                v = int(v)
+            if k == "na":
+                v = float(v)
+            fields[k] = v
+        # Required
+        vendor = fields["vendor"]
+        model = fields["model"]
+        db_entry = self.db.get((vendor.upper(), model.upper()))
+        if not db_entry:
+            raise ValueError(f"Objective {vendor} {model} not found in db")
+        # Validate consistency on optional keys
+        for k, v in fields.items():
+            db_has = db_entry[k]
+            if db_has != v:
+                raise ValueError(
+                    f"db_find {vendor} {model}: config has {v} but db has {db_has}"
+                )
+        for k, v in db_entry.items():
+            # Anything user has already set
+            if k not in objectivej:
+                objectivej[k] = v
 
 
 # Microscope usj config parser
@@ -485,6 +594,7 @@ class USC:
         self.planner = USCPlanner(self.usj.get("planner", {}))
         self.kinematics = USCKinematics(self.usj.get("kinematics", {}))
         self.apps = {}
+        self.bc = get_bc()
 
     def app_register(self, name, cls):
         """
@@ -496,13 +606,90 @@ class USC:
     def app(self, name):
         return self.apps[name]
 
-    def get_scaled_objective(self, index):
+    def get_scaled_objective(self, microscope, index):
         """
         Return objective w/ automatic sizing (if applicable) applied
         """
-        return self.get_scaled_objectives()[index]
+        return self.get_scaled_objectives(microscope)[index]
 
-    def get_scaled_objectives(self):
+    def find_system(self, microscope=None):
+        """
+        Look for system specific configuration by matching camera S/N
+        In the future we might use other info
+        Expect file to have a default entry with null key or might consie
+        """
+        if microscope:
+            camera_sn = microscope.imager.get_sn()
+        else:
+            camera_sn = None
+        default_system = None
+        for system in self.usj.get("systems", []):
+            if system["camera_sn"] == camera_sn:
+                return system
+            if not system["camera_sn"]:
+                default_system = system
+        if default_system:
+            return default_system
+        raise ValueError(
+            f"failed to either match system or find default for camera S/N {camera_sn}"
+        )
+
+    def get_uncalibrated_objectives(self, microscope=None):
+        """
+        Get baseline objective configuration without system specific scaling applied
+        """
+        system = self.find_system(microscope)
+        # Shorthand notation?
+
+        if "objectives" in system:
+            return system["objectives"]
+        # shorthand
+        if "objectives_db" in system:
+            ret = []
+            for entry in system["objectives_db"]:
+                ret.append({"db_find": entry})
+            return ret
+        else:
+            raise ValueError(
+                "Found system but missing objective configuration")
+
+    def scale_objectives_1x(self, objectives):
+        # In raw sensor pixels before scaling
+        # That way can adjust scaling w/o adjusting
+        # This is the now preferred way to set configuration
+        um_per_pixel_raw_1x = self.imager.um_per_pixel_raw_1x()
+        if not um_per_pixel_raw_1x:
+            return
+
+        # crop_w, _crop_h = self.imager.cropped_wh()
+        final_w, _final_h = self.imager.final_wh()
+        # Objectives must support magnification to scale
+        for objective in objectives:
+            if "um_per_pixel" not in objective:
+                objective["um_per_pixel"] = um_per_pixel_raw_1x / objective[
+                    "magnification"] * self.imager.scalar()
+            if "x_view" not in objective:
+                # um to mm
+                objective[
+                    "x_view"] = final_w * um_per_pixel_raw_1x / self.imager.scalar(
+                    ) / objective["magnification"] / 1000
+
+    def apply_objective_tsettle(self, objectives):
+        reference_tsettle_motion = self.kinematics.tsettle_motion_na1()
+        reference_na = 1.0
+        # Objectives must support magnification to scale
+        for objective in objectives:
+            if "tsettle_motion" in objective:
+                continue
+            tsettle_motion = 0.0
+            # Ex: 2.0 sec sleep at 100x 1.0 NA => 20x 0.42 NA => 0.84 sec sleep
+            # Assume conservative NA (high power oil objective) if not specified
+            HIGHEST_NA = 1.4
+            tsettle_motion = reference_tsettle_motion * objective.get(
+                "na", HIGHEST_NA) / reference_na
+            objective["tsettle_motion"] = tsettle_motion
+
+    def get_scaled_objectives(self, microscope=None):
         """
         Return objectives w/ automatic sizing (if applicable) applied
 
@@ -512,73 +699,54 @@ class USC:
         magnification: optional
         na: optional
         """
-        objectives = copy.deepcopy(self.usj['objectives'])
+        # Copy so we can start filling in data
+        objectives = copy.deepcopy(
+            self.get_uncalibrated_objectives(microscope))
+        # Start by filling in missing metdata from DB
+        self.bc.objective_db.set_defaults(objectives)
+        # Now apply system specific sizing / calibration
+        self.scale_objectives_1x(objectives)
+        # Derrive kinematics parameters
+        # (ie slower settling at higher mag)
+        self.apply_objective_tsettle(objectives)
 
-        # Assume easiest to measure at lowest mag
-        reference_objective = objectives[0]
-        # In raw sensor pixels before scaling
-        # That way can adjust scaling w/o adjusting
-        # This is the now preferred way to set configuration
-        reference_raw_um_per_pix = reference_objective.get("um_per_pixel_raw")
-        reference_final_um_per_pix = reference_objective.get("um_per_pixel")
-        # raw_w, _raw_h = self.imager.raw_wh()
         final_w, _final_h = self.imager.final_wh()
-
-        def scale_reference(ref_um_per_pix, ref_w_pix, scalar):
-            # Objectives must support magnification to scale
-            for objective in objectives:
-                mag_scalar = reference_objective["magnification"] / objective[
-                    "magnification"]
-                objective[
-                    "um_per_pixel"] = ref_um_per_pix * mag_scalar * scalar
-                # um to mm
-                objective[
-                    "x_view"] = ref_w_pix * objective["um_per_pixel"] / 1000
-
-        if reference_raw_um_per_pix:
-            """
-            image scalar 0.5 => multiply effective pixel um by 2
-            """
-            scale_reference(reference_raw_um_per_pix, final_w, 1.0)
-        elif reference_final_um_per_pix:
-            scale_reference(reference_final_um_per_pix, final_w,
-                            1 / usc.imager.scalar())
-        # x_view is in the actual observed field of view after cropping
-        # Doesn't care about scaling
-        # x_view should be specified for each then
-        # Calculate um_per_pix
-        else:
-            final_w, _final_h = self.imager.final_wh()
-            for objective in objectives:
-                objective[
-                    "um_per_pixel"] = objective["x_view"] * 1000 / final_w
-
-        # Sanity check
         for objective in objectives:
-            assert "x_view" in objective
+            if "um_per_pixel" not in objective:
+                # mm to um
+                objective[
+                    "um_per_pixel"] = objective["x_view"] / final_w * 1000
 
-        # tsettle is referenced at the highest mag objective / worst case
-        reference_objective = objectives[-1]
-        # Amount of time to settle after moving
-        # Scale per NA. ie a lower resolution objective requires proportionately less settling time
-        reference_tsettle_motion = reference_objective.get("tsettle_motion")
-        reference_na = reference_objective.get("na")
-        # Objectives must support magnification to scale
-        for objective in objectives:
-            # Ex: 2.0 sec sleep at 100x 1.0 NA => 20x 0.42 NA => 0.84 sec sleep
-            if reference_tsettle_motion and reference_na and "na" in objective:
-                tsettle_motion = reference_tsettle_motion * objective[
-                    "na"] / reference_na
-            else:
-                tsettle_motion = 0.0
-            objective["tsettle_motion"] = tsettle_motion
-        """
-        if 0:
-            import json
-            print("objectives")
-            print(json.dumps(objectives, sort_keys=True, indent=4, separators=(",", ": ")))
-        """
+        # Sanity check required parameters
+        names = set()
+        for objectivei, objective in enumerate(objectives):
+            # last ditch name
+            if "name" not in objective:
+                if "magnification" in objective:
+                    objective["name"] = "%uX" % objective["magnification"]
+                else:
+                    objective["name"] = "Objective %u" % objectivei
+            assert "name" in objective, objective
+            assert objective[
+                "name"] not in names, f"Duplicate objective name {objective}"
+            names.add(objective["name"])
+            assert "x_view" in objective, objective
+            assert "um_per_pixel" in objective, objective
+            assert "tsettle_motion" in objective, objective
+
         return objectives
+
+    def get_motion_scalars(self, microscope):
+        """
+        Get scalars after applying system level tweaks
+        Ex: model trim w/ a higher ratio gearbox
+        """
+        scalars = dict(self.motion.raw_scalars())
+        system = self.find_system(microscope)
+        scalars_scalar = system.get("motion", {}).get("scalars_scalar", {})
+        for k, v in scalars_scalar.items():
+            scalars[k] = scalars[k] * v
+        return scalars
 
 
 def validate_usj(usj):
@@ -881,11 +1049,102 @@ class GUI(object):
 """
 Configuration more related to machine / user than a specific microscope
 """
+"""
+If the joystick is plugged in use this
+But by default don't require it
+maybe add an option to fault if not found
+
+
+Sample uscope.j5 entry:
+{
+    ...
+    "joystick": {
+        //(float) in seconds, to query/run the joystick actions
+        "scan_secs": 0.2
+        "fn_map": {
+            //"func_from_joystick_file": dict(keyword args for the function),
+            'axis_set_jog_slider_value': {'id': 3},
+            'btn_capture_image': {'id': 0},
+            'axis_move_x': {'id': 0},
+            'axis_move_y': {'id': 1},
+            'hat_move_z': {'id': 0, 'idx': 1}
+          }
+      }
+}
+
+The function names specified in "fn_map" are the functions to be
+mapped/triggered, and correspond to a function exposed within
+uscope.motion.joystick. The value for the function name is
+a dictionary of key:vals corresponding to the required arguments
+for the chosen function.
+
+See the docs in uscope/joystick.py for available functions
+"""
+
+
+class JoystickConfig:
+    def __init__(self, j):
+        self.j = j
+
+    def device_number(self):
+        return self.j.get("device_number", 0)
+
+    def scan_secs(self):
+        return self.j.get("tsettle_hdr", 0.2)
+
+    def function_map(self, model=None):
+        # If user manually specifies just take that
+        ret = self.j.get("function_map", None)
+        if ret:
+            return ret
+        # Auto detection requires model
+        if model is None:
+            raise Exception("Required (need model)")
+        # Yusuf / Andrew
+        if model == "Logitech Extreme 3D pro":
+            return {
+                'axis_set_jog_slider_value': {
+                    'id': 3
+                },
+                'btn_capture_image': {
+                    'id': 0
+                },
+                'axis_move_x': {
+                    'id': 0
+                },
+                'axis_move_y': {
+                    'id': 1
+                },
+                'hat_move_z': {
+                    'id': 0,
+                    'idx': 1
+                }
+            }
+        # John industrial joystick
+        elif model == "CH Products CH Products IP Desktop Controller":
+            return {
+                'btn_capture_image': {
+                    'id': 0
+                },
+                'axis_move_x': {
+                    'id': 0
+                },
+                'axis_move_y': {
+                    'id': 1
+                },
+                'axis_move_z': {
+                    'id': 2
+                }
+            }
+        else:
+            raise Exception("Required (need model)")
 
 
 class BaseConfig:
     def __init__(self, j=None):
         self.j = j
+        self.joystick = JoystickConfig(self.j.get("joystick", {}))
+        self.objective_db = ObjectiveDB()
 
     def labsmore_stitch_aws_access_key(self):
         return self.j.get("labsmore_stitch", {}).get("aws_access_key")
@@ -904,42 +1163,6 @@ class BaseConfig:
         Call given program with the scan output directory as the argument
         """
         return self.j.get("argus_stitch_cli", None)
-
-    def argus_joystick_cfg(self):
-        """
-        Get joystick config, or return default base config.
-
-        When specifying configuration for joysticks in the config file,
-        we expect it to be in this format:
-
-        { "joystick": {
-          "scan_secs": (float) in seconds, to query/run the joystick actions.
-          "fn_map": {
-            "func_from_joystick_file": dict(keyword args for the function),
-          }
-        }
-
-        The function names specified in "fn_map" are the functions to be
-        mapped/triggered, and correspond to a function exposed within
-        uscope.motion.joystick. The value for the function name is
-        a dictionary of key:vals corresponding to the required arguments
-        for the chosen function.
-
-        See the docs in joystick file for details on available functions.
-        """
-        default_joystick_cfg = {
-           'joystick': {
-              'scan_secs': 0.35,
-               'fn_map': {
-                  'axis_set_jog_slider_value': {'id': 3},
-                  'btn_capture_image': {'id': 0},
-                  'axis_move_x': {'id': 0},
-                  'axis_move_y': {'id': 1},
-                  'hat_move_z': {'id': 0, 'idx': 1}
-              },
-           },
-        }
-        return self.j.get("joystick", default_joystick_cfg['joystick'])
 
     def dev_mode(self):
         """

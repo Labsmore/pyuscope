@@ -91,6 +91,11 @@ class BacklashMM(MotionModifier):
     def __init__(self, motion, backlash, compensation):
         super().__init__(motion)
 
+        # Experiment: move to starting position then compensate
+        # Aims to give consistent velocity reaching end position for greater accuracy
+        # FIXME: something bad, leads to crashes...
+        self.jitter1 = False
+
         # Per axis
         self.backlash = backlash
         """
@@ -155,18 +160,20 @@ class BacklashMM(MotionModifier):
             # if delta == 0.0:
             #     continue
 
-            # Already compensated and still moving in the same direction?
-            # No compensation necessary
-            if self.compensated[axis] and (
-                    delta == 0.0 or sign(delta) == self.compensation[axis]):
-                continue
-            # A correction is possibly needed then
-            # Will the movement itself compensate?
-            if self.compensation[axis] == +1 and delta >= self.backlash[
-                    axis] or self.compensation[
-                        axis] == -1 and delta <= -self.backlash[axis]:
-                self.compensated[axis] = True
-                continue
+            if not self.jitter1:
+                # Already compensated and still moving in the same direction?
+                # No compensation necessary
+                if self.compensated[axis] and (
+                        delta == 0.0
+                        or sign(delta) == self.compensation[axis]):
+                    continue
+                # A correction is possibly needed then
+                # Will the movement itself compensate?
+                if self.compensation[axis] == +1 and delta >= self.backlash[
+                        axis] or self.compensation[
+                            axis] == -1 and delta <= -self.backlash[axis]:
+                    self.compensated[axis] = True
+                    continue
 
             if 0 and axis == "z":
                 self.log("z comp trig ")
@@ -184,7 +191,12 @@ class BacklashMM(MotionModifier):
         # Did we calculate any backlash moves?
         if len(corrections):
             self.recursing = True
-            self.motion.move_relative(corrections)
+            if self.jitter1:
+                self.motion.move_absolute(pos)
+                self.motion.move_relative(corrections)
+            # Traditional: move one delta
+            else:
+                self.motion.move_relative(corrections)
             self.recursing = False
             for axis in corrections.keys():
                 self.compensated[axis] = True
@@ -310,11 +322,11 @@ class ScalarMM(MotionModifier):
 
 
 class MotionHAL:
-    def __init__(self, options, log=None, verbose=None):
+    def __init__(self, log=None, verbose=None, microscope=None):
         # Per axis? Currently is global
+        self.microscope = microscope
         self.jog_rate = 0
         self.stop_on_del = True
-        self.use_wcs_offsets = bool(options.get("use_wcs_offsets", False))
 
         # dict containing (min, min) for each axis
         if log is None:
@@ -333,6 +345,11 @@ class MotionHAL:
         self.status_cbs = []
         self.mv_lastt = time.time()
 
+    def __del__(self):
+        self.close()
+
+    def configure(self, options):
+        self.use_wcs_offsets = bool(options.get("use_wcs_offsets", False))
         # MotionModifier's
         self.modifiers = OrderedDict()
         """
@@ -357,9 +374,6 @@ class MotionHAL:
             self.modifiers["scalar"] = ScalarMM(self,
                                                 scalars=scalars,
                                                 wcs_offsets=wcs_offsets)
-
-    def __del__(self):
-        self.close()
 
     def unregister_status_cb(self, cb):
         index = self.status_cbs.find(cb)
@@ -671,14 +685,14 @@ Ex: inherits movement
 class DryHal(MotionHAL):
     def __init__(self, hal, log=None):
         self.hal = hal
+        self.stop_on_del = True
 
         self._posd = self.hal.pos()
 
-        super().__init__(
-            # Don't re-apply pipeline
-            options={},
-            log=log,
-            verbose=hal.verbose)
+        super().__init__(log=log, verbose=hal.verbose)
+
+        # Don't re-apply pipeline (scaling, etc)
+        self.configure({})
 
     def _log(self, msg):
         self.log('Dry: ' + msg)

@@ -5,14 +5,19 @@ A minimal configuration to do basic testing
 Zoom 2.5
 */
 {
-    "planner": {
+    "kinematics": {
         //FIXME: not tuned
-        "tsettle_motion": 0.1,
+        "tsettle_motion_na1": 1.0,
+        "tsettle_motion_base": 0.1,
         "tsettle_hdr": 0.2,
     },
     "motion": {
         "hal": "grbl-ser",
+
         "backlash": 0.05,
+        "backlash_compensation": -1,
+        "z_format6": true,
+
         "use_wcs_offsets": true,
         "grbl": {
             "rc": [
@@ -38,7 +43,6 @@ Zoom 2.5
                 "G55",
             ],
         },
-        "backlash_compensation": -1,
         "scalars": {
             "x": 1.0,
             "y": 1.0,
@@ -52,29 +56,18 @@ Zoom 2.5
         "height": 4928,
         //TODO: revisit after cal checkout
         //"scalar": 0.5,
+        "um_per_pixel_raw_1x": 0.892857143,
     },
-    //FIXME: needs cal
-    "objectives": [
+
+    "systems": [
+        //Default configuration
         {
-            "name":"5X",
-            "magnification": 5,
-            "na": 0.14,
-            "x_view": 0.88,
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: Mitutoyo, model: 46-143, magnification: 5, na: 0.14",
+                "vendor: Mitutoyo, model: 46-144, magnification: 10, na: 0.28",
+                "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.42",
+            ],
         },
-        //L Plan 20X
-        {
-            "name":"20X",
-            "magnification": 20,
-            "na": 0.40,
-            "x_view": 0.22,
-        },
-        {
-            "name":"100X",
-            "magnification": 100,
-            "na": 0.90,
-            //FIXME: not tuned
-            "tsettle_motion": 1.0,
-            "x_view": 0.044,
-       },
     ],
 }

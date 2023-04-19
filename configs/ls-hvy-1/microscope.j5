@@ -8,9 +8,10 @@ Original "pr0nscope" mk2 BH2 CNC microscope
             "jog_name_widget": "sipr0n",
         },
     },
-    "planner": {
+    "kinematics": {
         //FIXME: not tuned
-        "tsettle_motion": 0.1,
+        "tsettle_motion_na1": 1.0,
+        "tsettle_motion_base": 0.1,
         "tsettle_hdr": 0.2,
     },
 
@@ -78,59 +79,24 @@ Original "pr0nscope" mk2 BH2 CNC microscope
                 "max": 200000
             },
         },
+        "um_per_pixel_raw_1x": 3.011029412,
     },
-    "objectives": [
+
+    "systems": [
+        //Default configuration
         {
-            "name":"Mitutoyo Apo 2X",
-            "magnification": 2,
-            "na": 0.055,
-            "suffix": "mit2x2",
-            "x_view": 8.20,
+            "camera_sn": null,
+            //Replaces default objectives_db
+            "objectives_db": [
+                "vendor: Mitutoyo, model: 58-235, magnification: 1, na: 0.025",
+                "vendor: Mitutoyo, model: 46-142, magnification: 2, na: 0.055",
+                "vendor: Mitutoyo, model: 46-143, magnification: 5, na: 0.14",
+                "vendor: Mitutoyo, model: 46-144, magnification: 10, na: 0.28",
+                "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.42",
+                "vendor: Mitutoyo, model: 46-147, magnification: 100, na: 0.70",
+                "vendor: Nikon, model: VC 60X, magnification: 60",
+            ],
         },
-        {
-            "name":"Mitutoyo Apo 5X",
-            "magnification": 5,
-            "na": 0.14,
-            "suffix": "mit5x2",
-            "x_view": 3.280,
-        },
-        {
-            "name":"Mitutoyo Apo 10X",
-            "magnification": 10,
-            "na": 0.28,
-            "suffix": "mit10x2",
-            "x_view": 1.64,
-        },
-        {
-            "name":"Mitutoyo Apo 20X",
-            "magnification": 20,
-            "na": 0.42,
-            "suffix": "mit20x2",
-            "x_view": 0.820,
-        },
-        {
-            "name":"Mitutoyo Apo 50X",
-            "magnification": 50,
-            "na": 0.55,
-            "suffix": "mit50x2",
-            "x_view": 0.328
-        },
-        {
-            "name":"VC 60X",
-            "magnification": 60,
-            "na": 1.40,
-            "suffix": "vc60x2",
-            "x_view": 0.273,
-        },
-        {
-            "name":"Mitutoyo Apo 100X",
-            "magnification": 100,
-            "na": 0.70,
-            "suffix": "mit100x2",
-            "x_view": 0.164,
-            //FIXME: not tuned
-            "tsettle_motion": 1.0,
-        }
-    ]
+    ],
 }
 

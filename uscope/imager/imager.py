@@ -30,6 +30,13 @@ class Imager:
         # Used to flush pipeline with changing HDR properties
         self.last_properties_change = time.time()
 
+    def configure(self):
+        pass
+
+    def get_sn(self):
+        """Used for unit identification"""
+        return None
+
     def since_properties_change(self):
         return time.time() - self.last_properties_change
 

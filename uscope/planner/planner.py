@@ -65,6 +65,7 @@ class Planner:
         pipeline=None,
         # As plugin names
         pipeline_names=None,
+        microscope=None,
         verbosity=None):
         if verbosity is None:
             verbosity = 2
@@ -94,6 +95,8 @@ class Planner:
         self.imager = imager
         if not self.motion:
             self.log("WARNING: no imager")
+
+        self.microscope = microscope
 
         if not meta_base:
             self.meta_base = {}

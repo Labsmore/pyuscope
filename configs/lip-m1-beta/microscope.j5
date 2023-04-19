@@ -11,11 +11,6 @@ A much larger sensor, too large for this microscope
 But not buggy like original intended camera
 */
 {
-    "planner": {
-        //FIXME: not tuned
-        "tsettle_motion": 0.1,
-        "tsettle_hdr": 0.2,
-    },
     /*
     Sherline
     https://www.sherline.com/product/2000-cnc2010-cnc-cnc-ready-deluxe-8-direction-mill/#specifications
@@ -82,34 +77,24 @@ But not buggy like original intended camera
         //Uncomment to save snapshots and scans 8-bit lossless
         //Note: raw and 12 bit support is much more involved / experimental
         //"save_extension": ".tif",
+        //5440 - 1396 * 2 = 2648
         "crop_pixels": {
             "top": 500,
             "bottom": 500,
             "left": 1396,
             "right": 1396,
         },
+        "um_per_pixel_raw_1x": 1.321752266,
     },
-    "objectives": [
+    "systems": [
+        //Default configuration
         {
-            "name":"Mitutoyo Apo 5X",
-            "magnification": 5,
-            "na": 0.14,
-            "suffix": "mit5x",
-            "x_view": 0.7,
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: Mitutoyo, model: 46-143, magnification: 5, na: 0.14",
+                "vendor: Mitutoyo, model: 46-144, magnification: 10, na: 0.28",
+                "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.42",
+            ],
         },
-        {
-            "name":"Mitutoyo Apo 10X",
-            "magnification": 10,
-            "na": 0.28,
-            "suffix": "mit10x",
-            "x_view": 0.35
-        },
-        {
-            "name":"Mitutoyo Apo 20X",
-            "magnification": 20,
-            "na": 0.42,
-            "suffix": "mit20x",
-            "x_view": 0.17,
-        },
-   ]
+    ],
 }

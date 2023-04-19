@@ -6,7 +6,7 @@ from uscope.planner.plugin import PlannerPlugin, register_plugin
 from PIL import Image
 from uscope.imager.imager_util import get_scaled
 from uscope.motion.hal import pos_str
-from uscope.motion.kinematics import Kinematics
+from uscope.kinematics import Kinematics
 from scipy import polyfit
 
 
@@ -921,11 +921,12 @@ class PlannerKinematics(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
         self.kinematics = Kinematics(
-            motion=self.motion,
-            imager=self.imager,
+            microscope=self.microscope,
+            log=self.log,
+        )
+        self.kinematics.configure(
             tsettle_motion=self.pc.kinematics.tsettle_motion(),
             tsettle_hdr=self.pc.kinematics.tsettle_hdr(),
-            log=self.log,
         )
 
     def log_scan_begin(self):

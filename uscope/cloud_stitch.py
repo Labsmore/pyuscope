@@ -1,9 +1,6 @@
 import os
 import io
-try:
-    import boto3
-except ImportError:
-    boto3 = None
+import boto3
 from uscope import config
 from uscope.util import writej
 import datetime
@@ -23,9 +20,6 @@ def upload_dir(
 
     if not os.path.isdir(directory):
         raise ValueError("Need a directory")
-
-    if boto3 is None:
-        raise ImportError("Requires boto3")
 
     bc = config.get_bc()
 

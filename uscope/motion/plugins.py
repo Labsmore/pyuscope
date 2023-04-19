@@ -73,25 +73,30 @@ def register_plugins():
 register_plugins()
 
 
-def get_motion_hal(usc=None, usc_motion=None, log=print):
+def get_motion_hal(usc=None, usc_motion=None, log=None, microscope=None):
+    if usc is None:
+        usc = get_usc()
     if usc_motion is None:
-        if usc is None:
-            usc = get_usc()
         usc_motion = usc.motion
+    if log is None:
+        log = print
     name = usc_motion.hal()
     # log("get_motion_hal: %s" % name)
     ctor = plugins.get(name)
     if ctor is None:
         raise Exception("Unknown motion HAL %s" % name)
-    kwargs = {
-        "options": {
-            "scalars": usc_motion.scalars(),
-            "backlash": usc_motion.backlash(),
-            "backlash_compensation": usc_motion.backlash_compensation(),
-            "soft_limits": usc_motion.soft_limits(),
-            "use_wcs_offsets": usc_motion.use_wcs_offsets(),
-        },
-        "log": log,
-    }
 
-    return ctor(usc_motion, kwargs)
+    return ctor(usc_motion, {"log": log})
+
+
+def configure_motion_hal(microscope):
+    usc = microscope.usc
+    usc_motion = usc.motion
+    options = {
+        "scalars": usc.get_motion_scalars(microscope),
+        "backlash": usc_motion.backlash(),
+        "backlash_compensation": usc_motion.backlash_compensation(),
+        "soft_limits": usc_motion.soft_limits(),
+        "use_wcs_offsets": usc_motion.use_wcs_offsets(),
+    }
+    microscope.motion.configure(options=options)

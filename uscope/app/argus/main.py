@@ -8,14 +8,15 @@ from uscope.imager.imager_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
-from uscope.app.argus.threads import JoystickThread, MotionThread, PlannerThread, StitcherThread, ImageProcessingThread
+from uscope.app.argus.threads import MotionThread, PlannerThread, StitcherThread, ImageProcessingThread
+from uscope.app.argus.threads import JoystickThread, JoystickNotFound
 from uscope.planner.planner_util import microscope_to_planner_config
-from uscope import util
 from uscope import config
 from uscope.motion import motion_util
 import json
 import json5
 from collections import OrderedDict
+from uscope.microscope import Microscope
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -148,6 +149,8 @@ class ObjectiveWidget(AWidget):
         row += 1
 
         self.setLayout(cl)
+
+    def post_ui_init(self):
         self.reload_obj_cb()
 
     def reload_obj_cb(self):
@@ -155,13 +158,14 @@ class ObjectiveWidget(AWidget):
         self.obj_cb.clear()
         self.obj_config = None
         self.obj_configi = None
-        for objective in self.ac.usc.get_scaled_objectives():
+        for objective in self.ac.usc.get_scaled_objectives(self.ac.microscope):
             self.obj_cb.addItem(objective['name'])
 
     def update_obj_config(self):
         '''Make resolution display reflect current objective'''
         self.obj_configi = self.obj_cb.currentIndex()
-        self.obj_config = self.ac.usc.get_scaled_objective(self.obj_configi)
+        self.obj_config = self.ac.usc.get_scaled_objective(
+            self.ac.microscope, self.obj_configi)
         self.ac.log('Selected objective %s' % self.obj_config['name'])
 
         im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
@@ -254,7 +258,7 @@ class SnapshotWidget(AWidget):
         self.ac.log('Requesting snapshot')
         # Disable until snapshot is completed
         self.snapshot_pb.setEnabled(False)
-        self.ac.joystick_thread.disable()
+        self.ac.joystick_thread and self.ac.joystick_thread.disable()
 
         def emitSnapshotCaptured(image_id):
             self.ac.log('Image captured: %s' % image_id)
@@ -298,7 +302,7 @@ class SnapshotWidget(AWidget):
         try_save()
 
         self.snapshot_pb.setEnabled(True)
-        self.ac.joystick_thread.enable()
+        self.ac.joystick_thread and self.ac.joystick_thread.enable()
 
     def post_ui_init(self):
         pass
@@ -485,7 +489,8 @@ class XYPlanner2PWidget(PlannerWidget):
             # hack...not all systems use z but is included by default
             if axis == 'z' and axis not in self.axis_pos_label:
                 continue
-            self.axis_pos_label[axis].setText('%0.3f' % axis_pos)
+            self.axis_pos_label[axis].setText(
+                self.ac.usc.motion.format_position(axis, axis_pos))
 
     def mk_contour_json(self):
         pos0 = self.get_corner_planner_pos("0")
@@ -516,7 +521,7 @@ class XYPlanner2PWidget(PlannerWidget):
         pconfig["app"] = {
             "app": "argus",
             "objective": objective,
-            "microscope": self.ac.microscope,
+            "microscope": self.ac.microscope_name,
         }
 
         out_dir_config = self.get_out_dir_j()
@@ -544,8 +549,10 @@ class XYPlanner2PWidget(PlannerWidget):
         # this is the current XY position
         pos = self.ac.motion_thread.pos_cache
         #self.ac.log("Updating start pos w/ %s" % (str(pos)))
-        self.plan_x0_le.setText('%0.3f' % pos['x'])
-        self.plan_y0_le.setText('%0.3f' % pos['y'])
+        self.plan_x0_le.setText(
+            self.ac.usc.motion.format_position("x", pos["x"]))
+        self.plan_y0_le.setText(
+            self.ac.usc.motion.format_position("y", pos["y"]))
 
     def x_view(self):
         # XXX: maybe put better abstraction on this
@@ -562,8 +569,10 @@ class XYPlanner2PWidget(PlannerWidget):
         # this is the current XY position + view size
         pos = self.ac.motion_thread.pos_cache
         #self.ac.log("Updating end pos from %s" % (str(pos)))
-        self.plan_x1_le.setText('%0.3f' % pos["x"])
-        self.plan_y1_le.setText('%0.3f' % pos["y"])
+        self.plan_x1_le.setText(
+            self.ac.usc.motion.format_position("x", pos["x"]))
+        self.plan_y1_le.setText(
+            self.ac.usc.motion.format_position("y", pos["y"]))
 
     def get_corner_widget_pos(self, corner_name):
         widgets = self.pb_gos[corner_name]
@@ -581,6 +590,8 @@ class XYPlanner2PWidget(PlannerWidget):
 
     def get_corner_planner_pos(self, corner_name):
         pos = self.get_corner_widget_pos(corner_name)
+        if pos is None:
+            return None
         x_view, y_view = self.get_view()
         # ll
         if corner_name == "0":
@@ -689,7 +700,7 @@ class XYPlanner3PWidget(PlannerWidget):
 
     def cache_load(self, cachej):
         j1 = cachej.get("XY3P", {})
-        self.track_z_cb.setChecked(j1.get("track_z", 0))
+        self.track_z_cb.setChecked(j1.get("track_z", 1))
         for group in ("ll", "ul", "lr"):
             widgets = self.corner_widgets[group]
             j2 = j1.get(group, {})
@@ -723,12 +734,15 @@ class XYPlanner3PWidget(PlannerWidget):
             # hack...not all systems use z but is included by default
             if axis == 'z' and axis not in self.axis_pos_label:
                 continue
-            self.axis_pos_label[axis].setText('%0.3f' % axis_pos)
+            self.axis_pos_label[axis].setText(
+                self.ac.usc.motion.format_position(axis, axis_pos))
 
     def mk_corner_json(self):
         corners = OrderedDict()
         for name in self.corner_widgets.keys():
             corner = self.get_corner_planner_pos(name)
+            if corner is None:
+                return None
             corners[name] = corner
 
         return corners
@@ -749,7 +763,7 @@ class XYPlanner3PWidget(PlannerWidget):
         pconfig["app"] = {
             "app": "argus",
             "objective": objective,
-            "microscope": self.ac.microscope,
+            "microscope": self.ac.microscope_name,
         }
 
         out_dir_config = self.get_out_dir_j()
@@ -760,25 +774,6 @@ class XYPlanner3PWidget(PlannerWidget):
             "pconfig": pconfig,
             "out_dir_config": out_dir_config,
         }
-
-    def set_start_pos(self):
-        '''
-        try:
-            lex = float(self.plan_x0_le.text())
-        except ValueError:
-            self.ac.log('WARNING: bad X value')
-
-        try:
-            ley = float(self.plan_y0_le.text())
-        except ValueError:
-            self.ac.log('WARNING: bad Y value')
-        '''
-        # take as upper left corner of view area
-        # this is the current XY position
-        pos = self.ac.motion_thread.pos_cache
-        #self.ac.log("Updating start pos w/ %s" % (str(pos)))
-        self.plan_x0_le.setText('%0.3f' % pos['x'])
-        self.plan_y0_le.setText('%0.3f' % pos['y'])
 
     def x_view(self):
         # XXX: maybe put better abstraction on this
@@ -794,17 +789,20 @@ class XYPlanner3PWidget(PlannerWidget):
         pos_cur = self.ac.motion_thread.pos_cache
         widgets = self.corner_widgets[corner_name]
 
-        widgets["x_le"].setText('%0.3f' % pos_cur['x'])
-        widgets["y_le"].setText('%0.3f' % pos_cur['y'])
-        widgets["z_le"].setText('%0.3f' % pos_cur['z'])
+        widgets["x_le"].setText(
+            self.ac.usc.motion.format_position("x", pos_cur["x"]))
+        widgets["y_le"].setText(
+            self.ac.usc.motion.format_position("y", pos_cur["y"]))
+        widgets["z_le"].setText(
+            self.ac.usc.motion.format_position("z", pos_cur["z"]))
 
     def get_corner_widget_pos(self, corner_name):
         widgets = self.corner_widgets[corner_name]
         try:
-            x = float(widgets["x_le"].text())
-            y = float(widgets["y_le"].text())
+            x = float(widgets["x_le"].text().replace(" ", ""))
+            y = float(widgets["y_le"].text().replace(" ", ""))
             if self.moving_z():
-                z = float(widgets["z_le"].text())
+                z = float(widgets["z_le"].text().replace(" ", ""))
         except ValueError:
             self.ac.log("Bad scan x/y")
             return None
@@ -875,13 +873,13 @@ class ScanWidget(AWidget):
             self.stop_pb.setIcon(QIcon(config.GUI.icon_files['stop']))
             layout.addWidget(self.stop_pb)
 
-            layout.addWidget(QLabel('Dry?'))
+            layout.addWidget(QLabel("Dry?"))
             self.dry_cb = QCheckBox()
             self.dry_cb.setChecked(self.ac.usc.app("argus").dry_default())
             layout.addWidget(self.dry_cb)
 
             # Used as generic "should stitch", although is labeled CloudStitch
-            layout.addWidget(QLabel('CloudStitch?'))
+            layout.addWidget(QLabel("CloudStitch?"))
             self.stitch_cb = QCheckBox()
             self.stitch_cb.setChecked(False)
             layout.addWidget(self.stitch_cb)
@@ -970,7 +968,7 @@ class ScanWidget(AWidget):
 
     def run_next_scan_config(self):
         try:
-            self.ac.joystick_thread.disable()
+            self.ac.joystick_thread and self.ac.joystick_thread.disable()
             self.current_scan_config = self.scan_configs[0]
             assert self.current_scan_config
             del self.scan_configs[0]
@@ -1011,6 +1009,7 @@ class ScanWidget(AWidget):
                 # Simple settings written to disk, no objects
                 "pconfig": pconfig,
                 "motion": self.ac.motion_thread.get_planner_motion(),
+                "microscope": self.ac.microscope,
 
                 # Typically GstGUIImager
                 # Will be offloaded to its own thread
@@ -1480,14 +1479,14 @@ class AdvancedTab(ArgusTab):
             """
 
             layout.addWidget(QLabel("+/- each side distance"), row, 0)
-            self.stacker_distance_le = QLineEdit("0.010")
+            self.stacker_distance_le = QLineEdit("")
             layout.addWidget(self.stacker_distance_le, row, 1)
             row += 1
 
             # Set to non-0 to activate
             layout.addWidget(QLabel("+/- each side snapshots (+1 center)"),
                              row, 0)
-            self.stacker_number_le = QLineEdit("0")
+            self.stacker_number_le = QLineEdit("")
             layout.addWidget(self.stacker_number_le, row, 1)
             row += 1
 
@@ -1626,6 +1625,20 @@ class AdvancedTab(ArgusTab):
                                        self.ac.kinematics.tsettle_motion)
         self.tsettle_hdr_le.setText("%f" % self.ac.kinematics.tsettle_hdr)
 
+    def cache_save(self, cachej):
+        cachej["advanced"] = {
+            "stacking": {
+                "images_pm": self.stacker_number_le.text(),
+                "distance_pm": self.stacker_distance_le.text(),
+            }
+        }
+
+    def cache_load(self, cachej):
+        j = cachej.get("advanced", {})
+        stacking = j.get("stacking", {})
+        self.stacker_number_le.setText(stacking.get("images_pm", "0"))
+        self.stacker_distance_le.setText(stacking.get("distance_pm", "0.010"))
+
 
 class StitchingTab(ArgusTab):
     def __init__(self, ac, parent=None):
@@ -1736,7 +1749,7 @@ class StitchingTab(ArgusTab):
                 self.cloud_stitch_add(scan_config["out_dir"])
 
         # Enable joystick control if appropriate
-        self.ac.joystick_thread.enable()
+        self.ac.joystick_thread and self.ac.joystick_thread.enable()
 
     def cloud_stitch_add(self, directory):
         self.ac.log(f"CloudStitch: requested {directory}")
@@ -1910,6 +1923,7 @@ def out_dir_config_to_dir(j, parent):
 # def scan_dir_fn(user, parent):
 #    return snapshot_fn(user=user, extension="", parent=parent)
 
+
 class JoystickListener(QPushButton):
     """
     Widget that maintains state of joystick enabled/disabled.
@@ -1924,6 +1938,7 @@ class JoystickListener(QPushButton):
     def hitButton(self, pos):
         self.toggle()
         return True
+
 
 class JogListener(QPushButton):
     """
@@ -2048,8 +2063,10 @@ class JogSlider(QWidget):
             return
         old_range = val_max - val_min
         new_range = self.slider_max - self.slider_min
-        new_value = (((val - val_min) * new_range) / old_range) + self.slider_min
+        new_value = ((
+            (val - val_min) * new_range) / old_range) + self.slider_min
         self.slider.setValue(new_value)
+
 
 class MotionWidget(AWidget):
     def __init__(self, ac, motion_thread, usc, log, parent=None):
@@ -2073,14 +2090,19 @@ class MotionWidget(AWidget):
         self.last_send = time.time()
 
     def initUI(self):
-        self.setWindowTitle('Demo')
+        # ?
+        self.setWindowTitle("Demo")
 
         layout = QVBoxLayout()
-        self.joystick_listener = JoystickListener("  Joystick Contol", self)
+        self.joystick_listener = None
+        if self.ac.joystick_thread:
+            self.joystick_listener = JoystickListener("  Joystick Contol",
+                                                      self)
         self.listener = JogListener("XXX", self)
         self.update_jog_text()
         layout.addWidget(self.listener)
-        layout.addWidget(self.joystick_listener)
+        if self.joystick_listener:
+            layout.addWidget(self.joystick_listener)
         self.slider = JogSlider(usc=self.usc)
         layout.addWidget(self.slider)
 
@@ -2281,25 +2303,25 @@ class SiPr0nScanNameWidget(AWidget):
         layout = QHBoxLayout()
 
         # old: freeform
-        # layout.addWidget(QLabel('Job name'), 0, 0, 1, 2)
+        # layout.addWidget(QLabel("Job name'), 0, 0, 1, 2)
         # self.job_name_le = QLineEdit('default')
         # layout.addWidget(self.job_name_le)
 
         # Will add _ between elements to make final name
 
-        layout.addWidget(QLabel('Vendor'))
+        layout.addWidget(QLabel("Vendor"))
         self.vendor_name_le = QLineEdit('unknown')
         layout.addWidget(self.vendor_name_le)
 
-        layout.addWidget(QLabel('Product'))
+        layout.addWidget(QLabel("Product"))
         self.product_name_le = QLineEdit('unknown')
         layout.addWidget(self.product_name_le)
 
-        layout.addWidget(QLabel('Layer'))
+        layout.addWidget(QLabel("Layer"))
         self.layer_name_le = QLineEdit('mz')
         layout.addWidget(self.layer_name_le)
 
-        layout.addWidget(QLabel('Ojbective'))
+        layout.addWidget(QLabel("Ojbective"))
         self.objective_name_le = QLineEdit('unkx')
         layout.addWidget(self.objective_name_le)
 
@@ -2348,7 +2370,7 @@ class ArgusCommon(QObject):
 
     # pos = pyqtSignal(int)
 
-    def __init__(self, microscope=None, mw=None):
+    def __init__(self, microscope_name=None, mw=None):
         QObject.__init__(self)
 
         self.mw = mw
@@ -2360,8 +2382,9 @@ class ArgusCommon(QObject):
         self.joystick_thread = None
         self.image_processing_thread = None
 
-        self.microscope = microscope
-        self.usj = get_usj(name=microscope)
+        self.microscope = None
+        self.microscope_name = microscope_name
+        self.usj = get_usj(name=microscope_name)
         self.usc = USC(usj=self.usj)
         self.usc.app_register("argus", USCArgus)
         self.aconfig = self.usc.app("argus")
@@ -2376,6 +2399,7 @@ class ArgusCommon(QObject):
                                        overview2=True,
                                        roi=True,
                                        log=self.log)
+
         # FIXME: review sizing
         self.vidpip.size_widgets(frac=0.2)
         # self.capture_sink = Gst.ElementFactory.make("capturesink")
@@ -2408,23 +2432,38 @@ class ArgusCommon(QObject):
         self.motion_thread.log_msg.connect(self.log)
         self.motion = self.motion_thread.motion
 
+        # TODO: init things in Microscope and then push references here
+        self.microscope = Microscope(
+            bc=self.bc,
+            usc=self.usc,
+            motion=self.motion,
+            # should all be initialized
+            auto=False,
+            configure=False)
+
+        try:
+            self.joystick_thread = JoystickThread(ac=self, parent=self)
+        except JoystickNotFound:
+            self.log("Joystick not found")
+
     def initUI(self):
         self.vidpip.setupWidgets()
 
     def post_ui_init(self):
         self.control_scroll.run()
         self.vid_fd = None
-        self.motion_thread.start()
         self.vidpip.run()
         self.init_imager()
 
-        # We need the joystick thread to be initialized here,
-        # after UI elements have been initialized so that it
-        # has access to the joystick UI button.
-        self.joystick_thread = JoystickThread(parent=self)
-        self.joystick_thread.log_msg.connect(self.log)
-        self.joystick_thread.start()
+        # TODO: init things in Microscope and then push references here
+        self.microscope.imager = self.imager
+        self.microscope.configure()
 
+        self.motion_thread.start()
+        if self.joystick_thread:
+            self.joystick_thread.post_ui_init()
+            self.joystick_thread.log_msg.connect(self.log)
+            self.joystick_thread.start()
         # Needs imager which isn't initialized until gst GUI objects are made
         self.image_processing_thread = ImageProcessingThread(
             motion_thread=self.motion_thread, ac=self)
@@ -2494,7 +2533,7 @@ class MainWindow(QMainWindow):
         self.ac = None
         self.awidgets = OrderedDict()
         self.polli = 0
-        self.ac = ArgusCommon(microscope=microscope, mw=self)
+        self.ac = ArgusCommon(microscope_name=microscope, mw=self)
         self.init_objects()
         self.ac.logs.append(self.mainTab.log)
         self.initUI()
@@ -2639,7 +2678,7 @@ def main():
     try:
         gstwidget_main(MainWindow, parse_args=parse_args)
     except Exception as e:
-        print(traceback.format_exc(-1))
+        print(traceback.format_exc())
         error(str(e))
 
 

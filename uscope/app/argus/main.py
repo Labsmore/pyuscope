@@ -2401,7 +2401,7 @@ class ArgusCommon(QObject):
                                        log=self.log)
 
         # FIXME: review sizing
-        self.vidpip.size_widgets(frac=0.2)
+        self.vidpip.size_widgets(frac=0.4)
         # self.capture_sink = Gst.ElementFactory.make("capturesink")
 
         # TODO: some pipelines output jpeg directly

@@ -847,7 +847,9 @@ def init_data_dir(microscope_name):
 
 
 def get_configs_dir():
-    return "configs/"
+    # Assume for now its next to package
+    return os.path.realpath(
+        os.path.dirname(os.path.realpath(__file__)) + "/../configs")
 
 
 def get_config_dir(name=None):

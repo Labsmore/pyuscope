@@ -18,6 +18,9 @@ import shutil
 from collections import OrderedDict
 import traceback
 from uscope import config
+import multiprocessing
+import threading
+import queue
 
 
 def process_hdr_image_enfuse(fns_in, fn_out, ewf=None, best_effort=True):
@@ -219,73 +222,6 @@ def bucket_group(iindex_in, bucket_key):
     return fns
 
 
-def hdr_run(iindex_in, dir_out, ewf=None, lazy=True, best_effort=True):
-    if not os.path.exists(dir_out):
-        os.mkdir(dir_out)
-    image_suffix = get_image_suffix(iindex_in["dir"])
-    buckets = bucket_group(iindex_in, "hdr")
-
-    # Must be in exposure order?
-    for fn_prefix, hdrs in sorted(buckets.items()):
-        fns = [
-            os.path.join(iindex_in["dir"], fn)
-            for _i, fn in sorted(hdrs.items())
-        ]
-        fn_out = os.path.join(dir_out, fn_prefix + image_suffix)
-        if lazy and os.path.exists(fn_out):
-            print(f"lazy: skip {fn_out}")
-        else:
-            print(fn_prefix, fn_out)
-            print("  ", hdrs.items())
-            process_hdr_image_enfuse(fns,
-                                     fn_out,
-                                     ewf=ewf,
-                                     best_effort=best_effort)
-
-
-def stack_run(iindex_in, dir_out, lazy=True, best_effort=True):
-    if not os.path.exists(dir_out):
-        os.mkdir(dir_out)
-    image_suffix = get_image_suffix(iindex_in["dir"])
-    buckets = bucket_group(iindex_in, "stack")
-
-    def clean_tmp_files():
-        if delete_tmp:
-            # Remove old files
-            for fn in glob.glob(os.path.join(iindex_in["dir"], "aligned_*")):
-                os.unlink(fn)
-
-    clean_tmp_files()
-    try:
-        # Must be in stack order?
-        for fn_prefix, stacks in sorted(buckets.items()):
-            print(stacks.items())
-            fns = [
-                os.path.join(iindex_in["dir"], fn)
-                for _i, fn in sorted(stacks.items())
-            ]
-            fn_out = os.path.join(dir_out, fn_prefix + image_suffix)
-            if lazy and os.path.exists(fn_out):
-                print(f"lazy: skip {fn_out}")
-            else:
-                # Stacking can fail to align features
-                # Consider what to do such as filling in a patch image
-                # from the middle of the stack
-                try:
-                    process_stack_image_panotools(iindex_in["dir"],
-                                                  fns,
-                                                  fn_out,
-                                                  best_effort=best_effort)
-                except subprocess.CalledProcessError:
-                    if not best_effort:
-                        raise
-                    else:
-                        print("WARNING: ignoring exception")
-                        traceback.print_exc()
-    finally:
-        clean_tmp_files()
-
-
 def need_jpg_conversion(working_dir):
     fns = glob.glob(working_dir + "/*.tif")
     print("fns", fns)
@@ -379,6 +315,285 @@ def already_uploaded(directory):
                          recursive=True)) > 0
 
 
+class ImageProcessorThread(threading.Thread):
+    def __init__(self, ip, name):
+        super().__init__()
+        self.ip = ip
+        self.name = name
+        self.running = threading.Event()
+        # Set for single commands
+        self.simple_idle = threading.Event()
+        self.simple_idle.set()
+        self.queue_in = queue.Queue()
+        self.queue_out = queue.Queue()
+        self.running.set()
+
+    def stop(self):
+        self.running.clear()
+
+    def queue_command(self, name, hook=None, block=None, **kwargs):
+        done_event = None
+        if block:
+            assert not hook
+            done_event = threading.Event()
+
+            def hook(command, kwargs, result, info):
+                done_event.set()
+
+        self.simple_idle.clear()
+        self.queue_in.put((name, kwargs, hook))
+        if done_event:
+            done_event.wait()
+
+    def process_hdr_image_enfuse(self,
+                                 fns_in,
+                                 fn_out,
+                                 ewf=None,
+                                 best_effort=True,
+                                 hook=None,
+                                 block=None):
+        self.add_command(name="process_hdr_image_enfuse",
+                         fns_in=fns_in,
+                         fn_out=fn_out,
+                         ewf=ewf,
+                         best_effort=best_effort,
+                         hook=hook,
+                         block=block)
+
+    def do_process_hdr_image_enfuse(self,
+                                    fns_in,
+                                    fn_out,
+                                    ewf=None,
+                                    best_effort=True):
+        try:
+            process_hdr_image_enfuse(fns_in=fns_in,
+                                     fn_out=fn_out,
+                                     ewf=ewf,
+                                     best_effort=best_effort)
+        except subprocess.CalledProcessError:
+            if not best_effort:
+                raise
+            else:
+                print("WARNING: ignoring exception")
+                traceback.print_exc()
+
+    def process_stack_image_panotools(self,
+                                      dir_in,
+                                      fns_in,
+                                      fn_out,
+                                      best_effort=True,
+                                      hook=None,
+                                      block=None):
+        self.add_command(name="process_stack_image_panotools",
+                         dir_in=dir_in,
+                         fns_in=fns_in,
+                         fn_out=fn_out,
+                         best_effort=best_effort,
+                         hook=hook,
+                         block=block)
+
+    def do_process_stack_image_panotools(self,
+                                         dir_in,
+                                         fns_in,
+                                         fn_out,
+                                         best_effort=True):
+        # Stacking can fail to align features
+        # Consider what to do such as filling in a patch image
+        # from the middle of the stack
+        try:
+            process_stack_image_panotools(dir_in,
+                                          fns_in,
+                                          fn_out,
+                                          best_effort=best_effort)
+        except subprocess.CalledProcessError:
+            if not best_effort:
+                raise
+            else:
+                print("WARNING: ignoring exception")
+                traceback.print_exc()
+
+    def wait_queue_out(self, command=None, timeout=None):
+        (command_out, kwargs, result, info) = self.queue_in.get(True, timeout)
+        if result != "ok":
+            raise Exception(f"Command {command_out} failed: {result} {info}")
+        if command:
+            assert command_out == command
+        return info
+
+    def run(self):
+        def finish_command(result, info):
+            out = (command, kwargs, result, info)
+            self.queue_out.put(out)
+            if hook:
+                hook(*out)
+            self.simple_idle.set()
+
+        while self.running.is_set():
+            try:
+                (command, kwargs, hook) = self.queue_in.get(True, 0.1)
+            except queue.Empty:
+                continue
+            f = {
+                "process_hdr_image_enfuse":
+                self.do_process_hdr_image_enfuse,
+                "process_stack_image_panotools":
+                self.do_process_stack_image_panotools,
+            }.get(command)
+            if f is None:
+                print(f"Invalid command {command}")
+                finish_command("error", "invalid command")
+                continue
+            try:
+                ret = f(**kwargs)
+                print("Command done")
+                finish_command("ok", ret)
+            except Exception as e:
+                print("")
+                print("WARNING: worker thread crashed")
+                print(traceback.format_exc())
+                finish_command("exception", e)
+                continue
+
+
+class ImageProcessor:
+    def __init__(self, nthreads=None):
+        if nthreads is None:
+            nthreads = multiprocessing.cpu_count()
+        self.workers = OrderedDict()
+        for i in range(nthreads):
+            name = f"w{i}"
+            self.workers[name] = ImageProcessorThread(self, name)
+        for worker in self.workers.values():
+            worker.start()
+        self.tasks = None
+
+    def __del__(self):
+        self.shutdown()
+
+    def run(self):
+        for worker in self.workers.values():
+            worker.start()
+
+    def shutdown(self):
+        if self.workers:
+            print("Shutting down: requesting")
+            for worker in self.workers.values():
+                worker.stop()
+            print("Shutting down: joining")
+            for worker in self.workers.values():
+                worker.join()
+            self.workers = None
+
+    def init_tasks(self):
+        self.tasks = []
+
+    def queue_task(self, name, **kwargs):
+        self.tasks.append((name, kwargs))
+
+    def run_tasks(self):
+        # self.workers_free = set(self.workers.values())
+        # self.workers_allocated = set()
+        ntasks = len(self.tasks)
+        print(f"Allocating {ntasks} tasks")
+        while len(self.tasks):
+            # Try to allocate more tasks
+            idle = True
+            for worker in self.workers.values():
+                if worker.simple_idle.is_set():
+                    idle = False
+                    name, kwargs = self.tasks[0]
+                    del self.tasks[0]
+                    worker.queue_command(name, **kwargs)
+                    if len(self.tasks) == 0:
+                        break
+            if idle:
+                time.sleep(0.1)
+        print("Waiting for tasks to complete")
+        # Wait for all outstanding tasks to complete
+        while True:
+            idle = True
+            for worker in self.workers.values():
+                if not worker.simple_idle.is_set():
+                    idle = False
+            if idle:
+                break
+            time.sleep(0.1)
+        # XXX: collect results?
+        print("all tasks done")
+        self.tasks = None
+
+    def hdr_run(self,
+                iindex_in,
+                dir_out,
+                ewf=None,
+                lazy=True,
+                best_effort=True):
+        if not os.path.exists(dir_out):
+            os.mkdir(dir_out)
+        image_suffix = get_image_suffix(iindex_in["dir"])
+        buckets = bucket_group(iindex_in, "hdr")
+
+        self.init_tasks()
+
+        # Must be in exposure order?
+        for fn_prefix, hdrs in sorted(buckets.items()):
+            fns = [
+                os.path.join(iindex_in["dir"], fn)
+                for _i, fn in sorted(hdrs.items())
+            ]
+            fn_out = os.path.join(dir_out, fn_prefix + image_suffix)
+            if lazy and os.path.exists(fn_out):
+                print(f"lazy: skip {fn_out}")
+            else:
+                print(fn_prefix, fn_out)
+                print("  ", hdrs.items())
+                print("Queing task")
+                self.queue_task("process_hdr_image_enfuse",
+                                fns_in=fns,
+                                fn_out=fn_out,
+                                ewf=ewf,
+                                best_effort=best_effort)
+        self.run_tasks()
+
+    def stack_run(self, iindex_in, dir_out, lazy=True, best_effort=True):
+        if not os.path.exists(dir_out):
+            os.mkdir(dir_out)
+        image_suffix = get_image_suffix(iindex_in["dir"])
+        buckets = bucket_group(iindex_in, "stack")
+
+        def clean_tmp_files():
+            if delete_tmp:
+                # Remove old files
+                for fn in glob.glob(os.path.join(iindex_in["dir"],
+                                                 "aligned_*")):
+                    os.unlink(fn)
+
+        clean_tmp_files()
+        self.init_tasks()
+        try:
+            # Must be in stack order?
+            for fn_prefix, stacks in sorted(buckets.items()):
+                print(stacks.items())
+                fns = [
+                    os.path.join(iindex_in["dir"], fn)
+                    for _i, fn in sorted(stacks.items())
+                ]
+                fn_out = os.path.join(dir_out, fn_prefix + image_suffix)
+                if lazy and os.path.exists(fn_out):
+                    print(f"lazy: skip {fn_out}")
+                else:
+                    print("Queing task")
+                    self.queue_task("process_stack_image_panotools",
+                                    dir_in=iindex_in["dir"],
+                                    fns_in=fns,
+                                    fn_out=fn_out,
+                                    best_effort=best_effort)
+            self.run_tasks()
+
+        finally:
+            clean_tmp_files()
+
+
 def run_dir(directory,
             access_key=None,
             secret_key=None,
@@ -389,83 +604,91 @@ def run_dir(directory,
             lazy=True,
             best_effort=True,
             verbose=True):
-    print("Reading metadata...")
+    ip = None
 
+    print("Reading metadata...")
     working_iindex = index_scan_images(directory)
     dst_basename = os.path.basename(os.path.abspath(directory))
 
-    print("")
+    try:
+        ip = ImageProcessor()
 
-    if not working_iindex["hdrs"]:
-        print("HDR: no. Straight pass through")
-    else:
-        print("HDR: yes. Processing")
-        # dir name needs to be reasonable for CloudStitch to name it well
-        next_dir = os.path.join(working_iindex["dir"], "hdr")
-        hdr_run(working_iindex,
-                next_dir,
-                ewf=ewf,
-                lazy=lazy,
-                best_effort=best_effort)
-        working_iindex = index_scan_images(next_dir)
+        print("")
 
-    print("")
-
-    if not working_iindex["stacks"]:
-        print("Stacker: no. Straight pass through")
-    else:
-        print("Stacker: yes. Processing")
-        # dir name needs to be reasonable for CloudStitch to name it well
-        next_dir = os.path.join(working_iindex["dir"], "stack")
-        # maybe? helps some use cases
-        if lazy and os.path.exists(next_dir):
-            print("lazy: skip stack")
+        if not working_iindex["hdrs"]:
+            print("HDR: no. Straight pass through")
         else:
-            stack_run(working_iindex,
-                      next_dir,
-                      lazy=lazy,
-                      best_effort=best_effort)
-        working_iindex = index_scan_images(next_dir)
+            print("HDR: yes. Processing")
+            # dir name needs to be reasonable for CloudStitch to name it well
+            next_dir = os.path.join(working_iindex["dir"], "hdr")
+            ip.hdr_run(working_iindex,
+                       next_dir,
+                       ewf=ewf,
+                       lazy=lazy,
+                       best_effort=best_effort)
+            working_iindex = index_scan_images(next_dir)
 
-    # CloudStitch currently only supports .jpg
-    if need_jpg_conversion(working_iindex["dir"]):
         print("")
-        print("Converting to jpg")
-        next_dir = os.path.join(working_iindex["dir"], "jpg")
-        tif2jpg_dir(working_iindex, next_dir, lazy=lazy)
-        working_iindex = index_scan_images(next_dir)
 
-    print("")
-    healthy = inspect_final_dir(working_iindex)
-    print("")
+        if not working_iindex["stacks"]:
+            print("Stacker: no. Straight pass through")
+        else:
+            print("Stacker: yes. Processing")
+            # dir name needs to be reasonable for CloudStitch to name it well
+            next_dir = os.path.join(working_iindex["dir"], "stack")
+            # maybe? helps some use cases
+            if lazy and os.path.exists(next_dir):
+                print("lazy: skip stack")
+            else:
+                ip.stack_run(working_iindex,
+                             next_dir,
+                             lazy=lazy,
+                             best_effort=best_effort)
+            working_iindex = index_scan_images(next_dir)
 
-    if not healthy and best_effort:
-        print("WARNING: data is incomplete but trying to patch")
-        next_dir = os.path.join(working_iindex["dir"], "fix")
-        fix_dir(working_iindex, next_dir)
-        working_iindex = index_scan_images(next_dir)
+        # CloudStitch currently only supports .jpg
+        if need_jpg_conversion(working_iindex["dir"]):
+            print("")
+            print("Converting to jpg")
+            next_dir = os.path.join(working_iindex["dir"], "jpg")
+            tif2jpg_dir(working_iindex, next_dir, lazy=lazy)
+            working_iindex = index_scan_images(next_dir)
+
         print("")
-        print("re-inspecting new dir")
         healthy = inspect_final_dir(working_iindex)
-        assert healthy
         print("")
 
-    if not upload:
-        print("CloudStitch: skip (requested)")
-    elif not healthy:
-        print("CloudStitch: skip (incomplete data)")
-    elif not access_key and not config.get_bc().labsmore_stitch_aws_access_key(
-    ):
-        print("CloudStitch: skip (missing credidentials)")
-    else:
-        print("Ready to stitch " + working_iindex["dir"])
-        cloud_stitch.upload_dir(working_iindex["dir"],
-                                access_key=access_key,
-                                secret_key=secret_key,
-                                id_key=id_key,
-                                notification_email=notification_email,
-                                dst_basename=dst_basename,
-                                verbose=verbose)
+        if not healthy and best_effort:
+            print("WARNING: data is incomplete but trying to patch")
+            next_dir = os.path.join(working_iindex["dir"], "fix")
+            fix_dir(working_iindex, next_dir)
+            working_iindex = index_scan_images(next_dir)
+            print("")
+            print("re-inspecting new dir")
+            healthy = inspect_final_dir(working_iindex)
+            assert healthy
+            print("")
+
+        if not upload:
+            print("CloudStitch: skip (requested)")
+        elif not healthy:
+            print("CloudStitch: skip (incomplete data)")
+        elif not access_key and not config.get_bc(
+        ).labsmore_stitch_aws_access_key():
+            print("CloudStitch: skip (missing credidentials)")
+        else:
+            print("Ready to stitch " + working_iindex["dir"])
+            cloud_stitch.upload_dir(working_iindex["dir"],
+                                    access_key=access_key,
+                                    secret_key=secret_key,
+                                    id_key=id_key,
+                                    notification_email=notification_email,
+                                    dst_basename=dst_basename,
+                                    verbose=verbose)
+    finally:
+        if ip:
+            ip.shutdown()
+            del ip
 
 
 def run(directory_maybe, batch_sleep=2400, *args, **kwargs):
@@ -517,6 +740,7 @@ def main():
         "--best-effort",
         default=True,
         help="Best effort in lieu of crashing on error (ex: stack failure)")
+    parser.add_argument("--threads", default=None)
     parser.add_argument("--access-key")
     parser.add_argument("--secret-key")
     parser.add_argument("--id-key")

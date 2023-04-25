@@ -37,7 +37,7 @@ delete_tmp = True
 skip_align = True
 
 
-def process_stack_image_panotools(dir_in, fns_in, fn_out, best_effort=True):
+def process_stack_image_panotools(dir_in, fns_in, fn_out, best_effort=True, prefix=None):
     """
     align_image_stack -m -a OUT $(ls)
     -m  Optimize field of view for all images, except for first. Useful for aligning focus stacks with slightly different magnification.
@@ -58,17 +58,19 @@ def process_stack_image_panotools(dir_in, fns_in, fn_out, best_effort=True):
         for fn in glob.glob(os.path.join(dir_in, "aligned_*")):
             os.unlink(fn)
 
+    if not prefix:
+        prefix = "aligned_"
     if skip_align:
         for imi, fn in enumerate(fns_in):
             subprocess.check_call([
                 "convert", fn,
-                os.path.join(dir_in, "aligned_%04u.tif" % imi)
+                os.path.join(dir_in, prefix + "%04u.tif" % imi)
             ])
     else:
         # Always output as .tif
         args = [
             "align_image_stack", "-l", "-i", "-v", "--use-given-order", "-a",
-            os.path.join(dir_in, "aligned_")
+            os.path.join(dir_in, prefix)
         ]
         for fn in fns_in:
             args.append(fn)
@@ -79,7 +81,7 @@ def process_stack_image_panotools(dir_in, fns_in, fn_out, best_effort=True):
         "enfuse", "--exposure-weight=0", "--saturation-weight=0",
         "--contrast-weight=1", "--hard-mask", "--output=" + fn_out
     ]
-    for fn in glob.glob(os.path.join(dir_in, "aligned_*")):
+    for fn in glob.glob(os.path.join(dir_in, prefix + "*")):
         args.append(fn)
     print(" ".join(args))
     subprocess.check_call(args)
@@ -87,7 +89,7 @@ def process_stack_image_panotools(dir_in, fns_in, fn_out, best_effort=True):
     if delete_tmp:
         # Remove old files
         # This can also confuse globbing to find extra tifs
-        for fn in glob.glob(os.path.join(dir_in, "aligned_*")):
+        for fn in glob.glob(os.path.join(dir_in, prefix + "*")):
             os.unlink(fn)
 
 
@@ -404,7 +406,8 @@ class ImageProcessorThread(threading.Thread):
             process_stack_image_panotools(dir_in,
                                           fns_in,
                                           fn_out,
-                                          best_effort=best_effort)
+                                          best_effort=best_effort,
+                                          prefix="aligned_" + self.name + "_")
         except subprocess.CalledProcessError:
             if not best_effort:
                 raise
@@ -593,7 +596,6 @@ class ImageProcessor:
         finally:
             clean_tmp_files()
 
-
 def run_dir(directory,
             access_key=None,
             secret_key=None,
@@ -602,6 +604,7 @@ def run_dir(directory,
             ewf=None,
             upload=True,
             lazy=True,
+            fix=False,
             best_effort=True,
             verbose=True):
     ip = None
@@ -637,13 +640,10 @@ def run_dir(directory,
             # dir name needs to be reasonable for CloudStitch to name it well
             next_dir = os.path.join(working_iindex["dir"], "stack")
             # maybe? helps some use cases
-            if lazy and os.path.exists(next_dir):
-                print("lazy: skip stack")
-            else:
-                ip.stack_run(working_iindex,
-                             next_dir,
-                             lazy=lazy,
-                             best_effort=best_effort)
+            ip.stack_run(working_iindex,
+                         next_dir,
+                         lazy=lazy,
+                         best_effort=best_effort)
             working_iindex = index_scan_images(next_dir)
 
         # CloudStitch currently only supports .jpg
@@ -659,6 +659,8 @@ def run_dir(directory,
         print("")
 
         if not healthy and best_effort:
+            if not fix:
+                raise Exception("Need to fix data to continue, but --fix not specified")
             print("WARNING: data is incomplete but trying to patch")
             next_dir = os.path.join(working_iindex["dir"], "fix")
             fix_dir(working_iindex, next_dir)
@@ -731,6 +733,7 @@ def main():
         description="Process HDR/stacking / etc + CloudStitch")
     add_bool_arg(parser, "--verbose", default=True)
     add_bool_arg(parser, "--upload", default=True)
+    add_bool_arg(parser, "--fix", default=False)
     add_bool_arg(parser,
                  "--lazy",
                  default=True,
@@ -763,6 +766,7 @@ def main():
         notification_email=args.notification_email,
         ewf=args.ewf,
         upload=args.upload,
+        fix=args.fix,
         best_effort=args.best_effort,
         lazy=args.lazy,
         batch_sleep=args.batch_sleep,

@@ -859,7 +859,7 @@ def get_config_dir(name=None):
         return config_dir
     microscope_name = default_microscope_name(name)
 
-    config_dir = get_configs_dir() + microscope_name
+    config_dir = os.path.join(get_configs_dir(), microscope_name)
     return config_dir
 
 

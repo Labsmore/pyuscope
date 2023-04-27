@@ -4,7 +4,7 @@ A minimal configuration to do basic testing
 {
     "kinematics": {
         //FIXME: not tuned
-        "tsettle_motion_na1": 1.0,
+        "tsettle_motion_na1": 0.5,
         "tsettle_motion_base": 0.1,
         "tsettle_hdr": 0.2,
     },

@@ -6,6 +6,7 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
     "motion": {
         "hal": "grbl-ser",
         "backlash": 0.05,
+        "backlash_compensation": -1,
         "scalars": {
             "x": -2.5,
             "y": 4.0,
@@ -63,6 +64,26 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
             },
         },
         "um_per_pixel_raw_1x": 3.262867647,
+        /*
+        Lower right of plate is high
+        For now reduce FoV to compensate
+        There is also some lens distortion that should be corrected for optimal images
+        (also less pronounced when cropped)
+        */
+        //Distortion is high w/o this
+        "crop_pixels": {
+            "top": 0,
+            "bottom": 0,
+            "left": 896,
+            "right": 896,
+        },
+        //Give a little more margin for quality stitches
+        "crop_pixels": {
+            "top": 224,
+            "bottom": 224,
+            "left": 1120,
+            "right": 1120,
+        },
     },
     "systems": [
         //Default configuration
@@ -73,7 +94,7 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
                 "vendor: Olympus, model: NeoSPlan 10X",
                 "vendor: Olympus, model: NeoSPlan 20X",
                 "vendor: Olympus, model: NeoDPlan 50X",
-                "vendor: Olympus, model: NeoSPlan 10X",
+                "vendor: Olympus, model: NeoSPlan 100X",
             ],
         },
     ],

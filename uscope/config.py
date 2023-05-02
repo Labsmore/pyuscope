@@ -723,7 +723,10 @@ class USC:
             # last ditch name
             if "name" not in objective:
                 if "magnification" in objective:
-                    objective["name"] = "%uX" % objective["magnification"]
+                    if "series" in objective:
+                        objective["name"] = "%s %uX" % (objective["series"], objective["magnification"])
+                    else:
+                        objective["name"] = "%uX" % objective["magnification"]
                 else:
                     objective["name"] = "Objective %u" % objectivei
             assert "name" in objective, objective

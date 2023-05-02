@@ -235,7 +235,7 @@
         },
         {
             "vendor": "Nikon",
-            "model": "CF Plan",
+            "model": "CF Plan 20X",
             "magnification": 20,
             "na": 0.46,
             "wd": 3.1,
@@ -243,7 +243,7 @@
         },
         {
             "vendor": "Nikon",
-            "model": "CF Plan",
+            "model": "CF Plan 50X",
             "magnification": 50,
             "na": 0.80,
             "wd": 0.54,
@@ -251,7 +251,7 @@
         },
         {
             "vendor": "Nikon",
-            "model": "CF Plan",
+            "model": "CF Plan 100X",
             "magnification": 100,
             "na": 0.95,
             "wd": 0.3,

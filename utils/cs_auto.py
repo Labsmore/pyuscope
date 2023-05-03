@@ -53,19 +53,20 @@ def process_stack_image_panotools(dir_in, fns_in, fn_out, best_effort=True, pref
     os.mkdir(tmp_dir)
     """
 
-    # Remove old files
-    if delete_tmp:
-        for fn in glob.glob(os.path.join(dir_in, "aligned_*")):
-            os.unlink(fn)
+    # Remove old files (if any)
+    for fn in glob.glob(os.path.join(dir_in, prefix + "*")):
+        os.unlink(fn)
 
     if not prefix:
         prefix = "aligned_"
     if skip_align:
         for imi, fn in enumerate(fns_in):
+            fn_aligned = os.path.join(dir_in, prefix + "%04u.tif" % imi)
             subprocess.check_call([
                 "convert", fn,
-                os.path.join(dir_in, prefix + "%04u.tif" % imi)
+                fn_aligned
             ])
+            assert os.path.exists(fn_aligned)
     else:
         # Always output as .tif
         args = [
@@ -460,7 +461,7 @@ class ImageProcessorThread(threading.Thread):
 
 class ImageProcessor:
     def __init__(self, nthreads=None):
-        if nthreads is None:
+        if not nthreads:
             nthreads = multiprocessing.cpu_count()
         self.workers = OrderedDict()
         for i in range(nthreads):
@@ -606,6 +607,7 @@ def run_dir(directory,
             lazy=True,
             fix=False,
             best_effort=True,
+            nthreads=None,
             verbose=True):
     ip = None
 
@@ -614,7 +616,7 @@ def run_dir(directory,
     dst_basename = os.path.basename(os.path.abspath(directory))
 
     try:
-        ip = ImageProcessor()
+        ip = ImageProcessor(nthreads=nthreads)
 
         print("")
 
@@ -770,6 +772,7 @@ def main():
         best_effort=args.best_effort,
         lazy=args.lazy,
         batch_sleep=args.batch_sleep,
+        nthreads=args.threads,
         verbose=args.verbose)
 
 

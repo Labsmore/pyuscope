@@ -352,6 +352,7 @@ class MotionHAL:
         self.use_wcs_offsets = bool(options.get("use_wcs_offsets", False))
         # MotionModifier's
         self.modifiers = OrderedDict()
+        self.disabled_modifiers = set()
         """
         Order is important
         Do soft limits after backlash in case backlash compensation would cause a crash
@@ -374,6 +375,30 @@ class MotionHAL:
             self.modifiers["scalar"] = ScalarMM(self,
                                                 scalars=scalars,
                                                 wcs_offsets=wcs_offsets)
+
+    def disable_modifier(self, name):
+        self.disabled_modifiers.add(name)
+
+    def enable_modifier(self, name):
+        self.disabled_modifiers.remove(name)
+
+    def backlash_disable(self):
+        """
+        Temporarily disable backlash correction, if any
+        """
+        self.disable_modifier("backlash")
+
+    def backlash_enable(self):
+        """
+        Revert above
+        """
+        self.enable_modifier("backlash")
+
+    def iter_active_modifiers(self):
+        for modifier_name, modifier in self.modifiers.items():
+            if modifier_name in self.disabled_modifiers:
+                continue
+            yield modifier
 
     def unregister_status_cb(self, cb):
         index = self.status_cbs.find(cb)
@@ -407,7 +432,7 @@ class MotionHAL:
 
     def update_status(self, status):
         # print("update_status begin: %s" % (status,))
-        for modifier in self.modifiers.values():
+        for modifier in self.iter_active_modifiers():
             modifier.update_status(status)
         for cb in self.status_cbs:
             cb(status)
@@ -432,7 +457,7 @@ class MotionHAL:
 
     def process_pos(self, pos):
         # print("pos init %s" % (pos,))
-        for modifier in self.modifiers.values():
+        for modifier in self.iter_active_modifiers():
             modifier.pos(pos)
         # print("pos final %s" % (pos,))
 
@@ -477,10 +502,10 @@ class MotionHAL:
         self.verbose and print("motion: move_absolute(%s)" % (pos_str(pos)))
         try:
             self.cur_pos_cache_invalidate()
-            for modifier in self.modifiers.values():
+            for modifier in self.iter_active_modifiers():
                 modifier.move_absolute_pre(pos, options=options)
             _ret = self._move_absolute(pos)
-            for modifier in self.modifiers.values():
+            for modifier in self.iter_active_modifiers():
                 modifier.move_absolute_post(True, options=options)
             self.mv_lastt = time.time()
         finally:
@@ -512,10 +537,10 @@ class MotionHAL:
         self.verbose and print("motion: move_relative(%s)" % (pos_str(pos)))
         self.cur_pos_cache_invalidate()
         try:
-            for modifier in self.modifiers.values():
+            for modifier in self.iter_active_modifiers():
                 modifier.move_relative_pre(pos, options=options)
             _ret = self._move_relative(pos)
-            for modifier in self.modifiers.values():
+            for modifier in self.iter_active_modifiers():
                 modifier.move_relative_post(True, options=options)
             self.mv_lastt = time.time()
         finally:
@@ -544,7 +569,7 @@ class MotionHAL:
         self.cur_pos_cache_invalidate()
         try:
             self.validate_axes(scalars.keys())
-            for modifier in self.modifiers.values():
+            for modifier in self.iter_active_modifiers():
                 modifier.jog(scalars, options=options)
             self._jog(scalars)
         finally:

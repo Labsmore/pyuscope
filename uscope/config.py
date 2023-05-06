@@ -724,7 +724,8 @@ class USC:
             if "name" not in objective:
                 if "magnification" in objective:
                     if "series" in objective:
-                        objective["name"] = "%s %uX" % (objective["series"], objective["magnification"])
+                        objective["name"] = "%s %uX" % (
+                            objective["series"], objective["magnification"])
                     else:
                         objective["name"] = "%uX" % objective["magnification"]
                 else:

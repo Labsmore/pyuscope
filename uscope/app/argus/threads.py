@@ -160,6 +160,12 @@ class MotionThread(QThread):
     def home(self, block=False):
         self.command("home", block=block)
 
+    def backlash_disable(self, block=False):
+        self.command("backlash_disable", block=block)
+
+    def backlash_enable(self, block=False):
+        self.command("backlash_enable", block=block)
+
     def move_absolute(self, pos, block=False):
         self.command("move_absolute", pos, block=block)
 
@@ -282,6 +288,8 @@ class MotionThread(QThread):
                     'pos': self.motion.pos,
                     'set_jog_rate': self.motion.set_jog_rate,
                     'home': self.motion.home,
+                    'backlash_disable': self.motion.backlash_disable,
+                    'backlash_enable': self.motion.backlash_enable,
                     # 'stop': self.motion.stop,
                     # 'estop': self.motion.estop,
                     'unestop': self.motion.unestop,

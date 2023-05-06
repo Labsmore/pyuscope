@@ -267,6 +267,7 @@
         {
             "vendor": "Nikon",
             "model": "VC 60X",
+            "series": "VC",
             "magnification": 60,
             "na": 1.40,
             "thread": "M26",

@@ -37,7 +37,11 @@ delete_tmp = True
 skip_align = True
 
 
-def process_stack_image_panotools(dir_in, fns_in, fn_out, best_effort=True, prefix=None):
+def process_stack_image_panotools(dir_in,
+                                  fns_in,
+                                  fn_out,
+                                  best_effort=True,
+                                  prefix=None):
     """
     align_image_stack -m -a OUT $(ls)
     -m  Optimize field of view for all images, except for first. Useful for aligning focus stacks with slightly different magnification.
@@ -62,10 +66,7 @@ def process_stack_image_panotools(dir_in, fns_in, fn_out, best_effort=True, pref
     if skip_align:
         for imi, fn in enumerate(fns_in):
             fn_aligned = os.path.join(dir_in, prefix + "%04u.tif" % imi)
-            subprocess.check_call([
-                "convert", fn,
-                fn_aligned
-            ])
+            subprocess.check_call(["convert", fn, fn_aligned])
             assert os.path.exists(fn_aligned)
     else:
         # Always output as .tif
@@ -597,6 +598,7 @@ class ImageProcessor:
         finally:
             clean_tmp_files()
 
+
 def run_dir(directory,
             access_key=None,
             secret_key=None,
@@ -662,7 +664,8 @@ def run_dir(directory,
 
         if not healthy and best_effort:
             if not fix:
-                raise Exception("Need to fix data to continue, but --fix not specified")
+                raise Exception(
+                    "Need to fix data to continue, but --fix not specified")
             print("WARNING: data is incomplete but trying to patch")
             next_dir = os.path.join(working_iindex["dir"], "fix")
             fix_dir(working_iindex, next_dir)

@@ -126,11 +126,21 @@ A minimal configuration to do basic testing
         //FIXME: some values cause crash
         //Some weird rounding issue
         //So continue to hard code for now :(
+        /*
         "crop_pixels": {
             "top": 194,
             "bottom": 194,
             "left": 656,
             "right": 656,
+        },
+        */
+        //uneven illuminator...
+        //be more conservative for now
+        "crop_pixels": {
+            "top": 393,
+            "bottom": 393,
+            "left": 856,
+            "right": 856,
         },
         "source_properties_mod": {
             //In us. Can go up to 15 sec which is impractical for typical usage

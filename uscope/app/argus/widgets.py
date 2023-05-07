@@ -1997,6 +1997,11 @@ class MotionWidget(AWidget):
             self.move_abs_le.returnPressed.connect(self.move_abs_le_process)
             layout.addWidget(self.move_abs_le)
 
+            layout.addWidget(QLabel("Relative move"))
+            self.move_rel_le = QLineEdit()
+            self.move_rel_le.returnPressed.connect(self.move_rel_le_process)
+            layout.addWidget(self.move_rel_le)
+
             layout.addWidget(QLabel("Backlash compensate?"))
             self.move_abs_backlash_cb = QCheckBox()
             self.move_abs_backlash_cb.setChecked(True)
@@ -2042,6 +2047,15 @@ class MotionWidget(AWidget):
             self.motion_thread.move_relative(bpos)
         """
         self.motion_thread.move_absolute(pos)
+
+    def move_rel_le_process(self):
+        s = str(self.move_rel_le.text())
+        try:
+            pos = motion_util.parse_move(s)
+        except ValueError:
+            self.ac.log("Failed to parse move. Need like: X1.0 Y2.4")
+            return
+        self.motion_thread.move_relative(pos)
 
     def mdi_le_process(self):
         if self.mdi_le:

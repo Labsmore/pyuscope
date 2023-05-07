@@ -202,11 +202,14 @@ class BacklashMM(MotionModifier):
                 self.compensated[axis] = True
 
     def move_relative_pre(self, pos, options={}):
+        # backlash will overshoot
+        assert 0, "fixme: broken"
         if self.recursing:
             return
-        self.move_absolute_pre(
-            self.motion.estimate_relative_pos(
-                pos, cur_pos=self.motion.cur_pos_cache()))
+        final_abs_pos = self.motion.estimate_relative_pos(
+            pos, cur_pos=self.motion.cur_pos_cache())
+        print("tmp estimated pos", final_abs_pos)
+        self.move_absolute_pre(final_abs_pos)
 
     def jog(self, scalars, options={}):
         # Don't modify jog commands, but invalidate compensation
@@ -535,6 +538,7 @@ class MotionHAL:
         self.validate_axes(pos.keys())
 
         self.verbose and print("motion: move_relative(%s)" % (pos_str(pos)))
+        """
         self.cur_pos_cache_invalidate()
         try:
             for modifier in self.iter_active_modifiers():
@@ -545,7 +549,13 @@ class MotionHAL:
             self.mv_lastt = time.time()
         finally:
             self.cur_pos_cache_invalidate()
-        # return ret
+        """
+        # there are bugs in backlash compensation
+        # globally switch to soft relative for now
+        self.cur_pos_cache_invalidate()
+        final_abs_pos = self.estimate_relative_pos(
+            pos, cur_pos=self.cur_pos_cache())
+        self.move_absolute(final_abs_pos, options=options)
 
     def _move_relative(self, delta):
         '''Relative move to positions specified by delta dict'''

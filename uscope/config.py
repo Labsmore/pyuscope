@@ -301,9 +301,25 @@ class USCMotion:
             position3f = abs(position - whole) * 1000
             position3 = int(position3f)
             position6 = int(round((position3f - position3) * 1000))
+            # fixme: hacck
+            if position6 >= 1000:
+                position6 -= 1000
+                position3 += 1
+                if position3 >= 1000:
+                    position3 -= 1000
+                    position3f += 1
             return "%d.%03u %03u" % (whole, position3, position6)
         else:
             return "%0.3f" % position
+
+    def format_positions(self, position):
+        ret = ""
+        for axis, this_pos in sorted(position.items()):
+            if ret:
+                ret += " "
+            ret += "%c%s" % (axis.upper(), self.format_position(
+                axis, this_pos))
+        return ret
 
     def validate_axes_dict(self, axes):
         # FIXME

@@ -2046,6 +2046,10 @@ class MotionWidget(AWidget):
                 self.usc.motion.backlash_compensation())
             self.motion_thread.move_relative(bpos)
         """
+        self.log("Move absolute to %s" %
+                 self.ac.usc.motion.format_positions(pos))
+        self.log("  From %s" % self.ac.usc.motion.format_positions(
+            self.ac.motion_thread.pos_cache))
         self.motion_thread.move_absolute(pos)
 
     def move_rel_le_process(self):
@@ -2055,6 +2059,9 @@ class MotionWidget(AWidget):
         except ValueError:
             self.ac.log("Failed to parse move. Need like: X1.0 Y2.4")
             return
+        self.log("Move relative %s" % self.ac.usc.motion.format_positions(pos))
+        self.log("  From %s" % self.ac.usc.motion.format_positions(
+            self.ac.motion_thread.pos_cache))
         self.motion_thread.move_relative(pos)
 
     def mdi_le_process(self):

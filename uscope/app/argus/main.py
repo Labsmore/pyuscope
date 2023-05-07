@@ -35,6 +35,8 @@ class MainWindow(QMainWindow):
         self.ac.logs.append(self.mainTab.log)
         self.initUI()
         self.post_ui_init()
+        # save for plugin load
+        self.cachej = None
         plugin_name = os.getenv("PYUSCOPE_TAB_PLUGIN")
         if plugin_name:
             self.load_tab_plugin(plugin_name)
@@ -44,12 +46,12 @@ class MainWindow(QMainWindow):
 
     def cache_load(self):
         fn = self.ac.aconfig.cache_fn()
-        cachej = {}
+        self.cachej = {}
         if os.path.exists(fn):
             with open(fn, "r") as f:
-                cachej = json5.load(f)
+                self.cachej = json5.load(f)
         for tab in self.awidgets.values():
-            tab.cache_load(cachej)
+            tab.cache_load(self.cachej)
 
     def cache_save(self):
         if not self.ac:
@@ -90,6 +92,7 @@ class MainWindow(QMainWindow):
         self.ac.mainTab = self.mainTab
         self.ac.stitchingTab = self.stitchingTab
         self.ac.batchTab = self.batchTab
+        self.pluginTab = None
 
     def initUI(self):
         self.ac.initUI()
@@ -127,6 +130,9 @@ class MainWindow(QMainWindow):
         self.mainTab.planner_widget_xy2p.poll_misc()
         self.mainTab.planner_widget_xy3p.poll_misc()
         self.imagerTab.poll_misc()
+
+        if self.pluginTab:
+            self.pluginTab.poll_misc()
 
         # Save ocassionally / once 3 seconds
         if self.polli % 15 == 0:
@@ -168,6 +174,11 @@ class MainWindow(QMainWindow):
         tab.initUI()
         self.tab_widget.addTab(tab, "Plugin")
         tab.post_ui_init()
+        # fixme not sure issue
+        cachej = self.cachej
+        if not cachej:
+            cachej = {}
+        self.pluginTab.cache_load(cachej)
 
 
 def parse_args():

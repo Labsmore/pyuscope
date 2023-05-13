@@ -46,7 +46,10 @@ class GstGUIImager(Imager):
         self.width, self.height = self.usc.imager.final_wh()
 
     def get_sn(self):
-        return self.ac.control_scroll.raw_prop_read("serial-number")
+        if self.ac.vidpip.source_name == "gst-toupcamsrc":
+            return self.ac.control_scroll.raw_prop_read("serial-number")
+        else:
+            return None
 
     def wh(self):
         return self.width, self.height

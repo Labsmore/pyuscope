@@ -8,13 +8,20 @@ A minimal configuration to do basic testing
     "imager": {
         "source":"gst-videotestsrc",
 		"width": 150,
-		"height": 50
+		"height": 50,
+        "um_per_pixel_raw_1x": 1.0,
     },
-    "objectives": [
-		{
-			"name":"Objective",
-			"suffix":"suffix",
-			"x_view": 1.0
-		}
-    ]
+    "systems": [
+        //Default configuration
+        {
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: Olympus, model: NeoDPlan 5X",
+                "vendor: Olympus, model: NeoDPlan 10X",
+                "vendor: Olympus, model: NeoSPlan 20X",
+                "vendor: Olympus, model: NeoDPlan 50X",
+                "vendor: Olympus, model: NeoSPlan 10X",
+            ],
+        },
+    ],
 }

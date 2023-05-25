@@ -295,16 +295,18 @@ class FullROIWidget(AWidget):
         # Overview
         def low_res_layout():
             layout = QVBoxLayout()
-            layout.addWidget(QLabel("Overview"))
-            layout.addWidget(self.ac.vidpip.get_widget("overview"))
+            if "overview" in self.ac.vidpip.wigdatas:
+                layout.addWidget(QLabel("Overview"))
+                layout.addWidget(self.ac.vidpip.get_widget("overview"))
 
             return layout
 
         # Higher res in the center for focusing
         def high_res_layout():
             layout = QVBoxLayout()
-            layout.addWidget(QLabel("Focus"))
-            layout.addWidget(self.ac.vidpip.get_widget("roi"))
+            if "overview_roi" in self.ac.vidpip.wigdatas:
+                layout.addWidget(QLabel("Focus"))
+                layout.addWidget(self.ac.vidpip.get_widget("overview_roi"))
 
             return layout
 
@@ -1211,8 +1213,11 @@ class ImagerTab(ArgusTab):
         # Most of the layout is filled in from the ControlScroll
         self.layout = QVBoxLayout()
 
-        # screws up the original
-        self.layout.addWidget(self.ac.vidpip.get_widget("overview2"))
+        if "overview2" in self.ac.vidpip.wigdatas:
+            # screws up the original
+            layout2 = QHBoxLayout()
+            layout2.addWidget(self.ac.vidpip.get_widget("overview2"))
+            self.layout.addLayout(layout2)
 
         def hdr_gb():
             layout = QGridLayout()

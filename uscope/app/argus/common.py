@@ -149,12 +149,12 @@ class ArgusCommon(QObject):
         self.motion = None
         self.vidpip = GstVideoPipeline(usc=self.usc,
                                        overview=True,
-                                       overview2=True,
-                                       roi=True,
+                                       overview_roi=True,
+                                       overview2=False,
                                        log=self.log)
 
         # FIXME: review sizing
-        self.vidpip.size_widgets(frac=0.4)
+        # self.vidpip.size_widgets()
         # self.capture_sink = Gst.ElementFactory.make("capturesink")
 
         # TODO: some pipelines output jpeg directly

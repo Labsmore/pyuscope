@@ -105,17 +105,16 @@ class GstVideoPipeline:
         self,
         # Enable overview view?
         overview=True,
+        # Enable ROI view?
+        overview_roi=False,
         # Enable overview view?
         # hack for second tab displaying overview
         overview2=False,
-        # Enable ROI view?
-        roi=False,
+        overview_full_window=False,
+        widget_configs=None,
         # microscope configuration
         usj=None,
         usc=None,
-        # Manually specify how many widgets are expected in widest window
-        # Applicable if you have multiple tabs / windows
-        nwidgets_wide=None,
         log=None):
         if usc is None:
             usc = config.get_usc(usj=usj)
@@ -124,11 +123,33 @@ class GstVideoPipeline:
         self.source_name = None
         self.verbose = os.getenv("USCOPE_GSTWIDGET_VERBOSE") == "Y"
 
-        # x buffer target
-        self.overview = overview
-        self.overview2 = overview2
-        # ROI view
-        self.roi = roi
+        if widget_configs is None:
+            widget_configs = OrderedDict()
+            # Main window view
+            # Placed next to each other
+            if overview:
+                widget_configs["overview"] = {
+                    "type": "overview",
+                    "group": "overview1"
+                }
+            if overview_roi:
+                widget_configs["overview_roi"] = {
+                    "type": "roi",
+                    "group": "overview1"
+                }
+
+            # For calibrating video feed
+            if overview2:
+                widget_configs["overview2"] = {
+                    "type": "overview",
+                    "size": "small"
+                }
+            # Stand alone window
+            if overview_full_window:
+                widget_configs["overview_full_window"] = {
+                    "type": "overview",
+                    "size": "max"
+                }
         """
         key: gst name
         widget: QWidget
@@ -136,34 +157,18 @@ class GstVideoPipeline:
         width/height:
         """
         self.wigdatas = OrderedDict()
-        if self.overview:
-            self.wigdatas["overview"] = {
-                "type": "overview",
-                "name": "sinkx_overview",
-            }
-        if self.overview2:
-            self.wigdatas["overview2"] = {
-                "type": "overview",
-                "name": "sinkx_overview2",
-            }
-        if self.roi:
-            self.wigdatas["roi"] = {
-                "type": "roi",
-                "name": "sinkx_roi",
-            }
-
-        for wigdata in self.wigdatas.values():
+        for widget_name, widget_config in widget_configs.items():
+            wigdata = dict(widget_config)
+            wigdata["gst_name"] = "sinkx_" + widget_name
             wigdata["widget"] = None
             wigdata["winid"] = None
-            wigdata["width"] = None
-            wigdata["height"] = None
+            wigdata["screen_w"] = None
+            wigdata["screen_h"] = None
             # gst elements
             wigdata["sinkx"] = None
             wigdata["videoscale"] = None
             wigdata["capsfilter"] = None
-
-        # Must have at least one widget
-        assert self.overview or self.roi
+            self.wigdatas[widget_name] = wigdata
 
         # Must not be initialized until after layout is set
         source = self.usc.imager.source()
@@ -173,18 +178,7 @@ class GstVideoPipeline:
         self.verbose and print("vidpip source %s" % source)
         # Input image may be cropped, don't use the raw w/h for anything
         # XXX: would be nice if we could detect these
-        self.cropped_w, self.cropped_h = usc.imager.cropped_wh()
-
-        # Usable area, not total area
-        # XXX: probably should maximize window and take window size
-        self.widget_w = 1920
-        self.widget_h = 900
-        self.roi_zoom = 1
-
-        if not nwidgets_wide:
-            nwidgets_wide = 2 if self.overview and self.roi else 1
-        self.nwidgets_wide = nwidgets_wide
-
+        self.cam_cropped_w, self.cam_cropped_h = usc.imager.cropped_wh()
         self.size_widgets()
 
         # Needs to be done early so elements can be added before main setup
@@ -205,113 +199,183 @@ class GstVideoPipeline:
         """
         return self.wigdatas[name]["widget"]
 
-    def size_widgets(self, w=None, h=None, frac=None):
+    def group_widgets(self):
         """
+        Figure out which widgets will be displayed in the same window
+        This will be used to manually allocate window space
+        """
+        group_configs = {
+            None: {
+                "widgets_h": 1,
+                "widgets_v": 1,
+            }
+        }
+        groups = set(
+            [wigdata.get("group") for wigdata in self.wigdatas.values()])
+        for group_name in groups:
+            if not group_name:
+                continue
+            # assume all h for now
+            widgets_h = 0
+            for wigdata in self.wigdatas.values():
+                if wigdata.get("group") == group_name:
+                    widgets_h += 1
+            # assert widgets_h >= 2
+            group_configs[group_name] = {
+                "widgets_h": widgets_h,
+                "widgets_v": 1,
+            }
+        return group_configs
+
+    def size_overview(self, wigdata):
+        """
+        Halve the sensor size until it fits on screen
+        Its unclear if we actually need to do in multiple of 2s though
+        Maybe we can do fractional scaling?
+
+        20MP: 5440 x 3648
+            5440: 6 divs
+            3648: 6 divs
+        25MP: 4928 x 4928
+            4928: 5 divs
+        But we are cropping, so hmm does it matter?
+        Maybe crop needs to obey this rule for now as well?
+        """
+        ratio = 1
+        w = self.cam_cropped_w
+        h = self.cam_cropped_h
+        while w > wigdata["screen_w_max"] or h > wigdata["screen_h_max"]:
+            assert w % 2 == 0 and h % 2 == 0, "Failed to fit video feed: scaling would introduce rounding error"
+            w = w // 2
+            h = h // 2
+            ratio *= 2
+        wigdata["screen_w"] = w
+        wigdata["screen_h"] = h
+        wigdata["ratio"] = ratio
+        wigdata["scalar"] = 1 / ratio
+
+    def size_roi(self, wigdata):
+        """
+        Zoom into the middle of the video feed
+        Ideally its a 1:1 or even 1:2 ratio with the screen size
+        Whereas the other one may be scaled to fit
+
+        NOTE: there are two crops applied here
+        First is camera sensor (self.cam_cropped_w) to get rid of unusable sensor area
+        Second is this which is to zoom in on an ROI
+        """
+
+        # Apply zoom factor
+        # Ex: zoom 2 means 100 pixel wide widget only can display 50 cam pixels
+        zoom = wigdata.get("zoom", 2)
+        cam_max_w = wigdata["screen_w_max"] // zoom
+        cam_max_h = wigdata["screen_h_max"] // zoom
+        # Calculate crop based on the full size
+        # Divide remaining pixels between left and right
+        cam_crop_lr = self.cam_cropped_w - cam_max_w
+        screen_w = wigdata["screen_w_max"]
+        if cam_crop_lr % 2 == 1:
+            cam_crop_lr += 1
+            screen_w -= 1
+        cam_crop_tb = self.cam_cropped_h - cam_max_h
+        screen_h = wigdata["screen_h_max"]
+        if cam_crop_tb % 2 == 1:
+            cam_crop_tb += 1
+            screen_h -= 1
+        crop_lr = cam_crop_lr // 2
+        crop_tb = cam_crop_tb // 2
+        wigdata["crop"] = {
+            "left": crop_lr,
+            "right": crop_lr,
+            "top": crop_tb,
+            "bottom": crop_tb,
+        }
+        wigdata["screen_w"] = screen_w
+        wigdata["screen_h"] = screen_h
+        # How much of the sensor is actually being used
+        wigdata["cam_w"] = self.cam_cropped_w - crop_lr * 2
+        wigdata["cam_h"] = self.cam_cropped_h - crop_tb * 2
+        if 1 or self.verbose:
+            print("size_roi() for %s" % wigdata["type"])
+            print("  Final widget size: %u w x %u h pix" %
+                  (wigdata["screen_w"], wigdata["screen_h"]))
+            print("  crop filter: %s" % (wigdata["crop"], ))
+            print("  zoom: %u" % zoom)
+            print("  available cam size: %u w x %u h pix" %
+                  (self.cam_cropped_w, self.cam_cropped_h))
+            print("  cam ROI size: %u w x %u h pix" %
+                  (wigdata["cam_w"], wigdata["cam_h"]))
+            print("  widget max size: %u w x %u h pix" %
+                  (wigdata["screen_w_max"], wigdata["screen_h_max"]))
+            print("  Cam candidate ROI size: %u w x %u h pix" %
+                  (cam_max_w, cam_max_h))
+        assert wigdata["screen_w"] > 0 and wigdata["screen_h"] > 0, (
+            wigdata["screen_w"], wigdata["screen_h"])
+
+    def size_widgets(self):
+        """
+        TODO: could we size these based on Qt widget policy?
+        ie set to expanding and see how much room is availible
+        Then shrink down based on that
+
         For now this needs to be called early
         But with some tweaks it can be made dynamic
         
         w/h: total canvas area available for all widgets we need to create
         """
-
-        self.verbose and print("size_widgets(w=%s, h=%s, frac=%s)" %
-                               (w, h, frac))
-        if frac:
-            sw, sh = screen_wh()
-            w = int(sw * frac)
-            h = int(sh * frac)
-        if w:
-            self.widget_w = w
-        if h:
-            self.widget_h = h
-
-        assert self.overview or self.roi
-        w, h, ratio = self.fit_pix(self.cropped_w * self.nwidgets_wide,
-                                   self.cropped_h)
-        w = w / self.nwidgets_wide
-        w = int(w)
-        h = int(h)
-        self.verbose and print(
-            "%u widgets, cam %uw x %uh => xwidget %uw x %uh %ur" %
-            (self.nwidgets_wide, self.cropped_w, self.cropped_h, w, h, ratio))
-
-        self.overview_widget_ratio = ratio
+        group_configs = self.group_widgets()
+        screen_w, screen_h = screen_wh()
+        print("Sizing widgets for screen %u w x %u h" % (screen_w, screen_h))
 
         for wigdata in self.wigdatas.values():
-            self.set_gst_widget_wh(wigdata, w, h)
+            """
+            self.verbose and print("size_widgets(w=%s, h=%s, frac=%s)" %
+                                   (w, h, frac))
+            """
+            group_config = group_configs[wigdata.get("group")]
+            # If explicit size is not given assign it
+            if not wigdata.get("screen_w_max"):
+                # FIXME: rethink these hard coded constraints a bit better
+                # Let a widget take up most of the horizontal space
+                if wigdata.get("size") == "max":
+                    default_frac_h = 0.90
+                else:
+                    default_frac_h = 0.40
+                wigdata["screen_w_max"] = int(
+                    screen_w * wigdata.get("screen_scalar_w", 0.90) /
+                    group_config["widgets_h"])
+                wigdata["screen_h_max"] = int(
+                    screen_h * wigdata.get("screen_scalar_h", default_frac_h) /
+                    group_config["widgets_v"])
 
-    def set_gst_widget_wh(self, wigdata, w, h):
-        assert wigdata["capsfilter"] is None, "FIXME: handle gst initialized"
-        w = int(w)
-        h = int(h)
-        wigdata["width"] = int(w)
-        wigdata["height"] = int(h)
-        # might not be initialized yet
-        if wigdata["widget"]:
-            wigdata["widget"].setMinimumSize(w, h)
-            wigdata["widget"].resize(w, h)
-
-    def fit_pix(self, w, h):
-        ratio = 1
-        while w > self.widget_w or h > self.widget_h:
-            w = w / 2
-            h = h / 2
-            ratio *= 2
-        return w, h, ratio
+            if wigdata["type"] == "overview":
+                self.size_overview(wigdata)
+            elif wigdata["type"] == "roi":
+                self.size_roi(wigdata)
+            else:
+                assert 0, wigdata["type"]
+            """
+            self.verbose and print(
+                "%u widgets, cam %uw x %uh => xwidget %uw x %uh %ur" %
+                (self.nwidgets_wide, self.cropped_w, self.cropped_h, w, h, ratio))
+            """
 
     def set_crop(self, wigdata):
-        """
-        Zoom 2x or something?
-
-        TODO: make this more automagic
-        w, h = 3264/8, 2448/8 => 408, 306
-        Want 3264/2, 2448,2 type resolution
-        Image is coming in raw at this point which menas we need to end up with
-        408*2, 306*2 => 816, 612
-        since its centered crop the same amount off the top and bottom:
-        (3264 - 816)/2, (2448 - 612)/2 => 1224, 918
-
-        self.roi_videocrop.set_property("top", 918)
-        self.roi_videocrop.set_property("bottom", 918)
-        self.roi_videocrop.set_property("left", 1224)
-        self.roi_videocrop.set_property("right", 1224)
-        """
-        ratio = self.overview_widget_ratio * self.roi_zoom
-        keepw = self.cropped_w // ratio
-        keeph = self.cropped_h // ratio
-        self.verbose and print(
-            "crop ratio %u => %u, %uw x %uh" %
-            (self.overview_widget_ratio, ratio, keepw, keeph))
-
-        # Divide remaining pixels between left and right
-        left = right = (self.cropped_w - keepw) // 2
-        top = bottom = (self.cropped_h - keeph) // 2
-        border = 1
-        wigdata["videocrop"].set_property("top", top - border)
-        wigdata["videocrop"].set_property("bottom", bottom - border)
-        wigdata["videocrop"].set_property("left", left - border)
-        wigdata["videocrop"].set_property("right", right - border)
-
-        finalw = self.cropped_w - left - right
-        finalh = self.cropped_h - top - bottom
-        if self.verbose:
-            print("crop: %u l %u r => %u w" % (left, right, finalw))
-            print("crop: %u t %u b => %u h" % (top, bottom, finalh))
-            print("crop image ratio: %0.3f" % (finalw / finalh, ))
-            print("cam image ratio: %0.3f" %
-                  (self.cropped_w / self.cropped_h, ))
-            print(
-                "cam %uw x %uh %0.1fr => crop (x2) %uw x %uh => %uw x %uh %0.1fr"
-                % (self.cropped_w, self.cropped_h, self.cropped_w /
-                   self.cropped_h, left, top, finalw, finalh, finalw / finalh))
-        # assert 0, self.roi_zoom
+        crop = wigdata["crop"]
+        wigdata["videocrop"].set_property("top", crop["top"])
+        wigdata["videocrop"].set_property("bottom", crop["bottom"])
+        wigdata["videocrop"].set_property("left", crop["left"])
+        wigdata["videocrop"].set_property("right", crop["right"])
 
     def setupWidgets(self, parent=None):
         for wigdata in self.wigdatas.values():
+            print("widget for %s: set %u w, %u h" %
+                  (wigdata["type"], wigdata["screen_w"], wigdata["screen_h"]))
             # Raw X-windows canvas
             wigdata["widget"] = SinkxWidget(parent=parent)
-            wigdata["widget"].setMinimumSize(wigdata["width"],
-                                             wigdata["height"])
-            wigdata["widget"].resize(wigdata["width"], wigdata["height"])
+            wigdata["widget"].setMinimumSize(wigdata["screen_w"],
+                                             wigdata["screen_h"])
+            wigdata["widget"].resize(wigdata["screen_w"], wigdata["screen_h"])
             policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             wigdata["widget"].setSizePolicy(policy)
             # https://github.com/Labsmore/pyuscope/issues/34
@@ -355,14 +419,12 @@ class GstVideoPipeline:
         if len(dsts) == 1:
             dst = dsts[0]
             if add:
-                # XXX: why isn't this a fatal error?
                 try:
                     self.player.add(dst)
                 except gi.overrides.Gst.AddError:
-                    pass
                     print("WARNING: failed to add %s" % (dst, ))
                     raise
-            src.link(dst)
+            assert src.link(dst)
             self.verbose and print("tee simple link %s => %s" % (src, dst))
         else:
             tee = Gst.ElementFactory.make("tee")
@@ -402,11 +464,11 @@ class GstVideoPipeline:
             wigdata["capsfilter"] = Gst.ElementFactory.make("capsfilter")
             wigdata["capsfilter"].props.caps = Gst.Caps(
                 "video/x-raw,width=%u,height=%u" %
-                (wigdata["width"], wigdata["height"]))
+                (wigdata["screen_w"], wigdata["screen_h"]))
             self.player.add(wigdata["capsfilter"])
 
             wigdata["sinkx"] = Gst.ElementFactory.make("ximagesink",
-                                                       wigdata["name"])
+                                                       wigdata["gst_name"])
             assert wigdata["sinkx"] is not None
             self.player.add(wigdata["sinkx"])
         elif wigdata["type"] == "roi":
@@ -423,13 +485,13 @@ class GstVideoPipeline:
                 wigdata["capsfilter"] = Gst.ElementFactory.make("capsfilter")
                 wigdata["capsfilter"].props.caps = Gst.Caps(
                     "video/x-raw,width=%u,height=%u" %
-                    (wigdata["width"], wigdata["height"]))
+                    (wigdata["screen_w"], wigdata["screen_h"]))
                 self.player.add(wigdata["capsfilter"])
             else:
                 wigdata["capsfilter"] = None
 
             wigdata["sinkx"] = Gst.ElementFactory.make("ximagesink",
-                                                       wigdata["name"])
+                                                       wigdata["gst_name"])
             assert wigdata["sinkx"]
             self.player.add(wigdata["sinkx"])
 
@@ -438,15 +500,15 @@ class GstVideoPipeline:
             assert 0, wigdata["type"]
 
     def wigdata_link(self, wigdata):
+        print("type", wigdata["type"])
         # Used in roi but not full
         if wigdata["type"] == "roi":
-            assert "videocrop" in wigdata
             assert wigdata["videocrop"].link(wigdata["videoscale"])
         if wigdata["capsfilter"]:
             assert wigdata["videoscale"].link(wigdata["capsfilter"])
             assert wigdata["capsfilter"].link(wigdata["sinkx"])
         else:
-            wigdata["scale"].link(wigdata["sinkx"])
+            assert wigdata["scale"].link(wigdata["sinkx"])
 
     def setupGst(self, raw_tees=None, vc_tees=None, esize=None):
         """
@@ -570,7 +632,7 @@ class GstVideoPipeline:
 
     def gstreamer_to_winid(self, want_name):
         for wigdata in self.wigdatas.values():
-            if wigdata["name"] == want_name:
+            if wigdata["gst_name"] == want_name:
                 return wigdata["winid"]
         assert 0, "Failed to match widget winid for ximagesink %s" % want_name
 

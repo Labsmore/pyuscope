@@ -94,6 +94,48 @@ class MainWindow(QMainWindow):
         self.ac.batchTab = self.batchTab
         self.pluginTab = None
 
+    def createMenuBar(self):
+        self.exitAction = QAction("Exit", self)
+        self.zoomPlus = QAction("ROI zoom +", self)
+        self.zoomMinus = QAction("ROI zoom -", self)
+        self.helpContentAction = QAction("Help Content", self)
+        self.aboutAction = QAction("About", self)
+
+        menuBar = self.menuBar()
+        # File menu
+        fileMenu = QMenu("File", self)
+        menuBar.addMenu(fileMenu)
+        fileMenu.addAction(self.exitAction)
+        # Video menu
+        videoMenu = menuBar.addMenu("Video")
+        videoMenu.addAction(self.zoomPlus)
+        videoMenu.addAction(self.zoomMinus)
+        # Help menu
+        helpMenu = menuBar.addMenu("Help")
+        helpMenu.addAction(self.helpContentAction)
+        helpMenu.addAction(self.aboutAction)
+
+        self.exitAction.triggered.connect(self.close)
+        self.zoomPlus.triggered.connect(self.zoom_plus)
+        self.zoomMinus.triggered.connect(self.zoom_minus)
+        self.helpContentAction.triggered.connect(self.helpContent)
+        self.aboutAction.triggered.connect(self.about)
+
+    def close(self):
+        pass
+
+    def zoom_plus(self):
+        self.ac.vidpip.roi_zoom_plus()
+
+    def zoom_minus(self):
+        self.ac.vidpip.roi_zoom_minus()
+
+    def helpContent(self):
+        pass
+
+    def about(self):
+        pass
+
     def initUI(self):
         self.ac.initUI()
         self.setWindowTitle("pyuscope")
@@ -109,6 +151,7 @@ class MainWindow(QMainWindow):
         self.batchTab.add_pconfig_source(self.mainTab, "Main tab")
 
         self.setCentralWidget(self.tab_widget)
+        self.createMenuBar()
         self.showMaximized()
         self.show()
 

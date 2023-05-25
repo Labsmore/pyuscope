@@ -295,7 +295,7 @@ class GstVideoPipeline:
 
         # Apply zoom factor
         # Ex: zoom 2 means 100 pixel wide widget only can display 50 cam pixels
-        zoom = wigdata.get("zoom", 2)
+        zoom = wigdata.setdefault("zoom", 2)
         cam_max_w = wigdata["screen_w_max"] // zoom
         cam_max_h = wigdata["screen_h_max"] // zoom
         # Calculate crop based on the full size
@@ -340,7 +340,7 @@ class GstVideoPipeline:
         assert wigdata["screen_w"] > 0 and wigdata["screen_h"] > 0, (
             wigdata["screen_w"], wigdata["screen_h"])
 
-    def size_widgets(self):
+    def size_widgets(self, wigdata_in=None):
         """
         TODO: could we size these based on Qt widget policy?
         ie set to expanding and see how much room is availible
@@ -360,6 +360,8 @@ class GstVideoPipeline:
             self.verbose and print("size_widgets(w=%s, h=%s, frac=%s)" %
                                    (w, h, frac))
             """
+            if wigdata_in and wigdata_in != wigdata:
+                continue
             group_config = group_configs[wigdata.get("group")]
             # If explicit size is not given assign it
             if not wigdata.get("screen_w_max"):
@@ -404,6 +406,28 @@ class GstVideoPipeline:
             # https://github.com/Labsmore/pyuscope/issues/34
             # Let x-windows render directly, a clear here will cause flicker
             wigdata["widget"].setUpdatesEnabled(False)
+
+    def roi_zoom_plus(self):
+        wigdata = self.wigdatas["overview_roi"]
+        self.change_roi_zoom(zoom=wigdata["zoom"] * 2)
+
+    def roi_zoom_minus(self):
+        wigdata = self.wigdatas["overview_roi"]
+        if wigdata["zoom"] == 1:
+            return
+        self.change_roi_zoom(zoom=wigdata["zoom"] // 2)
+
+    def change_roi_zoom(self, zoom):
+        """
+        Simple experiment to dynamically change video stream
+        """
+        wigdata = self.wigdatas["overview_roi"]
+        wigdata["zoom"] = zoom
+        self.size_widgets(wigdata_in=wigdata)
+        self.set_crop(wigdata)
+        wigdata["widget"].setMinimumSize(wigdata["screen_w"],
+                                         wigdata["screen_h"])
+        wigdata["widget"].resize(wigdata["screen_w"], wigdata["screen_h"])
 
     def prepareSource(self, esize=None):
         # Must not be initialized until after layout is set

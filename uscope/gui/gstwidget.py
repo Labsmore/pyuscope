@@ -241,18 +241,46 @@ class GstVideoPipeline:
         But we are cropping, so hmm does it matter?
         Maybe crop needs to obey this rule for now as well?
         """
-        ratio = 1
-        w = self.cam_cropped_w
-        h = self.cam_cropped_h
-        while w > wigdata["screen_w_max"] or h > wigdata["screen_h_max"]:
-            assert w % 2 == 0 and h % 2 == 0, "Failed to fit video feed: scaling would introduce rounding error"
-            w = w // 2
-            h = h // 2
-            ratio *= 2
-        wigdata["screen_w"] = w
-        wigdata["screen_h"] = h
-        wigdata["ratio"] = ratio
-        wigdata["scalar"] = 1 / ratio
+        fast_scaling = False
+        if fast_scaling:
+            """
+            Divide by even multiple of pixels
+            Hardware scaling *might* be faster but can really waste screen area
+            """
+            ratio = 1
+            w = self.cam_cropped_w
+            h = self.cam_cropped_h
+            while w > wigdata["screen_w_max"] or h > wigdata["screen_h_max"]:
+                assert w % 2 == 0 and h % 2 == 0, "Failed to fit video feed: scaling would introduce rounding error"
+                w = w // 2
+                h = h // 2
+                ratio *= 2
+            wigdata["screen_w"] = w
+            wigdata["screen_h"] = h
+            wigdata["ratio"] = ratio
+            wigdata["scalar"] = 1 / ratio
+        else:
+            """
+            Just squish to the largest size we can fit
+            
+            """
+            self.cam_cropped_w
+            self.cam_cropped_h
+
+            wigdata["screen_h_max"]
+            # Screen is really wide compared to camera => fill h and crop w
+            # XXX: worry about ratio here? How do rounding errors affect things?
+            if wigdata["screen_w_max"] / wigdata[
+                    "screen_h_max"] >= self.cam_cropped_w / self.cam_cropped_h:
+                w = wigdata[
+                    "screen_h_max"] * self.cam_cropped_w / self.cam_cropped_h
+                h = wigdata["screen_h_max"]
+            else:
+                w = wigdata["screen_w_max"]
+                h = wigdata[
+                    "screen_w_max"] * self.cam_cropped_h / self.cam_cropped_w
+            wigdata["screen_w"] = int(w)
+            wigdata["screen_h"] = int(h)
 
     def size_roi(self, wigdata):
         """
@@ -354,11 +382,6 @@ class GstVideoPipeline:
                 self.size_roi(wigdata)
             else:
                 assert 0, wigdata["type"]
-            """
-            self.verbose and print(
-                "%u widgets, cam %uw x %uh => xwidget %uw x %uh %ur" %
-                (self.nwidgets_wide, self.cropped_w, self.cropped_h, w, h, ratio))
-            """
 
     def set_crop(self, wigdata):
         crop = wigdata["crop"]

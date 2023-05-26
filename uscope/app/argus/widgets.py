@@ -1617,6 +1617,7 @@ class StitchingTab(ArgusTab):
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
         self.stitcher_thread = None
+        self.last_cs_upload = None
 
     def initUI(self):
         layout = QGridLayout()
@@ -1704,7 +1705,12 @@ class StitchingTab(ArgusTab):
             self.stitcher_thread = None
 
     def stitch_begin_manual_cs(self):
-        self.cloud_stitch_add(str(self.manual_stitch_dir.text()))
+        this_upload = str(self.manual_stitch_dir.text())
+        if this_upload == self.last_cs_upload:
+            self.ac.log(f"Ignoring duplicate upload: {this_upload}")
+            return
+        self.cloud_stitch_add(this_upload)
+        self.last_cs_upload = this_upload
 
     def stitch_begin_manual_cli(self):
         self.cli_stitch_add(str(self.manual_stitch_dir.text()))

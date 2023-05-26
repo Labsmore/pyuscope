@@ -1402,6 +1402,13 @@ class BatchImageTab(ArgusTab):
         self.update_state()
 
     def del_all_clicked(self):
+        ret = QMessageBox.question(self, "Delete all",
+                                   "Delete all batch jobs?",
+                                   QMessageBox.Yes | QMessageBox.Cancel,
+                                   QMessageBox.Cancel)
+        if ret != QMessageBox.Yes:
+            return
+
         for _i in range(len(self.scan_configs)):
             del self.scan_configs[0]
             self.pconfig_cb.removeItem(0)

@@ -308,7 +308,7 @@ class USCMotion:
                 position3 += 1
                 if position3 >= 1000:
                     position3 -= 1000
-                    position3f += 1
+                    whole += 1
             return "%d.%03u %03u" % (whole, position3, position6)
         else:
             return "%0.3f" % position

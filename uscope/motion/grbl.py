@@ -955,7 +955,22 @@ class GrblHal(MotionHAL):
         else:
             self.grbl = GRBL(port=port, verbose=verbose)
         MotionHAL.__init__(self, verbose=verbose, **kwargs)
+        # hack: qstatus will fail before home
+        self.home()
         self.grbl.set_qstatus_updated_cb(self.qstatus_updated)
+
+    def epsilon(self):
+        # FIXME: calculate
+        # in mm
+        return {
+            "x": 1 / 800,
+            "y": 1 / 800,
+            "z": 1 / 8000,
+        }
+
+    def home(self):
+        # Commands will fail until homed
+        grbl_home(grbl=self.grbl)
 
     def qstatus_updated(self, status):
         # careful this will get modified up the stack

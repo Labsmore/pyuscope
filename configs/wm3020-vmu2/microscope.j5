@@ -13,7 +13,7 @@ A minimal configuration to do basic testing
 
         "backlash": 0.05,
         "backlash_compensation": -1,
-        "z_format6": true,
+        "xyz_format6": true,
 
         "use_wcs_offsets": true,
         "grbl": {

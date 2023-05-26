@@ -296,7 +296,8 @@ class USCMotion:
         # assert "hal" in self.j
 
     def format_position(self, axis, position):
-        if self.j.get("z_format6") and axis == "z":
+        if self.j.get("z_format6") and axis == "z" or self.j.get(
+                "xyz_format6"):
             whole = int(position)
             position3f = abs(position - whole) * 1000
             position3 = int(position3f)

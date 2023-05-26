@@ -64,7 +64,6 @@ def register_plugins():
         commands = grblc.get("rc")
         if commands:
             ret.rc_commands(commands)
-        grbl_home(grbl=ret)
         return ret
 
     register_plugin("grbl-ser", grbl_ser)

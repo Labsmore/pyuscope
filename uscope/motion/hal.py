@@ -140,7 +140,9 @@ class BacklashMM(MotionModifier):
                 # Is compensation needed to make reliable?
                 "needed": False,
             }
+            # Skip check?
             if not self.enabled.get(axis, False):
+                # maybe this should be in post
                 self.compensated[axis] = False
                 continue
             if self.backlash[axis] == 0.0:
@@ -149,9 +151,6 @@ class BacklashMM(MotionModifier):
             if self.compensation[axis] == 0:
                 continue
             delta = val - cur_pos[axis]
-            # No: if we have moved here w/o backlash correction may be wrong
-            # if delta == 0.0:
-            #     continue
 
             # Already compensated and still moving in the same direction?
             # No compensation necessary
@@ -165,6 +164,11 @@ class BacklashMM(MotionModifier):
                         axis] == -1 and delta <= -self.backlash[axis]:
                 # self.compensated[axis] = True
                 ret[axis]["auto"] = True
+                continue
+
+            # Rounding error that a movement won't improve?
+            if self.compensated[axis] and self.motion.equivalent_axis_pos(
+                    axis=axis, value1=val, value2=cur_pos[axis]):
                 continue
 
             if 0 and axis == "z":
@@ -190,8 +194,8 @@ class BacklashMM(MotionModifier):
         """
         corrections_abs = {}
         self.pending_compensation = {}
-        for axis, axis_compensation in self.should_compensate(
-                move_to=dst_abs_pos).items():
+        comp_res = self.should_compensate(move_to=dst_abs_pos).items()
+        for axis, axis_compensation in comp_res:
             if axis_compensation["auto"]:
                 self.pending_compensation[axis] = True
 
@@ -203,6 +207,15 @@ class BacklashMM(MotionModifier):
                 corrections_abs[axis] = dst_abs_pos[
                     axis] - self.compensation[axis] * self.backlash[axis]
                 # corrections_rel[axis] = -self.compensation[axis] * self.backlash[axis]
+
+        if 0:
+            print("DEBUG")
+            print("  cur ", self.motion.cur_pos_cache())
+            print("  dst ", dst_abs_pos)
+            print("  res ", comp_res)
+            print("  cor ", corrections_abs)
+            print("  com ", self.compensation)
+            print("  is  ", self.compensated)
 
         # Did we calculate any backlash moves?
         if len(corrections_abs):
@@ -231,11 +244,15 @@ class BacklashMM(MotionModifier):
             self.compensated[axis] = False
 
     def move_absolute_post(self, ok, options={}):
+        if self.recursing:
+            return
         for axis in self.pending_compensation.keys():
             self.compensated[axis] = True
         self.pending_compensation = None
 
     def move_relative_post(self, ok, options={}):
+        if self.recursing:
+            return
         for axis in self.pending_compensation.keys():
             self.compensated[axis] = True
         self.pending_compensation = None
@@ -375,6 +392,21 @@ class MotionHAL:
     def __del__(self):
         self.close()
 
+    def epsilon(self):
+        return {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+        }
+
+    def equivalent_axis_pos(self, axis, value1, value2):
+        """
+        Is value within rounding error of the other?
+        Ex: GRBL will have an accurate step count but GUI still still report in mm
+        """
+        delta = abs(value2 - value1)
+        return delta / 2 <= self.epsilon()[axis]
+
     def configure(self, options):
         self.use_wcs_offsets = bool(options.get("use_wcs_offsets", False))
         # MotionModifier's
@@ -474,7 +506,7 @@ class MotionHAL:
         '''Return supported axes'''
         raise Exception("Required")
 
-    def home(self, axes):
+    def home(self):
         '''Set current position to 0.0'''
         raise Exception("Required for tuning")
 
@@ -699,8 +731,8 @@ class MockHal(MotionHAL):
     def axes(self):
         return self._axes
 
-    def home(self, axes):
-        for axis in axes:
+    def home(self):
+        for axis in self._axes:
             self._pos_cache[axis] = 0.0
 
     def take_picture(self, file_name):
@@ -751,8 +783,8 @@ class DryHal(MotionHAL):
     def axes(self):
         return self.hal.axes()
 
-    def home(self, axes):
-        for axis in axes:
+    def home(self):
+        for axis in self._axes:
             self._posd[axis] = 0.0
 
     def take_picture(self, file_name):

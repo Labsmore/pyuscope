@@ -23,6 +23,17 @@ from uscope.app.argus.common import ArgusCommon, ArgusShutdown, error
 from uscope.app.argus.widgets import MainTab, ImagerTab, BatchImageTab, AdvancedTab, StitchingTab
 
 
+class FullscreenVideo(QWidget):
+    def __init__(self, widget):
+        super().__init__()
+        self.setWindowTitle("pyuscope fullscreen")
+        layout = QVBoxLayout()
+        layout.addWidget(widget)
+        layout.setAlignment(Qt.AlignCenter)
+        self.setLayout(layout)
+        self.showMaximized()
+
+
 class MainWindow(QMainWindow):
     def __init__(self, microscope=None, verbose=False):
         QMainWindow.__init__(self)
@@ -98,6 +109,7 @@ class MainWindow(QMainWindow):
         self.exitAction = QAction("Exit", self)
         self.zoomPlus = QAction("ROI zoom +", self)
         self.zoomMinus = QAction("ROI zoom -", self)
+        self.fullShow = QAction("Full show", self)
         self.helpContentAction = QAction("Help Content", self)
         self.aboutAction = QAction("About", self)
 
@@ -110,6 +122,7 @@ class MainWindow(QMainWindow):
         videoMenu = menuBar.addMenu("Video")
         videoMenu.addAction(self.zoomPlus)
         videoMenu.addAction(self.zoomMinus)
+        videoMenu.addAction(self.fullShow)
         # Help menu
         helpMenu = menuBar.addMenu("Help")
         helpMenu.addAction(self.helpContentAction)
@@ -118,6 +131,7 @@ class MainWindow(QMainWindow):
         self.exitAction.triggered.connect(self.close)
         self.zoomPlus.triggered.connect(self.zoom_plus)
         self.zoomMinus.triggered.connect(self.zoom_minus)
+        self.fullShow.triggered.connect(self.full_show)
         self.helpContentAction.triggered.connect(self.helpContent)
         self.aboutAction.triggered.connect(self.about)
 
@@ -130,6 +144,28 @@ class MainWindow(QMainWindow):
     def zoom_minus(self):
         self.ac.vidpip.roi_zoom_minus()
 
+    def full_show(self):
+        if self.fullscreen_widget:
+            return
+        print("")
+        print("")
+        print("")
+        print("full show")
+        # need to coordinate moving this to the right window
+        # for now just let it float
+        widget = self.ac.vidpip.add_full_widget()
+        self.fullscreen_widget = FullscreenVideo(widget)
+        self.fullscreen_widget.show()
+        self.ac.vidpip.full_restart_pipeline()
+
+    """
+    def full_hide(self):
+        if not self.fullscreen_widget:
+            return
+        self.ac.vidpip.remove_full_widget()
+        self.fullscreen_widget.close()
+    """
+
     def helpContent(self):
         pass
 
@@ -138,8 +174,9 @@ class MainWindow(QMainWindow):
 
     def initUI(self):
         self.ac.initUI()
-        self.setWindowTitle("pyuscope")
+        self.setWindowTitle("pyuscope main")
         self.setWindowIcon(QIcon(config.GUI.icon_files["logo"]))
+        self.fullscreen_widget = None
 
         self.tab_widget = QTabWidget()
 

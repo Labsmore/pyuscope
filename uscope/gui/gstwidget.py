@@ -158,17 +158,7 @@ class GstVideoPipeline:
         """
         self.wigdatas = OrderedDict()
         for widget_name, widget_config in widget_configs.items():
-            wigdata = dict(widget_config)
-            wigdata["gst_name"] = "sinkx_" + widget_name
-            wigdata["widget"] = None
-            wigdata["winid"] = None
-            wigdata["screen_w"] = None
-            wigdata["screen_h"] = None
-            # gst elements
-            wigdata["sinkx"] = None
-            wigdata["videoscale"] = None
-            wigdata["capsfilter"] = None
-            self.wigdatas[widget_name] = wigdata
+            self.create_wigdata(widget_name, widget_config)
 
         # Must not be initialized until after layout is set
         source = self.usc.imager.source()
@@ -192,6 +182,20 @@ class GstVideoPipeline:
                 print(s)
 
         self.log = log
+
+    def create_wigdata(self, widget_name, widget_config):
+        wigdata = dict(widget_config)
+        wigdata["gst_name"] = "sinkx_" + widget_name
+        wigdata["widget"] = None
+        wigdata["winid"] = None
+        wigdata["screen_w"] = None
+        wigdata["screen_h"] = None
+        # gst elements
+        wigdata["sinkx"] = None
+        wigdata["videoscale"] = None
+        wigdata["capsfilter"] = None
+        self.wigdatas[widget_name] = wigdata
+        return wigdata
 
     def get_widget(self, name):
         """
@@ -340,6 +344,9 @@ class GstVideoPipeline:
         assert wigdata["screen_w"] > 0 and wigdata["screen_h"] > 0, (
             wigdata["screen_w"], wigdata["screen_h"])
 
+    def size_widget(self, wigdata):
+        self.size_widgets(wigdata_in=wigdata)
+
     def size_widgets(self, wigdata_in=None):
         """
         TODO: could we size these based on Qt widget policy?
@@ -392,20 +399,23 @@ class GstVideoPipeline:
         wigdata["videocrop"].set_property("left", crop["left"])
         wigdata["videocrop"].set_property("right", crop["right"])
 
+    def setupWidget(self, wigdata, parent=None):
+        print("widget for %s: set %u w, %u h" %
+              (wigdata["type"], wigdata["screen_w"], wigdata["screen_h"]))
+        # Raw X-windows canvas
+        wigdata["widget"] = SinkxWidget(parent=parent)
+        wigdata["widget"].setMinimumSize(wigdata["screen_w"],
+                                         wigdata["screen_h"])
+        wigdata["widget"].resize(wigdata["screen_w"], wigdata["screen_h"])
+        policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        wigdata["widget"].setSizePolicy(policy)
+        # https://github.com/Labsmore/pyuscope/issues/34
+        # Let x-windows render directly, a clear here will cause flicker
+        wigdata["widget"].setUpdatesEnabled(False)
+
     def setupWidgets(self, parent=None):
         for wigdata in self.wigdatas.values():
-            print("widget for %s: set %u w, %u h" %
-                  (wigdata["type"], wigdata["screen_w"], wigdata["screen_h"]))
-            # Raw X-windows canvas
-            wigdata["widget"] = SinkxWidget(parent=parent)
-            wigdata["widget"].setMinimumSize(wigdata["screen_w"],
-                                             wigdata["screen_h"])
-            wigdata["widget"].resize(wigdata["screen_w"], wigdata["screen_h"])
-            policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            wigdata["widget"].setSizePolicy(policy)
-            # https://github.com/Labsmore/pyuscope/issues/34
-            # Let x-windows render directly, a clear here will cause flicker
-            wigdata["widget"].setUpdatesEnabled(False)
+            self.setupWidget(wigdata, parent=parent)
 
     def roi_zoom_plus(self):
         wigdata = self.wigdatas["overview_roi"]
@@ -423,11 +433,38 @@ class GstVideoPipeline:
         """
         wigdata = self.wigdatas["overview_roi"]
         wigdata["zoom"] = zoom
-        self.size_widgets(wigdata_in=wigdata)
+        self.size_widget(wigdata)
         self.set_crop(wigdata)
         wigdata["widget"].setMinimumSize(wigdata["screen_w"],
                                          wigdata["screen_h"])
         wigdata["widget"].resize(wigdata["screen_w"], wigdata["screen_h"])
+
+    def add_full_widget(self):
+        """
+        Experiment to dynamically add a full screen widget after pipeline is running
+        Note this doesn't handle groups / assumes its the only widget on the screen
+        """
+        widget_config = {"type": "overview", "size": "max"}
+        wigdata = self.create_wigdata("overview_full_window", widget_config)
+        self.size_widget(wigdata)
+        self.setupWidget(wigdata)
+        vc_dsts = []
+        self.wigdata_create(vc_dsts, wigdata)
+        self.link_tee_dsts(self.tee_vc, vc_dsts, add=False)
+        self.wigdata_link(wigdata)
+        # Restart pipeline to get winid
+        return wigdata["widget"]
+
+    def full_restart_pipeline(self):
+        wigdata = self.wigdatas["overview_full_window"]
+        wigdata["winid"] = wigdata["widget"].winId()
+        assert wigdata["winid"], "Need widget_winid by run"
+
+        self.player.set_state(Gst.State.PAUSED)
+        self.player.set_state(Gst.State.PLAYING)
+
+    def remove_full_widget(self):
+        assert 0, "FIXME"
 
     def prepareSource(self, esize=None):
         # Must not be initialized until after layout is set
@@ -452,7 +489,7 @@ class GstVideoPipeline:
             self.verbose and print("Set source %s => %s" % (propk, propv))
             self.source.set_property(propk, propv)
 
-    def link_tee(self, src, dsts, add=0):
+    def link_tee(self, src, dsts, add=False):
         """
         Link src to one or more dsts
         If required, add tee + queues
@@ -463,7 +500,9 @@ class GstVideoPipeline:
 
         assert len(dsts) > 0, "Can't create tee with no sink elements"
 
-        if len(dsts) == 1:
+        # playing with dynamic linking
+        # this becomes a bad idea, make sure the tee is always there
+        if 0 and len(dsts) == 1:
             dst = dsts[0]
             if add:
                 try:
@@ -473,32 +512,36 @@ class GstVideoPipeline:
                     raise
             assert src.link(dst)
             self.verbose and print("tee simple link %s => %s" % (src, dst))
+            return None
         else:
             tee = Gst.ElementFactory.make("tee")
             self.player.add(tee)
             assert src.link(tee)
+            self.link_tee_dsts(tee, dsts, add=add)
+            return tee
 
-            for dst in dsts:
-                assert dst is not None
-                queue = Gst.ElementFactory.make("queue")
-                # self.queues.append(queue)
-                self.player.add(queue)
-                assert tee.link(queue)
-                if add:
-                    # XXX: why isn't this a fatal error?
-                    try:
-                        self.player.add(dst)
-                    except gi.overrides.Gst.AddError:
-                        pass
-                        print("WARNING: failed to add %s" % (dst, ))
-                        raise
+    def link_tee_dsts(self, tee, dsts, add=False):
+        for dst in dsts:
+            assert dst is not None
+            queue = Gst.ElementFactory.make("queue")
+            # self.queues.append(queue)
+            self.player.add(queue)
+            assert tee.link(queue)
+            if add:
                 # XXX: why isn't this a fatal error?
                 try:
-                    assert queue.link(dst)
-                except:
-                    print("Failed to link %s => %s" % (src, dst))
+                    self.player.add(dst)
+                except gi.overrides.Gst.AddError:
+                    pass
+                    print("WARNING: failed to add %s" % (dst, ))
                     raise
-                self.verbose and print("tee queue link %s => %s" % (src, dst))
+            # XXX: why isn't this a fatal error?
+            try:
+                assert queue.link(dst)
+            except:
+                # print("Failed to link %s => %s" % (src, dst))
+                raise
+            # self.verbose and print("tee queue link %s => %s" % (src, dst))
 
     def wigdata_create(self, src_tee, wigdata):
         if wigdata["type"] == "overview":
@@ -629,13 +672,13 @@ class GstVideoPipeline:
         # Note at least one vc tee is garaunteed (either full or roi)
         self.verbose and print("Link raw...")
         raw_tees = [self.videoconvert] + raw_tees
-        self.link_tee(raw_element, raw_tees)
+        self.tee_raw = self.link_tee(raw_element, raw_tees)
 
         self.verbose and print("Link vc...")
         self.verbose and print("  our", our_vc_tees)
         self.verbose and print("  their", vc_tees)
         vc_tees = our_vc_tees + vc_tees
-        self.link_tee(self.videoconvert, vc_tees)
+        self.tee_vc = self.link_tee(self.videoconvert, vc_tees)
 
         # Finish linking post vc_tee
 
@@ -689,10 +732,16 @@ class GstVideoPipeline:
         message_name = message.get_structure().get_name()
         if message_name == "prepare-window-handle":
             # self.verbose and print("prepare-window-handle", message.src.get_name())
+            # print("prepare-window-handle", message.src.get_name())
             imagesink = message.src
             imagesink.set_property("force-aspect-ratio", True)
-            imagesink.set_window_handle(
-                self.gstreamer_to_winid(message.src.get_name()))
+            winid = self.gstreamer_to_winid(message.src.get_name())
+            # FIXME: transiet error while restarting pipeline
+            # for now hide the intended window and let it float
+            if winid is None:
+                print("  WARNING: ignoring bad winid")
+            else:
+                imagesink.set_window_handle(winid)
 
 
 def excepthook(excType, excValue, tracebackobj):

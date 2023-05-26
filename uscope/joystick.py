@@ -23,6 +23,7 @@ class Joystick:
         print("Joystick: detected %s" % (self.joystick.get_name(), ))
         # This init is required by some systems.
         pygame.joystick.init()
+        self.joystick.init()
         self.joystick_fn_map = self.ac.bc.joystick.function_map(
             model=self.joystick.get_name())
 

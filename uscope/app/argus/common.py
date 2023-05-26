@@ -195,7 +195,7 @@ class ArgusCommon(QObject):
             configure=False)
 
         try:
-            self.joystick_thread = JoystickThread(ac=self, parent=self)
+            self.joystick_thread = JoystickThread(ac=self)
         except JoystickNotFound:
             self.log("Joystick not found")
 
@@ -214,7 +214,6 @@ class ArgusCommon(QObject):
 
         self.motion_thread.start()
         if self.joystick_thread:
-            self.joystick_thread.post_ui_init()
             self.joystick_thread.log_msg.connect(self.log)
             self.joystick_thread.start()
         # Needs imager which isn't initialized until gst GUI objects are made

@@ -566,11 +566,10 @@ class JoystickThread(QThread):
     joystickDone = pyqtSignal()
     log_msg = pyqtSignal(str)
 
-    def __init__(self, ac, parent=None):
-        QThread.__init__(self, parent)
+    def __init__(self, ac):
+        QThread.__init__(self)
         self.joystick = None
         self.ac = ac
-        self.parent = parent
         self.queue = Queue()
         self.running = threading.Event()
         self.running.set()
@@ -578,12 +577,6 @@ class JoystickThread(QThread):
             self.joystick = Joystick(ac=self.ac)
         except JoystickNotFound:
             raise JoystickNotFound()
-        self._state_btn = None
-
-    def post_ui_init(self):
-        self._state_btn = self.parent.mainTab.motion_widget.joystick_listener
-        self.enable()
-        self.activate()
 
     def log_info(self):
         self.log("Joystick")
@@ -592,28 +585,6 @@ class JoystickThread(QThread):
         self.log(f"  Trackballs: {self.joystick.joystick.numballs}")
         self.log(f"  Hats: {self.joystick.joystick.numhats}")
         self.log(f"  Buttons: {self.joystick.joystick.numbuttons}")
-
-    def disable(self):
-        # This deactivates and disables joystick
-        # actions, and user cannot re-enable.
-        self._state_btn.setEnabled(False)
-
-    def enable(self):
-        # This enables activation of joystick
-        # actions by the user.
-        self._state_btn.setEnabled(True)
-
-    def activate(self):
-        # This activates joystick actions, and
-        # user can deactivate.
-        if not self._state_btn.isChecked():
-            self._state_btn.toggle()
-
-    def deactivate(self):
-        # This deactivates joystick actions but
-        # user can re-activate.
-        if self._state_btn.isChecked():
-            self._state_btn.toggle()
 
     def log(self, msg):
         self.log_msg.emit(msg)
@@ -624,11 +595,11 @@ class JoystickThread(QThread):
     def run(self):
         while self.running:
             try:
-                time.sleep(self.parent.bc.joystick.scan_secs())
+                time.sleep(self.ac.bc.joystick.scan_secs())
                 # It is important to check that the button is both enabled and
                 # active before performing actions. This allows us to preserve
                 # state by disabling and enabling the button only during scans.
-                if self._state_btn.isEnabled() and self._state_btn.isChecked():
+                if self.ac.mw.mainTab.motion_widget.joystick_listener.joystick_executing:
                     #self.joystick.debug_dump()
                     self.joystick.execute()
             except Exception as e:

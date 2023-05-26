@@ -1835,10 +1835,45 @@ class JoystickListener(QPushButton):
         self.setCheckable(True)
         self.setEnabled(False)
         self.setIcon(QIcon(config.GUI.icon_files["gamepad"]))
+        self.joystick_executing = False
+        self.enable()
+        self.activate()
 
+    """
     def hitButton(self, pos):
         self.toggle()
         return True
+    """
+
+    def enable(self):
+        # This enables activation of joystick
+        # actions by the user.
+        # self.setEnabled(True)
+        self.setEnabled(True)
+        self.joystick_executing = self.isEnabled() and self.isChecked()
+
+    def disable(self):
+        # This deactivates and disables joystick
+        # actions, and user cannot re-enable.
+        # self.setEnabled(False)
+        self.setDisabled(True)
+        self.joystick_executing = self.isEnabled() and self.isChecked()
+
+    def activate(self):
+        # This activates joystick actions, and
+        # user can deactivate.
+        if not self.isChecked():
+            # self.toggle()
+            self.setChecked(True)
+        self.joystick_executing = self.isEnabled() and self.isChecked()
+
+    def deactivate(self):
+        # This deactivates joystick actions but
+        # user can re-activate.
+        if self.isChecked():
+            # self.toggle()
+            self.setChecked(False)
+        self.joystick_executing = self.isEnabled() and self.isChecked()
 
 
 class JogListener(QPushButton):

@@ -399,13 +399,16 @@ class USCMotion:
         -1: move positive along axis then negative to final position
         """
 
-        default_backlash = 0
+        backlashes = self.backlash()
+
+        default_comp = None
         backlash = self.j.get("backlash_compensation", {})
         ret = {}
         if backlash is None:
             pass
         elif type(backlash) is int:
-            default_backlash = backlash
+            default_comp = backlash
+            assert default_comp in (-1, +1), default_comp
         elif type(backlash) in (dict, OrderedDict):
             for axis, v in backlash.items():
                 ret[axis] = int(v)
@@ -417,7 +420,12 @@ class USCMotion:
             # If axes were registered, set defaults
             for k in self.axes_meta:
                 if not k in ret:
-                    ret[k] = default_backlash
+                    # If there is backlash, assign default compensation
+                    if backlashes.get(k):
+                        ret[k] = default_comp if default_comp is not None else -1
+                    else:
+                        ret[k] = 0
+                assert ret[k] in (-1, +1), ret
 
         return ret
 

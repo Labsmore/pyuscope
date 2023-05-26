@@ -959,6 +959,7 @@ class GrblHal(MotionHAL):
         self.home()
         self.grbl.set_qstatus_updated_cb(self.qstatus_updated)
 
+    """
     def epsilon(self):
         # FIXME: calculate
         # in mm
@@ -967,6 +968,7 @@ class GrblHal(MotionHAL):
             "y": 1 / 800,
             "z": 1 / 8000,
         }
+    """
 
     def home(self):
         # Commands will fail until homed

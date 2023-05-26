@@ -393,10 +393,14 @@ class MotionHAL:
         self.close()
 
     def epsilon(self):
+        """
+        The most precise system is currently 125 nm
+        Set a 10 nm default epsilon for now
+        """
         return {
-            "x": 0,
-            "y": 0,
-            "z": 0,
+            "x": 0.000010,
+            "y": 0.000010,
+            "z": 0.000010,
         }
 
     def equivalent_axis_pos(self, axis, value1, value2):

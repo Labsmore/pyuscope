@@ -91,11 +91,6 @@ class BacklashMM(MotionModifier):
     def __init__(self, motion, backlash, compensation):
         super().__init__(motion)
 
-        # Experiment: move to starting position then compensate
-        # Aims to give consistent velocity reaching end position for greater accuracy
-        # FIXME: something bad, leads to crashes...
-        self.jitter1 = False
-
         # Per axis
         self.backlash = backlash
         """
@@ -120,6 +115,7 @@ class BacklashMM(MotionModifier):
             self.compensation.setdefault(axis, -1)
             self.compensated[axis] = False
         self.recursing = False
+        self.pending_compensation = None
 
     def set_enabled(self, axes):
         self.enabled = axes
@@ -133,20 +129,17 @@ class BacklashMM(MotionModifier):
         self.compensation = compensation
         self.compensated = {}
 
-    def move_absolute_pre(self, pos, options={}):
-        if self.recursing:
-            return
-        """
-        Simple model for now:
-        -Assume move completes
-        -Only track when big moves move us into a clear state
-            ie moves need to be bigger than the backlash threshold to count
-        """
-        cur_pos = self.motion.cur_pos_cache()
-        corrections = {}
-        for axis, val in pos.items():
-            if axis not in pos:
-                continue
+    def should_compensate(self, move_to, cur_pos=None):
+        if cur_pos is None:
+            cur_pos = self.motion.cur_pos_cache()
+        ret = {}
+        for axis, val in move_to.items():
+            ret[axis] = {
+                # Will the movement itself compensate?
+                "auto": False,
+                # Is compensation needed to make reliable?
+                "needed": False,
+            }
             if not self.enabled.get(axis, False):
                 self.compensated[axis] = False
                 continue
@@ -160,20 +153,19 @@ class BacklashMM(MotionModifier):
             # if delta == 0.0:
             #     continue
 
-            if not self.jitter1:
-                # Already compensated and still moving in the same direction?
-                # No compensation necessary
-                if self.compensated[axis] and (
-                        delta == 0.0
-                        or sign(delta) == self.compensation[axis]):
-                    continue
-                # A correction is possibly needed then
-                # Will the movement itself compensate?
-                if self.compensation[axis] == +1 and delta >= self.backlash[
-                        axis] or self.compensation[
-                            axis] == -1 and delta <= -self.backlash[axis]:
-                    self.compensated[axis] = True
-                    continue
+            # Already compensated and still moving in the same direction?
+            # No compensation necessary
+            if self.compensated[axis] and (
+                    delta == 0.0 or sign(delta) == self.compensation[axis]):
+                continue
+            # A correction is possibly needed then
+            # Will the movement itself compensate?
+            if self.compensation[axis] == +1 and delta >= self.backlash[
+                    axis] or self.compensation[
+                        axis] == -1 and delta <= -self.backlash[axis]:
+                # self.compensated[axis] = True
+                ret[axis]["auto"] = True
+                continue
 
             if 0 and axis == "z":
                 self.log("z comp trig ")
@@ -183,38 +175,70 @@ class BacklashMM(MotionModifier):
                 self.log("  delta: %f" % (delta, ))
                 self.log("  val: %f" % (val, ))
                 self.log("  cur_pos: %f" % (cur_pos[axis], ))
+            ret[axis]["needed"] = True
+            ret[axis]["delta"] = delta
+        return ret
 
-            # Need to manually compensate
-            # ex: +compensation => need to do negative backlash move first
-            corrections[axis] = -self.compensation[axis] * self.backlash[axis]
+    def move_x_pre(self, dst_abs_pos, options={}):
+        if self.recursing:
+            return
+        """
+        Simple model for now:
+        -Assume move completes
+        -Only track when big moves move us into a clear state
+            ie moves need to be bigger than the backlash threshold to count
+        """
+        corrections_abs = {}
+        self.pending_compensation = {}
+        for axis, axis_compensation in self.should_compensate(
+                move_to=dst_abs_pos).items():
+            if axis_compensation["auto"]:
+                self.pending_compensation[axis] = True
+
+            if axis_compensation["needed"]:
+                # Need to manually compensate
+                # ex: +compensation => need to do negative backlash move first
+                # FIXME: this might be excessive in some cases
+                # really should be relatively move of min(delta, full step)
+                corrections_abs[axis] = dst_abs_pos[
+                    axis] - self.compensation[axis] * self.backlash[axis]
+                # corrections_rel[axis] = -self.compensation[axis] * self.backlash[axis]
 
         # Did we calculate any backlash moves?
-        if len(corrections):
+        if len(corrections_abs):
             self.recursing = True
-            if self.jitter1:
-                self.motion.move_absolute(pos)
-                self.motion.move_relative(corrections)
-            # Traditional: move one delta
-            else:
-                self.motion.move_relative(corrections)
+            self.motion.move_absolute(corrections_abs)
             self.recursing = False
-            for axis in corrections.keys():
+            for axis in corrections_abs.keys():
                 self.compensated[axis] = True
+
+    def move_absolute_pre(self, pos, options={}):
+        if self.recursing:
+            return
+        self.move_x_pre(dst_abs_pos=pos, options=options)
 
     def move_relative_pre(self, pos, options={}):
         # backlash will overshoot
-        assert 0, "fixme: broken"
         if self.recursing:
             return
         final_abs_pos = self.motion.estimate_relative_pos(
             pos, cur_pos=self.motion.cur_pos_cache())
-        print("tmp estimated pos", final_abs_pos)
-        self.move_absolute_pre(final_abs_pos)
+        self.move_x_pre(dst_abs_pos=final_abs_pos, options=options)
 
     def jog(self, scalars, options={}):
         # Don't modify jog commands, but invalidate compensation
         for axis in scalars.keys():
             self.compensated[axis] = False
+
+    def move_absolute_post(self, ok, options={}):
+        for axis in self.pending_compensation.keys():
+            self.compensated[axis] = True
+        self.pending_compensation = None
+
+    def move_relative_post(self, ok, options={}):
+        for axis in self.pending_compensation.keys():
+            self.compensated[axis] = True
+        self.pending_compensation = None
 
 
 """
@@ -538,7 +562,6 @@ class MotionHAL:
         self.validate_axes(pos.keys())
 
         self.verbose and print("motion: move_relative(%s)" % (pos_str(pos)))
-        """
         self.cur_pos_cache_invalidate()
         try:
             for modifier in self.iter_active_modifiers():
@@ -549,13 +572,6 @@ class MotionHAL:
             self.mv_lastt = time.time()
         finally:
             self.cur_pos_cache_invalidate()
-        """
-        # there are bugs in backlash compensation
-        # globally switch to soft relative for now
-        self.cur_pos_cache_invalidate()
-        final_abs_pos = self.estimate_relative_pos(
-            pos, cur_pos=self.cur_pos_cache())
-        self.move_absolute(final_abs_pos, options=options)
 
     def _move_relative(self, delta):
         '''Relative move to positions specified by delta dict'''

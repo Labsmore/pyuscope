@@ -2,9 +2,10 @@ from uscope.motion import hal as cnc_hal
 from uscope.motion.lcnc import hal as lcnc_hal
 from uscope.motion.lcnc import hal_ar as lcnc_ar
 from uscope.motion.lcnc.client import LCNCRPC
-from uscope.motion.grbl import GrblHal
+from uscope.motion.grbl import GrblHal, grbl_home
 from uscope.config import get_usc
 import socket
+import time
 
 plugins = {}
 
@@ -63,6 +64,7 @@ def register_plugins():
         commands = grblc.get("rc")
         if commands:
             ret.rc_commands(commands)
+        grbl_home(grbl=ret)
         return ret
 
     register_plugin("grbl-ser", grbl_ser)

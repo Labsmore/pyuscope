@@ -120,6 +120,8 @@ class ArgusCommon(QObject):
     """
     cncProgress = pyqtSignal(dict)
     log_msg = pyqtSignal(str)
+    takeSnapshot = pyqtSignal()
+    setJogSlider = pyqtSignal(int)
 
     # pos = pyqtSignal(int)
 
@@ -203,12 +205,26 @@ class ArgusCommon(QObject):
         self.vidpip.setupWidgets()
 
     def post_ui_init(self):
-        # FIXME: these are not thread safe
-        # convert to signals
-        self.microscope.set_jog_scale = self.mainTab.motion_widget.slider.set_jog_slider
-        self.microscope.take_snapshot = self.mainTab.snapshot_widget.take_snapshot
         self.microscope.jog_lazy = self.motion_thread.jog_lazy
         self.microscope.cancel_jog = self.motion_thread.stop
+
+        # FIXME: these are not thread safe
+        # convert to signals
+
+        # self.microscope.take_snapshot = self.mainTab.snapshot_widget.take_snapshot
+        def take_snapshot_emit():
+            self.takeSnapshot.emit()
+
+        self.takeSnapshot.connect(self.mainTab.snapshot_widget.take_snapshot)
+        self.microscope.take_snapshot = take_snapshot_emit
+
+        # self.microscope.set_jog_scale = self.mainTab.motion_widget.slider.set_jog_slider
+        def set_jog_scale_emit(int):
+            self.takeSnapshot.emit()
+
+        self.setJogSlider.connect(
+            self.mainTab.motion_widget.slider.set_jog_slider)
+        self.microscope.set_jog_scale = set_jog_scale_emit
 
         self.control_scroll.run()
         self.vid_fd = None

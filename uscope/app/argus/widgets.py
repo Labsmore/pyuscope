@@ -2024,6 +2024,15 @@ class MotionWidget(AWidget):
         }
 
         self.last_send = time.time()
+        # Can be used to invert keyboard, joystick XY inputs
+        self.keyboard_xy_scalar = 1.0
+        self.joystick_xy_scalar = 1.0
+
+    def set_keyboard_xy_scalar(self, val):
+        self.keyboard_xy_scalar = val
+
+    def set_joystick_xy_scalar(self, val):
+        self.joystick_xy_scalar = val
 
     def initUI(self):
         # ?
@@ -2179,6 +2188,7 @@ class MotionWidget(AWidget):
                     scalar /= 20
                 else:
                     scalar /= 100
+            scalar *= self.keyboard_xy_scalar
             if scalar < 0:
                 scalar = min(-0.0001, scalar)
             else:
@@ -2222,14 +2232,17 @@ class MotionWidget(AWidget):
         if joystick:
             slider_val = self.slider.get_jog_val()
             joystick.set_axis_scalars({
-                "x": 1.0 * slider_val,
-                "y": 1.0 * slider_val,
-                "z": 1.0 * slider_val,
+                "x":
+                self.joystick_xy_scalar * slider_val,
+                "y":
+                self.joystick_xy_scalar * slider_val,
+                "z":
+                self.joystick_xy_scalar * slider_val,
             })
             joystick.set_hat_scalars({
-                "x": 1.0 * slider_val,
-                "y": 1.0 * slider_val,
-                "z": 1.0 * slider_val,
+                "x": self.joystick_xy_scalar * slider_val,
+                "y": self.joystick_xy_scalar * slider_val,
+                "z": self.joystick_xy_scalar * slider_val,
             })
 
 

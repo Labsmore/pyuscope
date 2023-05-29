@@ -22,14 +22,36 @@ class Joystick:
         # This init is required by some systems.
         pygame.joystick.init()
         self.joystick.init()
+        model = self.joystick.get_name()
         self.joystick_fn_map = self.microscope.bc.joystick.function_map(
-            model=self.joystick.get_name())
+            model=model)
+
         self.axis_threshold = {
             "x": 0.1,
             "y": 0.1,
             "z": 0.1,
         }
+        if model == "CH Products CH Products IP Desktop Controller":
+            # FIXME: hack. should load from joystick config
+            self.axis_cal_scalars = {
+                "x": +1.0,
+                "y": -1.0,
+                "z": +1.0,
+            }
+        else:
+            self.axis_cal_scalars = {
+                "x": +1.0,
+                "y": +1.0,
+                "z": +1.0,
+            }
+
         self.axis_scalars = {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0,
+        }
+
+        self.hat_cal_scalars = {
             "x": 1.0,
             "y": 1.0,
             "z": 1.0,
@@ -113,19 +135,22 @@ class Joystick:
         val = self.joystick.get_axis(id)
         if self.process_skip("x", "axis_move_x", val):
             return
-        self._jog("x", self.axis_scalars["x"] * val)
+        self._jog("x",
+                  self.axis_cal_scalars["x"] * self.axis_scalars["x"] * val)
 
     def axis_move_y(self, id):
         val = self.joystick.get_axis(id)
         if self.process_skip("y", "axis_move_y", val):
             return
-        self._jog("y", self.axis_scalars["y"] * val)
+        self._jog("y",
+                  self.axis_cal_scalars["y"] * self.axis_scalars["y"] * val)
 
     def axis_move_z(self, id):
         val = self.joystick.get_axis(id)
         if self.process_skip("z", "axis_move_z", val):
             return
-        self._jog("z", self.axis_scalars["z"] * val)
+        self._jog("z",
+                  self.axis_cal_scalars["z"] * self.axis_scalars["z"] * val)
 
     def hat_move_z(self, id, idx):
         val = self.joystick.get_hat(id)[idx]
@@ -133,7 +158,7 @@ class Joystick:
         if self.process_skip("z", "hat_move_z", val):
             return
         # Hat values are either -1 or 1, so we can just multiply for sign
-        self._jog("z", self.hat_scalars["z"] * val)
+        self._jog("z", self.hat_cal_scalars["z"] * self.hat_scalars["z"] * val)
 
     def btn_capture_image(self, id):
         if self.joystick.get_button(id):

@@ -584,6 +584,7 @@ class JoystickThread(QThread):
             self.joystick = Joystick(microscope=self.ac.microscope)
         except JoystickNotFound:
             raise JoystickNotFound()
+        self.ac.microscope.joystick = self.joystick
 
     def log_info(self):
         self.log("Joystick")

@@ -114,15 +114,30 @@ class MainWindow(QMainWindow):
         self.aboutAction = QAction("About", self)
 
         menuBar = self.menuBar()
+
         # File menu
         fileMenu = QMenu("File", self)
         menuBar.addMenu(fileMenu)
         fileMenu.addAction(self.exitAction)
+
         # Video menu
         videoMenu = menuBar.addMenu("Video")
         videoMenu.addAction(self.zoomPlus)
         videoMenu.addAction(self.zoomMinus)
         videoMenu.addAction(self.fullShow)
+
+        motionMenu = menuBar.addMenu("Motion")
+        self.invertKeyboardXY = QAction("Invert keyboard XY",
+                                        motionMenu,
+                                        checkable=True)
+        motionMenu.addAction(self.invertKeyboardXY)
+        self.invertKeyboardXY.triggered.connect(self.invertKeyboardXYTriggered)
+        self.invertJoystickXY = QAction("Invert joystick XY",
+                                        motionMenu,
+                                        checkable=True)
+        motionMenu.addAction(self.invertJoystickXY)
+        self.invertJoystickXY.triggered.connect(self.invertJoystickXYTriggered)
+
         # Help menu
         helpMenu = menuBar.addMenu("Help")
         helpMenu.addAction(self.helpContentAction)
@@ -209,6 +224,7 @@ class MainWindow(QMainWindow):
         # FIXME: convert to plugin iteration
         self.mainTab.planner_widget_xy2p.poll_misc()
         self.mainTab.planner_widget_xy3p.poll_misc()
+        self.mainTab.motion_widget.poll_misc()
         self.imagerTab.poll_misc()
 
         if self.pluginTab:
@@ -259,6 +275,20 @@ class MainWindow(QMainWindow):
         if not cachej:
             cachej = {}
         self.pluginTab.cache_load(cachej)
+
+    def invertKeyboardXYTriggered(self):
+        mw = self.mainTab.motion_widget
+        if self.invertKeyboardXY.isChecked():
+            mw.set_keyboard_xy_scalar(-1.0)
+        else:
+            mw.set_keyboard_xy_scalar(+1.0)
+
+    def invertJoystickXYTriggered(self):
+        mw = self.mainTab.motion_widget
+        if self.invertJoystickXY.isChecked():
+            mw.set_joystick_xy_scalar(-1.0)
+        else:
+            mw.set_joystick_xy_scalar(+1.0)
 
 
 def parse_args():

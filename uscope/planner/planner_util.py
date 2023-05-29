@@ -18,13 +18,29 @@ def get_objective(usc=None, objectivei=None, objectivestr=None):
     assert 0, "Ambiguous objective, must specify"
 
 
+def get_view(pconfig, usc):
+    im_w_pix, im_h_pix = usc.imager.cropped_wh()
+    x_view = pconfig["imager"]["x_view"]
+    y_view = 1.0 * x_view * im_h_pix / im_w_pix
+    return x_view, y_view
+
+
+def fix_contour_center(contour, pconfig, usc):
+    x_view, y_view = get_view(pconfig=pconfig, usc=usc)
+    contour["start"]["x"] -= x_view / 2
+    contour["start"]["y"] -= y_view / 2
+    contour["end"]["x"] += x_view / 2
+    contour["end"]["y"] += y_view / 2
+
+
 def microscope_to_planner_config(usj=None,
                                  usc=None,
                                  objective=None,
                                  objectivestr=None,
                                  objectivei=None,
                                  contour=None,
-                                 corners=None):
+                                 corners=None,
+                                 center=False):
     if usc is None:
         usc = USC(usj)
     usj = usc.usj
@@ -41,10 +57,14 @@ def microscope_to_planner_config(usj=None,
     }
 
     if contour is not None:
+        if center:
+            fix_contour_center(contour, pconfig=ret, usc=usc)
         ret["points-xy2p"] = {
             "contour": contour,
         }
     if corners is not None:
+        if center:
+            assert 0, "FIXME"
         ret["points-xy3p"] = {
             "corners": corners,
         }
@@ -119,7 +139,9 @@ def get_planner(pconfig,
     # FIXME: needs review / testing
     if "hdr" in pconfig["imager"]:
         pipeline_names.append("hdr")
-    pipeline_names.append("kinematics")
+    # FIXME: might eventually want to support this, but frame sync needs fixing
+    if not imager.remote():
+        pipeline_names.append("kinematics")
     pipeline_names.append("image-capture")
     if not imager.remote():
         pipeline_names.append("image-save")

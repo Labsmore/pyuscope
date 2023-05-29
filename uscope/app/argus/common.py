@@ -203,6 +203,13 @@ class ArgusCommon(QObject):
         self.vidpip.setupWidgets()
 
     def post_ui_init(self):
+        # FIXME: these are not thread safe
+        # convert to signals
+        self.microscope.set_jog_scale = self.mainTab.motion_widget.slider.set_jog_slider
+        self.microscope.take_snapshot = self.mainTab.snapshot_widget.take_snapshot
+        self.microscope.jog_lazy = self.motion_thread.jog_lazy
+        self.microscope.cancel_jog = self.motion_thread.stop
+
         self.control_scroll.run()
         self.vid_fd = None
         self.vidpip.run()

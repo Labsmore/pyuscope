@@ -426,7 +426,7 @@ class USCMotion:
                         ret[k] = default_comp if default_comp is not None else -1
                     else:
                         ret[k] = 0
-                assert ret[k] in (-1, +1), ret
+                assert ret[k] in (-1, 0, +1), ret
 
         return ret
 

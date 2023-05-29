@@ -149,6 +149,13 @@ class MotionThread(QThread):
     def jog(self, pos):
         self.command("jog", pos)
 
+    def jog_lazy(self, pos):
+        """
+        Only jog if events haven't already stacked up high
+        """
+        if self.qsize() < 1:
+            self.command("jog", pos)
+
     def stop(self):
         # self.command("stop")
         self._stop = True
@@ -574,7 +581,7 @@ class JoystickThread(QThread):
         self.running = threading.Event()
         self.running.set()
         try:
-            self.joystick = Joystick(ac=self.ac)
+            self.joystick = Joystick(microscope=self.ac.microscope)
         except JoystickNotFound:
             raise JoystickNotFound()
 

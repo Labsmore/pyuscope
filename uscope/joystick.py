@@ -8,15 +8,13 @@ class JoystickNotFound(Exception):
 
 # FIXME: low level joystick object should not depend on Argus
 class Joystick:
-    _default_axis_threshold = 0.5
-
-    def __init__(self, ac):
-        self.ac = ac
+    def __init__(self, microscope):
+        self.microscope = microscope
         pygame.init()
         pygame.joystick.init()
         try:
             self.joystick = pygame.joystick.Joystick(
-                self.ac.bc.joystick.device_number())
+                self.microscope.bc.joystick.device_number())
         except pygame.error:
             raise JoystickNotFound()
 
@@ -24,8 +22,31 @@ class Joystick:
         # This init is required by some systems.
         pygame.joystick.init()
         self.joystick.init()
-        self.joystick_fn_map = self.ac.bc.joystick.function_map(
+        self.joystick_fn_map = self.microscope.bc.joystick.function_map(
             model=self.joystick.get_name())
+        self.axis_threshold = {
+            "x": 0.1,
+            "y": 0.1,
+            "z": 0.1,
+        }
+        self.axis_scalars = {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0,
+        }
+        self.hat_scalars = {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0,
+        }
+        # Used to know when joystick is idle to cancel jogs
+        self._last_skips = {}
+
+    def set_axis_scalars(self, scalars):
+        self.axis_scalars = scalars
+
+    def set_hat_scalars(self, scalars):
+        self.hat_scalars = scalars
 
     def configure(self):
         pass
@@ -51,8 +72,9 @@ class Joystick:
         for i in range(self.joystick.get_numhats()):
             print("Hat({}): {}".format(i, self.joystick.get_hat(i)))
 
-    def _move(self, axis, val):
-        self.ac.motion_thread.jog({axis: val})
+    def _jog(self, axis, val):
+        # self.ac.motion_thread.jog_lazy({axis: val})
+        self.microscope.jog_lazy({axis: val})
 
     # The following functions can be specified in the fn_map of the
     # joystick configuration files.
@@ -77,42 +99,46 @@ class Joystick:
     # Not all functions need to be mapped to triggers, and potentially
     # multiple triggers could be mapped (use buttons or axis to move x).
 
-    def axis_move_x(self, id, threshold=_default_axis_threshold):
-        val = self.joystick.get_axis(id)
-        if abs(val) < threshold:
-            return
-        val = math.copysign(self.ac.mainTab.motion_widget.slider.get_jog_val(),
-                            val)
-        self._move('x', val)
+    def process_skip(self, axis, function, val):
+        skip = abs(val) < self.axis_threshold[axis]
+        last_skip = self._last_skips.get(function)
+        self._last_skips[function] = skip
+        if skip:
+            # Need to cancel jog to clear queue
+            if not last_skip:
+                self.microscope.cancel_jog()
+        return skip
 
-    def axis_move_y(self, id, threshold=_default_axis_threshold):
+    def axis_move_x(self, id):
         val = self.joystick.get_axis(id)
-        if abs(val) < threshold:
+        if self.process_skip("x", "axis_move_x", val):
             return
-        val = math.copysign(self.ac.mainTab.motion_widget.slider.get_jog_val(),
-                            val)
-        self._move('y', val)
+        self._jog("x", self.axis_scalars["x"] * val)
 
-    def axis_move_z(self, id, threshold=_default_axis_threshold):
+    def axis_move_y(self, id):
         val = self.joystick.get_axis(id)
-        if abs(val) < threshold:
+        if self.process_skip("y", "axis_move_y", val):
             return
-        val = math.copysign(self.ac.mainTab.motion_widget.slider.get_jog_val(),
-                            val)
-        self._move('z', val)
+        self._jog("y", self.axis_scalars["y"] * val)
+
+    def axis_move_z(self, id):
+        val = self.joystick.get_axis(id)
+        if self.process_skip("z", "axis_move_z", val):
+            return
+        self._jog("z", self.axis_scalars["z"] * val)
 
     def hat_move_z(self, id, idx):
         val = self.joystick.get_hat(id)[idx]
         # If hat is not pressed skip
-        if val == 0:
+        if self.process_skip("z", "hat_move_z", val):
             return
         # Hat values are either -1 or 1, so we can just multiply for sign
-        val = val * self.ac.mainTab.motion_widget.slider.get_jog_val()
-        self._move('z', val)
+        self._jog("z", self.hat_scalars["z"] * val)
 
     def btn_capture_image(self, id):
         if self.joystick.get_button(id):
-            self.ac.mainTab.snapshot_widget.take_snapshot()
+            # self.ac.mainTab.snapshot_widget.take_snapshot()
+            self.microscope.take_snapshot()
 
     def axis_set_jog_slider_value(self, id, invert=True):
         # The min and max values of the joystick range (it is not
@@ -128,4 +154,5 @@ class Joystick:
         old_range = val_max - val_min
         new_range = new_max - new_min
         new_value = (((val - val_min) * new_range) / old_range) + new_min
-        self.ac.mainTab.motion_widget.slider.set_jog_slider(new_value)
+        # self.ac.mainTab.motion_widget.slider.set_jog_slider(new_value)
+        self.microscope.set_jog_scale(new_value)

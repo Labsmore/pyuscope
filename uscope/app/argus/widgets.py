@@ -2217,6 +2217,21 @@ class MotionWidget(AWidget):
             # print("cancel jog on release")
             self.motion_thread.stop()
 
+    def poll_misc(self):
+        joystick = self.ac.microscope.joystick
+        if joystick:
+            slider_val = self.slider.get_jog_val()
+            joystick.set_axis_scalars({
+                "x": 1.0 * slider_val,
+                "y": 1.0 * slider_val,
+                "z": 1.0 * slider_val,
+            })
+            joystick.set_hat_scalars({
+                "x": 1.0 * slider_val,
+                "y": 1.0 * slider_val,
+                "z": 1.0 * slider_val,
+            })
+
 
 class SimpleScanNameWidget(AWidget):
     """

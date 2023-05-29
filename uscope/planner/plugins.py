@@ -920,6 +920,7 @@ class PlannerHDR(PlannerPlugin):
 class PlannerKinematics(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
+        assert self.microscope
         self.kinematics = Kinematics(
             microscope=self.microscope,
             log=self.log,
@@ -965,7 +966,7 @@ class PlannerCaptureImage(PlannerPlugin):
         self.log("Capturing at %s" % pos_str(self.motion.pos()))
         if not self.planner.dry:
             if self.planner.imager.remote():
-                self.planner.imager_take.take()
+                self.planner.imager.take()
             else:
                 tstart = time.time()
                 images = self.planner.imager.get()
@@ -1093,6 +1094,7 @@ def register_plugins():
     register_plugin("kinematics", PlannerKinematics)
     register_plugin("image-capture", PlannerCaptureImage)
     register_plugin("image-save", PlannerSaveImage)
+    # register_plugin("image-gcode", PlannerGcodeImage)
     # register_plugin("scraper", PlannerScraper)
 
 

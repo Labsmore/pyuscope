@@ -268,9 +268,6 @@ class GstVideoPipeline:
             Just squish to the largest size we can fit
             
             """
-            self.cam_cropped_w
-            self.cam_cropped_h
-
             wigdata["screen_h_max"]
             # Screen is really wide compared to camera => fill h and crop w
             # XXX: worry about ratio here? How do rounding errors affect things?
@@ -305,11 +302,12 @@ class GstVideoPipeline:
         # Calculate crop based on the full size
         # Divide remaining pixels between left and right
         cam_crop_lr = self.cam_cropped_w - cam_max_w
+        cam_crop_tb = self.cam_cropped_h - cam_max_h
+        assert cam_crop_lr >= 0 and cam_crop_tb >= 0
         screen_w = wigdata["screen_w_max"]
         if cam_crop_lr % 2 == 1:
             cam_crop_lr += 1
             screen_w -= 1
-        cam_crop_tb = self.cam_cropped_h - cam_max_h
         screen_h = wigdata["screen_h_max"]
         if cam_crop_tb % 2 == 1:
             cam_crop_tb += 1
@@ -322,12 +320,12 @@ class GstVideoPipeline:
             "top": crop_tb,
             "bottom": crop_tb,
         }
+        # How much of the sensor is actually being used
         wigdata["screen_w"] = screen_w
         wigdata["screen_h"] = screen_h
-        # How much of the sensor is actually being used
         wigdata["cam_w"] = self.cam_cropped_w - crop_lr * 2
         wigdata["cam_h"] = self.cam_cropped_h - crop_tb * 2
-        if 1 or self.verbose:
+        if 0 or self.verbose:
             print("size_roi() for %s" % wigdata["type"])
             print("  Final widget size: %u w x %u h pix" %
                   (wigdata["screen_w"], wigdata["screen_h"]))
@@ -360,7 +358,7 @@ class GstVideoPipeline:
         """
         group_configs = self.group_widgets()
         screen_w, screen_h = screen_wh()
-        print("Sizing widgets for screen %u w x %u h" % (screen_w, screen_h))
+        # print("Sizing widgets for screen %u w x %u h" % (screen_w, screen_h))
 
         for wigdata in self.wigdatas.values():
             """
@@ -400,8 +398,8 @@ class GstVideoPipeline:
         wigdata["videocrop"].set_property("right", crop["right"])
 
     def setupWidget(self, wigdata, parent=None):
-        print("widget for %s: set %u w, %u h" %
-              (wigdata["type"], wigdata["screen_w"], wigdata["screen_h"]))
+        #print("widget for %s: set %u w, %u h" %
+        #      (wigdata["type"], wigdata["screen_w"], wigdata["screen_h"]))
         # Raw X-windows canvas
         wigdata["widget"] = SinkxWidget(parent=parent)
         wigdata["widget"].setMinimumSize(wigdata["screen_w"],
@@ -423,7 +421,9 @@ class GstVideoPipeline:
 
     def roi_zoom_minus(self):
         wigdata = self.wigdatas["overview_roi"]
-        if wigdata["zoom"] == 1:
+        # https://github.com/Labsmore/pyuscope/issues/171
+        # For some reason zoom level 1 causes issue even though still cropped
+        if wigdata["zoom"] == 2:
             return
         self.change_roi_zoom(zoom=wigdata["zoom"] // 2)
 
@@ -435,6 +435,7 @@ class GstVideoPipeline:
         wigdata["zoom"] = zoom
         self.size_widget(wigdata)
         self.set_crop(wigdata)
+
         wigdata["widget"].setMinimumSize(wigdata["screen_w"],
                                          wigdata["screen_h"])
         wigdata["widget"].resize(wigdata["screen_w"], wigdata["screen_h"])
@@ -590,7 +591,6 @@ class GstVideoPipeline:
             assert 0, wigdata["type"]
 
     def wigdata_link(self, wigdata):
-        print("type", wigdata["type"])
         # Used in roi but not full
         if wigdata["type"] == "roi":
             assert wigdata["videocrop"].link(wigdata["videoscale"])

@@ -281,8 +281,7 @@ class ArgusCommon(QObject):
             update_pconfig(pconfig)
 
     def auto_exposure_enabled(self):
-        # XXX: not portable, touptek only
-        return self.control_scroll.prop_read("auto-exposure")
+        return self.control_scroll.auto_exposure_enabled()
 
     # FIXME: better abstraction
     def is_idle(self):

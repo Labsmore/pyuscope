@@ -43,3 +43,7 @@ class V4L2GstControlScroll(GstControlScroll):
                                   groups_gst=groups_gst,
                                   usc=usc,
                                   parent=parent)
+
+    def auto_exposure_enabled(self):
+        # FIXME: is this accurate? There might be a prop
+        return True

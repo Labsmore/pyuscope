@@ -301,7 +301,7 @@ class ImagerControlScroll(QScrollArea):
         self.raw_prop_write(name, value)
         self.prop_policy(name, value)
 
-    def prop_read(self, name):
+    def prop_read(self, name, default=False):
         return self.raw_prop_read(name)
 
     def raw_prop_write(self, name, value):
@@ -312,6 +312,9 @@ class ImagerControlScroll(QScrollArea):
 
     def cal_load_clicked(self, checked):
         self.cal_load(load_data_dir=True)
+
+    def auto_exposure_enabled(self):
+        raise Exception("Required")
 
     def cal_load(self, load_data_dir=True):
         try:

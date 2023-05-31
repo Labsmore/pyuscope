@@ -61,3 +61,6 @@ class TTControlScroll(GstControlScroll):
                                   groups_gst=groups_gst,
                                   usc=usc,
                                   parent=parent)
+
+    def auto_exposure_enabled(self):
+        return self.prop_read("auto-exposure")

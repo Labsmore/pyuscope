@@ -544,8 +544,8 @@ class XYPlanner2PWidget(PlannerWidget):
     def get_corner_widget_pos(self, corner_name):
         widgets = self.pb_gos[corner_name]
         try:
-            x = float(widgets["x_le"].text())
-            y = float(widgets["y_le"].text())
+            x = float(widgets["x_le"].text().replace(" ", ""))
+            y = float(widgets["y_le"].text().replace(" ", ""))
         except ValueError:
             self.ac.log("Bad scan x/y")
             return None

@@ -57,53 +57,66 @@ AMA100 relay lens
         //Default configuration
         {
             "camera_sn": null,
+            //./sm3590t_template.py --scalar 2.896
             "objectives": [
                 {
                     "name":"B0.5x @ 0.7x",
-                    "x_view": 37.247
+                    "magnification": 0.350,
+                    "x_view": 37.234
                 },
                 {
                     "name":"B0.5x @ 1.5x",
-                    "x_view": 17.382
+                    "magnification": 0.750,
+                    "x_view": 17.376
                 },
                 {
                     "name":"B0.5x @ 3.0x",
-                    "x_view": 8.691
+                    "magnification": 1.500,
+                    "x_view": 8.688
                 },
                 {
                     "name":"B0.5x @ 4.5x",
-                    "x_view": 5.794
+                    "magnification": 2.250,
+                    "x_view": 5.792
                 },
                 {
                     "name":"B1.0x @ 0.7x",
-                    "x_view": 18.624
+                    "magnification": 0.700,
+                    "x_view": 18.617
                 },
                 {
                     "name":"B1.0x @ 1.5x",
-                    "x_view": 8.691
+                    "magnification": 1.500,
+                    "x_view": 8.688
                 },
                 {
                     "name":"B1.0x @ 3.0x",
-                    "x_view": 4.345
+                    "magnification": 3.000,
+                    "x_view": 4.344
                 },
                 {
                     "name":"B1.0x @ 4.5x",
-                    "x_view": 2.897
+                    "magnification": 4.500,
+                    "x_view": 2.896
                 },
                 {
                     "name":"B2.0x @ 0.7x",
-                    "x_view": 9.312
+                    "magnification": 1.400,
+                    "x_view": 9.309
                 },
                 {
                     "name":"B2.0x @ 1.5x",
-                    "x_view": 4.345
+                    "magnification": 3.000,
+                    "x_view": 4.344
                 },
                 {
                     "name":"B2.0x @ 3.0x",
-                    "x_view": 2.173
+                    "magnification": 6.000,
+                    "x_view": 2.172
                 },
                 {
                     "name":"B2.0x @ 4.5x",
+                    "magnification": 9.000,
                     "x_view": 1.448
                 },
             ],

@@ -383,7 +383,7 @@ class GstVideoPipeline:
                 if wigdata.get("size") == "max":
                     default_frac_h = 0.90
                 else:
-                    default_frac_h = 0.40
+                    default_frac_h = 0.35
                 wigdata["screen_w_max"] = int(
                     screen_w * wigdata.get("screen_scalar_w", 0.90) /
                     group_config["widgets_h"])

@@ -223,7 +223,6 @@ class SnapshotWidget(AWidget):
         self.ac.log('Requesting snapshot')
         # Disable until snapshot is completed
         self.snapshot_pb.setEnabled(False)
-        self.ac.joystick_thread and self.ac.joystick_thread.disable()
 
         def emitSnapshotCaptured(image_id):
             self.ac.log('Image captured: %s' % image_id)
@@ -267,7 +266,6 @@ class SnapshotWidget(AWidget):
         try_save()
 
         self.snapshot_pb.setEnabled(True)
-        self.ac.joystick_thread and self.ac.joystick_thread.enable()
 
     def post_ui_init(self):
         pass
@@ -923,7 +921,7 @@ class ScanWidget(AWidget):
         run_next = result["result"] == "ok" or (
             not self.ac.batchTab.abort_on_failure())
         # More scans?
-        if run_next and self.scan_configs:
+        if run_next and self.scan_configs and not result.get("hard_fail"):
             self.run_next_scan_config()
         else:
             self.scan_configs = None
@@ -935,7 +933,7 @@ class ScanWidget(AWidget):
 
     def run_next_scan_config(self):
         try:
-            self.ac.joystick_thread and self.ac.joystick_thread.disable()
+            self.ac.joystick_disable(asneeded=True)
             self.current_scan_config = self.scan_configs[0]
             assert self.current_scan_config
             del self.scan_configs[0]
@@ -1012,7 +1010,7 @@ class ScanWidget(AWidget):
             self.ac.control_scroll.user_controls_enabled(False)
             self.ac.planner_thread.start()
         except:
-            self.plannerDone({"result": "init_failure"})
+            self.plannerDone({"result": "init_failure", "hard_fail": True})
             raise
 
     def go_scan_configs(self, scan_configs):
@@ -1728,7 +1726,7 @@ class StitchingTab(ArgusTab):
                 self.cloud_stitch_add(scan_config["out_dir"])
 
         # Enable joystick control if appropriate
-        self.ac.joystick_thread and self.ac.joystick_thread.enable()
+        self.ac.joystick_enable(asneeded=True)
 
     def cloud_stitch_add(self, directory):
         self.ac.log(f"CloudStitch: requested {directory}")

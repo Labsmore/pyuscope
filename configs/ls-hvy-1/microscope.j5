@@ -18,7 +18,6 @@ Original "pr0nscope" mk2 BH2 CNC microscope
     "motion": {
         "hal": "grbl-ser",
         "backlash": 0.05,
-        "origin": "ul",
         //FIXME: not calibrated
         /*
         lcnc

@@ -296,14 +296,22 @@ class GstVideoPipeline:
 
         # Apply zoom factor
         # Ex: zoom 2 means 100 pixel wide widget only can display 50 cam pixels
-        zoom = wigdata.setdefault("zoom", 2)
-        cam_max_w = wigdata["screen_w_max"] // zoom
-        cam_max_h = wigdata["screen_h_max"] // zoom
-        # Calculate crop based on the full size
-        # Divide remaining pixels between left and right
-        cam_crop_lr = self.cam_cropped_w - cam_max_w
-        cam_crop_tb = self.cam_cropped_h - cam_max_h
-        assert cam_crop_lr >= 0 and cam_crop_tb >= 0
+        zoom_default = wigdata.setdefault("zoom")
+        zoom = zoom_default or 2
+        while True:
+            cam_max_w = wigdata["screen_w_max"] // zoom
+            cam_max_h = wigdata["screen_h_max"] // zoom
+            # Calculate crop based on the full size
+            # Divide remaining pixels between left and right
+            cam_crop_lr = self.cam_cropped_w - cam_max_w
+            cam_crop_tb = self.cam_cropped_h - cam_max_h
+            if cam_crop_lr < 0 or cam_crop_tb < 0:
+                if zoom_default:
+                    assert 0, (cam_crop_lr, cam_crop_tb)
+                zoom *= 2
+                print("FIXME: zoom hack", cam_crop_lr, cam_crop_tb)
+                continue
+            break
         screen_w = wigdata["screen_w_max"]
         if cam_crop_lr % 2 == 1:
             cam_crop_lr += 1

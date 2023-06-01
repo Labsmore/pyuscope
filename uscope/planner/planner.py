@@ -113,6 +113,10 @@ class Planner:
 
         self.progress_callbacks = []
 
+        # Optimization for planner stacking to avoid extra movements
+        # https://github.com/Labsmore/pyuscope/issues/180
+        self.z_center = None
+
         # polarity such that can wait on being set
         self.unpaused = threading.Event()
         self.unpaused.set()
@@ -361,3 +365,7 @@ class Planner:
 
     def images_captured(self):
         return self.pipeline["scraper"].images_captured
+
+    def stacking(self):
+        """Return true if focus stacking enabled"""
+        return "points-stacker" in self.pipeline

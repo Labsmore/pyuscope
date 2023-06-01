@@ -703,6 +703,13 @@ class PointGenerator3P(PlannerPlugin):
         pos = dict(pos)
         if not self.tracking_z and "z" in pos:
             del pos["z"]
+        # Really setting z. Does this interact with stacking?
+        if "z" in pos:
+            self.planner.z_center = pos["z"]
+            # XXX: maybe also drop the z movement if stacking?
+            # ideally we'd also aggregate the XY and first Z movements together
+            if self.planner.stacking():
+                del pos["z"]
         self.motion.move_absolute(pos)
 
     def iterate(self, state):
@@ -813,9 +820,20 @@ class PlannerStacker(PlannerPlugin):
         return "z%02d" % image_number
 
     def iterate(self, state):
+        # Take the original center point as the reference for stacking
+        # used on XY2P and XY3P w/o z tracking
+        if self.planner.z_center is None:
+            cur_pos = self.planner.motion.pos()
+            if "z" in cur_pos:
+                self.planner.z_center = cur_pos["z"]
+
         # Position where stacking is relative to
         # If None will be initialized at start of run
-        self.reference = self.planner.motion.pos()[self.axis]
+        # https://github.com/Labsmore/pyuscope/issues/180
+        # self.reference = self.planner.motion.pos()[self.axis]
+        assert self.axis == "z"
+        self.reference = self.planner.z_center
+
         # From center
         self.start = self.reference - self.step * (self.total_number - 1) / 2
         self.end = self.start + (self.total_number - 1) * self.step
@@ -839,8 +857,6 @@ class PlannerStacker(PlannerPlugin):
                 "stacki": pointi,
             }
             yield modifiers, replace_keys
-        # If point generator doesn't set Z we'll drift without returning to original
-        self.planner.motion.move_absolute({self.axis: self.reference})
 
     def scan_end(self, state):
         self.log("Stacker: restoring %s = %0.3f" %

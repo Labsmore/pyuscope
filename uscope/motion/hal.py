@@ -603,8 +603,8 @@ class MotionHAL:
         self.verbose and print("motion: move_relative(%s)" % (pos_str(pos)))
         # XXX: invalidates on recursion
         self.cur_pos_cache_invalidate()
-        final_abs_pos = self.motion.estimate_relative_pos(
-            pos, cur_pos=self.motion.cur_pos_cache())
+        final_abs_pos = self.estimate_relative_pos(
+            pos, cur_pos=self.cur_pos_cache())
         # Relative move full stack just too hard to support well for now
         # Ex: setting up w/ backlash compensation is difficult
         # And don't see a real reason to support it

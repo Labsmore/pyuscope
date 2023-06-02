@@ -152,7 +152,7 @@ class ArgusCommon(QObject):
         self.vidpip = GstVideoPipeline(usc=self.usc,
                                        overview=True,
                                        overview_roi=True,
-                                       overview2=False,
+                                       overview2=True,
                                        log=self.log)
 
         # FIXME: review sizing

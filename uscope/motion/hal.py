@@ -563,8 +563,12 @@ class MotionHAL:
             return
         self.validate_axes(pos.keys())
         self.verbose and print("motion: move_absolute(%s)" % (pos_str(pos)))
+        self.cur_pos_cache_invalidate()
+        self._move_absolute_wrap(pos, options=options)
+
+    def _move_absolute_wrap(self, pos, options={}):
+        '''Absolute move to positions specified by pos dict'''
         try:
-            self.cur_pos_cache_invalidate()
             for modifier in self.iter_active_modifiers():
                 modifier.move_absolute_pre(pos, options=options)
             _ret = self._move_absolute(pos)
@@ -573,7 +577,6 @@ class MotionHAL:
             self.mv_lastt = time.time()
         finally:
             self.cur_pos_cache_invalidate()
-        # return ret
 
     def _move_absolute(self, pos):
         '''Absolute move to positions specified by pos dict'''
@@ -598,7 +601,15 @@ class MotionHAL:
         self.validate_axes(pos.keys())
 
         self.verbose and print("motion: move_relative(%s)" % (pos_str(pos)))
+        # XXX: invalidates on recursion
         self.cur_pos_cache_invalidate()
+        final_abs_pos = self.motion.estimate_relative_pos(
+            pos, cur_pos=self.motion.cur_pos_cache())
+        # Relative move full stack just too hard to support well for now
+        # Ex: setting up w/ backlash compensation is difficult
+        # And don't see a real reason to support it
+        return self._move_absolute_wrap(final_abs_pos, options=options)
+        """
         try:
             for modifier in self.iter_active_modifiers():
                 modifier.move_relative_pre(pos, options=options)
@@ -608,6 +619,7 @@ class MotionHAL:
             self.mv_lastt = time.time()
         finally:
             self.cur_pos_cache_invalidate()
+        """
 
     def _move_relative(self, delta):
         '''Relative move to positions specified by delta dict'''
@@ -628,6 +640,7 @@ class MotionHAL:
         # Always allow moving away from the bad area though if we are already in there
         if len(scalars) == 0:
             return
+        # XXX: invalidates on recursion
         self.cur_pos_cache_invalidate()
         try:
             self.validate_axes(scalars.keys())

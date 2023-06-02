@@ -221,7 +221,8 @@ A minimal configuration to do basic testing
                 "vendor: Mitutoyo, model: 46-144, magnification: 10, na: 0.28",
                 "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.42",
                 "vendor: Mitutoyo, model: 46-147, magnification: 100, na: 0.70",
-            ],
+                 "vendor: Nikon, model: VC 60X, magnification: 60",
+           ],
         },
     ],
 }

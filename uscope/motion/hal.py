@@ -193,9 +193,13 @@ class BacklashMM(MotionModifier):
             ie moves need to be bigger than the backlash threshold to count
         """
         corrections_abs = {}
+        all_abs = {}
         self.pending_compensation = {}
         comp_res = self.should_compensate(move_to=dst_abs_pos).items()
         for axis, axis_compensation in comp_res:
+            backlash_pos = dst_abs_pos[
+                axis] - self.compensation[axis] * self.backlash[axis]
+
             if axis_compensation["auto"]:
                 self.pending_compensation[axis] = True
 
@@ -204,9 +208,11 @@ class BacklashMM(MotionModifier):
                 # ex: +compensation => need to do negative backlash move first
                 # FIXME: this might be excessive in some cases
                 # really should be relatively move of min(delta, full step)
-                corrections_abs[axis] = dst_abs_pos[
-                    axis] - self.compensation[axis] * self.backlash[axis]
+                corrections_abs[axis] = backlash_pos
                 # corrections_rel[axis] = -self.compensation[axis] * self.backlash[axis]
+                all_abs[axis] = backlash_pos
+            else:
+                all_abs[axis] = dst_abs_pos[axis]
 
         if 0:
             print("DEBUG")
@@ -220,7 +226,11 @@ class BacklashMM(MotionModifier):
         # Did we calculate any backlash moves?
         if len(corrections_abs):
             self.recursing = True
-            self.motion.move_absolute(corrections_abs)
+            # https://github.com/Labsmore/pyuscope/issues/181
+            # without this movements can take a long time when mixing
+            # compensated and non-compensated movements
+            # self.motion.move_absolute(corrections_abs)
+            self.motion.move_absolute(all_abs)
             self.recursing = False
             for axis in corrections_abs.keys():
                 self.compensated[axis] = True
@@ -231,6 +241,7 @@ class BacklashMM(MotionModifier):
         self.move_x_pre(dst_abs_pos=pos, options=options)
 
     def move_relative_pre(self, pos, options={}):
+        assert 0, "FIXME: unsupported"
         # backlash will overshoot
         if self.recursing:
             return
@@ -251,6 +262,7 @@ class BacklashMM(MotionModifier):
         self.pending_compensation = None
 
     def move_relative_post(self, ok, options={}):
+        assert 0, "FIXME: unsupported"
         if self.recursing:
             return
         for axis in self.pending_compensation.keys():
@@ -280,6 +292,7 @@ class SoftLimitMM(MotionModifier):
                     (axis, axmin, axpos, axmax))
 
     def move_relative_pre(self, pos, options={}):
+        assert 0, "FIXME: unsupported"
         self.move_absolute_pre(
             self.motion.estimate_relative_pos(
                 pos, cur_pos=self.motion.cur_pos_cache()))

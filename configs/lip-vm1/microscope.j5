@@ -1,0 +1,143 @@
+/*
+minivision test
+guvcview YW500
+
+
+
+$ v4l2-ctl --list-formats-ext -D --device /dev/video4
+Driver Info:
+	Driver name      : uvcvideo
+	Card type        : YW500
+	Bus info         : usb-0000:00:14.0-1
+	Driver version   : 5.14.21
+	Capabilities     : 0x84a00001
+		Video Capture
+		Metadata Capture
+		Streaming
+		Extended Pix Format
+		Device Capabilities
+	Device Caps      : 0x04200001
+		Video Capture
+		Streaming
+		Extended Pix Format
+ioctl: VIDIOC_ENUM_FMT
+	Type: Video Capture
+
+	[0]: 'MJPG' (Motion-JPEG, compressed)
+		Size: Discrete 320x240
+			Interval: Discrete 0.033s (30.000 fps)
+		Size: Discrete 640x480
+			Interval: Discrete 0.033s (30.000 fps)
+		Size: Discrete 800x600
+			Interval: Discrete 0.033s (30.000 fps)
+		Size: Discrete 1024x768
+			Interval: Discrete 0.033s (30.000 fps)
+		Size: Discrete 1280x800
+			Interval: Discrete 0.033s (30.000 fps)
+		Size: Discrete 1600x1200
+			Interval: Discrete 0.033s (30.000 fps)
+		Size: Discrete 2592x1944
+			Interval: Discrete 0.033s (30.000 fps)
+		Size: Discrete 2048x1536
+			Interval: Discrete 0.033s (30.000 fps)
+		Size: Discrete 1920x1080
+			Interval: Discrete 0.033s (30.000 fps)
+		Size: Discrete 1280x720
+			Interval: Discrete 0.033s (30.000 fps)
+	[1]: 'YUYV' (YUYV 4:2:2)
+		Size: Discrete 1600x1200
+			Interval: Discrete 0.067s (15.000 fps)
+		Size: Discrete 800x600
+			Interval: Discrete 0.067s (15.000 fps)
+		Size: Discrete 640x480
+			Interval: Discrete 0.067s (15.000 fps)
+		Size: Discrete 320x240
+			Interval: Discrete 0.067s (15.000 fps)
+		Size: Discrete 1920x1080
+			Interval: Discrete 0.067s (15.000 fps)
+
+
+https://www.linuxtv.org/downloads/v4l-dvb-apis-old/V4L2-PIX-FMT-YUYV.html
+In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb and a Cr. 
+*/
+{
+    "planner": {
+        //FIXME: not tuned
+        "tsettle_motion": 1.0,
+        "tsettle_hdr": 0.2,
+    },
+    "motion": {
+        "hal": "grbl-ser",
+        "grbl": {
+            //"port": "mock",
+        },
+        //FIXME: what is the actual value?
+        "backlash": 0.05,
+        /*
+        FIXME: were values saved before overwriting?
+        maybe take from the other genmitsu which should be similar
+        */
+        "use_wcs_offsets": true,
+        "grbl": {
+            "rc": [
+                //$100, $101 and $102 – [X,Y,Z] steps/mm
+                "$100=500.000", "$101=500.000", "$102=500.000",
+
+                //X - Max Rate (mm/min)
+                "$110=960.000", "$111=960.000", "$112=1920.000",
+                //$120, $121, $122 – [X,Y,Z] Acceleration, mm/sec^2
+                "$120=24.000", "$121=24.000", "$122=24.000",
+
+                //max travel
+                "$130=480.000", "$131=320.000", "$132=96.000",
+
+                //More proper homed scheme
+                /*
+                "G10 L2 P1 X-475.200 Y-315.200 Z-4.800",
+                "G10 L2 P2 X0 Y0 Z0",
+                //Select WCS2
+                "G55",
+                */
+
+                //Homing adjustments to account for gearbox etc
+                //"$24=40.0","$25=800.000",
+                //"$26=400","$27=24.000",
+            ],
+        },
+        "scalars": {
+            "x": 1.6,
+            "y": 1.6,
+            "z": 1.6,
+        },
+    },
+
+    "imager": {
+        "source":"gst-v4l2src",
+        "source_properties": {
+            "device": "/dev/video4"
+        },
+        "width": 800,
+        "height": 600,
+        //ha no
+        //"scalar": 0.5
+        /*
+        0.41 mm across at 800 pix uncropped, 20x
+        0.41 / 800 * 1000 = 0.5125 um / pix at 20x
+        0.5125 * 20 = 10.25
+        */
+        "um_per_pixel_raw_1x": 10.25,
+    },
+
+
+    "systems": [
+        //Default configuration
+        {
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: LapSun, model: L Plan 20X",
+                "vendor: LapSun, model: L Plan 10X",
+            ],
+        },
+    ],
+}
+

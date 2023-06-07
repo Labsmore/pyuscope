@@ -3,7 +3,8 @@ from PIL import Image
 import io
 import threading
 import traceback
-import subprocess
+import cv2
+import numpy as np
 
 import gi
 
@@ -76,7 +77,7 @@ class CaptureSink(CbSink):
     """
 
     # FIXME: get width/height from stream
-    def __init__(self, width, height, raw_input=True):
+    def __init__(self, width, height, source_type):
         CbSink.__init__(self)
 
         self.image_requested = threading.Event()
@@ -86,7 +87,7 @@ class CaptureSink(CbSink):
         self.user_cb = None
         self.width = width
         self.height = height
-        self.raw_input = raw_input
+        self.source_type = source_type
         self.verbose = False
 
     def request_image(self, cb):
@@ -107,13 +108,13 @@ class CaptureSink(CbSink):
 
     def pop_image(self, image_id):
         '''Fetch the image and delete it form the buffer'''
-        buf, width, height, raw_input = self.images_actual[image_id]
+        buf, width, height, source_type = self.images_actual[image_id]
         del self.images_actual[image_id]
         self.verbose and print("bytes", len(buf), 'w', width, 'h', height)
         # Arbitrarily convert to PIL here
         # TODO: should pass rawer/lossless image to PIL instead of jpg?
         # open("tmp.bin", "wb").write(ret)
-        if raw_input:
+        if source_type == "gst-toupcamsrc":
             # xxx: sometimes get too much data...is this the right fix?
             # buf = buf[0:width * height * 3]
             assert len(buf) == width * height * 3, (
@@ -123,8 +124,25 @@ class CaptureSink(CbSink):
             # print("Need %u bytes, got %u" % (3 * width * height, len(buf)))
             return Image.frombytes('RGB', (width, height), bytes(buf), 'raw',
                                    'RGB')
-        else:
+
+        elif source_type == "gst-v4l2src":
+            with open("raw.bin", "wb") as f:
+                f.write(buf)
+            print("buf", self.width, self.height, len(buf))
+            # assert 0, "fixme"
+
+            w = width
+            h = height
+            shape = (h, w, 2)
+            yuv = np.frombuffer(buf, dtype=np.uint8)
+            yuv = yuv.reshape(shape)
+            bgr = cv2.cvtColor(yuv, cv2.COLOR_YUV2RGBA_YUYV)
+            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            return Image.fromarray(rgb)
+        elif source_type == "jpg":
             return Image.open(io.BytesIO(buf))
+        else:
+            assert 0, source_type
 
     '''
     gstreamer plugin core methods
@@ -160,7 +178,7 @@ class CaptureSink(CbSink):
                 self.images_actual[self.next_image_id] = (bytearray(buffer),
                                                           self.width,
                                                           self.height,
-                                                          self.raw_input)
+                                                          self.source_type)
                 # Clear before emitting signal so that it can be re-requested in response
                 self.image_requested.clear()
                 #print 'Emitting capture event'

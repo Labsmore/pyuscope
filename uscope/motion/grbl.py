@@ -29,6 +29,10 @@ class HomingFailed(GrblException):
     pass
 
 
+class Estop(GrblException):
+    pass
+
+
 def default_port():
     port = os.getenv("GRBL_PORT", None)
     if port:
@@ -250,6 +254,9 @@ class GRBLSer:
     def flush(self):
         """
         Wait to see if there is anything in progress
+
+        NOTE: blue system
+        flushing b'[MSG:Estop is activated!]\r\nok\r\n[MSG:Estop is activated!]\r\nok\r\n'
         """
         self.serial.flushInput()
         self.serial.flushOutput()
@@ -257,7 +264,9 @@ class GRBLSer:
         try:
             self.serial.timeout = 0.1
             while True:
-                c = self.serial.read()
+                c = self.serial.read(1024)
+                if b"Estop is activated" in c:
+                    raise Estop()
                 if not c:
                     return
         finally:
@@ -921,14 +930,15 @@ class GRBL:
         self.gs.tilda()
 
 
-def grbl_home(grbl, lazy=True):
-    # Can take up to two times to pop all status info
-    # Third print is stable
-    status = grbl.qstatus()["status"]
-    print(f"Status: {status}")
-    # Otherwise should be Alarm state
-    if status == "Idle" and lazy:
-        return
+def grbl_home(grbl, lazy=True, force=False):
+    if not force:
+        # Can take up to two times to pop all status info
+        # Third print is stable
+        status = grbl.qstatus()["status"]
+        print(f"Status: {status}")
+        # Otherwise should be Alarm state
+        if status == "Idle" and lazy:
+            return
     tstart = time.time()
     # TLDR: gearbox means we need ot home several times
     # 2023-04-19: required 7 cycles in worst case...hmm add more wiggle room for now
@@ -950,11 +960,12 @@ class GrblHal(MotionHAL):
     def __init__(self, verbose=None, port=None, grbl=None, **kwargs):
         self.grbl = None
         self.feedrate = None
+
+        MotionHAL.__init__(self, verbose=verbose, **kwargs)
         if grbl:
             self.grbl = grbl
         else:
             self.grbl = GRBL(port=port, verbose=verbose)
-        MotionHAL.__init__(self, verbose=verbose, **kwargs)
         # hack: qstatus will fail before home
         self.home()
         self.grbl.set_qstatus_updated_cb(self.qstatus_updated)

@@ -164,7 +164,7 @@ class ArgusCommon(QObject):
         cropped_width, cropped_height = self.usc.imager.cropped_wh()
         self.capture_sink = CaptureSink(width=cropped_width,
                                         height=cropped_height,
-                                        raw_input=True)
+                                        source_type=self.vidpip.source_name)
         assert self.capture_sink
         self.vidpip.player.add(self.capture_sink)
         # jpegenc is probably obsolete here

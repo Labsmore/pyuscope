@@ -1,15 +1,7 @@
 '''
-pythonic v4l2 wrapper
-TOOD: replace this entirely with ctypes to eliminate dependency
-
-sudo pip install v4l2
-
-http://nullege.com/codes/show/src%40v%404%40v4l2-0.2%40tests.py/276/v4l2.VIDIOC_QUERYCAP/python
-http://linuxtv.org/downloads/v4l-dvb-apis/control.html
-linux/videodev2.h
+https://github.com/antmicro/python3-v4l2/
 '''
-# python3 issues
-# sudo pip3 install pyv4l2
+#
 try:
     import v4l2
 except:
@@ -17,43 +9,67 @@ except:
 
 import fcntl
 import errno
-'''
-vd = open('/dev/video0', 'rw')
-cp = v4l2.v4l2_capability()
-print fcntl.ioctl(vd, v4l2.VIDIOC_QUERYCAP, cp)
-# touptek
-print cp.driver
-# USB Camera (0547:6801)
-print cp.card
-'''
 
 
-def get_device_controls(fd):
+def get_device_controls_ex(fd, verbose=False):
     assert fd >= 0, fd
     # original enumeration method
     queryctrl = v4l2.v4l2_queryctrl(v4l2.V4L2_CID_BASE)
 
+    verbose and print("Querying controls...")
     while queryctrl.id < v4l2.V4L2_CID_LASTP1:
+        verbose and print("check main %d (%d)" %
+                          (queryctrl.id, queryctrl.id - v4l2.V4L2_CID_BASE))
         try:
             fcntl.ioctl(fd, v4l2.VIDIOC_QUERYCTRL, queryctrl)
         except IOError as e:
+            verbose and print(" res: no")
             # this predefined control is not supported by this device
             assert e.errno == errno.EINVAL
             queryctrl.id += 1
             continue
-        yield queryctrl
+        verbose and print(" res: yes")
+        yield (queryctrl, "user", queryctrl.id - v4l2.V4L2_CID_BASE)
+        queryctrl = v4l2.v4l2_queryctrl(queryctrl.id + 1)
+
+    queryctrl.id = v4l2.V4L2_CID_CAMERA_CLASS_BASE
+    while queryctrl.id <= v4l2.V4L2_CID_PRIVACY:
+        verbose and print(
+            "check cam %d (%d)" %
+            (queryctrl.id, queryctrl.id - v4l2.V4L2_CID_CAMERA_CLASS_BASE))
+        try:
+            fcntl.ioctl(fd, v4l2.VIDIOC_QUERYCTRL, queryctrl)
+        except IOError as e:
+            verbose and print(" res: no")
+            # no more custom controls available on this device
+            assert e.errno == errno.EINVAL
+            queryctrl.id += 1
+            continue
+        verbose and print(" res: yes")
+        yield (queryctrl, "cam",
+               queryctrl.id - v4l2.V4L2_CID_CAMERA_CLASS_BASE)
         queryctrl = v4l2.v4l2_queryctrl(queryctrl.id + 1)
 
     queryctrl.id = v4l2.V4L2_CID_PRIVATE_BASE
     while True:
+        verbose and print(
+            "check private %d (%d)" %
+            (queryctrl.id, queryctrl.id - v4l2.V4L2_CID_PRIVATE_BASE))
         try:
             fcntl.ioctl(fd, v4l2.VIDIOC_QUERYCTRL, queryctrl)
         except IOError as e:
+            verbose and print(" res: no")
             # no more custom controls available on this device
             assert e.errno == errno.EINVAL
             break
-        yield queryctrl
+        verbose and print(" res: yes")
+        yield (queryctrl, "private", queryctrl.id - v4l2.V4L2_CID_PRIVATE_BASE)
         queryctrl = v4l2.v4l2_queryctrl(queryctrl.id + 1)
+
+
+def get_device_controls(fd):
+    for queryctrl, group, index in get_device_controls_ex(fd):
+        yield queryctrl
 
 
 '''
@@ -80,6 +96,19 @@ def ctrls(fd):
     return ret
 
 
+def dump_control_names(fd):
+    print("valid control names")
+    for queryctrl, group, index in get_device_controls_ex(fd):
+        print("  %s (%s: %d)" % (queryctrl.name.decode("ascii"), group, index))
+        if queryctrl.flags & v4l2.V4L2_CTRL_FLAG_DISABLED:
+            print("    disabled")
+        else:
+            print("    range: %d to %d" %
+                  (queryctrl.minimum, queryctrl.maximum))
+            print("    default: %d" % (queryctrl.default, ))
+            print("    step: %d" % (queryctrl.step, ))
+
+
 def ctrl_get(fd, name):
     for queryctrl in get_device_controls(fd):
         if queryctrl.flags & v4l2.V4L2_CTRL_FLAG_DISABLED:
@@ -91,6 +120,7 @@ def ctrl_get(fd, name):
         fcntl.ioctl(fd, v4l2.VIDIOC_G_CTRL, control)
         return control.value
 
+    dump_control_names(fd)
     raise ValueError("Failed to find control %s" % name)
 
 
@@ -109,6 +139,7 @@ def ctrl_set(fd, name, value):
         fcntl.ioctl(fd, v4l2.VIDIOC_S_CTRL, control)
         return
 
+    dump_control_names(fd)
     raise ValueError("Failed to find control %s" % name)
 
 
@@ -120,4 +151,5 @@ def ctrl_minmax(fd, name):
             continue
         return queryctrl.minimum, queryctrl.maximum
 
+    dump_control_names(fd)
     raise ValueError("Failed to find control %s" % name)

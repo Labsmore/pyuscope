@@ -479,7 +479,8 @@ class GstVideoPipeline:
         # Must not be initialized until after layout is set
         # print(source)
         # assert 0
-        if self.source_name in ('gst-v4l2src', 'gst-v4l2src-mu800'):
+        if self.source_name == 'gst-v4l2src' or self.source_name.find(
+                'gst-v4l2src-') == 0:
             self.source = Gst.ElementFactory.make('v4l2src', None)
             assert self.source is not None
             self.source.set_property("device", DEFAULT_V4L2_DEVICE)

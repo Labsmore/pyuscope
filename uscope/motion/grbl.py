@@ -570,6 +570,7 @@ class MockGRBLSer(GRBLSer):
         self.verbose = verbose if verbose is not None else bool(
             int(os.getenv("GRBLSER_VERBOSE", "0")))
         self.verbose and print("MOCK: opening", port)
+        self.ser_timeout = -1
         self.serial = None
         self.poison_threads = False
         self.reset()
@@ -649,6 +650,12 @@ class MockGRBLSer(GRBLSer):
 
     def flush(self):
         time.sleep(0.05)
+
+    def txrxs(self, out, nl=True, trim_data=True, timeout=None):
+        return "mock"
+
+    def hash(self):
+        return ["[G54:0.000,0.000,0.000]"]
 
 
 class GRBL:

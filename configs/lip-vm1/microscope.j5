@@ -68,9 +68,6 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
     },
     "motion": {
         "hal": "grbl-ser",
-        "grbl": {
-            //"port": "mock",
-        },
         //FIXME: what is the actual value?
         "backlash": 0.05,
         /*
@@ -79,6 +76,7 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         */
         "use_wcs_offsets": true,
         "grbl": {
+            "port": "mock",
             "rc": [
                 //$100, $101 and $102 – [X,Y,Z] steps/mm
                 "$100=500.000", "$101=500.000", "$102=500.000",
@@ -112,7 +110,7 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
     },
 
     "imager": {
-        "source":"gst-v4l2src",
+        "source":"gst-v4l2src-yw500",
         "source_properties": {
             "device": "/dev/video4"
         },

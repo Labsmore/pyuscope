@@ -125,7 +125,9 @@ class CaptureSink(CbSink):
             return Image.frombytes('RGB', (width, height), bytes(buf), 'raw',
                                    'RGB')
 
-        elif source_type == "gst-v4l2src":
+        # FIXME: jpg etc
+        # assume raw for now
+        elif source_type.find("gst-v4l2src") == 0:
             with open("raw.bin", "wb") as f:
                 f.write(buf)
             print("buf", self.width, self.height, len(buf))

@@ -283,6 +283,15 @@ class ArgusCommon(QObject):
     def auto_exposure_enabled(self):
         return self.control_scroll.auto_exposure_enabled()
 
+    def set_exposure(self, n):
+        return self.control_scroll.set_exposure(n)
+
+    def get_exposure(self):
+        return self.control_scroll.get_exposure()
+
+    def get_exposure_property(self):
+        return self.control_scroll.get_exposure_property()
+
     # FIXME: better abstraction
     def is_idle(self):
         if not self.mw.mainTab.snapshot_widget.snapshot_pb.isEnabled():

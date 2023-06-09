@@ -63,4 +63,13 @@ class TTControlScroll(GstControlScroll):
                                   parent=parent)
 
     def auto_exposure_enabled(self):
-        return self.prop_read("auto-exposure")
+        return bool(self.prop_read("auto-exposure"))
+
+    def set_exposure(self, n):
+        self.prop_write("expotime", n)
+
+    def get_exposure(self):
+        return self.prop_read("expotime")
+
+    def get_exposure_property(self):
+        return "expotime"

@@ -1205,7 +1205,6 @@ class MainTab(ArgusTab):
 class ImagerTab(ArgusTab):
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
-        self.exposure_property = "expotime"
 
     def initUI(self):
         # Most of the layout is filled in from the ControlScroll
@@ -1258,7 +1257,8 @@ class ImagerTab(ArgusTab):
         if not auto:
             return
 
-        val = self.ac.imager.get_property(self.exposure_property)
+        # val = self.ac.imager.get_property(self.exposure_property)
+        val = self.ac.get_exposure()
         if val is None:
             return None
         pm_stops = int(self.hdr_auto_stops.text())
@@ -1284,9 +1284,11 @@ class ImagerTab(ArgusTab):
         raw = str(self.hdr_le.text())
         if not raw:
             return
+
+        # XXX: consider gain as well
         properties_list = []
         for val in [int(x) for x in raw.split(",")]:
-            properties_list.append({"expotime": val})
+            properties_list.append({self.ac.get_exposure_property(): val})
         ret = {
             "properties_list": properties_list,
             # this is probably a good approximation for now

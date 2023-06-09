@@ -1301,6 +1301,15 @@ class ImagerTab(ArgusTab):
                            {})["properties"] = self.ac.imager.get_properties()
         self.update_pconfig_hdr(pconfig)
 
+    def cache_save(self, cachej):
+        cachej["imager"] = {
+            "hdr_le": str(self.hdr_le.text()),
+        }
+
+    def cache_load(self, cachej):
+        j = cachej.get("imager", {})
+        self.hdr_le.setText(j.get("hdr_le", ""))
+
 
 class BatchImageTab(ArgusTab):
     def __init__(self, ac, parent=None):

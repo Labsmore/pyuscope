@@ -64,7 +64,8 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
     "planner": {
         //FIXME: not tuned
         "tsettle_motion": 1.0,
-        "tsettle_hdr": 0.2,
+        //0.2 not enough
+        "tsettle_hdr": 0.4,
     },
     "motion": {
         "hal": "grbl-ser",
@@ -76,7 +77,7 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         */
         "use_wcs_offsets": true,
         "grbl": {
-            "port": "mock",
+            //"port": "mock",
             "rc": [
                 //$100, $101 and $102 – [X,Y,Z] steps/mm
                 "$100=500.000", "$101=500.000", "$102=500.000",

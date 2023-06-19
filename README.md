@@ -18,21 +18,31 @@ Features:
 
 OS: we primarily test on Ubuntu 20.04 but other versions of Linux or MacOS might work
 
+    git clone --branch stable-latest https://github.com/Labsmore/pyuscope.git
+
 If you'd like a basic setup:
 
-PYUSCOPE_MICROSCOPE=none setup_ubuntu_20.04.sh
+    PYUSCOPE_MICROSCOPE=none ./setup_ubuntu_20.04.sh
 
 Alternatively if you know your microscope configuration file (ie a dir in configs/) do something like this:
 
-PYUSCOPE_MICROSCOPE=ls-hvy-2 setup_ubuntu_20.04.sh
+    PYUSCOPE_MICROSCOPE=ls-hvy-2 ./setup_ubuntu_20.04.sh
 
 After rebooting your system you can launch the PYUSCOPE_MICROSCOPE default microscope with:
 
-./app/argus.py
+    ./app/argus.py
 
 If you want to explicitly specify a microscope:
 
-./app/argus.py --microscope mock
+    ./app/argus.py --microscope mock
+
+
+# Updating
+
+Assuming you have no outstanding changes, do the following:
+
+    git pull --rebase
+    ./setup_ubuntu_20.04.sh
 
 
 # Supported hardware

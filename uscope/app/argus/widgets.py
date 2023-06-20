@@ -440,7 +440,7 @@ class XYPlanner2PWidget(PlannerWidget):
         self.plan_x0_le.setText(j.get("x0", ""))
         self.plan_y0_le.setText(j.get("y0", ""))
         self.plan_x1_le.setText(j.get("x1", ""))
-        self.plan_y1_le.setText(j.get("y0", ""))
+        self.plan_y1_le.setText(j.get("y1", ""))
 
     def poll_misc(self):
         last_pos = self.ac.motion_thread.pos_cache

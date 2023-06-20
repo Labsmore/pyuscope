@@ -120,11 +120,17 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         //ha no
         //"scalar": 0.5
         /*
+        1.5x
         0.41 mm across at 800 pix uncropped, 20x
         0.41 / 800 * 1000 = 0.5125 um / pix at 20x
         0.5125 * 20 = 10.25
         */
+        //1.5x
         "um_per_pixel_raw_1x": 10.25,
+        //2.0x: 10.25 * 1.5 / 2.0  = 7.69
+        //"um_per_pixel_raw_1x": 7.69,
+        //2.5x: 10.25 * 1.5 / 2.5  = 6.15
+        //"um_per_pixel_raw_1x": 6.15,
     },
 
 

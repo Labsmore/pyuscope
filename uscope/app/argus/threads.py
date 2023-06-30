@@ -600,12 +600,14 @@ class ImageProcessingThread(QThread):
         self.auto_focus_pass(step_size=0.006, step_pm=3)
         self.log("autofocus: medium")
         self.auto_focus_pass(step_size=0.002, step_pm=3)
+        self.log("autofocus: done")
 
     def do_auto_focus_fine(self):
         # MVP intended for 60x
         # 500 nm is standard focus step size
         self.log("autofocus: fine")
         self.auto_focus_pass(step_size=0.0005, step_pm=3)
+        self.log("autofocus: done")
 
     def run(self):
         while self.running:

@@ -1668,16 +1668,16 @@ class AdvancedTab(ArgusTab):
         # Light
         elif mode == 2:
             self.stacker_distance_le.setText("0.006")
-            self.stacker_number_le.setEnabled("3")
+            self.stacker_number_le.setText("3")
         elif mode == 3:
             self.stacker_distance_le.setText("0.004")
-            self.stacker_number_le.setEnabled("8")
+            self.stacker_number_le.setText("8")
         elif mode == 4:
             self.stacker_distance_le.setText("0.024")
-            self.stacker_number_le.setEnabled("12")
+            self.stacker_number_le.setText("12")
         elif mode == 5:
             self.stacker_distance_le.setText("0.012")
-            self.stacker_number_le.setEnabled("24")
+            self.stacker_number_le.setText("24")
         else:
             assert 0, "unknown mode"
 

@@ -8,6 +8,7 @@ from uscope.imager.imager_util import get_scaled
 from uscope.motion.hal import pos_str
 from uscope.kinematics import Kinematics
 from scipy import polyfit
+from uscope.imager.autofocus import choose_best_image
 
 
 class PlannerAxis:
@@ -792,6 +793,8 @@ class PlannerStacker(PlannerPlugin):
         self.first_start = None
         self.first_end = None
         self.first_reference = None
+        # Used by drift plugin to correct thermal drift
+        self.drift_offset = 0.0
 
     def log_scan_begin(self):
         self.imager.log_planner_header(self.log)
@@ -813,7 +816,7 @@ class PlannerStacker(PlannerPlugin):
 
     def points(self):
         for image_number in range(self.total_number):
-            z = self.start + image_number * self.step
+            z = self.start + self.drift_offset + image_number * self.step
             yield {self.axis: z}
 
     def filename_part(self, image_number):
@@ -841,14 +844,15 @@ class PlannerStacker(PlannerPlugin):
         for pointi, point in enumerate(self.points()):
             if pointi == 0:
                 self.planner.log(
-                    "stack %c @ reference %0.3f, start %0.3f, end %0.3f, step %0.3f, %u images"
+                    "stack %c @ reference %0.6f, start %0.6f, end %0.6f, step %0.6f, %u images, offset %s"
                     % (self.axis, self.reference, self.start, self.end,
-                       self.step, self.total_number))
+                       self.step, self.total_number, self.drift_offset))
                 self.first_reference = self.reference
                 self.first_start = self.start
                 self.first_end = self.end
-            self.planner.log("stack: %u / %u @ %0.3f" %
+            self.planner.log("stack: %u / %u @ %0.6f" %
                              (pointi + 1, self.total_number, point[self.axis]))
+
             self.planner.motion.move_absolute(point)
             modifiers = {
                 "filename_part": self.filename_part(pointi),
@@ -878,6 +882,62 @@ class PlannerStacker(PlannerPlugin):
             # Usually z
             "axis": self.axis,
         }
+
+
+"""
+Track things like thermal drift and die curvature by monitoring focus stacks
+Assumes small drift / serpentine pattern
+"""
+
+
+class StackerDrift(PlannerPlugin):
+    def __init__(self, planner):
+        super().__init__(planner=planner)
+        # Fairly computationally expensive
+        # Just analyze stacks every once in a while
+        self.frequency = 3
+        self.freq_count = 0
+
+    def scan_begin(self, state):
+        self.stacker = self.planner.pipeline["points-stacker"]
+        assert self.stacker.mode == "center"
+        self.stack = []
+
+    def process_stack(self):
+        target_pos, fni = choose_best_image(self.stack)
+        drift1 = target_pos - self.stacker.reference
+        drift2 = target_pos - (self.stacker.reference +
+                               self.stacker.drift_offset)
+        self.log(
+            "stacker drift: best %0.6f at %u / %u vs expected %0.6f => %0.6f abs delta, %0.6f rel delta"
+            % (target_pos, fni + 1, len(
+                self.stack), self.stacker.reference, drift1, drift2))
+        # Don't allow jumping more than one step per image
+        if drift2 == 0:
+            delta = 0
+        else:
+            delta = drift2 / abs(drift2) * min(self.stacker.step, drift2)
+        self.stacker.drift_offset += delta
+        self.log("stacker drift: delta %0.6f => %0.6f offset" %
+                 (delta, self.stacker.drift_offset))
+        # XXX: is there a reasonable bound we can put here?
+        assert abs(self.stacker.drift_offset
+                   ) < 0.5, "Drift offset correction out of reasonable bounds"
+
+    def iterate(self, state):
+        if state["stacki"] == 0:
+            self.stack = []
+        im = state.get("image")
+        self.stack.append((self.motion.pos()["z"], im))
+        # Last image in stack?
+        if state["stacki"] == self.stacker.total_number - 1:
+            self.log("stacker drift: checking stack")
+            if not self.dry:
+                self.process_stack()
+
+        modifiers = {}
+        replace_keys = {}
+        yield modifiers, replace_keys
 
 
 class PlannerHDR(PlannerPlugin):
@@ -1106,6 +1166,7 @@ def register_plugins():
     register_plugin("points-xy2p", PointGenerator2P)
     register_plugin("points-xy3p", PointGenerator3P)
     register_plugin("points-stacker", PlannerStacker)
+    register_plugin("stacker-drift", StackerDrift)
     register_plugin("hdr", PlannerHDR)
     register_plugin("kinematics", PlannerKinematics)
     register_plugin("image-capture", PlannerCaptureImage)

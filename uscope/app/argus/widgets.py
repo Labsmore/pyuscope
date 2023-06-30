@@ -1471,6 +1471,11 @@ class AdvancedTab(ArgusTab):
             self.stack_cb.addItem("F: +/- 12 um 500 nm step (60x aggressive)")
             row += 1
 
+            layout.addWidget(QLabel("Stack drift correction?"), row, 0)
+            self.stack_drift_cb = QCheckBox()
+            layout.addWidget(self.stack_drift_cb, row, 1)
+            row += 1
+
             layout.addWidget(QLabel("+/- each side distance"), row, 0)
             self.stacker_distance_le = QLineEdit("")
             layout.addWidget(self.stacker_distance_le, row, 1)
@@ -1608,6 +1613,8 @@ class AdvancedTab(ArgusTab):
             "number": images_per_stack,
             "distance": 2 * distance_pm,
         }
+        if self.stack_drift_cb.isChecked():
+            pconfig["stacker-drift"] = {}
 
     def update_pconfig(self, pconfig):
         self.update_pconfig_stack(pconfig)
@@ -1627,6 +1634,7 @@ class AdvancedTab(ArgusTab):
                 "images_pm": self.stacker_number_le.text(),
                 "distance_pm": self.stacker_distance_le.text(),
                 "mode_index": self.stack_cb.currentIndex(),
+                "drift_correction": self.stack_drift_cb.isChecked(),
             }
         }
 
@@ -1636,6 +1644,7 @@ class AdvancedTab(ArgusTab):
         self.stacker_number_le.setText(stacking.get("images_pm", "0"))
         self.stacker_distance_le.setText(stacking.get("distance_pm", "0.010"))
         self.stack_cb.setCurrentIndex(stacking.get("mode_index", 0))
+        self.stack_drift_cb.setChecked(stacking.get("drift_correction", 0))
 
     def update_stack_mode(self):
         mode = self.stack_cb.currentIndex()

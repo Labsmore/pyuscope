@@ -146,6 +146,8 @@ def get_planner(pconfig,
     if not imager.remote():
         pipeline_names.append("image-save")
     # pipeline_names.append("scraper")
+    if "stacker-drift" in pconfig:
+        pipeline_names.append("stacker-drift")
 
     ret = Planner(pconfig=pconfig,
                   motion=motion,

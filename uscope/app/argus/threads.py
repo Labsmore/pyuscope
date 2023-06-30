@@ -6,6 +6,7 @@ from uscope.motion.plugins import get_motion_hal
 from uscope.joystick import Joystick, JoystickNotFound
 from uscope import cloud_stitch
 from uscope import config
+from uscope.imager.autofocus import choose_best_image
 from PyQt5.QtCore import QThread, pyqtSignal
 import traceback
 import datetime
@@ -14,8 +15,6 @@ import threading
 import time
 from queue import Queue, Empty
 import subprocess
-import cv2 as cv
-import numpy as np
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope.kinematics import Kinematics
 from collections import OrderedDict
@@ -540,27 +539,6 @@ class ImageProcessingThread(QThread):
     def pos(self):
         return self.motion_thread.pos()
 
-    def choose_best_image(self, images_iter):
-        scores = {}
-        self.log(" AF choose")
-        for fni, (imagek, im_pil) in enumerate(images_iter):
-
-            def get_score(image, blur=9):
-                filtered = cv.medianBlur(image, blur)
-                laplacian = cv.Laplacian(filtered, cv.CV_64F)
-                return laplacian.var()
-
-            def image_pil2cv(im):
-                return np.array(im)[:, :, ::-1].copy()
-
-            im_cv = image_pil2cv(im_pil)
-            score = get_score(im_cv)
-            self.log("  AF choose %u (%0.6f): %0.3f" % (fni, imagek, score))
-            scores[score] = imagek, fni
-        _score, (k, fni) = sorted(scores.items())[-1]
-        self.log(" AF choose winner: %s" % k)
-        return k, fni
-
     def auto_focus_pass(self, step_size, step_pm):
         """
         for outer_i in range(3):
@@ -588,7 +566,7 @@ class ImageProcessingThread(QThread):
                 im_pil = self.imager.get()["0"]
                 yield target_pos, im_pil
 
-        target_pos, fni = self.choose_best_image(gen_images())
+        target_pos, fni = choose_best_image(gen_images())
         self.log("autofocus: set %0.6f at %u / %u" %
                  (target_pos, fni + 1, steps))
         self.move_absolute({"z": target_pos})

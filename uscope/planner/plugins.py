@@ -916,7 +916,8 @@ class StackerDrift(PlannerPlugin):
         if drift2 == 0:
             delta = 0
         else:
-            delta = drift2 / abs(drift2) * min(self.stacker.step, drift2)
+            # If it drifts up we need to bring it down
+            delta = -drift2 / abs(drift2) * min(self.stacker.step, drift2)
         self.stacker.drift_offset += delta
         self.log("stacker drift: delta %0.6f => %0.6f offset" %
                  (delta, self.stacker.drift_offset))

@@ -18,6 +18,7 @@ import cv2 as cv
 import numpy as np
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope.kinematics import Kinematics
+from collections import OrderedDict
 
 
 def dbg(*args):
@@ -520,9 +521,15 @@ class ImageProcessingThread(QThread):
     def shutdown(self):
         self.running.clear()
 
-    def auto_focus(self):
+    def auto_focus_coarse(self):
         j = {
-            "type": "auto_focus",
+            "type": "auto_focus_coarse",
+        }
+        self.queue.put(j)
+
+    def auto_focus_fine(self):
+        j = {
+            "type": "auto_focus_fine",
         }
         self.queue.put(j)
 
@@ -530,24 +537,75 @@ class ImageProcessingThread(QThread):
         self.motion_thread.move_absolute(pos, block=True)
         self.kinematics.wait_imaging_ok()
 
-    def pos(self, pos):
+    def pos(self):
         return self.motion_thread.pos()
 
-    def do_auto_focus(self):
-        def get_score(image, blur=9):
-            filtered = cv.medianBlur(image, blur)
-            laplacian = cv.Laplacian(filtered, cv.CV_64F)
-            return laplacian.var()
+    def choose_best_image(self, images_iter):
+        scores = {}
+        self.log(" AF choose")
+        for fni, (imagek, im_pil) in enumerate(images_iter):
 
-        def image_pil2cv(im):
-            return np.array(im)[:, :, ::-1].copy()
+            def get_score(image, blur=9):
+                filtered = cv.medianBlur(image, blur)
+                laplacian = cv.Laplacian(filtered, cv.CV_64F)
+                return laplacian.var()
 
-        step_pm = 2
-        start_pos = self.pos()
-        im_pil = self.imager.get()["0"]
-        im_cv = image_pil2cv(im_pil)
-        score = get_score(im_cv)
-        self.log("Current score: %0.3f" % score)
+            def image_pil2cv(im):
+                return np.array(im)[:, :, ::-1].copy()
+
+            im_cv = image_pil2cv(im_pil)
+            score = get_score(im_cv)
+            self.log("  AF choose %u (%0.6f): %0.3f" % (fni, imagek, score))
+            scores[score] = imagek, fni
+        _score, (k, fni) = sorted(scores.items())[-1]
+        self.log(" AF choose winner: %s" % k)
+        return k, fni
+
+    def auto_focus_pass(self, step_size, step_pm):
+        """
+        for outer_i in range(3):
+            self.log("autofocus: try %u / 3" % (outer_i + 1,))
+            # If we are reasonably confident we found the local minima stop
+            # TODO: if repeats should bias further since otherwise we are repeating steps
+            if abs(step_pm - fni) <= 2:
+                self.log("autofocus: converged")
+                return
+        self.log("autofocus: timed out")
+        """
+
+        # Very basic short range
+        start_pos = self.pos()["z"]
+        steps = step_pm * 2 + 1
+
+        # Doing generator allows easier to process images as movement is done / settling
+        def gen_images():
+            for focusi in range(steps):
+                # FIXME: use backlash compensation direction here
+                target_pos = start_pos + -(focusi - step_pm) * step_size
+                self.log("autofocus round %u / %u: try %0.6f" %
+                         (focusi + 1, steps, target_pos))
+                self.move_absolute({"z": target_pos})
+                im_pil = self.imager.get()["0"]
+                yield target_pos, im_pil
+
+        target_pos, fni = self.choose_best_image(gen_images())
+        self.log("autofocus: set %0.6f at %u / %u" %
+                 (target_pos, fni + 1, steps))
+        self.move_absolute({"z": target_pos})
+
+    def do_auto_focus_coarse(self):
+        # MVP intended for 20x
+        # 2 um is standard focus step size
+        self.log("autofocus: coarse")
+        self.auto_focus_pass(step_size=0.006, step_pm=3)
+        self.log("autofocus: medium")
+        self.auto_focus_pass(step_size=0.002, step_pm=3)
+
+    def do_auto_focus_fine(self):
+        # MVP intended for 60x
+        # 500 nm is standard focus step size
+        self.log("autofocus: fine")
+        self.auto_focus_pass(step_size=0.0005, step_pm=3)
 
     def run(self):
         while self.running:
@@ -556,8 +614,10 @@ class ImageProcessingThread(QThread):
             except Empty:
                 continue
             try:
-                if j["type"] == "auto_focus":
-                    self.do_auto_focus()
+                if j["type"] == "auto_focus_coarse":
+                    self.do_auto_focus_coarse()
+                elif j["type"] == "auto_focus_fine":
+                    self.do_auto_focus_fine()
                 else:
                     assert 0, j
 

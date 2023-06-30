@@ -1460,6 +1460,17 @@ class AdvancedTab(ArgusTab):
             Some quick tests around 20x indicated +/- 0.010 w/ 2 um steps is good
             """
 
+            layout.addWidget(QLabel("Mode"), row, 0)
+            self.stack_cb = QComboBox()
+            layout.addWidget(self.stack_cb, row, 1)
+            self.stack_cb.addItem("A: None")
+            self.stack_cb.addItem("B: Manual")
+            self.stack_cb.addItem("C: +/- 6 um, 2 um step (20x normal))")
+            self.stack_cb.addItem("D: +/- 4 um, 500 nm step (60x normal)")
+            self.stack_cb.addItem("E: +/- 24 um, 2 um step (20x aggressive)")
+            self.stack_cb.addItem("F: +/- 12 um 500 nm step (60x aggressive)")
+            row += 1
+
             layout.addWidget(QLabel("+/- each side distance"), row, 0)
             self.stacker_distance_le = QLineEdit("")
             layout.addWidget(self.stacker_distance_le, row, 1)
@@ -1606,12 +1617,16 @@ class AdvancedTab(ArgusTab):
         self.tsettle_motion_le.setText("%f" %
                                        self.ac.kinematics.tsettle_motion)
         self.tsettle_hdr_le.setText("%f" % self.ac.kinematics.tsettle_hdr)
+        # self.ac.objective_changed.connect(self.update_stack_mode)
+        self.stack_cb.currentIndexChanged.connect(self.update_stack_mode)
+        self.update_stack_mode()
 
     def cache_save(self, cachej):
         cachej["advanced"] = {
             "stacking": {
                 "images_pm": self.stacker_number_le.text(),
                 "distance_pm": self.stacker_distance_le.text(),
+                "mode_index": self.stack_cb.currentIndex(),
             }
         }
 
@@ -1620,6 +1635,51 @@ class AdvancedTab(ArgusTab):
         stacking = j.get("stacking", {})
         self.stacker_number_le.setText(stacking.get("images_pm", "0"))
         self.stacker_distance_le.setText(stacking.get("distance_pm", "0.010"))
+        self.stack_cb.setCurrentIndex(stacking.get("mode_index", 0))
+
+    def update_stack_mode(self):
+        mode = self.stack_cb.currentIndex()
+
+        # Manual
+        if mode == 1:
+            self.stacker_distance_le.setEnabled(True)
+            self.stacker_number_le.setEnabled(True)
+        # Either disable or auto set
+        else:
+            self.stacker_distance_le.setEnabled(False)
+            self.stacker_number_le.setEnabled(False)
+        """
+        # FIXME: hard coded common presets for now
+        # should scale easy / medium / etc according to objective NA
+
+        self.stack_cb.addItem("A: None")
+        self.stack_cb.addItem("B: Manual")
+        self.stack_cb.addItem("C: +/- 6 um, 2 um step (20x normal))")
+        self.stack_cb.addItem("D: +/- 4 um, 500 nm step (60x normal)")
+        self.stack_cb.addItem("E: +/- 24 um, 2 um step (20x aggressive)")
+        self.stack_cb.addItem("F: +/- 12 um 500 nm step (60x aggressive)")
+        """
+        # Disabled
+        if mode == 0:
+            pass
+        # Manual
+        elif mode == 1:
+            pass
+        # Light
+        elif mode == 2:
+            self.stacker_distance_le.setText("0.006")
+            self.stacker_number_le.setEnabled("3")
+        elif mode == 3:
+            self.stacker_distance_le.setText("0.004")
+            self.stacker_number_le.setEnabled("8")
+        elif mode == 4:
+            self.stacker_distance_le.setText("0.024")
+            self.stacker_number_le.setEnabled("12")
+        elif mode == 5:
+            self.stacker_distance_le.setText("0.012")
+            self.stacker_number_le.setEnabled("24")
+        else:
+            assert 0, "unknown mode"
 
 
 class StitchingTab(ArgusTab):
@@ -2080,6 +2140,14 @@ class MotionWidget(AWidget):
             self.move_abs_backlash_cb.setEnabled(False)
             layout.addWidget(self.move_abs_backlash_cb)
 
+            self.autofocus_coarse_pb = QPushButton("AF (coarse)")
+            self.autofocus_coarse_pb.clicked.connect(
+                self.autofocus_coarse_pushed)
+            layout.addWidget(self.autofocus_coarse_pb)
+            self.autofocus_fine_pb = QPushButton("AF (fine)")
+            self.autofocus_fine_pb.clicked.connect(self.autofocus_fine_pushed)
+            layout.addWidget(self.autofocus_fine_pb)
+
             return layout
 
         def mdi():
@@ -2253,6 +2321,12 @@ class MotionWidget(AWidget):
                 "y": self.joystick_xy_scalar * slider_val,
                 "z": self.joystick_xy_scalar * slider_val,
             })
+
+    def autofocus_coarse_pushed(self):
+        self.ac.image_processing_thread.auto_focus_coarse()
+
+    def autofocus_fine_pushed(self):
+        self.ac.image_processing_thread.auto_focus_fine()
 
 
 class SimpleScanNameWidget(AWidget):

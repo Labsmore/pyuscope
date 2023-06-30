@@ -1661,7 +1661,8 @@ class AdvancedTab(ArgusTab):
         """
         # Disabled
         if mode == 0:
-            pass
+            self.stacker_distance_le.setText("0.000")
+            self.stacker_number_le.setText("0")
         # Manual
         elif mode == 1:
             pass

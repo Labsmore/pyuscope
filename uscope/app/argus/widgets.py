@@ -25,6 +25,22 @@ Argus Widget
 """
 
 
+class EventSequener:
+    def __init__(self, args):
+        self.args = args
+        # XXX: some sort of timeout?
+
+    def run(self, *_args, **_kwargs):
+        print("EventSequener: %u remaining" % len(self.args))
+        if len(self.args) == 0:
+            return
+        func, kwargs = self.args[0]
+        del self.args[0]
+        # Require a callback only when more events to trigger?
+        # maybe better to have a final timeout close out
+        func(**kwargs, callback=self.run)
+
+
 # TODO: register events in lieu of callbacks
 class AWidget(QWidget):
     def __init__(self, ac, parent=None):
@@ -572,11 +588,17 @@ class XYPlanner2PWidget(PlannerWidget):
 
 
 class XYPlanner3PWidget(PlannerWidget):
+    click_corner = pyqtSignal(tuple)
+    go_corner = pyqtSignal(tuple)
+
     def __init__(self, ac, scan_widget, objective_widget, parent=None):
         super().__init__(ac=ac,
                          scan_widget=scan_widget,
                          objective_widget=objective_widget,
                          parent=parent)
+
+        self.click_corner.connect(self.click_corner_slot)
+        self.go_corner.connect(self.go_corner_slot)
 
     def initUI(self):
         gl = QGridLayout()
@@ -646,6 +668,13 @@ class XYPlanner3PWidget(PlannerWidget):
         self.track_z_cb.stateChanged.connect(self.track_z_cb_changed)
         self.track_z_cb_changed(None)
         gl.addWidget(self.track_z_cb, row, 1)
+        self.pb_afgo_coarse = QPushButton("AF + go (coarse)")
+        self.pb_afgo_coarse.clicked.connect(self.afgo_coarse)
+        gl.addWidget(self.pb_afgo_coarse, row, 2)
+        self.pb_afgo_fine = QPushButton("AF + go (fine)")
+        self.pb_afgo_fine.clicked.connect(self.afgo_fine)
+        gl.addWidget(self.pb_afgo_fine, row, 3)
+
         row += 1
 
         self.setLayout(gl)
@@ -800,6 +829,81 @@ class XYPlanner3PWidget(PlannerWidget):
             assert 0
         return pos
 
+    # Thread safety to bring back to GUI thread for GUI operations
+    def emit_click_corner(self, corner_name, callback=None):
+        self.click_corner.emit((corner_name, callback))
+
+    def click_corner_slot(self, args):
+        corner_name, callback = args
+        self.corner_clicked(corner_name)
+        if callback:
+            callback()
+
+    def emit_go_corner(self, corner_name, callback=None):
+        self.go_corner.emit((corner_name, callback))
+
+    def go_corner_slot(self, args):
+        corner_name, callback = args
+        pos = self.get_corner_move_pos(corner_name)
+        if pos is None:
+            raise Exception("Failed to get corner")
+        self.ac.motion_thread.move_absolute(pos, callback=callback)
+
+    def afgo_coarse(self):
+        """
+        Autofocus corners and kick off
+        """
+        ret = QMessageBox.question(
+            self, "Start?",
+            "Autofocus corners and start? Note: Dry: %s, AE: %s" %
+            (self.ac.mainTab.scan_widget.dry(),
+             self.ac.auto_exposure_enabled()),
+            QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel)
+        if ret != QMessageBox.Yes:
+            return
+
+        # XXX: should settle in between XY moves?
+        # autofocus moves anyway so probably fine
+        # End at LL corner
+        # Could either autofocus at end or sweep back
+        # Sweeping back is preferred b/c you can see if die shifted
+        self.sequencer = EventSequener([
+            (self.emit_go_corner, {
+                "corner_name": "ul"
+            }),
+            (self.ac.image_processing_thread.auto_focus_coarse, {}),
+            (self.emit_click_corner, {
+                "corner_name": "ul"
+            }),
+            (self.emit_go_corner, {
+                "corner_name": "ll"
+            }),
+            (self.ac.image_processing_thread.auto_focus_coarse, {}),
+            (self.emit_click_corner, {
+                "corner_name": "ll"
+            }),
+            (self.emit_go_corner, {
+                "corner_name": "lr"
+            }),
+            (self.ac.image_processing_thread.auto_focus_coarse, {}),
+            (self.emit_click_corner, {
+                "corner_name": "lr"
+            }),
+            # Ensure even dry scan goes back
+            (self.emit_go_corner, {
+                "corner_name": "ll"
+            }),
+            (self.ac.mainTab.emit_go_current_pconfig, {})
+        ])
+        self.sequencer.run()
+
+    def afgo_fine(self):
+        """
+        Autofocus corners and kick off
+        """
+        # self.ac.image_processing_thread.auto_focus_fine()
+        self.log("fixme")
+
 
 """
 Monitors the current scan
@@ -810,12 +914,12 @@ Set output job name
 class ScanWidget(AWidget):
     def __init__(self,
                  ac,
-                 go_currnet_pconfig,
+                 go_current_pconfig,
                  setControlsEnabled,
                  parent=None):
         super().__init__(ac=ac, parent=parent)
         self.position_poll_timer = None
-        self.go_currnet_pconfig = go_currnet_pconfig
+        self.go_current_pconfig = go_current_pconfig
         self.setControlsEnabled = setControlsEnabled
         self.current_scan_config = None
         self.restore_properties = None
@@ -917,6 +1021,10 @@ class ScanWidget(AWidget):
 
         if result["result"] == "ok":
             self.ac.stitchingTab.scan_completed(last_scan_config, result)
+
+        callback = last_scan_config.get("callback")
+        if callback:
+            callback(result)
 
         run_next = result["result"] == "ok" or (
             not self.ac.batchTab.abort_on_failure())
@@ -1055,7 +1163,7 @@ class ScanWidget(AWidget):
                 self.ac.planner_thread.pause()
         # Go go go!
         else:
-            self.go_currnet_pconfig()
+            self.go_current_pconfig()
 
     def stop_clicked(self):
         if self.ac.planner_thread:
@@ -1074,6 +1182,8 @@ def awidgets_post_ui_init(awidgets):
 
 
 class MainTab(ArgusTab):
+    go_current_pconfig_signal = pyqtSignal(tuple)
+
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
 
@@ -1105,7 +1215,7 @@ class MainTab(ArgusTab):
         # Second is a more generic monitoring / control widget
         self.scan_widget = ScanWidget(
             ac=ac,
-            go_currnet_pconfig=self.go_currnet_pconfig,
+            go_current_pconfig=self.go_current_pconfig,
             setControlsEnabled=self.setControlsEnabled)
         self.add_awidget("scan", self.scan_widget)
         self.planner_widget_xy2p = XYPlanner2PWidget(
@@ -1124,6 +1234,8 @@ class MainTab(ArgusTab):
                                           usc=self.ac.usc,
                                           log=self.ac.log)
         self.add_awidget("motion", self.motion_widget)
+
+        self.go_current_pconfig_signal.connect(self.go_current_pconfig_slot)
 
     def initUI(self):
         def get_axes_gb():
@@ -1185,7 +1297,7 @@ class MainTab(ArgusTab):
             self.scan_widget.log_fd_scan.write(s)
             self.scan_widget.log_fd_scan.flush()
 
-    def go_currnet_pconfig(self):
+    def go_current_pconfig(self, callback=None):
         scan_config = self.active_planner_widget().get_current_scan_config()
         if scan_config is None:
             self.ac.log("Failed to get scan config :(")
@@ -1193,7 +1305,16 @@ class MainTab(ArgusTab):
         # Leave image controls at current value when not batching?
         # Should be a nop but better to just leave alone
         del scan_config["pconfig"]["imager"]["properties"]
+        if callback:
+            scan_config["callback"] = callback
         self.scan_widget.go_scan_configs([scan_config])
+
+    def emit_go_current_pconfig(self, callback=None):
+        self.go_current_pconfig_signal.emit((callback, ))
+
+    def go_current_pconfig_slot(self, args):
+        callback, = args
+        self.go_current_pconfig(callback=callback)
 
     def setControlsEnabled(self, yes):
         self.snapshot_widget.snapshot_pb.setEnabled(yes)

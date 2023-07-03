@@ -114,15 +114,17 @@ class MotionThread(QThread):
             if self.idle.is_set():
                 break
 
-    def command(self, command, *args, block=False):
+    def command(self, command, *args, block=False, callback=None):
         command_done = None
-        if block:
+        if block or callback:
             ready = threading.Event()
             ret = []
 
             def command_done(command, args, ret_e):
                 ret.append(ret_e)
                 ready.set()
+                if callback:
+                    callback()
 
         self.queue.put((command, args, command_done))
         if block:
@@ -173,11 +175,11 @@ class MotionThread(QThread):
     def backlash_enable(self, block=False):
         self.command("backlash_enable", block=block)
 
-    def move_absolute(self, pos, block=False):
-        self.command("move_absolute", pos, block=block)
+    def move_absolute(self, pos, block=False, callback=None):
+        self.command("move_absolute", pos, block=block, callback=callback)
 
-    def move_relative(self, pos, block=False):
-        self.command("move_relative", pos, block=block)
+    def move_relative(self, pos, block=False, callback=None):
+        self.command("move_relative", pos, block=block, callback=callback)
 
     def set_jog_rate(self, rate):
         self.command("set_jog_rate", rate)
@@ -520,17 +522,37 @@ class ImageProcessingThread(QThread):
     def shutdown(self):
         self.running.clear()
 
-    def auto_focus_coarse(self):
+    def command(self, command, block=False, callback=None):
+        command_done = None
+        if block or callback:
+            ready = threading.Event()
+            ret = []
+
+            def command_done(command, ret_e):
+                ret.append(ret_e)
+                ready.set()
+                if callback:
+                    callback()
+
+        self.queue.put((command, command_done))
+        if block:
+            ready.wait()
+            ret = ret[0]
+            if type(ret) is Exception:
+                raise Exception("oopsie: %s" % (ret, ))
+            return ret
+
+    def auto_focus_coarse(self, callback=None):
         j = {
             "type": "auto_focus_coarse",
         }
-        self.queue.put(j)
+        self.command(j, callback=callback)
 
-    def auto_focus_fine(self):
+    def auto_focus_fine(self, callback=None):
         j = {
             "type": "auto_focus_fine",
         }
-        self.queue.put(j)
+        self.command(j, callback=callback)
 
     def move_absolute(self, pos):
         self.motion_thread.move_absolute(pos, block=True)
@@ -590,7 +612,7 @@ class ImageProcessingThread(QThread):
     def run(self):
         while self.running:
             try:
-                j = self.queue.get(block=True, timeout=0.1)
+                j, command_done = self.queue.get(block=True, timeout=0.1)
             except Empty:
                 continue
             try:
@@ -601,9 +623,15 @@ class ImageProcessingThread(QThread):
                 else:
                     assert 0, j
 
+                if command_done:
+                    command_done(j, None)
+
             except Exception as e:
-                self.log('WARNING: stitcher thread crashed: %s' % str(e))
+                self.log('WARNING: image processing thread crashed: %s' %
+                         str(e))
                 traceback.print_exc()
+                if command_done:
+                    command_done(j, e)
             finally:
                 # self.stitcherDone.emit()
                 pass

@@ -8,7 +8,7 @@ from uscope.imager.imager_util import get_scaled
 from uscope.motion.hal import pos_str
 from uscope.kinematics import Kinematics
 from scipy import polyfit
-from uscope.imager.autofocus import choose_best_image
+from uscope.imager.autofocus import choose_best_image, Autofocus
 
 
 class PlannerAxis:
@@ -534,8 +534,30 @@ class PointGenerator3P(PlannerPlugin):
                 raise ValueError("Inconsistent z keys")
         return ret
 
+    def refocus_corners(self, corners):
+        """
+        Refocus corners before starting scan
+        Intended for large batch jobs that may drift before the scan starts
+        """
+        af = Autofocus(move_absolute=self.motion.move_absolute,
+                       pos=self.planner.motion.pos,
+                       imager=self.imager,
+                       kinematics=self.kinematics,
+                       log=self.log,
+                       poll=self.planner.check_yield)
+
+        for corner in ("ul", "ll", "lr"):
+            self.planner.check_yield()
+            self.motion.move_absolute(corners[corner])
+            self.planner.check_yield()
+            af.coarse()
+            self.planner.check_yield()
+            corners[corner] = self.planner.motion.pos()
+
     def setup_bounds(self):
         corners = self.pc.j["points-xy3p"]["corners"]
+        if self.pc.j["points-xy3p"].get("refocus", False):
+            self.refocus_corners(corners)
         assert len(corners) == 3
         pos0 = self.planner.motion.pos()
         self.corners = {}

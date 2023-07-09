@@ -542,17 +542,17 @@ class ImageProcessingThread(QThread):
                 raise Exception("oopsie: %s" % (ret, ))
             return ret
 
-    def auto_focus_coarse(self, callback=None):
+    def auto_focus_coarse(self, block=False, callback=None):
         j = {
             "type": "auto_focus_coarse",
         }
-        self.command(j, callback=callback)
+        self.command(j, block=block, callback=callback)
 
-    def auto_focus_fine(self, callback=None):
+    def auto_focus_fine(self, block=False, callback=None):
         j = {
             "type": "auto_focus_fine",
         }
-        self.command(j, callback=callback)
+        self.command(j, block=block, callback=callback)
 
     def move_absolute(self, pos):
         self.motion_thread.move_absolute(pos, block=True)

@@ -174,15 +174,16 @@ class CSImageProcessor(threading.Thread):
                 print(s)
 
         self.log = log
-        if not nthreads:
-            nthreads = multiprocessing.cpu_count()
-        self.workers = OrderedDict()
-        for i in range(nthreads):
-            name = f"w{i}"
-            self.workers[name] = CSImageProcessorThread(self, name)
         self.queue_in = queue.Queue()
         self.queue_out = queue.Queue()
         self.running = threading.Event()
+        self.workers = OrderedDict()
+
+        if not nthreads:
+            nthreads = multiprocessing.cpu_count()
+        for i in range(nthreads):
+            name = f"w{i}"
+            self.workers[name] = CSImageProcessorThread(self, name)
         self.running.set()
 
     def __del__(self):

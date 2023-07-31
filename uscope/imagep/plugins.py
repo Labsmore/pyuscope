@@ -197,8 +197,11 @@ class CorrectFF1Plugin(IPPlugin):
         super().__init__(log=log,
                          default_options=default_options,
                          need_tmp_dir=True)
-        assert self.usc.imager.has_ff_cal(), self.usc.imager.ff_cal_fn()
-        self.ffi_im = Image.open(self.usc.imager.ff_cal_fn())
+        # Plugin is always registered
+        # Maybe should have a mechanism to exclude if it can't actually run?
+        if self.usc.imager.has_ff_cal():
+            self.ffi_im = Image.open(self.usc.imager.ff_cal_fn())
+        self.ffi_im = None
 
     def npf2im(self, statef):
         #return statef, None
@@ -272,6 +275,9 @@ class CorrectFF1Plugin(IPPlugin):
             ffi, gband), self.bounds_close_band(ffi, bband)
 
     def _run(self, data_in, data_out, options={}):
+        # Calibration must be loaded
+        assert self.ffi_im
+
         # It's easy to have an outlier that boosts everything
         # hmm
         if 0:

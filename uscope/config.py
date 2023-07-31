@@ -50,7 +50,11 @@ Ideally we'd also match on S/N or something like that
 """
 
 
-def default_microscope_name(name):
+def has_default_microscope_name():
+    return bool(default_microscope_name_cache)
+
+
+def default_microscope_name(name=None):
     global default_microscope_name_cache
 
     if name:
@@ -69,7 +73,7 @@ def cal_fn_microscope(name=None):
     return os.path.join(get_config_dir(name=name), "imager_calibration.j5")
 
 
-def cal_fn_data(name=None, mkdir=True):
+def get_microscope_data_dir(name=None, mkdir=True):
     name = default_microscope_name(name)
     microscopes_dir = os.path.join(get_data_dir(mkdir=mkdir), "microscopes")
     if mkdir and not os.path.exists(microscopes_dir):
@@ -77,6 +81,11 @@ def cal_fn_data(name=None, mkdir=True):
     microscope_dir = os.path.join(microscopes_dir, name)
     if mkdir and not os.path.exists(microscope_dir):
         os.mkdir(microscope_dir)
+    return microscope_dir
+
+
+def cal_fn_data(name=None, mkdir=True):
+    microscope_dir = get_microscope_data_dir(name=name, mkdir=mkdir)
     return os.path.join(microscope_dir, "imager_calibration.j5")
 
 
@@ -279,6 +288,12 @@ class USCImager:
 
     def um_per_pixel_raw_1x(self):
         return self.j.get("um_per_pixel_raw_1x", None)
+
+    def ff_cal_fn(self):
+        return get_microscope_data_dir() + "/imager_calibration_ff.tif"
+
+    def has_ff_cal(self):
+        return os.path.exists(self.ff_cal_fn())
 
 
 class USCMotion:

@@ -7,7 +7,7 @@ So pre-process files / tifs individually first
 TODO: parallel
 """
 
-from uscope.image.cs_auto import process_dir, already_uploaded
+from uscope.imagep.pipeline import process_dir, already_uploaded
 from uscope.cloud_stitch import CSInfo
 from uscope.util import add_bool_arg
 from uscope import config
@@ -16,7 +16,10 @@ import os
 import time
 
 
-def run(directories, batch_sleep=2400, *args, **kwargs):
+def run(directories, batch_sleep=2400, microscope_name=None, *args, **kwargs):
+    if microscope_name:
+        # Used to bind /override calibration in scan
+        config.default_microscope_name(microscope_name)
     if directories:
         for directory in directories:
             process_dir(directory, *args, **kwargs)
@@ -80,6 +83,7 @@ def main():
                         type=int,
                         help="Hack for not overloading stitch service")
     parser.add_argument("--ewf")
+    parser.add_argument("--microscope")
     parser.add_argument("dirs_in", nargs="*")
     args = parser.parse_args()
 
@@ -97,6 +101,7 @@ def main():
         lazy=args.lazy,
         batch_sleep=args.batch_sleep,
         nthreads=args.threads,
+        microscope_name=args.microscope,
         verbose=args.verbose)
 
 

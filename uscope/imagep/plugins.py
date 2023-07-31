@@ -201,7 +201,8 @@ class CorrectFF1Plugin(IPPlugin):
         # Maybe should have a mechanism to exclude if it can't actually run?
         if self.usc.imager.has_ff_cal():
             self.ffi_im = Image.open(self.usc.imager.ff_cal_fn())
-        self.ffi_im = None
+        else:
+            self.ffi_im = None
 
     def npf2im(self, statef):
         #return statef, None

@@ -4,6 +4,23 @@ import os
 import re
 
 
+def iindex_filename_key(filename):
+    filename = os.path.basename(filename)
+    return filename.split(".")[0]
+
+
+def reduce_iindex_filename(filename, remove_key):
+    """
+    Given a list of shared filenames, return the next base filename
+    ex: 
+    filenames: c000_r002_z00.jpg, c000_r002_z01.jpg, c000_r002_z02.jpg
+    remove_key: stack
+    return: c000_r002
+    """
+    parsed = iindex_parse_fn(filename)
+    return unkey_fn_prefix(parsed, remove_key)
+
+
 def unkey_fn_prefix(filev, remove_key):
     ret = f"{filev['col_str']}_{filev['row_str']}"
     if "stack" in filev and remove_key != "stack":
@@ -22,6 +39,59 @@ def bucket_group(iindex_in, bucket_key):
         fn_prefix = unkey_fn_prefix(filev, bucket_key)
         fns.setdefault(fn_prefix, {})[filev[bucket_key]] = fn
     return fns
+
+
+def iindex_parse_fn(basename):
+    """
+    Nobody is going to be impressed with my regular expression skills
+    but this should work
+    """
+    m = re.match(r"c([0-9]+)_r([0-9]+)_z([0-9]+)_h([0-9]+)(\.[a-z]+)",
+                 basename)
+    if m:
+        return {
+            "col": int(m.group(1)),
+            "col_str": "c" + m.group(1),
+            "row": int(m.group(2)),
+            "row_str": "r" + m.group(2),
+            "stack": int(m.group(3)),
+            "stack_str": "z" + m.group(3),
+            "hdr": int(m.group(4)),
+            "hdr_str": "h" + m.group(4),
+            "extension": m.group(5),
+        }
+    m = re.match(r"c([0-9]+)_r([0-9]+)_z([0-9]+)(\.[a-z]+)", basename)
+    if m:
+        return {
+            "col": int(m.group(1)),
+            "col_str": "c" + m.group(1),
+            "row": int(m.group(2)),
+            "row_str": "r" + m.group(2),
+            "stack": int(m.group(3)),
+            "stack_str": "z" + m.group(3),
+            "extension": m.group(4),
+        }
+    m = re.match(r"c([0-9]+)_r([0-9]+)_h([0-9]+)(\.[a-z]+)", basename)
+    if m:
+        return {
+            "col": int(m.group(1)),
+            "col_str": "c" + m.group(1),
+            "row": int(m.group(2)),
+            "row_str": "r" + m.group(2),
+            "hdr": int(m.group(3)),
+            "hdr_str": "h" + m.group(3),
+            "extension": m.group(4),
+        }
+    m = re.match(r"c([0-9]+)_r([0-9]+)(\.[a-z]+)", basename)
+    if m:
+        return {
+            "col": int(m.group(1)),
+            "col_str": "c" + m.group(1),
+            "row": int(m.group(2)),
+            "row_str": "r" + m.group(2),
+            "extension": m.group(3),
+        }
+    return None
 
 
 def index_scan_images(dir_in):
@@ -60,59 +130,7 @@ def index_scan_images(dir_in):
             list(glob.glob(dir_in + "/*.tif"))):
         basename = os.path.basename(fn_full)
 
-        def parse_fn():
-            """
-            Nobody is going to be impressed with my regular expression skills
-            but this should work
-            """
-            m = re.match(r"c([0-9]+)_r([0-9]+)_z([0-9]+)_h([0-9]+)(\.[a-z]+)",
-                         basename)
-            if m:
-                return {
-                    "col": int(m.group(1)),
-                    "col_str": "c" + m.group(1),
-                    "row": int(m.group(2)),
-                    "row_str": "r" + m.group(2),
-                    "stack": int(m.group(3)),
-                    "stack_str": "z" + m.group(3),
-                    "hdr": int(m.group(4)),
-                    "hdr_str": "h" + m.group(4),
-                    "extension": m.group(5),
-                }
-            m = re.match(r"c([0-9]+)_r([0-9]+)_z([0-9]+)(\.[a-z]+)", basename)
-            if m:
-                return {
-                    "col": int(m.group(1)),
-                    "col_str": "c" + m.group(1),
-                    "row": int(m.group(2)),
-                    "row_str": "r" + m.group(2),
-                    "stack": int(m.group(3)),
-                    "stack_str": "z" + m.group(3),
-                    "extension": m.group(4),
-                }
-            m = re.match(r"c([0-9]+)_r([0-9]+)_h([0-9]+)(\.[a-z]+)", basename)
-            if m:
-                return {
-                    "col": int(m.group(1)),
-                    "col_str": "c" + m.group(1),
-                    "row": int(m.group(2)),
-                    "row_str": "r" + m.group(2),
-                    "hdr": int(m.group(3)),
-                    "hdr_str": "h" + m.group(3),
-                    "extension": m.group(4),
-                }
-            m = re.match(r"c([0-9]+)_r([0-9]+)(\.[a-z]+)", basename)
-            if m:
-                return {
-                    "col": int(m.group(1)),
-                    "col_str": "c" + m.group(1),
-                    "row": int(m.group(2)),
-                    "row_str": "r" + m.group(2),
-                    "extension": m.group(3),
-                }
-            return None
-
-        v = parse_fn()
+        v = iindex_parse_fn(basename)
         if not v:
             continue
         images[basename] = v

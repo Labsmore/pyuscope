@@ -29,9 +29,6 @@ import queue
 from PIL import Image
 import tempfile
 
-delete_tmp = True
-skip_align = True
-
 
 def need_jpg_conversion(working_dir):
     fns = glob.glob(working_dir + "/*.tif")
@@ -184,6 +181,7 @@ class IPPlugin:
         self.need_tmp_dir = need_tmp_dir
         if need_tmp_dir:
             self.create_tmp_dir()
+        self.delete_tmp = True
 
     def __del__(self):
         if self.tmp_dir:
@@ -269,6 +267,7 @@ class StackEnfusePlugin(IPPlugin):
         super().__init__(log=log,
                          default_options=default_options,
                          need_tmp_dir=True)
+        self.skip_align = True
 
     def _run(self, data_in, data_out, options={}):
         best_effort = options.get("best_effort", False)
@@ -302,9 +301,9 @@ class StackEnfusePlugin(IPPlugin):
         """
 
         prefix = "aligned_"
-        if skip_align:
+        if self.skip_align:
             for imi, image_in in enumerate(data_in["images"]):
-                fn_aligned = os.path.join(self.tmp_dir,
+                fn_aligned = os.path.join(self.get_tmp_dir(),
                                           prefix + "%04u.tif" % imi)
                 image_in.to_filename_tif(fn_aligned)
         else:
@@ -312,7 +311,7 @@ class StackEnfusePlugin(IPPlugin):
             args = [
                 "align_image_stack", "-l", "-i", "-v", "--use-given-order",
                 "-a",
-                os.path.join(self.tmp_dir, prefix)
+                os.path.join(self.get_tmp_dir(), prefix)
             ]
             for image_in in data_in["images"]:
                 args.append(image_in.get_filename())
@@ -324,15 +323,16 @@ class StackEnfusePlugin(IPPlugin):
             "--contrast-weight=1", "--hard-mask",
             "--output=" + data_out["image"].get_filename()
         ]
-        for fn in glob.glob(os.path.join(self.tmp_dir, prefix + "*")):
+        for fn in glob.glob(os.path.join(self.get_tmp_dir(), prefix + "*")):
             args.append(fn)
         # self.log(" ".join(args))
         check_call(args)
 
-        if delete_tmp:
+        if self.delete_tmp:
             # Remove old files
             # This can also confuse globbing to find extra tifs
-            for fn in glob.glob(os.path.join(self.tmp_dir, prefix + "*")):
+            for fn in glob.glob(os.path.join(self.get_tmp_dir(),
+                                             prefix + "*")):
                 os.unlink(fn)
 
 
@@ -573,15 +573,17 @@ class DirCSIP:
         image_suffix = get_image_suffix(iindex_in["dir"])
         buckets = bucket_group(iindex_in, "stack")
         tb = TaskBarrier()
-
+        """
         def clean_tmp_files():
-            if delete_tmp:
+            if self.delete_tmp:
                 # Remove old files
                 for fn in glob.glob(os.path.join(iindex_in["dir"],
                                                  "aligned_*")):
                     os.unlink(fn)
 
         clean_tmp_files()
+        """
+
         try:
             # Must be in stack order?
             for fn_prefix, stacks in sorted(buckets.items()):
@@ -595,15 +597,16 @@ class DirCSIP:
                     self.log(f"lazy: skip {fn_out}")
                 else:
                     self.log("Queing task")
-                    self.csip.queue_stack_enfuse(dir_in=iindex_in["dir"],
-                                                 fns_in=fns,
-                                                 fn_out=fn_out,
-                                                 best_effort=best_effort,
-                                                 tb=tb)
+                    self.csip.queue_stack_enfuse(  # dir_in=iindex_in["dir"],
+                        fns_in=fns,
+                        fn_out=fn_out,
+                        # best_effort=best_effort,
+                        tb=tb)
             tb.wait()
 
         finally:
-            clean_tmp_files()
+            # clean_tmp_files()
+            pass
 
     def run(self):
         """

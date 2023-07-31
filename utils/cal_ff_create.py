@@ -3,6 +3,8 @@ from PIL import Image
 import numpy as np
 import glob
 import os
+from uscope import config
+import subprocess
 
 
 def npf2im(statef):
@@ -121,42 +123,59 @@ def main():
     parser = argparse.ArgumentParser(
         description='Generate calibreation files from specially captured frames'
     )
+    parser.add_argument("--microscope")
     parser.add_argument('--images',
                         type=int,
                         default=0,
                         help='Only take first n images, for debugging')
-    parser.add_argument('--dir-in', help='Sample images')
+    parser.add_argument('--dir-in', required=True, help='Sample images')
     parser.add_argument('--dir-out', help='Sample images')
     args = parser.parse_args()
 
+    if args.microscope:
+        # Used to bind /override calibration in scan
+        config.default_microscope_name(microscope_name=args.microscope)
+    config.lazy_load_microscope_from_config(args.dir_in)
+
     dir_out = args.dir_out
     if not dir_out:
-        dir_out = args.dir_in + "/cal"
+        assert config.has_default_microscope_name(
+        ), "Need microscope name to auto place cal files or explicit output dir"
+        dir_out = config.get_microscope_data_dir()
     if not os.path.exists(dir_out):
         os.mkdir(dir_out)
 
     _fff, ffi = average_dir(args.dir_in, images=args.images)
-    ffi.save(dir_out + '/ff.tif')
+    print(f"Saving images to {dir_out}")
+    fn_out_ff = dir_out + '/imager_calibration_ff.tif'
+    fn_out_ffe = dir_out + '/imager_calibration_ffe.tif'
+    print(f"Saving {fn_out_ff}")
+    ffi.save(fn_out_ff)
+    # FIXME: find some way to generate this by CLI
+    print(f"Saving {fn_out_ffe}")
     # histeq_im(ffi).save(dir_out + '/ffe.tif')
+    subprocess.check_call(f"convert {fn_out_ff} -equalize {fn_out_ffe}",
+                          shell=True)
 
-    ((ffi_rmin, ffi_rmax), (ffi_gmin, ffi_gmax),
-     (ffi_bmin, ffi_bmax)) = ffi.getextrema()
-    print(f"ffi r: {ffi_rmin} : {ffi_rmax}")
-    print(f"ffi g: {ffi_gmin} : {ffi_gmax}")
-    print(f"ffi b: {ffi_bmin} : {ffi_bmax}")
+    if 0:
+        ((ffi_rmin, ffi_rmax), (ffi_gmin, ffi_gmax),
+         (ffi_bmin, ffi_bmax)) = ffi.getextrema()
+        print(f"ffi r: {ffi_rmin} : {ffi_rmax}")
+        print(f"ffi g: {ffi_gmin} : {ffi_gmax}")
+        print(f"ffi b: {ffi_bmin} : {ffi_bmax}")
 
-    pixmin = (ffi_rmin + ffi_gmin + ffi_bmin) / 3
-    pixmax = (ffi_rmax + ffi_gmax + ffi_bmax) / 3
-    print("Percent ratio: %0.2f" % (pixmax / pixmin * 100.0))
+        pixmin = (ffi_rmin + ffi_gmin + ffi_bmin) / 3
+        pixmax = (ffi_rmax + ffi_gmax + ffi_bmax) / 3
+        print("Percent ratio: %0.2f" % (pixmax / pixmin * 100.0))
 
-    rband, gband, bband = ffi.split()
-    rlo, rhi = bounds10(ffi, rband)
-    glo, ghi = bounds10(ffi, gband)
-    blo, bhi = bounds10(ffi, bband)
-    print("10% lo/hi")
-    print("  R: %u : %u => %0.2f" % (rlo, rhi, rhi / rlo * 100.0))
-    print("  G: %u : %u => %0.2f" % (glo, ghi, ghi / glo * 100.0))
-    print("  B: %u : %u => %0.2f" % (blo, bhi, bhi / blo * 100.0))
+        rband, gband, bband = ffi.split()
+        rlo, rhi = bounds10(ffi, rband)
+        glo, ghi = bounds10(ffi, gband)
+        blo, bhi = bounds10(ffi, bband)
+        print("10% lo/hi")
+        print("  R: %u : %u => %0.2f" % (rlo, rhi, rhi / rlo * 100.0))
+        print("  G: %u : %u => %0.2f" % (glo, ghi, ghi / glo * 100.0))
+        print("  B: %u : %u => %0.2f" % (blo, bhi, bhi / blo * 100.0))
 
 
 if __name__ == "__main__":

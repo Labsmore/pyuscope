@@ -191,14 +191,8 @@ class DirCSIP:
         working_iindex = index_scan_images(self.directory)
         dst_basename = os.path.basename(os.path.abspath(self.directory))
 
-        if not config.has_default_microscope_name():
-            scan_fn = os.path.join(self.directory, "uscan.json")
-            if os.path.exists(scan_fn):
-                with open(scan_fn) as f:
-                    scanj = json.load(f)
-                microscope_name = scanj["pconfig"]["app"]["microscope"]
-                print(f"Scan taken with microscope {microscope_name}")
-                config.default_microscope_name(microscope_name)
+        config.lazy_load_microscope_from_config(self.directory)
+
         print("Microscope: %s" % (config.default_microscope_name(), ))
         print("  Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
 

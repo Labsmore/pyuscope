@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
+"""
+WARNING: this utility is transient and will soon be replaced with cs_auto algorithm
+"""
 from PIL import Image
 import numpy as np
 import glob
 import os
 import math
+from uscope import config
 
 
 def npf2im(statef):
@@ -128,6 +132,7 @@ def main():
 
     parser = argparse.ArgumentParser(
         description='Apply flat field calibration')
+    parser.add_argument("--microscope")
     parser.add_argument('--images',
                         type=int,
                         default=0,
@@ -136,6 +141,10 @@ def main():
     parser.add_argument('--dir-in', help='Sample images')
     parser.add_argument('--dir-out', help='Sample images')
     args = parser.parse_args()
+
+    if args.microscope:
+        # Used to bind /override calibration in scan
+        config.default_microscope_name(microscope_name=args.microscope)
 
     dir_in = args.dir_in
     dir_out = args.dir_out

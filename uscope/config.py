@@ -1,3 +1,4 @@
+import json
 import json5
 import os
 from collections import OrderedDict
@@ -1237,3 +1238,18 @@ def get_bc(j=None):
             j = get_bcj()
         bc = BaseConfig(j=j)
     return bc
+
+
+def lazy_load_microscope_from_config(directory):
+    """
+    If user arguments haven't already set, set the default microscope from uscan.json
+    Intended for CLI processing applications
+    """
+    if not has_default_microscope_name():
+        scan_fn = os.path.join(directory, "uscan.json")
+        if os.path.exists(scan_fn):
+            with open(scan_fn) as f:
+                scanj = json.load(f)
+            microscope_name = scanj["pconfig"]["app"]["microscope"]
+            print(f"Scan taken with microscope {microscope_name}")
+            default_microscope_name(microscope_name)

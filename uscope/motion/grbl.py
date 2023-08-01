@@ -1121,9 +1121,9 @@ Config magic number not found
 """
 
 WCS_STR_LEN = 9
-WCS_SN = 4
-WCS_MODEL = 5
-WCS_MAGIC = 6
+WCS_COMMENT = 4
+WCS_SN = 5
+WCS_CONFIG = 6
 
 
 def write_wcs_packed(gs, wcs, data):
@@ -1159,26 +1159,50 @@ def wcs_pad_bytes(s):
     return s
 
 
-def grbl_write_meta(gs, model=None, sn=None):
-    if not model:
-        model = ""
+def grbl_write_meta(gs, config=None, sn=None, comment=None):
+    """
+    Write pyuscope metadata into GRBL controller
+    Hack where metadata is stored as unused WCS sets
+    """
+    if not comment:
+        comment = ""
+    if not config:
+        config = "     "
     if not sn:
         sn = ""
 
-    write_wcs_packed(gs, WCS_SN, wcs_pad_str(sn))
-    write_wcs_packed(gs, WCS_MODEL, wcs_pad_str(model))
     # 4 / 9 bytes used. Others RFU
-    write_wcs_packed(gs, WCS_MAGIC, wcs_pad_bytes(USCOPE_MAGIC))
+    # 4 / 9 for config hash
+    # 1 reserved (config rev?)
+    assert len(config) == 4
+    config = USCOPE_MAGIC + tobytes(config) + b"\x00"
+
+    write_wcs_packed(gs, WCS_COMMENT, wcs_pad_str(comment))
+    write_wcs_packed(gs, WCS_SN, wcs_pad_str(sn))
+    write_wcs_packed(gs, WCS_CONFIG, config)
 
 
 def grbl_read_meta(gs):
+    """
+    Read pyuscope metadata from GRBL controller
+    Hack where metadata is stored as unused WCS sets
+    return
+    {
+        4 bytes fixed
+        "config": b"",
+        9 chars max
+        "comment": "",
+        9 chars max
+        "sn": "",
+    }
+    """
     def parse_wcs_packed(numstr):
         pass
 
     items = {}
     for l in gs.hash():
         # WCS 4/5/6
-        if "G57:" not in l and "G58:" not in l and "G59:" not in l:
+        if "G56:" not in l and "G57:" not in l and "G58:" not in l and "G59:" not in l:
             continue
         # print("meta", l)
         # [G56:123.456,234.123,312.789]
@@ -1191,11 +1215,14 @@ def grbl_read_meta(gs):
             buf += struct.pack("<i", int(float(part) * 1000))[0:3]
         items[wcsn] = buf
 
-    if items[WCS_MAGIC][0:len(USCOPE_MAGIC)] != USCOPE_MAGIC:
+    if items[WCS_CONFIG][0:len(USCOPE_MAGIC)] != USCOPE_MAGIC:
         raise NoGRBLMeta()
     ret = {}
+    ret["config"] = items[WCS_CONFIG][len(USCOPE_MAGIC):len(USCOPE_MAGIC) + 4]
+    # one unused reserved byte
+    ret["config_rev"] = items[WCS_CONFIG][-1]
+    ret["comment"] = tostr(items[WCS_COMMENT]).strip()
     ret["sn"] = tostr(items[WCS_SN]).strip()
-    ret["model"] = tostr(items[WCS_MODEL]).strip()
     return ret
 
 

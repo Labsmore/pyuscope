@@ -16,8 +16,9 @@ def main():
     except NoGRBLMeta:
         print("Config magic number not found")
         return
-    print("Model: %s" % (info["model"], ))
+    print("Comment: %s" % (info["comment"], ))
     print("S/N: %s" % (info["sn"], ))
+    print("Config: %s" % (info["config"].hex(), ))
 
 
 if __name__ == "__main__":

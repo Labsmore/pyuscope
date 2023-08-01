@@ -27,6 +27,10 @@ def main():
         microscope_dir = os.path.join("configs", microscope)
         if not os.path.exists(microscope_dir):
             raise Exception("Invalid microscope")
+        # sha256 => resulted in error
+        # maybe not quite enough bits?
+        # just roll with this and move on
+        # config = hashlib.sha256(microscope.encode("ascii")).digest()[0:4]
         config = hashlib.sha1(microscope.encode("ascii")).digest()[0:4]
         print("Microscope %s => config %s" % (microscope, config.hex()))
 

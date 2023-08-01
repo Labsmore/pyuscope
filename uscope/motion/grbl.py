@@ -1089,6 +1089,15 @@ Loose about 1 bit each time => +/- 4
 WCS max value
 2147483
 1000001100010010011011
+
+In [3]: bin(2147483*1000)
+Out[3]: '0b1111111111111111111110101111000'
+In [4]: (1<<31)/2147483
+Out[4]: 1000.0003017486052
+
+
+2147483999
+
 Must be some weird artifact from fractional part
 999 => 3.5 * 3 = 10 bits
 2147483 => 22 bits
@@ -1118,6 +1127,8 @@ mcmaster@thudpad:~/doc/ext/pyuscope$ ./test/grbl/read_meta.py
 meta G58:29556.000,12660.000,13106.000
 meta G59:26988.120,30320.970,12653.990
 Config magic number not found
+
+Is there an advantage to 1024 vs 1000?
 """
 
 WCS_STR_LEN = 9

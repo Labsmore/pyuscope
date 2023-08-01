@@ -17,7 +17,7 @@ from queue import Queue, Empty
 import subprocess
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope.kinematics import Kinematics
-from collections import OrderedDict
+from uscope.imagep.pipeline import process_dir
 
 
 def dbg(*args):
@@ -439,19 +439,26 @@ class StitcherThread(QThread):
     def cloud_stitch_add(
         self,
         directory,
-        access_key,
-        secret_key,
-        id_key,
-        notification_email,
+        cs_info,
     ):
 
         j = {
             "type": "CloudStitch",
             "directory": directory,
-            "access_key": access_key,
-            "secret_key": secret_key,
-            "id_key": id_key,
-            "notification_email": notification_email,
+            "cs_info": cs_info,
+        }
+        self.queue.put(j)
+
+    def imagep_add(
+        self,
+        directory,
+        cs_info,
+    ):
+
+        j = {
+            "type": "imagep",
+            "directory": directory,
+            "cs_info": cs_info,
         }
         self.queue.put(j)
 
@@ -463,14 +470,14 @@ class StitcherThread(QThread):
                 continue
             try:
                 if j["type"] == "CloudStitch":
-                    cloud_stitch.upload_dir(
-                        directory=j["directory"],
-                        id_key=j["id_key"],
-                        access_key=j["access_key"],
-                        secret_key=j["secret_key"],
-                        notification_email=j["notification_email"],
-                        log=self.log,
-                        running=self.running)
+                    cloud_stitch.upload_dir(directory=j["directory"],
+                                            cs_info=j["cs_info"],
+                                            log=self.log,
+                                            running=self.running)
+                elif j["type"] == "imagep":
+                    process_dir(directory=j["directory"],
+                                cs_info=j["cs_info"],
+                                log=self.log)
                 elif j["type"] == "cli":
                     self.log(
                         f"Stitch CLI: kicking off {j['command']} {j['directory']}"

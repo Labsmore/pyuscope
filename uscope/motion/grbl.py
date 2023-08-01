@@ -15,7 +15,8 @@ import time
 import os
 import threading
 import glob
-
+import struct
+from uscope.util import tobytes, tostr
 
 class GrblException(Exception):
     pass
@@ -164,6 +165,42 @@ config_i2s = {
     130: "X Max travel, mm Only for Homing and Soft Limits",
     131: "Y Max travel, mm Only for Homing and Soft Limits",
     132: "Z Max travel, mm Only for Homing and Soft Limits",
+}
+
+
+"""
+Firmware configuration
+Cannot be changed after build w/o reflashing
+vm1: V
+    VARIABLE_SPINDLE
+x1: VZL
+    VARIABLE_SPINDLE
+    HOMING_FORCE_SET_ORIGIN
+    HOMING_INIT_LOCK
+"""
+info_c2s = {
+    'V': "VARIABLE_SPINDLE",
+    'N': "USE_LINE_NUMBERS",
+    'M': "ENABLE_M7",
+    'C': "COREXY",
+    'P': "PARKING_ENABLE",
+    'Z': "HOMING_FORCE_SET_ORIGIN",
+    'H': "HOMING_SINGLE_AXIS_COMMANDS",
+    'T': "LIMITS_TWO_SWITCHES_ON_AXES",
+    'A': "ALLOW_FEED_OVERRIDE_DURING_PROBE_CYCLES",
+    'D': "USE_SPINDLE_DIR_AS_ENABLE_PIN",
+    '0': "SPINDLE_ENABLE_OFF_WITH_ZERO_SPEED",
+    'S': "ENABLE_SOFTWARE_DEBOUNCE",
+    'R': "ENABLE_PARKING_OVERRIDE_CONTROL",
+    'L': "HOMING_INIT_LOCK",
+    '+': "ENABLE_SAFETY_DOOR_INPUT_PIN",
+    '*': "ENABLE_RESTORE_EEPROM_WIPE_ALL",
+    '$': "ENABLE_RESTORE_EEPROM_DEFAULT_SETTINGS",
+    '#': "ENABLE_RESTORE_EEPROM_CLEAR_PARAMETERS",
+    'I': "ENABLE_BUILD_INFO_WRITE_COMMAND",
+    'E': "FORCE_BUFFER_SYNC_DURING_EEPROM_WRITE",
+    'W': "FORCE_BUFFER_SYNC_DURING_WCO_CHANGE",
+    '2': "ENABLE_DUAL_AXIS",
 }
 
 
@@ -1030,6 +1067,119 @@ class GrblHal(MotionHAL):
         if self.grbl:
             self.grbl.stop()
 
+class NoGRBLMeta(Exception):
+    pass
+
+# https://oeis.org/A245461
+# USCOPE_MAGIC = (121, 966, 989)
+# rounding issue, see below
+# USCOPE_MAGIC = (120, 968, 990)
+# reduce precision
+USCOPE_MAGIC = (12, 9, 68)
+
+"""
+32 bit signed value
+divided by 1000
+Then multiplied by 1000
+Loose about 1 bit each time => +/- 4
+
+
+WCS max value
+2147483
+1000001100010010011011
+Must be some weird artifact from fractional part
+999 => 3.5 * 3 = 10 bits
+2147483 => 22 bits
+sign: 1 bit
+so yeah about 32 bits total
+hmm
+
+or put real ECC values on this?
+whole: 23 bits
+fractional: 
+
+fractional bit rounds
+loose 2 bits on each and/or 
+
+mcmaster@thudpad:~/doc/ext/pyuscope$ ./test/grbl/write_meta.py --model "lipvm1" --sn "tst123"
+out G10 L2 P5 X29556.000 Y12660.000 Z13106.000
+out G10 L2 P6 X26988.121 Y30320.966 Z12653.989
+mcmaster@thudpad:~/doc/ext/pyuscope$ ./test/grbl/read_meta.py
+meta G58:29556.000,12660.000,13106.000
+meta G59:26988.120,30320.968,12653.990
+Config magic number not found
+
+mcmaster@thudpad:~/doc/ext/pyuscope$ ./test/grbl/write_meta.py --model "lipvm1" --sn "tst123"
+out G10 L2 P5 X29556.000 Y12660.000 Z13106.000
+out G10 L2 P6 X26988.120 Y30320.968 Z12653.990
+mcmaster@thudpad:~/doc/ext/pyuscope$ ./test/grbl/read_meta.py
+meta G58:29556.000,12660.000,13106.000
+meta G59:26988.120,30320.970,12653.990
+Config magic number not found
+"""
+
+def write_wcs_packed(gs, wcs, data, dec_xyz):
+    assert len(data) == 6
+    assert len(dec_xyz) == 3
+    assert 1 <= wcs <= 6
+    # Rounding issues => constrain to two digits
+    dec_xyz = list(dec_xyz)
+    for i in range(3):
+        assert 0 <= dec_xyz[i] <= 99
+        # Peg in middle to avoid +/- 2 rounding errors
+        # or could divide by a number? meh seems ok
+        dec_xyz[i] = dec_xyz[i] * 10 + 5
+    data = tobytes(data)
+    whole_x, whole_y, whole_z = struct.unpack("<HHH", data)
+    out = "G10 L2 P%u X%d.%03u Y%d.%03u Z%d.%03u" % (wcs, whole_x, dec_xyz[0], whole_y, dec_xyz[1], whole_z, dec_xyz[2])
+    print("out", out)
+    gs.txrxs(out)
+
+def grbl_write_meta(gs, model=None, sn=None):
+    if not model:
+        model = ""
+    if not sn:
+        sn = ""
+
+    assert len(model) <= 6
+    assert len(sn) <= 6
+
+    if len(model) < 6:
+        model = model + (" " * (6 - len(model)))
+    if len(sn) < 6:
+        sn = sn + (" " * (6 - len(sn)))
+
+    write_wcs_packed(gs, 5, sn, (0, 0, 0))
+    write_wcs_packed(gs, 6, model, USCOPE_MAGIC)
+
+def grbl_read_meta(gs):
+    items = {}
+    for l in gs.hash():
+        # WCS 5/6
+        if "G58:" not in l and "G59:" not in l:
+            continue
+        print("meta", l)
+        # [G56:123.456,234.123,312.789]
+        # 123.456,234.123,312.789
+        gcode, coords = l.split(":")
+        # G54 => 1
+        wcsn = int(gcode[1:]) - 53
+        wholes = []
+        fractions = []
+        for part in coords.split(","):
+            whole, fraction = part.split(".")
+            wholes.append(int(whole))
+            # Drop least significant digit since its really dicy
+            fractions.append(int(fraction) // 10)
+        buf = struct.pack("<HHH", wholes[0], wholes[1], wholes[2])
+        items[wcsn] = {"buf": buf, "fractions": tuple(fractions)}
+    if items[6]["fractions"] != USCOPE_MAGIC:
+        raise NoGRBLMeta()
+    ret = {}
+    ret["wcs5-fractions"] = items[5]["fractions"]
+    ret["sn"] = tostr(items[5]["buf"]).strip()
+    ret["model"] = tostr(items[6]["buf"]).strip()
+    return ret
 
 def get_grbl(port=None, gs=None, reset=False, verbose=False):
     return GRBL(port=port, gs=gs, reset=reset, verbose=verbose)

@@ -8,6 +8,7 @@ from uscope.motion import motion_util
 import json
 import json5
 from collections import OrderedDict
+from uscope.cloud_stitch import CSInfo
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -1937,13 +1938,24 @@ class StitchingTab(ArgusTab):
                 f"Aborting stitch: directory does not exist: {directory}")
             return
         # Offload uploads etc to thread since they might take a while
+        """
+        # https://github.com/Labsmore/pyuscope/issues/194
+        # Change to image processing pipeline
         self.stitcher_thread.cloud_stitch_add(
             directory=directory,
-            access_key=str(self.stitch_accesskey.text()),
-            secret_key=str(self.stitch_secretkey.text()),
-            id_key=str(self.stitch_idkey.text()),
-            notification_email=str(self.stitch_email.text()),
+            cs_info=self.get_cs_info(),
         )
+        """
+        self.stitcher_thread.imagep_add(
+            directory=directory,
+            cs_info=self.get_cs_info(),
+        )
+
+    def get_cs_info(self):
+        return CSInfo(access_key=str(self.stitch_accesskey.text()),
+                      secret_key=str(self.stitch_secretkey.text()),
+                      id_key=str(self.stitch_idkey.text()),
+                      notification_email=str(self.stitch_email.text()))
 
     def cli_stitch_add(self, directory):
         command = str(self.stitch_cli.text())

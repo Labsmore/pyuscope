@@ -2,6 +2,7 @@
 from uscope.motion.grbl import GRBL, grbl_read_meta, NoGRBLMeta
 from uscope.util import add_bool_arg
 
+
 def main():
     import argparse
 
@@ -15,8 +16,9 @@ def main():
     except NoGRBLMeta:
         print("Config magic number not found")
         return
-    print("Model: %s" % (info["model"],))
-    print("S/N: %s" % (info["sn"],))
+    print("Model: %s" % (info["model"], ))
+    print("S/N: %s" % (info["sn"], ))
+
 
 if __name__ == "__main__":
     main()

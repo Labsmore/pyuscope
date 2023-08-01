@@ -18,6 +18,7 @@ import glob
 import struct
 from uscope.util import tobytes, tostr
 
+
 class GrblException(Exception):
     pass
 
@@ -166,8 +167,6 @@ config_i2s = {
     131: "Y Max travel, mm Only for Homing and Soft Limits",
     132: "Z Max travel, mm Only for Homing and Soft Limits",
 }
-
-
 """
 Firmware configuration
 Cannot be changed after build w/o reflashing
@@ -1067,21 +1066,24 @@ class GrblHal(MotionHAL):
         if self.grbl:
             self.grbl.stop()
 
+
 class NoGRBLMeta(Exception):
     pass
+
 
 # https://oeis.org/A245461
 # USCOPE_MAGIC = (121, 966, 989)
 # rounding issue, see below
-# USCOPE_MAGIC = (120, 968, 990)
-# reduce precision
-USCOPE_MAGIC = (12, 9, 68)
-
+# USCOPE_MAGIC = (12, 9, 68)
+USCOPE_MAGIC = struct.pack("<I", 121966989)
 """
 32 bit signed value
 divided by 1000
 Then multiplied by 1000
 Loose about 1 bit each time => +/- 4
+30 * 3 = 90 bits
+88 bits => 11 bytes
+28 bits should be safer though => 10 bytes
 
 
 WCS max value
@@ -1118,22 +1120,44 @@ meta G59:26988.120,30320.970,12653.990
 Config magic number not found
 """
 
-def write_wcs_packed(gs, wcs, data, dec_xyz):
-    assert len(data) == 6
-    assert len(dec_xyz) == 3
+WCS_STR_LEN = 9
+WCS_SN = 4
+WCS_MODEL = 5
+WCS_MAGIC = 6
+
+
+def write_wcs_packed(gs, wcs, data):
+    assert len(data) == WCS_STR_LEN
     assert 1 <= wcs <= 6
-    # Rounding issues => constrain to two digits
-    dec_xyz = list(dec_xyz)
-    for i in range(3):
-        assert 0 <= dec_xyz[i] <= 99
-        # Peg in middle to avoid +/- 2 rounding errors
-        # or could divide by a number? meh seems ok
-        dec_xyz[i] = dec_xyz[i] * 10 + 5
+    nums = {}
     data = tobytes(data)
-    whole_x, whole_y, whole_z = struct.unpack("<HHH", data)
-    out = "G10 L2 P%u X%d.%03u Y%d.%03u Z%d.%03u" % (wcs, whole_x, dec_xyz[0], whole_y, dec_xyz[1], whole_z, dec_xyz[2])
-    print("out", out)
+    for i in range(3):
+        offset = 3 * i
+        # Pad the unused byte and then normalize to the decimal version
+        thisi = struct.unpack("<i", data[offset:offset + 3] + b"\x00")[0]
+        nums[i] = thisi / 1000
+    # Might be loosing a digit here to rounding
+    # but we have enough wiggle room just drop it for now
+    out = "G10 L2 P%u X%.3f Y%.3f Z%.3f" % (wcs, nums[0], nums[1], nums[2])
+    # print("out", out)
     gs.txrxs(out)
+
+
+def wcs_pad_str(s):
+    assert len(s) <= WCS_STR_LEN
+
+    if len(s) < WCS_STR_LEN:
+        s = s + (" " * (WCS_STR_LEN - len(s)))
+    return s
+
+
+def wcs_pad_bytes(s):
+    assert len(s) <= WCS_STR_LEN
+
+    if len(s) < WCS_STR_LEN:
+        s = s + (b" " * (WCS_STR_LEN - len(s)))
+    return s
+
 
 def grbl_write_meta(gs, model=None, sn=None):
     if not model:
@@ -1141,45 +1165,39 @@ def grbl_write_meta(gs, model=None, sn=None):
     if not sn:
         sn = ""
 
-    assert len(model) <= 6
-    assert len(sn) <= 6
+    write_wcs_packed(gs, WCS_SN, wcs_pad_str(sn))
+    write_wcs_packed(gs, WCS_MODEL, wcs_pad_str(model))
+    # 4 / 9 bytes used. Others RFU
+    write_wcs_packed(gs, WCS_MAGIC, wcs_pad_bytes(USCOPE_MAGIC))
 
-    if len(model) < 6:
-        model = model + (" " * (6 - len(model)))
-    if len(sn) < 6:
-        sn = sn + (" " * (6 - len(sn)))
-
-    write_wcs_packed(gs, 5, sn, (0, 0, 0))
-    write_wcs_packed(gs, 6, model, USCOPE_MAGIC)
 
 def grbl_read_meta(gs):
+    def parse_wcs_packed(numstr):
+        pass
+
     items = {}
     for l in gs.hash():
-        # WCS 5/6
-        if "G58:" not in l and "G59:" not in l:
+        # WCS 4/5/6
+        if "G57:" not in l and "G58:" not in l and "G59:" not in l:
             continue
-        print("meta", l)
+        # print("meta", l)
         # [G56:123.456,234.123,312.789]
         # 123.456,234.123,312.789
         gcode, coords = l.split(":")
         # G54 => 1
         wcsn = int(gcode[1:]) - 53
-        wholes = []
-        fractions = []
+        buf = b""
         for part in coords.split(","):
-            whole, fraction = part.split(".")
-            wholes.append(int(whole))
-            # Drop least significant digit since its really dicy
-            fractions.append(int(fraction) // 10)
-        buf = struct.pack("<HHH", wholes[0], wholes[1], wholes[2])
-        items[wcsn] = {"buf": buf, "fractions": tuple(fractions)}
-    if items[6]["fractions"] != USCOPE_MAGIC:
+            buf += struct.pack("<i", int(float(part) * 1000))[0:3]
+        items[wcsn] = buf
+
+    if items[WCS_MAGIC][0:len(USCOPE_MAGIC)] != USCOPE_MAGIC:
         raise NoGRBLMeta()
     ret = {}
-    ret["wcs5-fractions"] = items[5]["fractions"]
-    ret["sn"] = tostr(items[5]["buf"]).strip()
-    ret["model"] = tostr(items[6]["buf"]).strip()
+    ret["sn"] = tostr(items[WCS_SN]).strip()
+    ret["model"] = tostr(items[WCS_MODEL]).strip()
     return ret
+
 
 def get_grbl(port=None, gs=None, reset=False, verbose=False):
     return GRBL(port=port, gs=gs, reset=reset, verbose=verbose)

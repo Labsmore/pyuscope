@@ -15,6 +15,10 @@ import time
 import os
 import threading
 import glob
+import struct
+from uscope.util import tobytes, tostr
+import hashlib
+from uscope.config import default_microscope_name
 
 
 class GrblException(Exception):
@@ -164,6 +168,42 @@ config_i2s = {
     130: "X Max travel, mm Only for Homing and Soft Limits",
     131: "Y Max travel, mm Only for Homing and Soft Limits",
     132: "Z Max travel, mm Only for Homing and Soft Limits",
+}
+"""
+Firmware configuration
+Cannot be changed after build w/o reflashing
+vm1: V
+    VARIABLE_SPINDLE
+x1: VZL
+    VARIABLE_SPINDLE
+    HOMING_FORCE_SET_ORIGIN
+    HOMING_INIT_LOCK_N
+Settings ending in _N are inverted
+"""
+info_c2s = {
+    'V': "VARIABLE_SPINDLE",
+    'N': "USE_LINE_NUMBERS",
+    'M': "ENABLE_M7",
+    'C': "COREXY",
+    'P': "PARKING_ENABLE",
+    'Z': "HOMING_FORCE_SET_ORIGIN",
+    'H': "HOMING_SINGLE_AXIS_COMMANDS",
+    'T': "LIMITS_TWO_SWITCHES_ON_AXES",
+    'A': "ALLOW_FEED_OVERRIDE_DURING_PROBE_CYCLES",
+    'D': "USE_SPINDLE_DIR_AS_ENABLE_PIN",
+    '0': "SPINDLE_ENABLE_OFF_WITH_ZERO_SPEED",
+    'S': "ENABLE_SOFTWARE_DEBOUNCE",
+    'R': "ENABLE_PARKING_OVERRIDE_CONTROL",
+    # Inverted
+    'L': "HOMING_INIT_LOCK_N",
+    '+': "ENABLE_SAFETY_DOOR_INPUT_PIN",
+    '*': "ENABLE_RESTORE_EEPROM_WIPE_ALL_N",
+    '$': "ENABLE_RESTORE_EEPROM_DEFAULT_SETTINGS_N",
+    '#': "ENABLE_RESTORE_EEPROM_CLEAR_PARAMETERS_N",
+    'I': "ENABLE_BUILD_INFO_WRITE_COMMAND_N",
+    'E': "FORCE_BUFFER_SYNC_DURING_EEPROM_WRITE_N",
+    'W': "FORCE_BUFFER_SYNC_DURING_WCO_CHANGE_N",
+    '2': "ENABLE_DUAL_AXIS",
 }
 
 
@@ -484,6 +524,9 @@ class GRBLSer:
         [VER:1.1f.20170801:]
         [OPT:V,15,128]
         ok
+
+        "VER:ARM32 V2.2.20220826:",
+        "OPT:VZL,35,254",
         """
         return self.txrxs("$I")
 
@@ -936,31 +979,34 @@ class GRBL:
         # Remove the feed hold a jog cancel causes
         self.gs.tilda()
 
+    def i_parsed(self):
+        # xxx: could cache this info. Its fixed
+        ret = {}
+        lines = self.gs.i()
+        assert "VER" in lines[0]
+        ret["VER"] = lines[0].split(":")[1]
+        assert "OPT" in lines[1]
+        l = lines[1].split(":")[1]
+        opts_raw, block_buffer_size, rx_buffer_size = l.split(",")
+        # Convert letter like L into HOMING_INIT_LOCK_N
+        # XXX: should add HOMING_INIT_LOCK when HOMING_INIT_LOCK_N is not present?
+        options = set([info_c2s[x] for x in opts_raw])
+        if "HOMING_INIT_LOCK_N" not in options:
+            options.add("HOMING_INIT_LOCK")
+        ret["OPT"] = {
+            "options": options,
+            "block_buffer_size": int(block_buffer_size),
+            "rx_buffer_size": int(rx_buffer_size),
+        }
+        return ret
 
-def grbl_home(grbl, lazy=True, force=False):
-    if not force:
-        # Can take up to two times to pop all status info
-        # Third print is stable
-        status = grbl.qstatus()["status"]
-        print(f"Status: {status}")
-        # Otherwise should be Alarm state
-        if status == "Idle" and lazy:
-            return
-    tstart = time.time()
-    # TLDR: gearbox means we need ot home several times
-    # 2023-04-19: required 7 cycles in worst case...hmm add more wiggle room for now
-    # related to 8/5 adjustment?
-    for homing_try in range(8):
-        print("Sending home command %u" % (homing_try + 1, ))
-        try:
-            grbl.gs.h()
-            break
-        except HomingFailed:
-            print("Homing timed out, nudging again")
-    else:
-        raise HomingFailed("Failed to home despite several attempts :(")
-    deltat = time.time() - tstart
-    print("Homing successful after %0.1f sec. Ready to use!" % (deltat, ))
+    def selected_tool(self):
+        for part in self.gs.g().split():
+            if part[0] != "T":
+                continue
+            return int(part[1:])
+        else:
+            raise Exception("failed to parse")
 
 
 class GrblHal(MotionHAL):
@@ -973,6 +1019,13 @@ class GrblHal(MotionHAL):
             self.grbl = grbl
         else:
             self.grbl = GRBL(port=port, verbose=verbose)
+
+        # Hack, move out of here to Microscope or similar
+        # Run early before any config is overriten though
+        microscope_name = default_microscope_name()
+        if microscope_name:
+            self.validate_microscope_model(microscope_name)
+
         # hack: qstatus will fail before home
         self.home()
         self.grbl.set_qstatus_updated_cb(self.qstatus_updated)
@@ -990,7 +1043,7 @@ class GrblHal(MotionHAL):
 
     def home(self):
         # Commands will fail until homed
-        grbl_home(grbl=self.grbl)
+        self.check_home()
 
     def qstatus_updated(self, status):
         # careful this will get modified up the stack
@@ -1029,6 +1082,261 @@ class GrblHal(MotionHAL):
         # May be called during unclean shutdown
         if self.grbl:
             self.grbl.stop()
+
+    def log_info(self):
+        self.log("GRBL info")
+        try:
+            info = grbl_read_meta(self.grbl.gs)
+        except NoGRBLMeta:
+            self.log("  Config magic number not found")
+            return
+        self.log("  Comment: %s" % (info["comment"], ))
+        self.log("  S/N: %s" % (info["sn"], ))
+        self.log("  Config: %s" % (info["config"].hex(), ))
+
+    def validate_microscope_model(self, name):
+        try:
+            info = grbl_read_meta(self.grbl.gs)
+        except NoGRBLMeta:
+            # No metadata => skip sanity check
+            # Not all microscopes have this set
+            return
+        """
+        If the controller supports self-reporting the microscpoe name
+        Hack to verify at least until can be auto selected
+        """
+        expected = microscope_name_hash(name)
+        if info["config"] != expected:
+            print("Expected name: %s" % name)
+            print("Expected config: %s" % (expected.hex(), ))
+            print("Comment: %s" % (info["comment"], ))
+            print("S/N: %s" % (info["sn"], ))
+            print("Config: %s" % (info["config"].hex(), ))
+            raise Exception(
+                "Selected microscope config doesn't match expected model")
+
+    def is_homed(self):
+        """
+        If HOMING_INIT_LOCK is set, we can rely on user hitting home button and maybe be homed
+        Otherwise we need to emulate it through a hack
+        """
+        compile_options = self.grbl.i_parsed()["OPT"]["options"]
+        # print("compile_options", compile_options)
+        # The clean way: system is locked until homed
+        if "HOMING_INIT_LOCK" in compile_options:
+            status = self.grbl.qstatus()["status"]
+            print(f"GRBL homing w/ INIT_LOCK, main status: {status}")
+            # Otherwise should be Alarm state
+            return status == "Idle"
+        # A BadThing TM: no way to natively know if homed
+        else:
+            # Hack: use current tool to indicate homing
+            # its volatile and resets to 0 on power off
+            selected_tool = self.grbl.selected_tool()
+            print(f"GRBL homing w/ hack, selected tool: {selected_tool}")
+            return bool(selected_tool)
+
+    def set_is_homed(self, is_homed=True):
+        flags = int(is_homed)
+        self.grbl.gs.txrxs("T%u" % flags)
+
+    def check_home(self, lazy=True, force=False):
+        """
+        Depending on machine configuration homing may or may not be required
+        """
+        if not force and self.is_homed() and lazy:
+            return
+
+        tstart = time.time()
+        # TLDR: gearbox means we need ot home several times
+        # 2023-04-19: required 7 cycles in worst case...hmm add more wiggle room for now
+        # related to 8/5 adjustment?
+        for homing_try in range(8):
+            print("Sending home command %u" % (homing_try + 1, ))
+            try:
+                self.grbl.gs.h()
+                break
+            except HomingFailed:
+                print("Homing timed out, nudging again")
+        else:
+            raise HomingFailed("Failed to home despite several attempts :(")
+        deltat = time.time() - tstart
+        print("Homing successful after %0.1f sec. Ready to use!" % (deltat, ))
+        self.set_is_homed()
+
+
+class NoGRBLMeta(Exception):
+    pass
+
+
+# https://oeis.org/A245461
+# USCOPE_MAGIC = (121, 966, 989)
+# rounding issue, see below
+# USCOPE_MAGIC = (12, 9, 68)
+USCOPE_MAGIC = struct.pack("<I", 121966989)
+"""
+32 bit signed value
+divided by 1000
+Then multiplied by 1000
+Loose about 1 bit each time => +/- 4
+30 * 3 = 90 bits
+88 bits => 11 bytes
+28 bits should be safer though => 10 bytes
+
+
+WCS max value
+2147483
+1000001100010010011011
+
+In [3]: bin(2147483*1000)
+Out[3]: '0b1111111111111111111110101111000'
+In [4]: (1<<31)/2147483
+Out[4]: 1000.0003017486052
+
+
+2147483999
+
+Must be some weird artifact from fractional part
+999 => 3.5 * 3 = 10 bits
+2147483 => 22 bits
+sign: 1 bit
+so yeah about 32 bits total
+hmm
+
+or put real ECC values on this?
+whole: 23 bits
+fractional: 
+
+fractional bit rounds
+loose 2 bits on each and/or 
+
+mcmaster@thudpad:~/doc/ext/pyuscope$ ./test/grbl/write_meta.py --model "lipvm1" --sn "tst123"
+out G10 L2 P5 X29556.000 Y12660.000 Z13106.000
+out G10 L2 P6 X26988.121 Y30320.966 Z12653.989
+mcmaster@thudpad:~/doc/ext/pyuscope$ ./test/grbl/read_meta.py
+meta G58:29556.000,12660.000,13106.000
+meta G59:26988.120,30320.968,12653.990
+Config magic number not found
+
+mcmaster@thudpad:~/doc/ext/pyuscope$ ./test/grbl/write_meta.py --model "lipvm1" --sn "tst123"
+out G10 L2 P5 X29556.000 Y12660.000 Z13106.000
+out G10 L2 P6 X26988.120 Y30320.968 Z12653.990
+mcmaster@thudpad:~/doc/ext/pyuscope$ ./test/grbl/read_meta.py
+meta G58:29556.000,12660.000,13106.000
+meta G59:26988.120,30320.970,12653.990
+Config magic number not found
+
+Is there an advantage to 1024 vs 1000?
+"""
+
+WCS_STR_LEN = 9
+WCS_COMMENT = 4
+WCS_SN = 5
+WCS_CONFIG = 6
+
+
+def write_wcs_packed(gs, wcs, data):
+    assert len(data) == WCS_STR_LEN
+    assert 1 <= wcs <= 6
+    nums = {}
+    data = tobytes(data)
+    for i in range(3):
+        offset = 3 * i
+        # Pad the unused byte and then normalize to the decimal version
+        thisi = struct.unpack("<i", data[offset:offset + 3] + b"\x00")[0]
+        nums[i] = thisi / 1000
+    # Might be loosing a digit here to rounding
+    # but we have enough wiggle room just drop it for now
+    out = "G10 L2 P%u X%.3f Y%.3f Z%.3f" % (wcs, nums[0], nums[1], nums[2])
+    # print("out", out)
+    gs.txrxs(out)
+
+
+def wcs_pad_str(s):
+    assert len(s) <= WCS_STR_LEN
+
+    if len(s) < WCS_STR_LEN:
+        s = s + (" " * (WCS_STR_LEN - len(s)))
+    return s
+
+
+def wcs_pad_bytes(s):
+    assert len(s) <= WCS_STR_LEN
+
+    if len(s) < WCS_STR_LEN:
+        s = s + (b" " * (WCS_STR_LEN - len(s)))
+    return s
+
+
+def grbl_write_meta(gs, config=None, sn=None, comment=None):
+    """
+    Write pyuscope metadata into GRBL controller
+    Hack where metadata is stored as unused WCS sets
+    """
+    if not comment:
+        comment = ""
+    if not config:
+        config = "     "
+    if not sn:
+        sn = ""
+
+    # 4 / 9 bytes used. Others RFU
+    # 4 / 9 for config hash
+    # 1 reserved (config rev?)
+    assert len(config) == 4
+    config = USCOPE_MAGIC + tobytes(config) + b"\x00"
+
+    write_wcs_packed(gs, WCS_COMMENT, wcs_pad_str(comment))
+    write_wcs_packed(gs, WCS_SN, wcs_pad_str(sn))
+    write_wcs_packed(gs, WCS_CONFIG, config)
+
+
+def grbl_read_meta(gs):
+    """
+    Read pyuscope metadata from GRBL controller
+    Hack where metadata is stored as unused WCS sets
+    return
+    {
+        4 bytes fixed
+        "config": b"",
+        9 chars max
+        "comment": "",
+        9 chars max
+        "sn": "",
+    }
+    """
+    def parse_wcs_packed(numstr):
+        pass
+
+    items = {}
+    for l in gs.hash():
+        # WCS 4/5/6
+        if "G56:" not in l and "G57:" not in l and "G58:" not in l and "G59:" not in l:
+            continue
+        # print("meta", l)
+        # [G56:123.456,234.123,312.789]
+        # 123.456,234.123,312.789
+        gcode, coords = l.split(":")
+        # G54 => 1
+        wcsn = int(gcode[1:]) - 53
+        buf = b""
+        for part in coords.split(","):
+            buf += struct.pack("<i", int(float(part) * 1000))[0:3]
+        items[wcsn] = buf
+
+    if items[WCS_CONFIG][0:len(USCOPE_MAGIC)] != USCOPE_MAGIC:
+        raise NoGRBLMeta()
+    ret = {}
+    ret["config"] = items[WCS_CONFIG][len(USCOPE_MAGIC):len(USCOPE_MAGIC) + 4]
+    # one unused reserved byte
+    ret["config_rev"] = items[WCS_CONFIG][-1]
+    ret["comment"] = tostr(items[WCS_COMMENT]).strip()
+    ret["sn"] = tostr(items[WCS_SN]).strip()
+    return ret
+
+
+def microscope_name_hash(microscope):
+    return hashlib.sha1(microscope.encode("ascii")).digest()[0:4]
 
 
 def get_grbl(port=None, gs=None, reset=False, verbose=False):

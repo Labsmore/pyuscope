@@ -8,6 +8,7 @@ from uscope.motion import motion_util
 import json
 import json5
 from collections import OrderedDict
+from uscope.cloud_stitch import CSInfo
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -1619,109 +1620,48 @@ class AdvancedTab(ArgusTab):
         # FIXME: display for now, but should make editable
         # Or maybe have it log a report instead of making widgets?
 
-        def kinematics_gb():
-            layout = QGridLayout()
-            row = 0
-
-            # TODO: display objective table
-            layout.addWidget(QLabel("tsettle_motion (base constant)"), row, 0)
-            self.tsettle_motion_le = QLineEdit("")
-            self.tsettle_motion_le.setReadOnly(True)
-            layout.addWidget(self.tsettle_motion_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("tsettle_hdr"), row, 0)
-            self.tsettle_hdr_le = QLineEdit("")
-            self.tsettle_hdr_le.setReadOnly(True)
-            layout.addWidget(self.tsettle_hdr_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Image scalar"), row, 0)
-            self.image_scalar_le = QLineEdit("%f" %
-                                             self.ac.usc.imager.scalar())
-            self.image_scalar_le.setReadOnly(True)
-            layout.addWidget(self.image_scalar_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Motion origin"), row, 0)
-            self.motion_scalar_le = QLineEdit(self.ac.usc.motion.origin())
-            self.motion_scalar_le.setReadOnly(True)
-            layout.addWidget(self.motion_scalar_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Backlash compensation"), row, 0)
-            self.backlash_comp_le = QLineEdit(
-                str(self.ac.usc.motion.backlash_compensation()))
-            self.backlash_comp_le.setReadOnly(True)
-            layout.addWidget(self.backlash_comp_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Backlash X"), row, 0)
-            self.backlash_x_le = QLineEdit("")
-            self.backlash_x_le.setReadOnly(True)
-            layout.addWidget(self.backlash_x_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Backlash Y"), row, 0)
-            self.backlash_y_le = QLineEdit("")
-            self.backlash_y_le.setReadOnly(True)
-            layout.addWidget(self.backlash_y_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Backlash Z"), row, 0)
-            self.backlash_z_le = QLineEdit("")
-            self.backlash_z_le.setReadOnly(True)
-            layout.addWidget(self.backlash_z_le, row, 1)
-            row += 1
-
-            # hmm this could have been inline, think was moved here by mistake
-            backlashes = self.ac.usc.motion.backlash()
-            self.backlash_x_le.setText("%f" % backlashes["x"])
-            self.backlash_y_le.setText("%f" % backlashes["y"])
-            self.backlash_z_le.setText("%f" % backlashes["z"])
-
-            gb = QGroupBox("Misc imager / motion")
-            gb.setLayout(layout)
-            return gb
-
-        layout.addWidget(kinematics_gb(), row, 0)
-        row += 1
-
-        def planner_gb():
-            layout = QGridLayout()
-            row = 0
-
-            pconfig = microscope_to_planner_config(self.ac.usj,
-                                                   objective={"x_view": None},
-                                                   contour={})
-            pc = PC(j=pconfig)
-
-            layout.addWidget(QLabel("Ideal overlap X"), row, 0)
-            self.overlap_x_le = QLineEdit("%f" % pc.ideal_overlap("x"))
-            self.overlap_x_le.setReadOnly(True)
-            layout.addWidget(self.overlap_x_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Ideal overlap Y"), row, 0)
-            self.overlap_y_le = QLineEdit("%f" % pc.ideal_overlap("y"))
-            self.overlap_y_le.setReadOnly(True)
-            layout.addWidget(self.overlap_y_le, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Border"), row, 0)
-            self.gutter_le = QLineEdit("%f" % pc.border())
-            self.gutter_le.setReadOnly(True)
-            layout.addWidget(self.gutter_le, row, 1)
-            row += 1
-
-            gb = QGroupBox("Planner")
-            gb.setLayout(layout)
-            return gb
-
-        layout.addWidget(planner_gb(), row, 0)
+        self.sysinfo_pb = QPushButton("System info")
+        self.sysinfo_pb.clicked.connect(self.log_system_info)
+        layout.addWidget(self.sysinfo_pb, row, 0)
         row += 1
 
         self.setLayout(layout)
+
+    def log_system_info(self):
+        """
+        TODO: make this generic Microscope status report
+        TODO: some of these we might want editable live for tuning
+        But for now lets just keep a simple report
+        """
+        self.ac.log("")
+        self.ac.log("System configuration / status")
+        self.ac.log("Kinematics")
+        self.ac.log("  tsettle_motion: %f" % self.ac.kinematics.tsettle_motion)
+        self.ac.log("  tsettle_hdr: %f" % self.ac.kinematics.tsettle_hdr)
+        self.ac.log("Image")
+        self.ac.log("  scalar: %f" % self.ac.usc.imager.scalar())
+        self.ac.log("Motion")
+        self.ac.log("  origin: %s" % self.ac.usc.motion.origin())
+        self.ac.log("  Backlash compensation")
+        self.ac.log("    Status: %s" %
+                    str(self.ac.usc.motion.backlash_compensation()))
+        backlashes = self.ac.usc.motion.backlash()
+        self.ac.log("    X: %s" % backlashes["x"])
+        self.ac.log("    Y: %s" % backlashes["y"])
+        self.ac.log("    Z: %s" % backlashes["z"])
+        self.ac.log("Planner")
+        pconfig = microscope_to_planner_config(self.ac.usj,
+                                               objective={"x_view": None},
+                                               contour={})
+        pc = PC(j=pconfig)
+        self.ac.log("  Ideal overlap X: %f" % pc.ideal_overlap("x"))
+        self.ac.log("  Ideal overlap Y: %f" % pc.ideal_overlap("y"))
+        self.ac.log("  XY border: %f" % pc.border())
+
+        # This is in another thread => print race conditions
+        # if we need more than one print we'll need to sequence these
+        # maybe offload the whole print to another thread
+        self.ac.motion_thread.log_info()
 
     def update_pconfig_stack(self, pconfig):
         images_pm = int(str(self.stacker_number_le.text()))
@@ -1741,10 +1681,6 @@ class AdvancedTab(ArgusTab):
         self.update_pconfig_stack(pconfig)
 
     def post_ui_init(self):
-        # XXX: could in theory put this on timer since its related to selected objective
-        self.tsettle_motion_le.setText("%f" %
-                                       self.ac.kinematics.tsettle_motion)
-        self.tsettle_hdr_le.setText("%f" % self.ac.kinematics.tsettle_hdr)
         # self.ac.objective_changed.connect(self.update_stack_mode)
         self.stack_cb.currentIndexChanged.connect(self.update_stack_mode)
         self.update_stack_mode()
@@ -1937,13 +1873,24 @@ class StitchingTab(ArgusTab):
                 f"Aborting stitch: directory does not exist: {directory}")
             return
         # Offload uploads etc to thread since they might take a while
+        """
+        # https://github.com/Labsmore/pyuscope/issues/194
+        # Change to image processing pipeline
         self.stitcher_thread.cloud_stitch_add(
             directory=directory,
-            access_key=str(self.stitch_accesskey.text()),
-            secret_key=str(self.stitch_secretkey.text()),
-            id_key=str(self.stitch_idkey.text()),
-            notification_email=str(self.stitch_email.text()),
+            cs_info=self.get_cs_info(),
         )
+        """
+        self.stitcher_thread.imagep_add(
+            directory=directory,
+            cs_info=self.get_cs_info(),
+        )
+
+    def get_cs_info(self):
+        return CSInfo(access_key=str(self.stitch_accesskey.text()),
+                      secret_key=str(self.stitch_secretkey.text()),
+                      id_key=str(self.stitch_idkey.text()),
+                      notification_email=str(self.stitch_email.text()))
 
     def cli_stitch_add(self, directory):
         command = str(self.stitch_cli.text())

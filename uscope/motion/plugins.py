@@ -2,10 +2,9 @@ from uscope.motion import hal as cnc_hal
 from uscope.motion.lcnc import hal as lcnc_hal
 from uscope.motion.lcnc import hal_ar as lcnc_ar
 from uscope.motion.lcnc.client import LCNCRPC
-from uscope.motion.grbl import GrblHal, grbl_home
+from uscope.motion.grbl import GrblHal
 from uscope.config import get_usc
 import socket
-import time
 
 plugins = {}
 

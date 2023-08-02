@@ -80,15 +80,19 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
             //"port": "mock",
             "rc": [
                 //$100, $101 and $102 – [X,Y,Z] steps/mm
+                //was: 800 / 800 / 800
                 "$100=500.000", "$101=500.000", "$102=500.000",
 
                 //X - Max Rate (mm/min)
+                //was: 2000 / 2000 / 2000
                 "$110=960.000", "$111=960.000", "$112=1920.000",
                 //$120, $121, $122 – [X,Y,Z] Acceleration, mm/sec^2
+                //was: 50 / 50 / 50
                 "$120=24.000", "$121=24.000", "$122=24.000",
 
                 //max travel
-                "$130=480.000", "$131=320.000", "$132=96.000",
+                //was: 300 / 200 / 80
+                "$130=480.000", "$131=320.000", "$132=128.000",
 
                 //More proper homed scheme
                 /*
@@ -99,8 +103,15 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
                 */
 
                 //Homing adjustments to account for gearbox etc
-                //"$24=40.0","$25=800.000",
-                //"$26=400","$27=24.000",
+                /*
+                was
+                "$24=100.000", //homing feed,mm/min
+                "$25=500.000", //homing seek,mm/min
+                "$26=250", //homing debounce,msec
+                "$27=2.000", //homing pull-off,mm
+                */
+                "$24=80.0","$25=400.000",
+                "$26=250","$27=3.2",
             ],
         },
         "scalars": {

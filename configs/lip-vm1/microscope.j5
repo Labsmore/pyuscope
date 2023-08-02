@@ -123,8 +123,10 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
 
     "imager": {
         "source":"gst-v4l2src-yw500",
+        //Find first device matching this name
+        "v4l2_name": "YW500",
         "source_properties": {
-            "device": "/dev/video4"
+            //"device": "/dev/video4"
         },
         "width": 800,
         "height": 600,

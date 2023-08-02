@@ -479,9 +479,8 @@ class StitcherThread(QThread):
                                             log=self.log,
                                             running=self.running)
                 elif j["type"] == "imagep":
-                    process_dir(directory=j["directory"],
-                                cs_info=j["cs_info"])
-                                # log=self.log)
+                    process_dir(directory=j["directory"], cs_info=j["cs_info"])
+                    # log=self.log)
                 elif j["type"] == "cli":
                     self.log(
                         f"Stitch CLI: kicking off {j['command']} {j['directory']}"

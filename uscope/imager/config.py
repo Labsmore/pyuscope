@@ -1,5 +1,6 @@
 from uscope.imager.imager_util import auto_detect_source
 from uscope.imager.touptek import toupcamsrc_info
+from uscope.v4l2_util import find_device
 
 
 def default_usj_imager_config(opts):
@@ -61,4 +62,10 @@ def default_gstimager_config(opts):
                     raise ValueError("failed to find esize")
     elif source == "v4l2src":
         # TODO: scrape info one way or the other to identify preferred device
-        pass
+        properties = opts.setdefault("source_properties", {})
+        if not properties.get("device"):
+            name = opts.get("v4l2_name", "")
+            if name:
+                device = find_device(name)
+                print(f"Camera '{name}': selected {device}")
+                properties["device"] = device

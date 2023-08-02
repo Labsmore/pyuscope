@@ -1,4 +1,5 @@
 from uscope.imager.imager_util import auto_detect_source
+from uscope.v4l2_util import find_device
 
 from PyQt5.Qt import Qt
 from PyQt5.QtGui import *
@@ -479,23 +480,38 @@ class GstVideoPipeline:
         # Must not be initialized until after layout is set
         # print(source)
         # assert 0
-        if self.source_name == 'gst-v4l2src' or self.source_name.find(
-                'gst-v4l2src-') == 0:
+        properties = {}
+
+        is_v4l2 = self.source_name == 'gst-v4l2src' or self.source_name.find(
+            'gst-v4l2src-') == 0
+        if is_v4l2:
             self.source = Gst.ElementFactory.make('v4l2src', None)
             assert self.source is not None
-            self.source.set_property("device", DEFAULT_V4L2_DEVICE)
         elif self.source_name == 'gst-toupcamsrc':
             self.source = Gst.ElementFactory.make('toupcamsrc', None)
             assert self.source is not None, "Failed to load toupcamsrc. Is it in the path?"
             if esize is not None:
-                self.source.set_property("esize", esize)
+                properties["esize"] = esize
         elif self.source_name == 'gst-videotestsrc':
             self.verbose and print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)
         else:
             raise Exception('Unknown source %s' % (self.source_name, ))
 
-        for propk, propv in self.usc.imager.source_properties().items():
+        # Override with user specified values
+        properties.update(self.usc.imager.source_properties())
+
+        # Set default v4l2 device, if not given
+        if is_v4l2 and not properties.get("device"):
+            properties["device"] = DEFAULT_V4L2_DEVICE
+            # TODO: scrape info one way or the other to identify preferred device
+            name = self.usc.imager.j.get("v4l2_name")
+            if name:
+                device = find_device(name)
+                print(f"Camera '{name}': selected {device}")
+                properties["device"] = device
+
+        for propk, propv in properties.items():
             self.verbose and print("Set source %s => %s" % (propk, propv))
             self.source.set_property(propk, propv)
 

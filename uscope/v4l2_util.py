@@ -9,6 +9,8 @@ except:
 
 import fcntl
 import errno
+import glob
+from uscope.util import tostr
 
 
 def get_device_controls_ex(fd, verbose=False):
@@ -153,3 +155,17 @@ def ctrl_minmax(fd, name):
 
     dump_control_names(fd)
     raise ValueError("Failed to find control %s" % name)
+
+
+def find_device(name):
+    cp = v4l2.v4l2_capability()
+    for dev_name in sorted(glob.glob("/dev/video*")):
+        vd = open(dev_name, "r")
+        assert fcntl.ioctl(vd, v4l2.VIDIOC_QUERYCAP, cp) == 0
+        vd.close()
+        found_name = tostr(cp.card)
+        # print("card", dev_name, found_name, name)
+        if found_name == name:
+            return dev_name
+    else:
+        raise Exception(f"Failed to find video device {name}")

@@ -788,6 +788,12 @@ class MockHal(MotionHAL):
     def ar_stop(self):
         pass
 
+    def log_info(self):
+        """
+        Print some high level debug info
+        """
+        self.log("Motion: no additional info")
+
 
 """
 Based on a real HAL but does no movement

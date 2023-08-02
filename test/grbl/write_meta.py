@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from uscope.motion.grbl import GRBL, grbl_write_meta, grbl_read_meta, NoGRBLMeta
+from uscope.motion.grbl import GRBL, grbl_write_meta, grbl_read_meta, NoGRBLMeta, microscope_name_hash
 from uscope.util import add_bool_arg
 import os
 import hashlib
@@ -31,7 +31,7 @@ def main():
         # maybe not quite enough bits?
         # just roll with this and move on
         # config = hashlib.sha256(microscope.encode("ascii")).digest()[0:4]
-        config = hashlib.sha1(microscope.encode("ascii")).digest()[0:4]
+        config = microscope_name_hash(microscope)
         print("Microscope %s => config %s" % (microscope, config.hex()))
 
     info = {}

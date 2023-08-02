@@ -102,6 +102,9 @@ class MotionThread(QThread):
     def log(self, msg):
         self.log_msg.emit(msg)
 
+    def log_info(self):
+        self.command("log_info")
+
     def setRunning(self, running):
         if running:
             self.normal_running.set()
@@ -303,6 +306,7 @@ class MotionThread(QThread):
                     # 'estop': self.motion.estop,
                     'unestop': self.motion.unestop,
                     'mdi': self.motion.command,
+                    'log_info': self.motion.log_info,
                 }.get(command, default)
                 try:
                     ret = f(*args)

@@ -778,6 +778,10 @@ class MockHal(MotionHAL):
             self._pos_cache[axis] += adelta
         0 and self._log('relative move to ' + pos_str(delta))
 
+    def _jog(self, axes):
+        for axis, adelta in axes.items():
+            self._pos_cache[axis] += adelta
+
     def _pos(self):
         return self._pos_cache
 

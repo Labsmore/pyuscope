@@ -7,14 +7,16 @@ A minimal configuration to do basic testing
     },
     "imager": {
         "source":"gst-videotestsrc",
-		"width": 150,
-		"height": 50
+        "width": 150,
+        "height": 50,
+        //In the ballpark of a typical value
+        "um_per_pixel_raw_1x": 5.0,
     },
     "objectives": [
-		{
-			"name":"Objective",
-			"suffix":"suffix",
-			"x_view": 100.0
-		}
+        {
+            "name":"Objective",
+            "suffix":"suffix",
+            "x_view": 100.0
+        }
     ]
 }

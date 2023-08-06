@@ -51,6 +51,10 @@ Ideally we'd also match on S/N or something like that
 """
 
 
+class SystemNotFound(Exception):
+    pass
+
+
 def has_default_microscope_name():
     return bool(default_microscope_name_cache)
 
@@ -597,14 +601,22 @@ class ObjectiveDB:
         """
         fields = {}
         for entry in objectivej["db_find"].split(","):
-            k, v = entry.split(":")
-            k = k.strip()
-            v = v.strip()
-            if k == "magnification":
-                v = int(v)
-            if k == "na":
-                v = float(v)
-            fields[k] = v
+            try:
+                parts = entry.split(":")
+                if len(parts) != 2:
+                    raise Exception(
+                        f"Fields must have key:value pairs: {entry}")
+                k, v = parts
+                k = k.strip()
+                v = v.strip()
+                if k == "magnification":
+                    v = int(v)
+                if k == "na":
+                    v = float(v)
+                fields[k] = v
+            except:
+                print(f"Failed to parse field: {entry}")
+                raise
         # Required
         vendor = fields["vendor"]
         model = fields["model"]
@@ -663,17 +675,25 @@ class USC:
             camera_sn = microscope.imager.get_sn()
         else:
             camera_sn = None
-        default_system = None
+        # Provide at least a very basic baseline
+        default_system = {
+            "objectives_db": [
+                "vendor: Mock, model: 5X",
+                "vendor: Mock, model: 10X",
+                "vendor: Mock, model: 20X",
+            ],
+        }
         for system in self.usj.get("systems", []):
             if system["camera_sn"] == camera_sn:
                 return system
             if not system["camera_sn"]:
                 default_system = system
-        if default_system:
-            return default_system
-        raise ValueError(
+        return default_system
+        """
+        raise SystemNotFound(
             f"failed to either match system or find default for camera S/N {camera_sn}"
         )
+        """
 
     def get_uncalibrated_objectives(self, microscope=None):
         """
@@ -754,6 +774,10 @@ class USC:
         final_w, _final_h = self.imager.final_wh()
         for objective in objectives:
             if "um_per_pixel" not in objective:
+                if "x_view" not in objective:
+                    raise Exception(
+                        "Failed to calculate objective um_per_pixel: need x_view. Microscope missing um_per_pixel_raw_1x?"
+                    )
                 # mm to um
                 objective[
                     "um_per_pixel"] = objective["x_view"] / final_w * 1000

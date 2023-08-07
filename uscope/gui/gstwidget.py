@@ -140,6 +140,7 @@ class SinkxWidget(QWidget):
         # Stop paint events from causing flicker on the raw x buffer
         self.setUpdatesEnabled(False)
 
+
 # Use QWidget size policy
 # Crop stream if needed to fit size?
 # Unclear what happens if its not a perfect match
@@ -147,6 +148,8 @@ class SinkxZoomableWidget(SinkxWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.zoom = 1.0
+        # The value to restore zoom to when toggling high zoom off
+        self.zoom_out = None
 
     def is_fixed(self):
         return False
@@ -155,14 +158,56 @@ class SinkxZoomableWidget(SinkxWidget):
         pass
 
     def roi_zoom_plus(self):
-        self.change_roi_zoom(zoom=self.zoom * 2)
+        # FIXME: high zoom levels cause crash
+        # prohibit for now
+        zoom = self.zoom * 2
+        if zoom >= 32.0:
+            zoom = 32.0
+        self.change_roi_zoom(zoom=zoom)
 
     def roi_zoom_minus(self):
-        self.change_roi_zoom(zoom=self.zoom // 2)
+        zoom = self.zoom // 2
+        if zoom <= 1.0:
+            zoom = 1.0
+        self.change_roi_zoom(zoom=zoom)
+
+    def zoomable_high_toggle(self):
+        """
+        Toggle between "general zoom" and a pre-set high zoom mode
+        """
+        # Zoomed in => zoom out
+        if self.zoom_out:
+            self.change_roi_zoom(self.zoom_out)
+            self.zoom_out = None
+        # Zoomed out => zoom in
+        else:
+            self.zoom_out = self.zoom
+            self.change_roi_zoom(self.calc_zoom_magnified())
 
     def resizeEvent(self, event):
         print("resized")
         self.update_crop_scale()
+
+    def calc_zoom_magnified(self):
+        """
+        Return the zoom level required to display camera feed at 2x the screen resolution
+        """
+        widget_width = self.width()
+        widget_height = self.height()
+        if widget_width / widget_height >= self.incoming_w / self.incoming_h:
+            screen_w_1x = widget_height * self.incoming_w / self.incoming_h
+        else:
+            screen_w_1x = widget_width
+        pix_screen_to_incoming_1x = self.incoming_w / screen_w_1x
+
+        # Display 2 screen pixels for every camera pixel
+        # TODO: HiDPI scale?
+        factor = 2.0
+        incoming_used_w = int(widget_width / factor)
+        screen_w_this = incoming_used_w / pix_screen_to_incoming_1x
+        zoom = screen_w_this / screen_w_1x
+        print("calc_zoom_magnified: settle zoom %0.3f" % zoom)
+        return zoom
 
     def update_crop_scale(self):
         """
@@ -246,7 +291,7 @@ class SinkxZoomableWidget(SinkxWidget):
         Widget size is fixed
         Get the video feed to fit into whatever we have
         """
-        assert zoom > 0.0
+        assert zoom >= 1.0
         self.zoom = zoom
         self.update_crop_scale()
 
@@ -463,11 +508,14 @@ class GstVideoPipeline:
         for widget in self.widgets.values():
             widget.setupWidget()
 
-    def roi_zoom_plus(self):
+    def zoomable_plus(self):
         self.widgets["zoomable"].roi_zoom_plus()
 
-    def roi_zoom_minus(self):
+    def zoomable_minus(self):
         self.widgets["zoomable"].roi_zoom_minus()
+
+    def zoomable_high_toggle(self):
+        self.widgets["zoomable"].zoomable_high_toggle()
 
     def change_roi_zoom(self, zoom):
         self.widgets["zoomable"].change_roi_zoom(zoom)

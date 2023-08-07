@@ -1351,6 +1351,20 @@ class MainTab(ArgusTab):
         if planner is not None:
             self.planner_widget_tabs.setCurrentIndex(planner)
 
+    def keyPressEvent(self, event):
+        k = event.key()
+        # Ignore duplicates, want only real presses
+        if 0 and event.isAutoRepeat():
+            return
+
+        # KiCAD zoom in / out => F1 / F2
+        if k == Qt.Key_F1:
+            self.ac.vidpip.zoomable_plus()
+        elif k == Qt.Key_F2:
+            self.ac.vidpip.zoomable_minus()
+        elif k == Qt.Key_F3:
+            self.ac.vidpip.zoomable_high_toggle()
+
 
 class ImagerTab(ArgusTab):
     def __init__(self, ac, parent=None):

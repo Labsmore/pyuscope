@@ -154,10 +154,10 @@ class MainWindow(QMainWindow):
         pass
 
     def zoom_plus(self):
-        self.ac.vidpip.roi_zoom_plus()
+        self.ac.vidpip.zoomable_plus()
 
     def zoom_minus(self):
-        self.ac.vidpip.roi_zoom_minus()
+        self.ac.vidpip.zoomable_minus()
 
     def full_show(self):
         if self.fullscreen_widget:

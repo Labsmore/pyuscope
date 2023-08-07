@@ -115,6 +115,9 @@ class ObjectiveWidget(AWidget):
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
         self.objective_name_le = None
+        self.obj_config = None
+        self.obj_configi = None
+        self.default_objective_index = 0
 
     def initUI(self):
         cl = QGridLayout()
@@ -125,7 +128,6 @@ class ObjectiveWidget(AWidget):
 
         self.obj_cb = QComboBox()
         cl.addWidget(self.obj_cb, row, 1)
-        self.obj_cb.currentIndexChanged.connect(self.update_obj_config)
         self.obj_view = QLabel("")
         cl.addWidget(self.obj_view, row, 2)
         row += 1
@@ -138,10 +140,18 @@ class ObjectiveWidget(AWidget):
     def reload_obj_cb(self):
         '''Re-populate the objective combo box'''
         self.obj_cb.clear()
-        self.obj_config = None
-        self.obj_configi = None
         for objective in self.ac.usc.get_scaled_objectives(self.ac.microscope):
             self.obj_cb.addItem(objective['name'])
+
+        if self.default_objective_index >= len(
+                self.ac.usc.get_scaled_objectives(self.ac.microscope)):
+            self.ac.log(
+                "Warning: Argus cache loaded invalid selected objective: wanted index %s but have %s"
+                % (self.obj_configi, self.obj_cb.count()))
+            self.default_objective_index = 0
+
+        self.obj_cb.currentIndexChanged.connect(self.update_obj_config)
+        self.obj_cb.setCurrentIndex(self.default_objective_index)
 
     def update_obj_config(self):
         '''Make resolution display reflect current objective'''
@@ -173,12 +183,10 @@ class ObjectiveWidget(AWidget):
 
     def cache_load(self, cachej):
         j = cachej.get("objective", {})
-        index = j.get("index", 0)
-        if index >= self.obj_cb.count():
-            self.ac.log(
-                "Warning: Argus cache loaded invalid selected objective")
-            index = 0
-        self.obj_cb.setCurrentIndex(index)
+        try:
+            self.default_objective_index = int(j.get("index", 0))
+        except Exception:
+            print("WARNING: invalid objective index")
 
 
 """
@@ -1199,6 +1207,7 @@ class MainTab(ArgusTab):
         # must be created early to accept early logging
         # not displayed until later though
         self.log_widget = QTextEdit()
+        self.log_widget.setReadOnly(True)
         # Is this used for something?
         self.log_widget.setObjectName("log_widget")
         # Special case for logging that might occur out of thread
@@ -1208,8 +1217,17 @@ class MainTab(ArgusTab):
         self.add_awidget("snapshot", self.snapshot_widget)
         self.objective_widget = ObjectiveWidget(ac=ac)
         self.add_awidget("objective", self.objective_widget)
-        self.video_widget = FullROIWidget(ac=ac)
-        self.add_awidget("video", self.video_widget)
+        self.video_widget = self.ac.vidpip.get_widget("zoomable")
+        self.video_widget.setParent(self)
+        if 1:
+            policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            self.video_widget.setSizePolicy(policy)
+        if 0:
+            print("setting fixed policy")
+            policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            self.video_widget.setSizePolicy(policy)
+            self.video_widget.resize(300, 300)
+            print("setting fixed policy done")
 
         self.planner_widget_tabs = QTabWidget()
         # First sets up algorithm specific parameters
@@ -1241,37 +1259,34 @@ class MainTab(ArgusTab):
     def initUI(self):
         def get_axes_gb():
             layout = QVBoxLayout()
-            # TODO: support other planner sources (ex: 3 point)
-            self.planner_widget_tabs.addTab(self.planner_widget_xy2p, "XY2P")
+            # Make this default since its more widely used
             self.planner_widget_tabs.addTab(self.planner_widget_xy3p, "XY3P")
+            self.planner_widget_tabs.addTab(self.planner_widget_xy2p, "XY2P")
             layout.addWidget(self.planner_widget_tabs)
             layout.addWidget(self.motion_widget)
             gb = QGroupBox("Motion")
             gb.setLayout(layout)
             return gb
 
-        def get_bottom_layout():
-            layout = QHBoxLayout()
-            layout.addWidget(get_axes_gb())
-
-            def get_lr_layout():
-                layout = QVBoxLayout()
-                layout.addWidget(self.snapshot_widget)
-                layout.addWidget(self.scan_widget)
-                return layout
-
-            layout.addLayout(get_lr_layout())
-            return layout
-
         awidgets_initUI(self.awidgets)
 
-        layout = QVBoxLayout()
-        layout.addWidget(self.objective_widget)
-        layout.addWidget(self.video_widget)
-        layout.addLayout(get_bottom_layout())
-        self.log_widget.setReadOnly(True)
-        layout.addWidget(self.log_widget)
+        def left_layout():
+            layout = QVBoxLayout()
+            layout.addWidget(self.objective_widget)
+            layout.addWidget(get_axes_gb())
+            layout.addWidget(self.snapshot_widget)
+            layout.addWidget(self.scan_widget)
+            layout.addWidget(self.log_widget)
 
+            # hmm when the window shrinks these widgets just get really small
+            # so this isn't working as intended...
+            scroll = QScrollArea()
+            scroll.setLayout(layout)
+            return scroll
+
+        layout = QHBoxLayout()
+        layout.addWidget(left_layout())
+        layout.addWidget(self.video_widget)
         self.setLayout(layout)
 
         # Offload callback to GUI thread so it can do GUI ops
@@ -1323,6 +1338,19 @@ class MainTab(ArgusTab):
     def active_planner_widget(self):
         return self.planner_widget_tabs.currentWidget()
 
+    def cache_save(self, cachej):
+        cachej["main"] = {
+            "planner_tab": self.planner_widget_tabs.currentIndex(),
+        }
+        super().cache_save(cachej)
+
+    def cache_load(self, cachej):
+        super().cache_load(cachej)
+        j = cachej.get("main", {})
+        planner = j.get("planner_tab")
+        if planner is not None:
+            self.planner_widget_tabs.setCurrentIndex(planner)
+
 
 class ImagerTab(ArgusTab):
     def __init__(self, ac, parent=None):
@@ -1332,7 +1360,7 @@ class ImagerTab(ArgusTab):
         # Most of the layout is filled in from the ControlScroll
         self.layout = QVBoxLayout()
 
-        if "overview2" in self.ac.vidpip.wigdatas:
+        if "overview2" in self.ac.vidpip.widgets:
             # screws up the original
             layout2 = QHBoxLayout()
             layout2.addWidget(self.ac.vidpip.get_widget("overview2"))

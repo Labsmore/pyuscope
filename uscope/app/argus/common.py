@@ -150,8 +150,7 @@ class ArgusCommon(QObject):
         self.kinematics = None
         self.motion = None
         self.vidpip = GstVideoPipeline(usc=self.usc,
-                                       overview=True,
-                                       overview_roi=True,
+                                       zoomable=True,
                                        overview2=True,
                                        log=self.log)
 

@@ -149,12 +149,10 @@ class ArgusCommon(QObject):
         self.imager = None
         self.kinematics = None
         self.motion = None
-        self.vidpip = GstVideoPipeline(
-            usc=self.usc,
-            zoomable=True,
-            # FIXMME: test ZoomableWidget on main tab first
-            # overview2=True,
-            log=self.log)
+        self.vidpip = GstVideoPipeline(usc=self.usc,
+                                       zoomable=True,
+                                       overview2=True,
+                                       log=self.log)
 
         # FIXME: review sizing
         # self.vidpip.size_widgets()

@@ -183,7 +183,10 @@ class ObjectiveWidget(AWidget):
 
     def cache_load(self, cachej):
         j = cachej.get("objective", {})
-        self.default_objective_index = int(j.get("index", 0))
+        try:
+            self.default_objective_index = int(j.get("index", 0))
+        except Exception:
+            print("WARNING: invalid objective index")
 
 
 """

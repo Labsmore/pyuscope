@@ -12,6 +12,7 @@ import os
 import pathlib
 import signal
 from collections import OrderedDict
+import math
 
 import gi
 
@@ -131,8 +132,7 @@ class SinkxWidget(QWidget):
 
     def sizeHint(self):
         # FIXME: only size hint is being respected
-        return QSize(100, 100)
-        return QSize(1700, 1500)
+        return QSize(500, 500)
 
     def setupWidget(self, parent=None):
         if parent:
@@ -445,7 +445,10 @@ class SinkxZoomableWidget(SinkxWidget):
         """
         widget_width = self.width()
         widget_height = self.height()
-        print("update_crop_scale", widget_width, widget_height)
+        print("update_crop_scale")
+        print(f"  widget {widget_width}w x {widget_height}h")
+        print(f"  incoming {self.incoming_w}w x {self.incoming_h}h")
+        print("  zoom: %0.1f" % self.zoom)
         if widget_width == 0 or widget_height == 0:
             print("WARNING: widget not ready yet for pipeline rescale")
             return
@@ -455,32 +458,40 @@ class SinkxZoomableWidget(SinkxWidget):
         Is the incoming stream more constrained by width or height?
         """
         if widget_width / widget_height >= self.incoming_w / self.incoming_h:
-            w_1x = widget_height * self.incoming_w / self.incoming_h
-            h_1x = widget_height
+            screen_w_1x = widget_height * self.incoming_w / self.incoming_h
+            screen_h_1x = widget_height
         else:
-            w_1x = widget_width
-            h_1x = widget_width * self.incoming_h / self.incoming_w
-
-        # Apply zoom to the base size
-        w_ideal_this = self.zoom * w_1x
-        h_ideal_this = self.zoom * h_1x
-        # Crop to the usable screen area
-        w_disp = int(min(widget_width, w_ideal_this))
-        h_disp = int(min(widget_height, h_ideal_this))
-
+            screen_w_1x = widget_width
+            screen_h_1x = widget_width * self.incoming_h / self.incoming_w
+        print(f"  Screen: 1x render {screen_w_1x}w x {screen_h_1x}h")
+        pix_screen_to_incoming_1x = self.incoming_w / screen_w_1x
+        """
+        Now figure out the maximum video size supported at this zoom level
+        """
+        incoming_used_w = int(screen_w_1x * pix_screen_to_incoming_1x /
+                              self.zoom)
+        incoming_used_h = int(screen_h_1x * pix_screen_to_incoming_1x /
+                              self.zoom)
         # Now that we know what can fit,
         # See how much we need to crop off
         # Keep centered => round size down if needed
         # Not strictly necessary, could push to l or r though
-        incoming_crop_lr = int(max(0, w_disp - widget_width)) // 2
-        incoming_crop_tb = int(max(0, h_disp - widget_height)) // 2
+        incoming_crop_lr = int(max(0, self.incoming_w - incoming_used_w)) // 2
+        incoming_crop_tb = int(max(0, self.incoming_h - incoming_used_h)) // 2
         if incoming_crop_lr % 2 == 1:
             incoming_crop_lr += 1
-            w_disp -= 1
+            incoming_used_w -= 1
         if incoming_crop_tb % 2 == 1:
             incoming_crop_lr += 1
-            h_disp -= 1
+            incoming_used_h -= 1
+        print(
+            f"  Incoming: zoomed size {incoming_used_w}w x {incoming_used_h}h")
+        print(f"  Incoming crop {incoming_crop_lr}lr x {incoming_crop_tb}tb")
 
+        # FIXME: queue fails to link with real values here...
+        if 0:
+            incoming_crop_lr = 0
+            incoming_crop_tb = 0
         assert incoming_crop_lr >= 0
         assert incoming_crop_tb >= 0
         self.crop = {
@@ -489,6 +500,7 @@ class SinkxZoomableWidget(SinkxWidget):
             "top": incoming_crop_tb,
             "bottom": incoming_crop_tb,
         }
+        print("crop", self.crop)
 
         self.videocrop.set_property("top", self.crop["top"])
         self.videocrop.set_property("bottom", self.crop["bottom"])
@@ -505,6 +517,7 @@ class SinkxZoomableWidget(SinkxWidget):
         Widget size is fixed
         Get the video feed to fit into whatever we have
         """
+        assert zoom > 0.0
         self.zoom = zoom
         self.update_crop_scale()
 
@@ -531,7 +544,7 @@ class SinkxZoomableWidget(SinkxWidget):
         # wait for resize event
         # self.update_crop_scale()
 
-    def gst_link(self, ):
+    def gst_link(self):
         # Used in roi but not full
         assert self.videocrop.link(self.videoscale)
         assert self.videoscale.link(self.capsfilter)
@@ -597,8 +610,8 @@ class GstVideoPipeline:
             # For calibrating video feed
             if overview2:
                 widget_configs["overview2"] = {
-                    "type": "overview2",
-                    "size": "small"
+                    "type": "zoomable",
+                    # "size": "small"
                 }
             # Stand alone window
             if overview_full_window:

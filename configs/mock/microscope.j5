@@ -7,8 +7,8 @@ A minimal configuration to do basic testing
     },
     "imager": {
         "source":"gst-videotestsrc",
-        "width": 150,
-        "height": 120,
+        "width": 800,
+        "height": 600,
         //In the ballpark of a typical value
         "um_per_pixel_raw_1x": 5.0,
     },

@@ -152,6 +152,7 @@ class ObjectiveWidget(AWidget):
 
         self.obj_cb.currentIndexChanged.connect(self.update_obj_config)
         self.obj_cb.setCurrentIndex(self.default_objective_index)
+        self.update_obj_config()
 
     def update_obj_config(self):
         '''Make resolution display reflect current objective'''
@@ -183,10 +184,11 @@ class ObjectiveWidget(AWidget):
 
     def cache_load(self, cachej):
         j = cachej.get("objective", {})
+        index = j.get("index", 0)
         try:
-            self.default_objective_index = int(j.get("index", 0))
+            self.default_objective_index = int(index)
         except Exception:
-            print("WARNING: invalid objective index")
+            print(f"WARNING: invalid objective index: {index}")
 
 
 """

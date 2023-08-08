@@ -73,3 +73,20 @@ class TTControlScroll(GstControlScroll):
 
     def get_exposure_property(self):
         return "expotime"
+
+    def disp_prop_was_rw(self, name, value):
+        # Auto-exposure quickly fights with GUI
+        # Disable the control when its activated
+        if name == "auto-exposure":
+            self.set_gui_driven(not value,
+                                disp_names=["expotime", "expoagain"])
+
+    def flatten_hack(self, val):
+        # NOTE: added source_properties_mod. Maybe leave this at actual max?
+        # Log scale would also work well
+        if val["prop_name"] == "expotime":
+            # Despite max 15e3 exposure max, reporting 5e6
+            # actually this is us?
+            # Even so limit to 1 sec
+            val["max"] = min(1000000, val["max"])
+            # print("override", val)

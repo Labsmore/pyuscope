@@ -3,7 +3,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
-from uscope.gui.control_scroll import ImagerControlScroll
+from uscope.gui.control_scroll import ImagerControlScroll, ICSDisplayer
 from uscope import v4l2_util
 
 from collections import OrderedDict
@@ -55,40 +55,75 @@ groups_gst = OrderedDict([
     ],)
 ])
 """
+"""
+Map between the raw int enum value and a simple true false state
+1 => disabled
+3 => enabled
+"""
 
-groups_gst = OrderedDict([(
-    "HSV+",
-    [
+
+class V4L2AutoExposureDisplayer(ICSDisplayer):
+    def gui_changed(self):
+        # print("cb toggled")
+        # Race conditon?
+        if not self.config["gui_driven"]:
+            print("not gui driven")
+            return
+        self.cs.disp_prop_write(self.config["disp_name"], self.cb.isChecked())
+
+    def assemble(self, layoutg, row):
+        # print("making cb")
+        layoutg.addWidget(QLabel(self.config["disp_name"]), row, 0)
+        self.cb = QCheckBox()
+        layoutg.addWidget(self.cb, row, 1)
+        row += 1
+        self.cb.stateChanged.connect(self.gui_changed)
+
+        return row
+
+    def enable_user_controls(self, enabled, force=False):
+        if self.config["gui_driven"] or force:
+            self.slider.setEnabled(enabled)
+
+    def disp_property_set_widgets(self, val):
+        self.cb.setChecked(val)
+
+    def val_raw2disp(self, val):
+        return val == 3
+
+    def val_disp2raw(self, val):
+        if val:
+            return 3
+        else:
+            return 1
+
+
+"""
         {
             "prop_name": "White Balance Temperature, Auto",
-            "disp_name": "White Balance Temperature, Auto",
+            "disp_name": "AWB",
             "min": 1,
             "max": 16,
             "default": 8,
             "type": "int",
         },
+"""
+groups_gst = OrderedDict([(
+    "Controls",
+    [
         {
             "prop_name": "Exposure, Auto",
-            "disp_name": "Exposure, Auto",
-            "min": 1,
-            "max": 3,
-            "default": 3,
-            "type": "int",
+            "disp_name": "Auto-exposure",
+            "default": True,
+            "ctor": V4L2AutoExposureDisplayer,
+            "type": "ctor",
         },
         {
             "prop_name": "Exposure (Absolute)",
-            "disp_name": "Exposure (Absolute)",
+            "disp_name": "Exposure",
             "min": 1,
             "max": 10000,
             "default": 100,
-            "type": "int",
-        },
-        {
-            "prop_name": "Focus (absolute)",
-            "disp_name": "Focus (absolute)",
-            "min": 0,
-            "max": 65535,
-            "default": 0,
             "type": "int",
         },
     ],
@@ -113,6 +148,7 @@ class V4L2YW500ControlScroll(ImagerControlScroll):
         return fd
 
     def raw_prop_write(self, name, val):
+        self.verbose and print(f"v4l2 raw_prop_write() {name} = {val}")
         fd = self.fd()
         if fd >= 0:
             v4l2_util.ctrl_set(fd, name, val)
@@ -121,13 +157,14 @@ class V4L2YW500ControlScroll(ImagerControlScroll):
         fd = self.fd()
         if fd < 0:
             return None
-        return v4l2_util.ctrl_get(fd, name)
+        ret = v4l2_util.ctrl_get(fd, name)
+        self.verbose and print(f"v4l2 raw_prop_read() {name} = {ret}")
+        return ret
 
     def template_property(self, prop_entry):
         ret = {}
         # self.raw_prop_read(prop_name)
         ret["default"] = None
-        ret["type"] = "int"
 
         ret.update(prop_entry)
         return ret
@@ -159,3 +196,12 @@ class V4L2YW500ControlScroll(ImagerControlScroll):
 
     def get_exposure_property(self):
         return "Exposure (Absolute)"
+
+    def disp_prop_was_rw(self, name, value):
+        # Auto-exposure quickly fights with GUI
+        # Disable the control when its activated
+        # if name == "Auto-exposure":
+        # print("XXX: check auto exposure thing", name, value)
+        if name == "Auto-exposure":
+            # print("XXX: check auto exposure thing")
+            self.set_gui_driven(not value, disp_names=["Exposure"])

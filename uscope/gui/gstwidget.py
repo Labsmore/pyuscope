@@ -187,7 +187,6 @@ class SinkxZoomableWidget(SinkxWidget):
             self.change_roi_zoom(self.calc_zoom_magnified())
 
     def resizeEvent(self, event):
-        print("resized")
         self.update_crop_scale()
 
     def calc_zoom_magnified(self):
@@ -225,10 +224,12 @@ class SinkxZoomableWidget(SinkxWidget):
         """
         widget_width = self.width()
         widget_height = self.height()
-        print("update_crop_scale")
-        print(f"  widget {widget_width}w x {widget_height}h")
-        print(f"  incoming {self.incoming_w}w x {self.incoming_h}h")
-        print("  zoom: %0.1f" % self.zoom)
+        verbose = False
+        verbose and print("update_crop_scale")
+        verbose and print(f"  widget {widget_width}w x {widget_height}h")
+        verbose and print(
+            f"  incoming {self.incoming_w}w x {self.incoming_h}h")
+        verbose and print("  zoom: %0.1f" % self.zoom)
         if widget_width == 0 or widget_height == 0:
             print("WARNING: widget not ready yet for pipeline rescale")
             return
@@ -243,7 +244,8 @@ class SinkxZoomableWidget(SinkxWidget):
         else:
             screen_w_1x = widget_width
             screen_h_1x = widget_width * self.incoming_h / self.incoming_w
-        print(f"  Screen: 1x render {screen_w_1x}w x {screen_h_1x}h")
+        verbose and print(
+            f"  Screen: 1x render {screen_w_1x}w x {screen_h_1x}h")
         pix_screen_to_incoming_1x = self.incoming_w / screen_w_1x
         """
         Now figure out the maximum video size supported at this zoom level
@@ -264,9 +266,10 @@ class SinkxZoomableWidget(SinkxWidget):
         if incoming_crop_tb % 2 == 1:
             incoming_crop_lr += 1
             incoming_used_h -= 1
-        print(
+        verbose and print(
             f"  Incoming: zoomed size {incoming_used_w}w x {incoming_used_h}h")
-        print(f"  Incoming crop {incoming_crop_lr}lr x {incoming_crop_tb}tb")
+        verbose and print(
+            f"  Incoming crop {incoming_crop_lr}lr x {incoming_crop_tb}tb")
 
         assert incoming_crop_lr >= 0
         assert incoming_crop_tb >= 0
@@ -276,7 +279,7 @@ class SinkxZoomableWidget(SinkxWidget):
             "top": incoming_crop_tb,
             "bottom": incoming_crop_tb,
         }
-        print("crop", self.crop)
+        verbose and print("crop", self.crop)
 
         self.videocrop.set_property("top", self.crop["top"])
         self.videocrop.set_property("bottom", self.crop["bottom"])

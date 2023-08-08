@@ -71,9 +71,11 @@ class SinkxWidget(QWidget):
                  gst_name=None,
                  config=None,
                  incoming_wh=None,
+                 player=None,
                  parent=None):
         super().__init__(parent=parent)
 
+        self.player = player
         policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.setSizePolicy(policy)
         self.resize(500, 500)
@@ -281,10 +283,19 @@ class SinkxZoomableWidget(SinkxWidget):
         self.videocrop.set_property("left", self.crop["left"])
         self.videocrop.set_property("right", self.crop["right"])
 
-        # Set to full widget size (as opposed to usable widget area) so that border is added to center view
-        # see caps filter add-borders=true
-        self.capsfilter.props.caps = Gst.Caps(
-            "video/x-raw,width=%u,height=%u" % (widget_width, widget_height))
+        # Hmm seems to be optional
+        # By default centers to full size
+        # Does it know the window size and this is redundant?
+        # Gets centered if I make it really small
+        if 0:
+            # Set to full widget size (as opposed to usable widget area) so that border is added to center view
+            # see caps filter add-borders=true
+            self.capsfilter.props.caps = Gst.Caps(
+                "video/x-raw,width=%u,height=%u" %
+                (widget_width, widget_height))
+            # New caps => must reconfigure
+            # doesn't seem to be required?
+            self.player.send_event(Gst.Event.new_reconfigure())
 
     def change_roi_zoom(self, zoom):
         """
@@ -393,6 +404,8 @@ class GstVideoPipeline:
                     "type": "overview",
                     "size": "max"
                 }
+        # Needs to be done early so elements can be added before main setup
+        self.player = Gst.Pipeline.new("player")
         """
         key: gst name
         widget: QWidget
@@ -412,8 +425,6 @@ class GstVideoPipeline:
         self.verbose and print("vidpip source %s" % source)
         self.size_widgets()
 
-        # Needs to be done early so elements can be added before main setup
-        self.player = Gst.Pipeline.new("player")
         # Clear if anything bad happens and shouldn't be trusted
         self.ok = True
 
@@ -434,6 +445,7 @@ class GstVideoPipeline:
             gst_name="sinkx_" + widget_name,
             config=dict(widget_config),
             incoming_wh=(self.incoming_w, self.incoming_h),
+            player=self.player,
         )
         self.widgets[widget_name] = widget
         return widget

@@ -15,6 +15,165 @@ Some are driven via GUI
 """
 
 
+class ICSDisplayer:
+    def __init__(self, config, cs):
+        """
+        gui_driven
+            if True the GUI can be edited to change the control
+            Otherwise the property is polled to read the current value and control is read only
+            Not even when GUI is
+        """
+        self.cs = cs
+        self.config = self.defaults(config)
+        """
+        range_str = ""
+        if "min" in prop:
+            range_str = ", range %s to %s" % (prop["min"], prop["max"])
+        self.verbose and print(
+            "add disp %s prop %s, type %s, default %s%s" %
+            (disp_name, prop_name, prop["type"], prop["default"], range_str))
+        """
+
+    def defaults(self, prop):
+        self.cs.verbose and print("prop", type(prop))
+        if type(prop) is dict:
+            ret = dict(prop)
+        else:
+            ret = {"prop_name": prop}
+
+        ret.setdefault("disp_name", ret["prop_name"])
+        assert "type" in ret, ret
+        # xxx: might need to change this
+        assert "default" in ret
+
+        # Read only property
+        # Don't let user change it
+        ret.setdefault("ro", False)
+        ret.setdefault("gui_driven", not ret["ro"])
+
+        if ret["type"] == "int":
+            assert "min" in ret
+            assert "max" in ret
+
+        return ret
+
+    def set_gui_driven(self, val):
+        self.config["gui_driven"] = val
+        self.enable_user_controls(val, force=True)
+
+    def disp_property_set_widgets(self, val):
+        """
+        Set an element to be displayed in the GUI
+        Change of GUI state may trigger the property to be written
+        Value comes as the low level property value
+        GUI may decide to translate it to something friendlier
+        """
+        assert 0, "required"
+
+    def enable_user_controls(self, enabled, force=False):
+        """
+        Called when the user is allowed to change properites
+        Otherwise the value is displayed but read only
+        """
+        assert 0, "required"
+
+    def val_raw2disp(self, val):
+        """
+        Convert a raw property value (ex: flags) to the value as displayed / stored in files
+        """
+        return val
+
+    def val_disp2raw(self, val):
+        """
+        Reverse of above
+        """
+        return val
+
+
+class BoolDisplayer(ICSDisplayer):
+    def gui_changed(self, val):
+        # Race conditon?
+        if not self.config["gui_driven"]:
+            return
+        self.cs.verbose and print(
+            '%s (%s) req => %d, allowed %d' %
+            (self.config["disp_name"], self.config["prop_name"], val,
+             self.config["gui_driven"]))
+        self.cs.prop_write(self.config["prop_name"], val)
+
+    def assemble(self, layoutg, row):
+        self.cb = QCheckBox(self.config["disp_name"])
+        if self.config["default"] is not None:
+            self.cb.setChecked(self.config["default"])
+        self.cb.stateChanged.connect(self.gui_changed)
+        # self.disp2widgets[self.config["disp_name"]] = cb
+        layoutg.addWidget(self.cb, row, 0, 1, 2)
+        row += 1
+        return row
+
+    def disp_property_set_widgets(self, val):
+        self.cb.setChecked(val)
+
+    def enable_user_controls(self, enabled, force=False):
+        if self.config["gui_driven"] or force:
+            self.cb.setEnabled(enabled)
+
+
+class IntDisplayer(ICSDisplayer):
+    def gui_changed(self):
+        # Race conditon?
+        if not self.config["gui_driven"]:
+            return
+        try:
+            val = int(self.slider.value())
+        except ValueError:
+            pass
+        else:
+            self.cs.verbose and print(
+                '%s (%s) GUI changed to %d, gui_driven %d' %
+                (self.config["disp_name"], self.config["prop_name"], val,
+                 self.config["gui_driven"]))
+            self.cs.prop_write(self.config["prop_name"], val)
+            self.value_label.setText(str(val))
+
+    def assemble(self, layoutg, row):
+        layoutg.addWidget(QLabel(self.config["disp_name"]), row, 0)
+        self.value_label = QLabel(str(self.config["default"]))
+        layoutg.addWidget(self.value_label, row, 1)
+        row += 1
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setMinimum(self.config["min"])
+        self.slider.setMaximum(self.config["max"])
+        # slider.setTickPosition(QSlider.TicksBothSides)
+        if self.config["default"] is not None:
+            self.slider.setValue(self.config["default"])
+        self.slider.valueChanged.connect(self.gui_changed)
+        # self.disp2widgets[self.confg["disp_name"]] = (self.slider, value_label)
+        layoutg.addWidget(self.slider, row, 0, 1, 2)
+        row += 1
+        return row
+
+    def disp_property_set_widgets(self, val):
+        self.slider.setValue(val)
+        self.value_label.setText(str(val))
+
+    def enable_user_controls(self, enabled, force=False):
+        if self.config["gui_driven"] or force:
+            self.slider.setEnabled(enabled)
+
+
+"""
+There are two forms properties are used:
+-Raw: the underlying property name + value
+    ex: auto_flgs value 1 means auto exposure is disabled
+-Disp: "as displayed". A human friendly form
+    ex: "Auto-exposure" value False
+
+High level notes:
+-Currently data dir saves property values in disp form
+"""
+
+
 class ImagerControlScroll(QScrollArea):
     def __init__(self, groups, usc, verbose=False, parent=None):
         QScrollArea.__init__(self, parent=parent)
@@ -27,17 +186,15 @@ class ImagerControlScroll(QScrollArea):
 
         self.verbose and print("init", groups)
 
-        self.disp2widgets = {}
-
         layout = QVBoxLayout()
         layout.addLayout(self.buttonLayout())
 
         # Indexed by display name
         # self.disp2ctrl = OrderedDict()
         # Indexed by display name
-        self.disp2prop = OrderedDict()
+        self.disp2element = OrderedDict()
         # Indexed by low level name
-        self.raw2prop = OrderedDict()
+        self.raw2element = OrderedDict()
 
         for group_name, properties in groups.items():
             groupbox = QGroupBox(group_name)
@@ -61,14 +218,14 @@ class ImagerControlScroll(QScrollArea):
         self.setWidget(widget)
 
         self.update_timer = QTimer()
-        self.update_timer.timeout.connect(self.update_by_prop)
+        self.update_timer.timeout.connect(self.update_by_reading)
 
     def buttonLayout(self):
         layout = QHBoxLayout()
 
         self.cam_default_pb = QPushButton("Camera default")
         layout.addWidget(self.cam_default_pb)
-        self.cam_default_pb.clicked.connect(self.update_by_cam_deafults)
+        self.cam_default_pb.clicked.connect(self.update_by_cam_defaults)
 
         self.microscope_default_pb = QPushButton("Microscope default")
         layout.addWidget(self.microscope_default_pb)
@@ -85,122 +242,31 @@ class ImagerControlScroll(QScrollArea):
 
         return layout
 
-    def _assemble_int(self, prop, layoutg, row):
-        def gui_changed(prop, slider, value_label):
-            def f():
-                # Race conditon?
-                if not prop["gui_driven"]:
-                    return
-                try:
-                    val = int(slider.value())
-                except ValueError:
-                    pass
-                else:
-                    self.verbose and print(
-                        '%s (%s) GUI changed to %d, push_gui %d' %
-                        (prop["disp_name"], prop["prop_name"], val,
-                         prop["push_gui"]))
-                    self.prop_write(prop["prop_name"], val)
-                    value_label.setText(str(val))
-
-            return f
-
-        layoutg.addWidget(QLabel(prop["disp_name"]), row, 0)
-        value_label = QLabel(str(prop["default"]))
-        layoutg.addWidget(value_label, row, 1)
-        row += 1
-        slider = QSlider(Qt.Horizontal)
-        slider.setMinimum(prop["min"])
-        slider.setMaximum(prop["max"])
-        # slider.setTickPosition(QSlider.TicksBothSides)
-        if prop["default"] is not None:
-            slider.setValue(prop["default"])
-        slider.valueChanged.connect(gui_changed(prop, slider, value_label))
-        self.disp2widgets[prop["disp_name"]] = (slider, value_label)
-        layoutg.addWidget(slider, row, 0, 1, 2)
-        row += 1
-        return row
-
-    def _assemble_bool(self, prop, layoutg, row):
-        def gui_changed(prop):
-            def f(val):
-                # Race conditon?
-                if not prop["gui_driven"]:
-                    return
-                self.verbose and print('%s (%s) req => %d, allowed %d' %
-                                       (prop["disp_name"], prop["prop_name"],
-                                        val, prop["push_gui"]))
-                self.prop_write(prop["prop_name"], val)
-
-            return f
-
-        cb = QCheckBox(prop["disp_name"])
-        if prop["default"] is not None:
-            cb.setChecked(prop["default"])
-        cb.stateChanged.connect(gui_changed(prop))
-        self.disp2widgets[prop["disp_name"]] = cb
-        layoutg.addWidget(cb, row, 0, 1, 2)
-        row += 1
-        return row
-
-    def _prop_defaults(self, prop):
-        self.verbose and print("prop", type(prop))
-        if type(prop) is dict:
-            ret = dict(prop)
-        else:
-            ret = {"prop_name": prop}
-
-        def default(k, default):
-            ret[k] = ret.get(k, default)
-
-        default("disp_name", ret["prop_name"])
-        assert "type" in ret, ret
-        # xxx: might need to change this
-        assert "default" in ret
-
-        # Read only property
-        # Don't let user change it
-        default("ro", False)
-        default("gui_driven", not ret["ro"])
-
-        if ret["type"] == "int":
-            assert "min" in ret
-            assert "max" in ret
-        elif ret["type"] == "bool":
-            pass
-        else:
-            assert 0, "unknown type %s" % ret["type"]
-
-        return ret
-
     def _assemble_property(self, prop, layoutg, row):
         """
         Take a user supplied property map and add it to the GUI
         """
 
-        prop = self._prop_defaults(prop)
-        # self.properties[prop["disp_name"]] = prop
-
-        prop_name = prop["prop_name"]
-        disp_name = prop.get("disp_name", prop_name)
-        assert disp_name not in self.disp2prop
-        self.disp2prop[disp_name] = prop
-        assert prop_name not in self.raw2prop
-        self.raw2prop[prop_name] = prop
-
-        range_str = ""
-        if "min" in prop:
-            range_str = ", range %s to %s" % (prop["min"], prop["max"])
-        self.verbose and print(
-            "add disp %s prop %s, type %s, default %s%s" %
-            (disp_name, prop_name, prop["type"], prop["default"], range_str))
-
-        if prop["type"] == "int":
-            row = self._assemble_int(prop, layoutg, row)
+        # Custom type?
+        if prop.get("ctor"):
+            element = prop["ctor"](prop, cs=self)
+        # Otherwise a few types for common cases
+        elif prop["type"] == "int":
+            element = IntDisplayer(prop, cs=self)
         elif prop["type"] == "bool":
-            row = self._assemble_bool(prop, layoutg, row)
+            element = BoolDisplayer(prop, cs=self)
         else:
             assert 0, (prop["type"], prop)
+        row = element.assemble(layoutg, row)
+
+        # Index property and display name to element objects
+        prop_name = prop["prop_name"]
+        disp_name = prop.get("disp_name", prop_name)
+        assert disp_name not in self.disp2element
+        self.disp2element[disp_name] = element
+        assert prop_name not in self.raw2element
+        self.raw2element[prop_name] = element
+
         return row
 
     def refresh_defaults(self):
@@ -208,21 +274,22 @@ class ImagerControlScroll(QScrollArea):
         v4l2: we don't get fd until fairly late, so can't set defaults during normal init
         Instead once fd is availible force a refresh
         """
-        self.get_disp_properties()
+        self.read_as_disp_elements()
 
-    def get_disp_properties(self):
+    def read_as_disp_elements(self):
         """
-        Return dict containing property values indexed by display name
+        Return dict containing property values indexed by display / human readable name
+        Values may also be translated
         Uses API as source of truth and may not match GUI
         """
 
         ret = {}
-        for disp_name, prop in self.disp2prop.items():
-            val = self.raw_prop_read(prop["prop_name"])
+        for disp_name, element in self.disp2element.items():
+            val = self.disp_prop_read(disp_name)
             ret[disp_name] = val
             # If we don't have a default take first value
-            if prop["default"] is None:
-                prop["default"] = val
+            if element.config["default"] is None:
+                element.config["default"] = val
         return ret
 
     def set_disp_properties(self, vals):
@@ -233,82 +300,110 @@ class ImagerControlScroll(QScrollArea):
         """
         for disp_name, val in vals.items():
             try:
-                prop = self.disp2prop[disp_name]
+                element = self.disp2element[disp_name]
             except:
-                print("Widget properites:", self.disp2prop.keys())
+                print("Widget properites:", self.disp2element.keys())
                 print("Set properites:", vals)
                 raise
             # Rely on GUI signal writing API unless GUI updates are disabled
-            if not prop["gui_driven"]:
+            if not element.config["gui_driven"]:
                 # May be 100% excluded by policy
-                self.verbose and print(f"set_disp() {prop['prop_name']} {val}")
+                # self.verbose and print(f"set_disp() {prop['prop_name']} {val}")
                 # Set directly in the library,
                 # but might as well also update GUI immediately?
-                self.prop_write(prop["prop_name"], val)
-            widgets = self.disp2widgets[disp_name]
-            if prop["type"] == "int":
-                slider, value_label = widgets
-                slider.setValue(val)
-                value_label.setText(str(val))
-            elif prop["type"] == "bool":
-                widgets.setChecked(val)
-            else:
-                assert 0, prop
+                self.prop_write(element.config["prop_name"], val)
+            element.disp_property_set_widgets(val)
 
     """
     def raw_prop_default(self, name):
         raise Exception("Required")
     """
 
-    def update_by_prop(self):
+    def update_by_reading(self):
         """
         Update state based on camera API
         Query all GUI controlled properties and update GUI to reflect current state
         """
-        vals = {}
-        for disp_name, val in self.get_disp_properties().items():
-            # print("Should update %s: %s" % (disp_name, self.disp2prop[disp_name]["push_prop"]))
-            if not self.disp2prop[disp_name]["gui_driven"]:
-                vals[disp_name] = val
-        self.set_disp_properties(vals)
+        for disp_name, val in self.read_as_disp_elements().items():
+            # print("Should update %s: %s" % (disp_name, self.disp2element[disp_name]["push_prop"]))
+            element = self.disp2element[disp_name]
+            if not element.config["gui_driven"]:
+                element.disp_property_set_widgets(val)
 
-    def update_by_cam_deafults(self):
+    def update_by_cam_defaults(self):
         """
         Update state based on default value
         """
-        vals = {}
-        for disp_name, prop in self.disp2prop.items():
-            if prop["default"] is None:
+        for element in self.disp2element.values():
+            if element.config["default"] is None:
                 continue
-            vals[disp_name] = prop["default"]
-        self.set_disp_properties(vals)
+            element.property_set_widgets(element.config["default"])
 
     def update_by_microscope_deafults(self):
         # Set defaults
-        self.update_by_cam_deafults()
+        self.update_by_cam_defaults()
         # Then override microscope specific properties
         self.cal_load(load_data_dir=False)
 
-    def prop_policy(self, name, value):
-        # Auto-exposure quickly fights with GUI
-        # Disable the control when its activated
-        if name == "auto-exposure":
-            self.set_gui_driven(not value,
-                                disp_names=["expotime", "expoagain"])
+    def raw_prop_written(self, name, value):
+        """
+        Called after writing given key:value pair
+        Allows setting more advanced control behaviors
+        Ex: when auto-exposure is enabled disable manaul exposure control
+        """
+        element = self.raw2element[name]
+        self.disp_prop_written(element.config["disp_name"],
+                               element.val_raw2disp(value))
+
+    def disp_prop_written(self, name, value):
+        self.disp_prop_was_rw(name, value)
+
+    def raw_prop_was_read(self, name, value):
+        element = self.raw2element[name]
+        self.disp_prop_was_read(element.config["disp_name"],
+                                element.val_raw2disp(value))
+
+    def disp_prop_was_read(self, name, value):
+        self.disp_prop_was_rw(name, value)
+
+    def disp_prop_was_rw(self, name, value):
+        pass
 
     def prop_write(self, name, value):
-        # print(f"prop_write() {name} = {value}")
+        self.verbose and print(f"prop_write() {name} = {value}")
         self.raw_prop_write(name, value)
-        self.prop_policy(name, value)
+        self.raw_prop_written(name, value)
 
     def prop_read(self, name, default=False):
-        return self.raw_prop_read(name)
+        ret = self.raw_prop_read(name)
+        self.verbose and print(f"prop_read() {name} = {ret}")
+        self.raw_prop_was_read(name, ret)
+        return ret
 
     def raw_prop_write(self, name, value):
+        """
+        Write to the underlying stream
+        In practice this means write a gstreamer property
+        """
         raise Exception("Required")
 
     def raw_prop_read(self, name):
+        """
+        Read from the underlying stream
+        In practice this means read a gstreamer property
+        """
         raise Exception("Required")
+
+    def disp_prop_read(self, disp_name):
+        element = self.disp2element[disp_name]
+        raw = self.prop_read(element.config["prop_name"])
+        return element.val_raw2disp(raw)
+
+    def disp_prop_write(self, disp_name, disp_val):
+        element = self.disp2element[disp_name]
+        raw_val = element.val_disp2raw(disp_val)
+        # print("translate to raw val", raw_val)
+        self.prop_write(element.config["prop_name"], raw_val)
 
     def cal_load_clicked(self, checked):
         self.cal_load(load_data_dir=True)
@@ -326,14 +421,15 @@ class ImagerControlScroll(QScrollArea):
         if not j:
             return
         self.set_disp_properties(j)
-
+        """
         # Requires special care not to thrash
         self.prop_policy(self.get_exposure_property(),
                          self.prop_read(self.get_exposure_property()))
+        """
 
     def cal_save(self):
         config.cal_save_to_data(source=self.vidpip.source_name,
-                                properties=self.get_disp_properties(),
+                                properties=self.read_as_disp_elements(),
                                 mkdir=True)
 
     def run(self):
@@ -344,21 +440,23 @@ class ImagerControlScroll(QScrollArea):
         # Seems to be working, good enough
         QTimer.singleShot(500, self.cal_load)
 
-    def user_controls_enabled(self, enabled):
+    def displayers(self):
+        for widget in self.disp2widgets.values():
+            yield widget
+
+    def enable_user_controls(self, enabled, force=False):
         """
         Enable or disable the entire pane
         Controls disabled during imaging runs
+        Only enables ones though that 
         """
-        for disp_name in self.get_disp_properties().keys():
-            prop = self.disp2prop[disp_name]
-            widgets = self.disp2widgets[disp_name]
-            if prop["type"] == "int":
-                slider, _value_label = widgets
-                slider.setEnabled(enabled)
-            elif prop["type"] == "bool":
-                widgets.setEnabled(enabled)
-            else:
-                assert 0, prop
+        for widget in self.widgets():
+            widget.enable_user_controls(enabled, force=force)
+
+    def validate_disp_names(self, disp_names):
+        for disp_name in disp_names:
+            if disp_name not in self.disp2element:
+                raise ValueError("Invalid property %s" % (disp_name, ))
 
     def set_gui_driven(self, val, disp_names=None):
         """
@@ -370,25 +468,12 @@ class ImagerControlScroll(QScrollArea):
             iterable: only these
         """
         val = bool(val)
-        all_disp_names = self.get_disp_properties().keys()
         if disp_names:
-            for disp_name in disp_names:
-                if disp_name not in all_disp_names:
-                    raise ValueError("Invalid property %s" % (disp_name, ))
-        for disp_name in all_disp_names:
+            self.validate_disp_names(disp_names)
+        for disp_name, element in self.disp2element.items():
             if disp_names and disp_name not in disp_names:
                 continue
-            prop = self.disp2prop[disp_name]
-            prop["gui_driven"] = val
-
-            widgets = self.disp2widgets[disp_name]
-            if prop["type"] == "int":
-                slider, _value_label = widgets
-                slider.setEnabled(val)
-            elif prop["type"] == "bool":
-                widgets.setEnabled(val)
-            else:
-                assert 0, prop
+            element.set_gui_driven(val)
 
 
 """
@@ -450,7 +535,7 @@ def template_property(vidpip, usc, prop_entry):
     return ret
 
 
-def flatten_groups(vidpip, groups_gst, usc):
+def flatten_groups(vidpip, groups_gst, usc, flatten_hack):
     """
     Convert a high level gst property description to something usable by widget API
     """
@@ -461,14 +546,7 @@ def flatten_groups(vidpip, groups_gst, usc):
             val = template_property(vidpip=vidpip,
                                     prop_entry=prop_entry,
                                     usc=usc)
-            # NOTE: added source_properties_mod. Maybe leave this at actual max?
-            # Log scale would also work well
-            if val["prop_name"] == "expotime":
-                # Despite max 15e3 exposure max, reporting 5e6
-                # actually this is us?
-                # Even so limit to 1 sec
-                val["max"] = min(1000000, val["max"])
-                # print("override", val)
+            flatten_hack(val)
             propdict[val["prop_name"]] = val
         groups[group_name] = propdict
     # print("groups", groups)
@@ -481,7 +559,10 @@ class GstControlScroll(ImagerControlScroll):
     Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
     """
     def __init__(self, vidpip, groups_gst, usc, parent=None):
-        groups = flatten_groups(vidpip=vidpip, groups_gst=groups_gst, usc=usc)
+        groups = flatten_groups(vidpip=vidpip,
+                                groups_gst=groups_gst,
+                                usc=usc,
+                                flatten_hack=self.flatten_hack)
         ImagerControlScroll.__init__(self,
                                      groups=groups,
                                      usc=usc,
@@ -492,6 +573,9 @@ class GstControlScroll(ImagerControlScroll):
 
         layout = QVBoxLayout()
         layout.addLayout(self.buttonLayout())
+
+    def flatten_hack(self, val):
+        pass
 
     def raw_prop_write(self, name, val):
         source = self.vidpip.source

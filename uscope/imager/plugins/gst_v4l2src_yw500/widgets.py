@@ -1,8 +1,8 @@
 """
-Exposure settings are pretty unreliable. Really wants you to use auto-exposure
+Exposure settings are pretty unreliable. Really wants you to use Auto Exposure
 If you really try to use manual exposure:
--Auto-exposure level is not reflected in fetching exposure level
--Auto-exposure has more control over exposure than manually setting
+-Auto Exposure level is not reflected in fetching exposure level
+-Auto Exposure has more control over exposure than manually setting
 -Setting step sizes is in weird steps
 -Gain and brighness controls don't do anything
 -XXX: contrast is actually brightness?
@@ -152,7 +152,7 @@ groups_gst = OrderedDict([(
         # Spelled differently on different systems...
         {
             "prop_name": "Auto Exposure",
-            "disp_name": "Auto-exposure",
+            "disp_name": "Auto Exposure",
             "default": True,
             "ctor": V4L2AutoExposureDisplayer,
             "type": "ctor",
@@ -160,7 +160,7 @@ groups_gst = OrderedDict([(
         },
         {
             "prop_name": "Exposure, Auto",
-            "disp_name": "Auto-exposure",
+            "disp_name": "Auto Exposure",
             "default": True,
             "ctor": V4L2AutoExposureDisplayer,
             "type": "ctor",
@@ -186,7 +186,7 @@ groups_gst = OrderedDict([(
         },
         {
             "prop_name": "White Balance Temperature, Auto",
-            "disp_name": "White Balance Temperature, Auto",
+            "disp_name": "Auto White Balance Temperature",
             "min": 0,
             "max": 1,
             "default": 0,
@@ -280,15 +280,15 @@ class V4L2YW500ControlScroll(ImagerControlScroll):
         return "Exposure (Absolute)"
 
     def disp_prop_was_rw(self, name, value):
-        # Auto-exposure quickly fights with GUI
+        # Auto Exposure quickly fights with GUI
         # Disable the control when its activated
-        # if name == "Auto-exposure":
+        # if name == "Auto Exposure":
         # print("XXX: check auto exposure thing", name, value)
-        if name == "Auto-exposure":
+        if name == "Auto Exposure":
             # print("XXX: check auto exposure thing")
             self.set_gui_driven(not value,
-                                disp_names=["Exposure", "Gain", "Brightness"])
-        if name == "White Balance Temperature, Auto":
+                                disp_names=["Exposure"])
+        if name == "Auto White Balance Temperature":
             self.set_gui_driven(not value,
                                 disp_names=["White Balance Temperature"])
 

@@ -173,9 +173,6 @@ groups_gst = OrderedDict([(
             "max": 10000,
             "default": 100,
             "type": "int",
-            # Not present on all host systems for some reason
-            # maybe added in Linux 5.15?
-            "optional": True,
         },
         {
             "prop_name": "White Balance Temperature, Auto",
@@ -184,6 +181,9 @@ groups_gst = OrderedDict([(
             "max": 1,
             "default": 0,
             "type": "int",
+            # Not present on all host systems for some reason
+            # maybe added in Linux 5.15?
+            "optional": True,
         },
         {
             "prop_name": "White Balance Temperature",

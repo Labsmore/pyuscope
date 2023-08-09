@@ -173,6 +173,7 @@ groups_gst = OrderedDict([(
             "max": 10000,
             "default": 100,
             "type": "int",
+            "optional": True,
         },
         {
             "prop_name": "Exposure Time, Absolute",
@@ -181,6 +182,7 @@ groups_gst = OrderedDict([(
             "max": 10000,
             "default": 100,
             "type": "int",
+            "optional": True,
         },
         {
             "prop_name": "White Balance Temperature, Auto",

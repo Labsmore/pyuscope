@@ -52,7 +52,6 @@ class ICSDisplayer:
         ret.setdefault("gui_driven", not ret["ro"])
 
         if ret["type"] == "int":
-            print("int type", ret)
             assert "min" in ret
             assert "max" in ret
 
@@ -422,10 +421,11 @@ class ImagerControlScroll(QScrollArea):
         if not j:
             return
         self.set_disp_properties(j)
-
+        """
         # Requires special care not to thrash
         self.prop_policy(self.get_exposure_property(),
                          self.prop_read(self.get_exposure_property()))
+        """
 
     def cal_save(self):
         config.cal_save_to_data(source=self.vidpip.source_name,

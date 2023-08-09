@@ -183,11 +183,10 @@ class ImagerControlScroll(QScrollArea):
         self.verbose = verbose
         # self.verbose = True
         self.log = lambda x: print(x)
+        self.groups = groups
 
-        self.verbose and print("init", groups)
-
-        layout = QVBoxLayout()
-        layout.addLayout(self.buttonLayout())
+        self.layout = QVBoxLayout()
+        self.layout.addLayout(self.buttonLayout())
 
         # Indexed by display name
         # self.disp2ctrl = OrderedDict()
@@ -196,21 +195,30 @@ class ImagerControlScroll(QScrollArea):
         # Indexed by low level name
         self.raw2element = OrderedDict()
 
-        for group_name, properties in groups.items():
+    def post_imager_ready(self):
+        """
+        Call once gst is running
+        Allows populating controls
+        """
+
+        self.verbose and print("init", self.groups)
+        for group_name, properties in self.groups.items():
             groupbox = QGroupBox(group_name)
             groupbox.setCheckable(False)
-            layout.addWidget(groupbox)
+            self.layout.addWidget(groupbox)
 
             layoutg = QGridLayout()
             row = 0
             groupbox.setLayout(layoutg)
 
             for _disp_name, prop in properties.items():
+                if not self.validate_raw_name(prop):
+                    continue
                 # assert disp_name == prop["disp_name"]
                 row = self._assemble_property(prop, layoutg, row)
 
         widget = QWidget()
-        widget.setLayout(layout)
+        widget.setLayout(self.layout)
 
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -433,6 +441,7 @@ class ImagerControlScroll(QScrollArea):
                                 mkdir=True)
 
     def run(self):
+        self.post_imager_ready()
         if self.update_timer:
             self.update_timer.start(200)
         # Doesn't load reliably, add a delay
@@ -474,6 +483,14 @@ class ImagerControlScroll(QScrollArea):
             if disp_names and disp_name not in disp_names:
                 continue
             element.set_gui_driven(val)
+
+    def validate_raw_name(self, prop_config):
+        """
+        Return True if should keep
+        Return False if should drop (optional / not on this system)
+        Throw exception if inherently bad (not optional and not found)
+        """
+        return True
 
 
 """

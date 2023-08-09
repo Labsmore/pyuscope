@@ -1,3 +1,18 @@
+"""
+Exposure settings are pretty unreliable. Really wants you to use auto-exposure
+If you really try to use manual exposure:
+-Auto-exposure level is not reflected in fetching exposure level
+-Auto-exposure has more control over exposure than manually setting
+-Setting step sizes is in weird steps
+-Gain and brighness controls don't do anything
+-XXX: contrast is actually brightness?
+
+guvcview
+same issues
+only displays manual or aperature priority mode
+is there a flag that would have indicated which is supported?
+"""
+
 from PyQt5 import Qt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -57,9 +72,23 @@ groups_gst = OrderedDict([
 """
 """
 Map between the raw int enum value and a simple true false state
-1 => disabled
-3 => enabled
+
+enum  v4l2_exposure_auto_type {
+    V4L2_EXPOSURE_AUTO = 0,
+    V4L2_EXPOSURE_MANUAL = 1,
+    V4L2_EXPOSURE_SHUTTER_PRIORITY = 2,
+    V4L2_EXPOSURE_APERTURE_PRIORITY = 3
+};
+
+  Exposure, Auto (cam: 1)
+    range: 0 to 3
+    default: 3
+    step: 1
+
+it should be 0 or 1 then
+Ignore the other settings
 """
+AUTO_EXPOSURE_VAL = 3
 
 
 class V4L2AutoExposureDisplayer(ICSDisplayer):
@@ -89,19 +118,28 @@ class V4L2AutoExposureDisplayer(ICSDisplayer):
         self.cb.setChecked(val)
 
     def val_raw2disp(self, val):
-        return val == 3
+        return val == AUTO_EXPOSURE_VAL
 
     def val_disp2raw(self, val):
         if val:
-            return 3
+            return AUTO_EXPOSURE_VAL
         else:
             return 1
 
 
 """
+these controls seem not to work
         {
-            "prop_name": "White Balance Temperature, Auto",
-            "disp_name": "AWB",
+            "prop_name": "Gain",
+            "disp_name": "Gain",
+            "min": 0,
+            "max": 63,
+            "default": 8,
+            "type": "int",
+        },
+        {
+            "prop_name": "Brightness",
+            "disp_name": "Brightness",
             "min": 1,
             "max": 16,
             "default": 8,
@@ -126,6 +164,25 @@ groups_gst = OrderedDict([(
             "default": 100,
             "type": "int",
         },
+        {
+            "prop_name": "White Balance Temperature, Auto",
+            "disp_name": "White Balance Temperature, Auto",
+            "min": 0,
+            "max": 1,
+            "default": 0,
+            "type": "int",
+            # Not present on all host systems for some reason
+            # maybe added in Linux 5.15?
+            "optional": True,
+        },
+        {
+            "prop_name": "White Balance Temperature",
+            "disp_name": "White Balance Temperature",
+            "min": 1800,
+            "max": 10000,
+            "default": 5000,
+            "type": "int",
+        },
     ],
 )])
 
@@ -133,6 +190,7 @@ groups_gst = OrderedDict([(
 class V4L2YW500ControlScroll(ImagerControlScroll):
     def __init__(self, vidpip, usc=None, parent=None):
         self.vidpip = vidpip
+        self.all_controls = None
         ImagerControlScroll.__init__(self,
                                      groups=self.flatten_groups(groups_gst),
                                      usc=usc,
@@ -140,6 +198,10 @@ class V4L2YW500ControlScroll(ImagerControlScroll):
 
         layout = QVBoxLayout()
         layout.addLayout(self.buttonLayout())
+
+    def run(self):
+        self.all_controls = set(v4l2_util.ctrls(self.fd()))
+        super().run()
 
     def fd(self):
         fd = self.vidpip.source.get_property("device-fd")
@@ -204,4 +266,17 @@ class V4L2YW500ControlScroll(ImagerControlScroll):
         # print("XXX: check auto exposure thing", name, value)
         if name == "Auto-exposure":
             # print("XXX: check auto exposure thing")
-            self.set_gui_driven(not value, disp_names=["Exposure"])
+            self.set_gui_driven(not value,
+                                disp_names=["Exposure", "Gain", "Brightness"])
+        if name == "White Balance Temperature, Auto":
+            self.set_gui_driven(not value,
+                                disp_names=["White Balance Temperature"])
+
+    def validate_raw_name(self, prop_config):
+        if prop_config["prop_name"] in self.all_controls:
+            return True
+        if prop_config.get("optional", False):
+            return False
+        v4l2_util.dump_control_names(self.fd())
+        print("prop_config", prop_config)
+        raise ValueError("Bad control name: {prop_config['prop_name']}")

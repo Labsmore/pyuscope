@@ -225,10 +225,11 @@ class ArgusCommon(QObject):
             self.mainTab.motion_widget.slider.set_jog_slider)
         self.microscope.set_jog_scale = set_jog_scale_emit
 
-        self.control_scroll.run()
         self.vid_fd = None
         self.vidpip.run()
         self.init_imager()
+        # Needs imager / vidpip to be able to query which properties are present
+        self.control_scroll.run()
 
         # TODO: init things in Microscope and then push references here
         self.microscope.imager = self.imager

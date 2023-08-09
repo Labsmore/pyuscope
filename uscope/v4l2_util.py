@@ -138,7 +138,11 @@ def ctrl_set(fd, name, value):
                              (queryctrl.minimum, value, queryctrl.maximum))
 
         control = v4l2.v4l2_control(queryctrl.id, value)
-        fcntl.ioctl(fd, v4l2.VIDIOC_S_CTRL, control)
+        try:
+            fcntl.ioctl(fd, v4l2.VIDIOC_S_CTRL, control)
+        except:
+            print("failed on", name, value)
+            raise
         return
 
     dump_control_names(fd)

@@ -149,12 +149,22 @@ these controls seem not to work
 groups_gst = OrderedDict([(
     "Controls",
     [
+        # Spelled differently on different systems...
+        {
+            "prop_name": "Auto Exposure",
+            "disp_name": "Auto-exposure",
+            "default": True,
+            "ctor": V4L2AutoExposureDisplayer,
+            "type": "ctor",
+            "optional": True,
+        },
         {
             "prop_name": "Exposure, Auto",
             "disp_name": "Auto-exposure",
             "default": True,
             "ctor": V4L2AutoExposureDisplayer,
             "type": "ctor",
+            "optional": True,
         },
         {
             "prop_name": "Exposure (Absolute)",
@@ -163,6 +173,9 @@ groups_gst = OrderedDict([(
             "max": 10000,
             "default": 100,
             "type": "int",
+            # Not present on all host systems for some reason
+            # maybe added in Linux 5.15?
+            "optional": True,
         },
         {
             "prop_name": "White Balance Temperature, Auto",
@@ -171,9 +184,6 @@ groups_gst = OrderedDict([(
             "max": 1,
             "default": 0,
             "type": "int",
-            # Not present on all host systems for some reason
-            # maybe added in Linux 5.15?
-            "optional": True,
         },
         {
             "prop_name": "White Balance Temperature",

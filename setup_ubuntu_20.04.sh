@@ -31,6 +31,18 @@ install_pyuscope() {
     sudo python3 setup.py develop
 }
 
+install_antmicro_v4l2() {
+    # Install from https://github.com/antmicro/python3-v4l2/
+    mkdir tmp-installv4l2
+    pushd tmp-installv4l2
+    git clone https://github.com/antmicro/python3-v4l2.git
+    pushd python3-v4l2
+    python3 ./setup.py install --user
+    popd
+    popd
+    rm -rf tmp-installv4l2
+}
+
 # For GRBL etc serial port
 sudo usermod -a -G dialout $USER
 
@@ -44,6 +56,7 @@ install_gst_plugin_toupcam() {
 
 install_gst_plugin_toupcam
 install_pyuscope
+install_antmicro_v4l2
 
 if [ "$PYUSCOPE_MICROSCOPE" != "none" ] ; then
     # Found some systems don't read .profile....shrug

@@ -3,6 +3,9 @@ import os
 from PIL import Image
 import subprocess
 
+# Rayleigh criterion
+# https://oeis.org/A245461
+RC_CONST = 1.21966989
 
 class EtherealImageR:
     """

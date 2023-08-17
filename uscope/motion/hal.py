@@ -384,6 +384,7 @@ class MotionHAL:
         self.microscope = microscope
         self.jog_rate = 0
         self.stop_on_del = True
+        self.modifiers = None
 
         # dict containing (min, min) for each axis
         if log is None:
@@ -451,6 +452,10 @@ class MotionHAL:
             self.modifiers["scalar"] = ScalarMM(self,
                                                 scalars=scalars,
                                                 wcs_offsets=wcs_offsets)
+        self._configured()
+
+    def _configured(self):
+        pass
 
     def disable_modifier(self, name):
         self.disabled_modifiers.add(name)

@@ -5,6 +5,7 @@ from uscope.app.argus.threads import PlannerThread, StitcherThread
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import config
 from uscope.motion import motion_util
+from uscope.imagep.util import RC_CONST
 import json
 import json5
 from collections import OrderedDict
@@ -170,6 +171,7 @@ class ObjectiveWidget(AWidget):
             if not suffix:
                 suffix = self.obj_config.get("name")
             self.objective_name_le.setText(suffix)
+        self.ac.objectiveChanged.emit(self.obj_config)
 
     """
     FIXME: these are microscpoe specific
@@ -1631,10 +1633,9 @@ class AdvancedTab(ArgusTab):
             layout.addWidget(self.stack_cb, row, 1)
             self.stack_cb.addItem("A: None")
             self.stack_cb.addItem("B: Manual")
-            self.stack_cb.addItem("C: +/- 6 um, 2 um step (20x normal))")
-            self.stack_cb.addItem("D: +/- 4 um, 500 nm step (60x normal)")
-            self.stack_cb.addItem("E: +/- 24 um, 2 um step (20x aggressive)")
-            self.stack_cb.addItem("F: +/- 12 um 500 nm step (60x aggressive)")
+            self.stack_cb.addItem("C: normal")
+            self.stack_cb.addItem("D: double distance")
+            self.stack_cb.addItem("E: double steps")
             row += 1
 
             layout.addWidget(QLabel("Stack drift correction?"), row, 0)
@@ -1725,7 +1726,7 @@ class AdvancedTab(ArgusTab):
         self.update_pconfig_stack(pconfig)
 
     def post_ui_init(self):
-        # self.ac.objective_changed.connect(self.update_stack_mode)
+        self.ac.objectiveChanged.connect(self.update_stack_mode)
         self.stack_cb.currentIndexChanged.connect(self.update_stack_mode)
         self.update_stack_mode()
 
@@ -1743,11 +1744,12 @@ class AdvancedTab(ArgusTab):
         j = cachej.get("advanced", {})
         stacking = j.get("stacking", {})
         self.stacker_number_le.setText(stacking.get("images_pm", "0"))
-        self.stacker_distance_le.setText(stacking.get("distance_pm", "0.010"))
+        self.stacker_distance_le.setText(stacking.get("distance_pm", "0.0"))
         self.stack_cb.setCurrentIndex(stacking.get("mode_index", 0))
         self.stack_drift_cb.setChecked(stacking.get("drift_correction", 0))
 
-    def update_stack_mode(self):
+    # 
+    def update_stack_mode(self, *args):
         mode = self.stack_cb.currentIndex()
 
         # Manual
@@ -1759,36 +1761,61 @@ class AdvancedTab(ArgusTab):
             self.stacker_distance_le.setEnabled(False)
             self.stacker_number_le.setEnabled(False)
         """
-        # FIXME: hard coded common presets for now
-        # should scale easy / medium / etc according to objective NA
+        I've found roughly a 3 to 4x multiplier on resolution is a good rule of thumb
+        Results in a decent chip image without excessive pictures
+        Example: 20x objective is 0.42 NA and I use a 2 um step size
+        Resolution @ 400 nm: 1.22 * 400 / (2 * 0.42) = 581 nm
+        2000 / 581 = 3.44
+        Let's target a ballpark and then round based on machine step size
+        Better to round down or to nearest step?
+        """
+        def calc_normal_step():
+            objective_config = self.ac.objective_config()
+            na = objective_config["na"]
+            # convert nm to mm
+            resolution400 = RC_CONST * 400 / (2 * na) / 1e6
+            machine_epsilon = self.ac.motion.epsilon()["z"]
+            ideal_move = resolution400 * 3.5
+            # Now round to nearest machine step
+            # Don't go below machine min step size
+            steps = max(1, round(ideal_move / machine_epsilon))
+            rounded_move = steps * machine_epsilon
+            return rounded_move
 
+        def setup_step(distance_mult, step_mult):
+            normal_step = calc_normal_step()
+            normal_steps = 3
+            # We calculated per step, but GUI displays a range
+            # Normalize the baseline to total distance
+            pm_distance = normal_steps * normal_step * distance_mult
+            pm_steps = normal_steps * step_mult
+            self.stacker_distance_le.setText("%0.6f" % pm_distance)
+            self.stacker_number_le.setText("%u" % pm_steps)
+
+        """
         self.stack_cb.addItem("A: None")
         self.stack_cb.addItem("B: Manual")
-        self.stack_cb.addItem("C: +/- 6 um, 2 um step (20x normal))")
-        self.stack_cb.addItem("D: +/- 4 um, 500 nm step (60x normal)")
-        self.stack_cb.addItem("E: +/- 24 um, 2 um step (20x aggressive)")
-        self.stack_cb.addItem("F: +/- 12 um 500 nm step (60x aggressive)")
+        self.stack_cb.addItem("C: normal")
+        self.stack_cb.addItem("D: double distance")
+        self.stack_cb.addItem("E: double steps")
         """
         # Disabled
         if mode == 0:
-            self.stacker_distance_le.setText("0.000")
+            self.stacker_distance_le.setText("0.0")
             self.stacker_number_le.setText("0")
         # Manual
         elif mode == 1:
             pass
-        # Light
+        # Normal
         elif mode == 2:
-            self.stacker_distance_le.setText("0.006")
-            self.stacker_number_le.setText("3")
+            setup_step(1, 1)
+        # Double distance
         elif mode == 3:
-            self.stacker_distance_le.setText("0.004")
-            self.stacker_number_le.setText("8")
+            # Keep step size constant => add more steps
+            setup_step(2, 2)
+        # Double step
         elif mode == 4:
-            self.stacker_distance_le.setText("0.024")
-            self.stacker_number_le.setText("12")
-        elif mode == 5:
-            self.stacker_distance_le.setText("0.012")
-            self.stacker_number_le.setText("24")
+            setup_step(1, 2)
         else:
             assert 0, "unknown mode"
 

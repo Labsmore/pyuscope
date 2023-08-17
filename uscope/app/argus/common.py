@@ -122,6 +122,11 @@ class ArgusCommon(QObject):
     log_msg = pyqtSignal(str)
     takeSnapshot = pyqtSignal()
     setJogSlider = pyqtSignal(int)
+    """
+    Dictionary w/ objective config
+    The low level format supported by config file
+    """
+    objectiveChanged = pyqtSignal(dict)
 
     # pos = pyqtSignal(int)
 
@@ -319,3 +324,9 @@ class ArgusCommon(QObject):
         jl = self.mainTab.motion_widget.joystick_listener
         if jl:
             jl.enable()
+
+    def objective_config(self):
+        """
+        Return currently selected objective configuration
+        """
+        return self.mainTab.objective_widget.obj_config

@@ -3,10 +3,12 @@
 from uscope.util import add_bool_arg
 from uscope import config
 from uscope.imagep.util import RC_CONST
+import os
 
 def run(microscope_name=None, verbose=True):
     print("Reading config...")
     usc = config.get_usc(name=microscope_name)
+    microscope_data_dir = os.path.join("data", "microscopes", config.default_microscope_name())
 
     print("Image size:")
     raw_wh = usc.imager.raw_wh()
@@ -49,7 +51,10 @@ def run(microscope_name=None, verbose=True):
     for propk, propv in config.cal_load(name=microscope_name,
                                         load_data_dir=True).items():
         print("  %s: %s" % (propk, propv))
-
+    # TODO: at some point this will need to be per serial number in lieu of global calibration
+    ff_filename = os.path.join(microscope_data_dir, "imager_calibration_ff.tif")
+    has_ff = os.path.exists(ff_filename)
+    print("Flat field calibration present: %s" % has_ff)
 
 def main():
     import argparse

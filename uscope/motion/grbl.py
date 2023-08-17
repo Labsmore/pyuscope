@@ -1008,11 +1008,39 @@ class GRBL:
         else:
             raise Exception("failed to parse")
 
+    def dollar_kvs(self):
+        for l in self.gs.dollar():
+            if "=" not in l:
+                continue
+            k, v = l.strip().split("=")
+            yield k, v
+
+    def steps_per_mm(self):
+        """
+        Number steps to move x, y, and z axis
+        Parameters 100, 101, and 102
+        """
+        ret = {}
+        for k, v in self.dollar_kvs():
+            """
+            $100=800.000
+            $101=800.000
+            $102=800.000
+            """
+            if k == "$100":
+                ret["x"] = float(v)
+            elif k == "$101":
+                ret["y"] = float(v)
+            elif k == "$102":
+                ret["z"] = float(v)
+        assert len(ret) == 3
+        return ret
 
 class GrblHal(MotionHAL):
     def __init__(self, verbose=None, port=None, grbl=None, **kwargs):
         self.grbl = None
         self.feedrate = None
+        self._steps_per_mm = None
 
         MotionHAL.__init__(self, verbose=verbose, **kwargs)
         if grbl:
@@ -1030,16 +1058,28 @@ class GrblHal(MotionHAL):
         self.home()
         self.grbl.set_qstatus_updated_cb(self.qstatus_updated)
 
-    """
+    def _configured(self):
+        self.calc_steps_per_mm()
+
+    def calc_steps_per_mm(self):
+        """
+        Figure out the smallest possible machine delta
+        Find the native machine epsilons and then multiply by config scalars
+        """
+        steps_per_mm = self.grbl.steps_per_mm()
+        if "scalar" in self.modifiers:
+            scalars = self.modifiers["scalar"].scalars
+            steps_per_mm["x"] *= scalars["x"]
+            steps_per_mm["y"] *= scalars["y"]
+            steps_per_mm["z"] *= scalars["z"]
+        self.steps_per_mm = steps_per_mm
+
     def epsilon(self):
-        # FIXME: calculate
-        # in mm
         return {
-            "x": 1 / 800,
-            "y": 1 / 800,
-            "z": 1 / 8000,
+            "x": 1 / self.steps_per_mm["x"],
+            "y": 1 / self.steps_per_mm["y"],
+            "z": 1 / self.steps_per_mm["z"],
         }
-    """
 
     def home(self):
         # Commands will fail until homed

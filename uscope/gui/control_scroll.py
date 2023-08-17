@@ -282,9 +282,9 @@ class ImagerControlScroll(QScrollArea):
         v4l2: we don't get fd until fairly late, so can't set defaults during normal init
         Instead once fd is availible force a refresh
         """
-        self.read_as_disp_elements()
+        self.get_disp_properties()
 
-    def read_as_disp_elements(self):
+    def get_disp_properties(self):
         """
         Return dict containing property values indexed by display / human readable name
         Values may also be translated
@@ -332,7 +332,7 @@ class ImagerControlScroll(QScrollArea):
         Update state based on camera API
         Query all GUI controlled properties and update GUI to reflect current state
         """
-        for disp_name, val in self.read_as_disp_elements().items():
+        for disp_name, val in self.get_disp_properties().items():
             # print("Should update %s: %s" % (disp_name, self.disp2element[disp_name]["push_prop"]))
             element = self.disp2element[disp_name]
             if not element.config["gui_driven"]:
@@ -437,7 +437,7 @@ class ImagerControlScroll(QScrollArea):
 
     def cal_save(self):
         config.cal_save_to_data(source=self.vidpip.source_name,
-                                properties=self.read_as_disp_elements(),
+                                properties=self.get_disp_properties(),
                                 mkdir=True)
 
     def run(self):

@@ -1050,7 +1050,7 @@ class ScanWidget(AWidget):
             self.setControlsEnabled(True)
             # Prevent accidental start after done
             self.dry_cb.setChecked(True)
-            self.ac.control_scroll.user_controls_enabled(True)
+            self.ac.control_scroll.enable_user_controls(True)
 
     def run_next_scan_config(self):
         try:
@@ -1128,7 +1128,7 @@ class ScanWidget(AWidget):
                 self.log_fd_scan = open(os.path.join(out_dir, "log.txt"), "w")
 
             self.go_pause_pb.setText("Pause")
-            self.ac.control_scroll.user_controls_enabled(False)
+            self.ac.control_scroll.enable_user_controls(False)
             self.ac.planner_thread.start()
         except:
             self.plannerDone({"result": "init_failure", "hard_fail": True})

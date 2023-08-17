@@ -35,10 +35,10 @@ def average_imgs(imgs, scalar=None):
         scalar = 1.0
     scalar = scalar / len(imgs)
 
-    statef = np.zeros((height, width, 3), np.float)
+    statef = np.zeros((height, width, 3), float)
     for im in imgs:
         assert (width, height) == im.size
-        statef = statef + scalar * np.array(im, dtype=np.float)
+        statef = statef + scalar * np.array(im, dtype=float)
 
     return statef, npf2im(statef)
 
@@ -134,7 +134,7 @@ def main():
 
     if args.microscope:
         # Used to bind /override calibration in scan
-        config.default_microscope_name(microscope_name=args.microscope)
+        config.default_microscope_name(name=args.microscope)
     config.lazy_load_microscope_from_config(args.dir_in)
 
     dir_out = args.dir_out

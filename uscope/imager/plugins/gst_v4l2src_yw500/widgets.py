@@ -266,9 +266,15 @@ class V4L2YW500ControlScroll(ImagerControlScroll):
         # import sys; sys.exit(1)
         return groups
 
+    def get_auto_exposure_name(self):
+        auto_exposure_options = ["Exposure, Auto", "Auto Exposure"]
+        for option in auto_exposure_options:
+            if option in self.all_controls:
+                return option
+
     def auto_exposure_enabled(self):
         # 1: no, 3: yes
-        return self.prop_read("Exposure, Auto") == 3
+        return self.prop_read(self.get_auto_exposure_name()) == 3
 
     def set_exposure(self, n):
         self.prop_write("Exposure (Absolute)", n)

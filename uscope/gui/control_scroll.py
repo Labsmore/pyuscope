@@ -459,8 +459,8 @@ class ImagerControlScroll(QScrollArea):
         Controls disabled during imaging runs
         Only enables ones though that 
         """
-        for widget in self.widgets():
-            widget.enable_user_controls(enabled, force=force)
+        for disp_name, element in self.disp2element.items():
+            element.enable_user_controls(enabled, force=force)
 
     def validate_disp_names(self, disp_names):
         for disp_name in disp_names:

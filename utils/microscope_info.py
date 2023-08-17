@@ -2,7 +2,7 @@
 
 from uscope.util import add_bool_arg
 from uscope import config
-
+from uscope.imagep.util import RC_CONST
 
 def run(microscope_name=None, verbose=True):
     print("Reading config...")
@@ -28,12 +28,12 @@ def run(microscope_name=None, verbose=True):
         na = objective.get("na", 0)
         print("    na: %0.3f" % na)
         if na:
-            res_400 = 400 / (2 * na)
+            res_400 = RC_CONST * 400 / (2 * na)
             oversampling_ratio_400 = res_400 / (objective["um_per_pixel"] *
                                                 1000)
             print("      Resolution @ 400 nm: %0.1f nm" % res_400)
             print("        Oversampling ratio: %0.2f" % oversampling_ratio_400)
-            res_800 = 800 / (2 * na)
+            res_800 = RC_CONST * 800 / (2 * na)
             oversampling_ratio_800 = res_800 / (objective["um_per_pixel"] *
                                                 1000)
             print("      Resolution @ 800 nm: %0.1f nm" % res_800)

@@ -112,7 +112,7 @@ class V4L2AutoExposureDisplayer(ICSDisplayer):
 
     def enable_user_controls(self, enabled, force=False):
         if self.config["gui_driven"] or force:
-            self.slider.setEnabled(enabled)
+            self.cb.setEnabled(enabled)
 
     def disp_property_set_widgets(self, val):
         self.cb.setChecked(val)

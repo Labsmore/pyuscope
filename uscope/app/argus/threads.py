@@ -552,15 +552,9 @@ class ImageProcessingThread(QThread):
                 raise Exception("oopsie: %s" % (ret, ))
             return ret
 
-    def auto_focus_coarse(self, block=False, callback=None):
+    def auto_focus(self, block=False, callback=None):
         j = {
-            "type": "auto_focus_coarse",
-        }
-        self.command(j, block=block, callback=callback)
-
-    def auto_focus_fine(self, block=False, callback=None):
-        j = {
-            "type": "auto_focus_fine",
+            "type": "auto_focus",
         }
         self.command(j, block=block, callback=callback)
 
@@ -603,20 +597,13 @@ class ImageProcessingThread(QThread):
                  (target_pos, fni + 1, steps))
         self.move_absolute({"z": target_pos})
 
-    def do_auto_focus_coarse(self):
+    def do_auto_focus(self):
         # MVP intended for 20x
         # 2 um is standard focus step size
         self.log("autofocus: coarse")
         self.auto_focus_pass(step_size=0.006, step_pm=3)
         self.log("autofocus: medium")
         self.auto_focus_pass(step_size=0.002, step_pm=3)
-        self.log("autofocus: done")
-
-    def do_auto_focus_fine(self):
-        # MVP intended for 60x
-        # 500 nm is standard focus step size
-        self.log("autofocus: fine")
-        self.auto_focus_pass(step_size=0.0005, step_pm=3)
         self.log("autofocus: done")
 
     def run(self):
@@ -626,10 +613,8 @@ class ImageProcessingThread(QThread):
             except Empty:
                 continue
             try:
-                if j["type"] == "auto_focus_coarse":
-                    self.do_auto_focus_coarse()
-                elif j["type"] == "auto_focus_fine":
-                    self.do_auto_focus_fine()
+                if j["type"] == "auto_focus":
+                    self.do_auto_focus()
                 else:
                     assert 0, j
 

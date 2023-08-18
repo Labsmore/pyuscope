@@ -188,6 +188,8 @@ class ImagerControlScroll(QScrollArea):
         self.layout = QVBoxLayout()
         self.layout.addLayout(self.buttonLayout())
 
+        # NOTE: both disp2element and raw2element are expected to
+        # always contain the same set of elements.
         # Indexed by display name
         # self.disp2ctrl = OrderedDict()
         # Indexed by display name

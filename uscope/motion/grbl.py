@@ -1026,7 +1026,10 @@ class GRBL:
             $100=800.000
             $101=800.000
             $102=800.000
+            Sometimes the output is a string similar to:
+            500.000 (x axis pulse:step/mm)
             """
+            v = v.strip().split()[0]
             if k == "$100":
                 ret["x"] = float(v)
             elif k == "$101":

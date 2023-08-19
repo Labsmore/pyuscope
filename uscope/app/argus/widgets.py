@@ -681,12 +681,9 @@ class XYPlanner3PWidget(PlannerWidget):
         self.track_z_cb.stateChanged.connect(self.track_z_cb_changed)
         self.track_z_cb_changed(None)
         gl.addWidget(self.track_z_cb, row, 1)
-        self.pb_afgo_coarse = QPushButton("AF + go (coarse)")
-        self.pb_afgo_coarse.clicked.connect(self.afgo_coarse)
-        gl.addWidget(self.pb_afgo_coarse, row, 2)
-        self.pb_afgo_fine = QPushButton("AF + go (fine)")
-        self.pb_afgo_fine.clicked.connect(self.afgo_fine)
-        gl.addWidget(self.pb_afgo_fine, row, 3)
+        self.pb_afgo = QPushButton("AF + go")
+        self.pb_afgo.clicked.connect(self.afgo)
+        gl.addWidget(self.pb_afgo, row, 2)
 
         row += 1
 
@@ -862,7 +859,7 @@ class XYPlanner3PWidget(PlannerWidget):
             raise Exception("Failed to get corner")
         self.ac.motion_thread.move_absolute(pos, callback=callback)
 
-    def afgo_coarse(self):
+    def afgo(self):
         """
         Autofocus corners and kick off
         """
@@ -884,21 +881,21 @@ class XYPlanner3PWidget(PlannerWidget):
             (self.emit_go_corner, {
                 "corner_name": "ul"
             }),
-            (self.ac.image_processing_thread.auto_focus_coarse, {}),
+            (self.ac.image_processing_thread.auto_focus, {}),
             (self.emit_click_corner, {
                 "corner_name": "ul"
             }),
             (self.emit_go_corner, {
                 "corner_name": "ll"
             }),
-            (self.ac.image_processing_thread.auto_focus_coarse, {}),
+            (self.ac.image_processing_thread.auto_focus, {}),
             (self.emit_click_corner, {
                 "corner_name": "ll"
             }),
             (self.emit_go_corner, {
                 "corner_name": "lr"
             }),
-            (self.ac.image_processing_thread.auto_focus_coarse, {}),
+            (self.ac.image_processing_thread.auto_focus, {}),
             (self.emit_click_corner, {
                 "corner_name": "lr"
             }),
@@ -909,13 +906,6 @@ class XYPlanner3PWidget(PlannerWidget):
             (self.ac.mainTab.emit_go_current_pconfig, {})
         ])
         self.sequencer.run()
-
-    def afgo_fine(self):
-        """
-        Autofocus corners and kick off
-        """
-        # self.ac.image_processing_thread.auto_focus_fine()
-        self.log("fixme")
 
 
 """
@@ -2289,13 +2279,10 @@ class MotionWidget(AWidget):
             self.move_abs_backlash_cb.setEnabled(False)
             layout.addWidget(self.move_abs_backlash_cb)
 
-            self.autofocus_coarse_pb = QPushButton("AF (coarse)")
-            self.autofocus_coarse_pb.clicked.connect(
-                self.autofocus_coarse_pushed)
-            layout.addWidget(self.autofocus_coarse_pb)
-            self.autofocus_fine_pb = QPushButton("AF (fine)")
-            self.autofocus_fine_pb.clicked.connect(self.autofocus_fine_pushed)
-            layout.addWidget(self.autofocus_fine_pb)
+            self.autofocus_pb = QPushButton("AF")
+            self.autofocus_pb.clicked.connect(
+                self.autofocus_pushed)
+            layout.addWidget(self.autofocus_pb)
 
             return layout
 
@@ -2471,11 +2458,8 @@ class MotionWidget(AWidget):
                 "z": self.joystick_xy_scalar * slider_val,
             })
 
-    def autofocus_coarse_pushed(self):
-        self.ac.image_processing_thread.auto_focus_coarse()
-
-    def autofocus_fine_pushed(self):
-        self.ac.image_processing_thread.auto_focus_fine()
+    def autofocus_pushed(self):
+        self.ac.image_processing_thread.auto_focus()
 
 
 class SimpleScanNameWidget(AWidget):

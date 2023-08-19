@@ -154,8 +154,9 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
             "right": 160,
         },
         //"scalar": 0.5
-        //FIXME: uncalibrated
-        "um_per_pixel_raw_1x": 10.25,
+        // 0.33mm / 960px * 1000 = 0.34375
+        // 0.34375 * 20x = 6.875
+        "um_per_pixel_raw_1x": 6.875,
     },
 
 

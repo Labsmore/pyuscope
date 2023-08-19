@@ -3,6 +3,7 @@ from uscope.imager.plugins.gst_toupcamsrc.widgets import TTControlScroll
 from uscope.imager.plugins.gst_v4l2src.widgets import V4L2GstControlScroll
 from uscope.imager.plugins.gst_v4l2src_mu800.widgets import V4L2MU800ControlScroll
 from uscope.imager.plugins.gst_v4l2src_yw500.widgets import V4L2YW500ControlScroll
+from uscope.imager.plugins.gst_v4l2src_hy800b.widgets import V4L2HY800BControlScroll
 
 from collections import OrderedDict
 
@@ -33,6 +34,8 @@ def get_control_scroll(vidpip, usc):
         return V4L2MU800ControlScroll(vidpip, usc=usc)
     elif vidpip.source_name == "gst-v4l2src-yw500":
         return V4L2YW500ControlScroll(vidpip, usc=usc)
+    elif vidpip.source_name == "gst-v4l2src-hy800b":
+        return V4L2HY800BControlScroll(vidpip, usc=usc)
     else:
         # vidpip.log eats this message
         print("WARNING: no control layout for source %s" %

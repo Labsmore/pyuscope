@@ -161,6 +161,16 @@ def ctrl_minmax(fd, name):
     raise ValueError("Failed to find control %s" % name)
 
 
+def dump_devices():
+    print("Available devices:")
+    cp = v4l2.v4l2_capability()
+    for dev_name in sorted(glob.glob("/dev/video*")):
+        vd = open(dev_name, "r")
+        assert fcntl.ioctl(vd, v4l2.VIDIOC_QUERYCAP, cp) == 0
+        vd.close()
+        found_name = tostr(cp.card)
+        print(f"  {found_name}")
+
 def find_device(name):
     cp = v4l2.v4l2_capability()
     for dev_name in sorted(glob.glob("/dev/video*")):
@@ -172,4 +182,6 @@ def find_device(name):
         if found_name == name:
             return dev_name
     else:
+        dump_devices()
         raise Exception(f"Failed to find video device {name}")
+

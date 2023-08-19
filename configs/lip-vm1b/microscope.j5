@@ -1,0 +1,173 @@
+/*
+Parameter                   vm1a                    vm1b
+Camera                      YW500                   HY-800B
+Max resolution              2592x1944 @ 30          3840x2160 @ < 1
+Max raw resolution          800x600 @ 15            3840x2160 @ < 1
+Sensor size
+USB                         2.0                     2.0
+Exposure granularity        100 us                  1 us
+Auto-exposure quirk         yes                     TBD 
+
+
+
+$ v4l2-ctl --list-formats-ext -D --device /dev/video4
+Driver Info:
+	Driver name      : uvcvideo
+	Card type        : Hayear Camera: HY-800B
+	Bus info         : usb-0000:00:14.0-1
+	Driver version   : 5.14.21
+	Capabilities     : 0x84a00001
+		Video Capture
+		Metadata Capture
+		Streaming
+		Extended Pix Format
+		Device Capabilities
+	Device Caps      : 0x04200001
+		Video Capture
+		Streaming
+		Extended Pix Format
+ioctl: VIDIOC_ENUM_FMT
+	Type: Video Capture
+
+	[0]: 'MJPG' (Motion-JPEG, compressed)
+		Size: Discrete 3840x2160
+			Interval: Discrete 0.040s (25.000 fps)
+		Size: Discrete 2592x1944
+			Interval: Discrete 0.040s (25.000 fps)
+		Size: Discrete 2560x1440
+			Interval: Discrete 0.022s (45.000 fps)
+		Size: Discrete 1920x1080
+			Interval: Discrete 0.017s (60.000 fps)
+		Size: Discrete 1280x960
+			Interval: Discrete 0.017s (60.000 fps)
+		Size: Discrete 1280x720
+			Interval: Discrete 0.017s (60.000 fps)
+		Size: Discrete 640x480
+			Interval: Discrete 0.017s (60.000 fps)
+		Size: Discrete 640x360
+			Interval: Discrete 0.017s (60.000 fps)
+		Size: Discrete 320x240
+			Interval: Discrete 0.017s (60.000 fps)
+	[1]: 'YUYV' (YUYV 4:2:2)
+		Size: Discrete 3840x2160
+			Interval: Discrete 1.000s (1.000 fps)
+		Size: Discrete 2592x1944
+			Interval: Discrete 1.000s (1.000 fps)
+		Size: Discrete 2560x1440
+			Interval: Discrete 1.000s (1.000 fps)
+		Size: Discrete 1920x1080
+			Interval: Discrete 0.200s (5.000 fps)
+		Size: Discrete 1280x960
+			Interval: Discrete 0.200s (5.000 fps)
+		Size: Discrete 1280x720
+			Interval: Discrete 0.100s (10.000 fps)
+			Interval: Discrete 0.200s (5.000 fps)
+		Size: Discrete 640x480
+			Interval: Discrete 0.033s (30.000 fps)
+		Size: Discrete 640x360
+			Interval: Discrete 0.033s (30.000 fps)
+		Size: Discrete 320x240
+			Interval: Discrete 0.033s (30.000 fps)
+
+
+
+
+
+https://www.linuxtv.org/downloads/v4l-dvb-apis-old/V4L2-PIX-FMT-YUYV.html
+In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb and a Cr. 
+*/
+{
+    "planner": {
+        //FIXME: not tuned
+        "tsettle_motion": 1.0,
+        //0.2 not enough
+        "tsettle_hdr": 0.4,
+    },
+    "motion": {
+        "hal": "grbl-ser",
+        //FIXME: what is the actual value?
+        "backlash": 0.05,
+        /*
+        FIXME: were values saved before overwriting?
+        maybe take from the other genmitsu which should be similar
+        */
+        "use_wcs_offsets": true,
+        "grbl": {
+            //"port": "mock",
+            "rc": [
+                //$100, $101 and $102 – [X,Y,Z] steps/mm
+                //was: 800 / 800 / 800
+                "$100=500.000", "$101=500.000", "$102=500.000",
+
+                //X - Max Rate (mm/min)
+                //was: 2000 / 2000 / 2000
+                "$110=960.000", "$111=960.000", "$112=1920.000",
+                //$120, $121, $122 – [X,Y,Z] Acceleration, mm/sec^2
+                //was: 50 / 50 / 50
+                "$120=24.000", "$121=24.000", "$122=24.000",
+
+                //max travel
+                //was: 300 / 200 / 80
+                "$130=480.000", "$131=320.000", "$132=128.000",
+
+                //More proper homed scheme
+                /*
+                "G10 L2 P1 X-475.200 Y-315.200 Z-4.800",
+                "G10 L2 P2 X0 Y0 Z0",
+                //Select WCS2
+                "G55",
+                */
+
+                //Homing adjustments to account for gearbox etc
+                /*
+                was
+                "$24=100.000", //homing feed,mm/min
+                "$25=500.000", //homing seek,mm/min
+                "$26=250", //homing debounce,msec
+                "$27=2.000", //homing pull-off,mm
+                */
+                "$24=80.0","$25=400.000",
+                "$26=250","$27=3.2",
+            ],
+        },
+        "scalars": {
+            "x": 1.6,
+            "y": 1.6,
+            "z": 1.6,
+        },
+    },
+
+    "imager": {
+        "source":"gst-v4l2src-hy800b",
+        //Find first device matching this name
+        "v4l2_name": "Hayear Camera: HY-800B",
+        "source_properties": {
+            //"device": "/dev/video4"
+        },
+        "width": 1280,
+        "height": 960,
+        //1.5x
+        "crop_pixels": {
+            "top": 0,
+            "bottom": 0,
+            "left": 160,
+            "right": 160,
+        },
+        //"scalar": 0.5
+        //FIXME: uncalibrated
+        "um_per_pixel_raw_1x": 10.25,
+    },
+
+
+    "systems": [
+        //Default configuration
+        {
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: LapSun, model: L Plan 20X",
+                "vendor: LapSun, model: L Plan 10X",
+            ],
+        },
+    ],
+}
+

@@ -683,6 +683,7 @@ class XYPlanner3PWidget(PlannerWidget):
         gl.addWidget(self.track_z_cb, row, 1)
         self.pb_afgo = QPushButton("AF + Scan")
         self.pb_afgo.clicked.connect(self.afgo)
+        self.pb_afgo.setIcon(QIcon(config.GUI.icon_files['go']))
         gl.addWidget(self.pb_afgo, row, 2)
 
         row += 1

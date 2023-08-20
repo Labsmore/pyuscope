@@ -49,7 +49,6 @@ class USCArgus:
     def scan_dir(self):
         """
         Where scan jobs go
-        Change to "scan"?
         """
         ret = self.j.get("scan_dir")
         if ret:

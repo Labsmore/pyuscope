@@ -2129,6 +2129,7 @@ class JogSlider(QWidget):
 
         self.slider_min = 1
         self.slider_max = 100
+        self.slider_adjust_factor = 0.1
 
         self.layout = QVBoxLayout()
 
@@ -2190,12 +2191,12 @@ class JogSlider(QWidget):
 
     def increase_key(self):
         slider_val = min(self.slider_max,
-                         float(self.slider.value()) + self.slider_max * 0.2)
+                         float(self.slider.value()) + self.slider_max * self.slider_adjust_factor)
         self.slider.setValue(slider_val)
 
     def decrease_key(self):
         slider_val = max(self.slider_min,
-                         float(self.slider.value()) - self.slider_max * 0.2)
+                         float(self.slider.value()) - self.slider_max * self.slider_adjust_factor)
         self.slider.setValue(slider_val)
 
     def set_jog_slider(self, val):

@@ -421,7 +421,7 @@ class XYPlanner2PWidget(PlannerWidget):
         self.pb_gos["0"] = {
             "x_le": self.plan_x0_le,
             "y_le": self.plan_y0_le,
-            "pb": QPushButton("Go"),
+            "pb": QPushButton("Scan"),
         }
         gl.addWidget(self.pb_gos["0"]["pb"], row, 3)
         row += 1
@@ -437,7 +437,7 @@ class XYPlanner2PWidget(PlannerWidget):
         self.pb_gos["1"] = {
             "x_le": self.plan_x1_le,
             "y_le": self.plan_y1_le,
-            "pb": QPushButton("Go"),
+            "pb": QPushButton("Scan"),
         }
         gl.addWidget(self.pb_gos["1"]["pb"], row, 3)
         row += 1
@@ -639,7 +639,7 @@ class XYPlanner3PWidget(PlannerWidget):
 
         def make_corner_widget(corner_name, button_text):
             pb_set = QPushButton(button_text)
-            pb_go = QPushButton("Go")
+            pb_go = QPushButton("MoveTo")
 
             def set_clicked():
                 self.corner_clicked(corner_name)
@@ -681,7 +681,7 @@ class XYPlanner3PWidget(PlannerWidget):
         self.track_z_cb.stateChanged.connect(self.track_z_cb_changed)
         self.track_z_cb_changed(None)
         gl.addWidget(self.track_z_cb, row, 1)
-        self.pb_afgo = QPushButton("AF + go")
+        self.pb_afgo = QPushButton("AF + Scan")
         self.pb_afgo.clicked.connect(self.afgo)
         gl.addWidget(self.pb_afgo, row, 2)
 

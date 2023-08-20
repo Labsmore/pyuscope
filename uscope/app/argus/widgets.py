@@ -935,7 +935,7 @@ class ScanWidget(AWidget):
         def getProgressLayout():
             layout = QHBoxLayout()
 
-            self.go_pause_pb = QPushButton("Go")
+            self.go_pause_pb = QPushButton("Scan")
             self.go_pause_pb.clicked.connect(self.go_pause_clicked)
             self.go_pause_pb.setIcon(QIcon(config.GUI.icon_files['go']))
             layout.addWidget(self.go_pause_pb)
@@ -1007,7 +1007,7 @@ class ScanWidget(AWidget):
         self.ac.log("RX planner done, result: %s" % (result["result"], ))
 
         # Reset any planner specific configuration
-        self.go_pause_pb.setText("Go")
+        self.go_pause_pb.setText("Scan")
         # Cleanup camera objects
         if self.log_fd_scan:
             self.log_fd_scan.close()

@@ -1,0 +1,11 @@
+{
+    "configs": {
+        "default": {
+            "properties": {
+                "hflip": true,
+                "vflip": false,
+            },
+            "source": "gst-toupcamsrc"
+        }
+    }
+}

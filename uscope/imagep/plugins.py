@@ -8,6 +8,9 @@ import glob
 import os
 import math
 from uscope import config
+import cv2
+
+
 """
 ImageProcessing plugin
 """
@@ -24,6 +27,7 @@ class IPPlugin:
             def log(s):
                 print(s)
 
+        self.verbose = False
         self.usc = config.get_usc()
         self.log = log
         self.default_options = default_options
@@ -225,33 +229,6 @@ class CorrectFF1Plugin(IPPlugin):
 
         return im
 
-    def average_imgs(self, imgs, scalar=None):
-        width, height = imgs[0].size
-        if not scalar:
-            scalar = 1.0
-        scalar = scalar / len(imgs)
-
-        statef = np.zeros((height, width, 3), np.float)
-        for im in imgs:
-            assert (width, height) == im.size
-            statef = statef + scalar * np.array(im, dtype=np.float)
-
-        return statef, self.npf2im(statef)
-
-    def average_dir(self, din, images=0, verbose=1, scalar=None):
-        imgs = []
-
-        files = list(glob.glob(os.path.join(din, "*.jpg")))
-        verbose and print('Reading %s w/ %u images' % (din, len(files)))
-
-        for fni, fn in enumerate(files):
-            imgs.append(Image.open(fn))
-            if images and fni + 1 >= images:
-                verbose and print(
-                    "WARNING: only using first %u images" % images)
-                break
-        return self.average_imgs(imgs, scalar=scalar)
-
     def bounds_close_band(self, ffi, band):
         hist = band.histogram()
         width, height = ffi.size
@@ -279,6 +256,8 @@ class CorrectFF1Plugin(IPPlugin):
         # Calibration must be loaded
         assert self.ffi_im
 
+        print(f"FF1: run")
+
         # It's easy to have an outlier that boosts everything
         # hmm
         if 0:
@@ -287,11 +266,11 @@ class CorrectFF1Plugin(IPPlugin):
         else:
             ((ffi_rmin, ffi_rmax), (ffi_gmin, ffi_gmax),
              (ffi_bmin, ffi_bmax)) = self.bounds_close(self.ffi_im)
-        print(f"ffi r: {ffi_rmin} : {ffi_rmax}")
-        print(f"ffi g: {ffi_gmin} : {ffi_gmax}")
-        print(f"ffi b: {ffi_bmin} : {ffi_bmax}")
+        self.verbose and print(f"ffi r: {ffi_rmin} : {ffi_rmax}")
+        self.verbose and print(f"ffi g: {ffi_gmin} : {ffi_gmax}")
+        self.verbose and print(f"ffi b: {ffi_bmin} : {ffi_bmax}")
 
-        print("")
+        self.verbose and print("")
 
         image_in = data_in["image"]
         # im_in = "cal/cal06_ff_1.5x/2023-06-20_01-22-25_blue_20x_cal6_1.5x_pic/c000_r001.jpg"
@@ -320,12 +299,43 @@ class CorrectFF1Plugin(IPPlugin):
                     pixg2 = int(min(255, pixg * ffg / ffi_gmin))
                     pixb2 = int(min(255, pixb * ffb / ffi_bmin))
                 if x == 0 and y == 0 or x == 400 and y == 300:
-                    print(
+                    self.verbose and print(
                         f"x={x}, y={y}: ({pixr}, {pixg}, {pixg}) => ({pixr2}, {pixg2}, {pixg2})"
                     )
-                    print(pixr, ffi_rmax, ffr, ffi_rmax / ffr)
+                    self.verbose and print(pixr, ffi_rmax, ffr, ffi_rmax / ffr)
                 im.putpixel((x, y), (pixr2, pixg2, pixb2))
-        im.save(data_out["image"].get_filename())
+        im.save(data_out["image"].get_filename(), quality=90)
+
+"""
+Sharpen image using a kernel
+"""
+class CorrectSharp1Plugin(IPPlugin):
+    def __init__(self, log, default_options={}):
+        self.kernel = None
+        super().__init__(log=log,
+                         default_options=default_options,
+                         need_tmp_dir=True)
+        """
+        2023-08-20
+        This "seemed about right" for 20x
+        It's not particularly tuned
+        In general I see shadows going further so shrug maybe should be bigger?
+        """
+        self.kernel = np.array( [[-0.25, -0.50, -0.50, -0.50 -0.25],  # -2
+                        [-0.50, -0.75, -1.00, -0.75 -0.50], # -3.5
+                        [-0.50, -1.00, 15.00, -1.00 -0.50], # -3.0
+                        [-0.50, -0.75, -1.00, -0.75 -0.50], # -3.5
+                        [-0.25, -0.50, -0.50, -0.50 -0.25],  # -2
+                        ])
+
+    def _run(self, data_in, data_out, options={}):
+        assert self.kernel is not None
+
+        print(f"SHARP1: run")
+        pil_im = data_in["image"].to_im()
+        cv_im = np.array(pil_im.convert('RGB'))[:, :, ::-1].copy()
+        result = cv2.filter2D(cv_im, -1, self.kernel)
+        cv2.imwrite(data_out["image"].get_filename(), result, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
 
 
 def get_plugins(log=None):
@@ -333,4 +343,5 @@ def get_plugins(log=None):
         "stack-enfuse": StackEnfusePlugin(log=log),
         "hdr-enfuse": HDREnfusePlugin(log=log),
         "correct-ff1": CorrectFF1Plugin(log=log),
+        "correct-sharp1": CorrectSharp1Plugin(log=log),
     }

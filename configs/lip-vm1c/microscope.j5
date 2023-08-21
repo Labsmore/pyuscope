@@ -1,0 +1,102 @@
+{
+    "planner": {
+        //FIXME: not tuned
+        "tsettle_motion": 1.0,
+        //0.2 not enough
+        "tsettle_hdr": 0.4,
+    },
+    "motion": {
+        "hal": "grbl-ser",
+        //FIXME: what is the actual value?
+        "backlash": 0.05,
+        /*
+        FIXME: were values saved before overwriting?
+        maybe take from the other genmitsu which should be similar
+        */
+        "use_wcs_offsets": true,
+        "grbl": {
+            //"port": "mock",
+            "rc": [
+                //$100, $101 and $102 – [X,Y,Z] steps/mm
+                //was: 800 / 800 / 800
+                "$100=500.000", "$101=500.000", "$102=500.000",
+
+                //X - Max Rate (mm/min)
+                //was: 2000 / 2000 / 2000
+                "$110=960.000", "$111=960.000", "$112=1920.000",
+                //$120, $121, $122 – [X,Y,Z] Acceleration, mm/sec^2
+                //was: 50 / 50 / 50
+                "$120=24.000", "$121=24.000", "$122=24.000",
+
+                //max travel
+                //was: 300 / 200 / 80
+                "$130=480.000", "$131=320.000", "$132=128.000",
+
+                //More proper homed scheme
+                /*
+                "G10 L2 P1 X-475.200 Y-315.200 Z-4.800",
+                "G10 L2 P2 X0 Y0 Z0",
+                //Select WCS2
+                "G55",
+                */
+
+                //Homing adjustments to account for gearbox etc
+                /*
+                was
+                "$24=100.000", //homing feed,mm/min
+                "$25=500.000", //homing seek,mm/min
+                "$26=250", //homing debounce,msec
+                "$27=2.000", //homing pull-off,mm
+                */
+                "$24=80.0","$25=400.000",
+                "$26=250","$27=3.2",
+            ],
+        },
+        "scalars": {
+            "x": 1.6,
+            "y": 1.6,
+            "z": 1.6,
+        },
+    },
+
+    "imager": {
+        "source":"gst-toupcamsrc",
+        "width": 5440,
+        "height": 3648,
+        "source_properties": {
+            //0 => mode 5440x3648
+            "esize": 0
+        },
+        "source_properties_mod": {
+            //In us. Can go up to 15 sec which is impractical for typical usage
+            "expotime": {
+                "max": 200000
+            },
+        },
+        "scalar": 0.5,
+        "crop_pixels": {
+            "top": 1024,
+            "bottom": 1024,
+            "left": 1920,
+            "right": 1920,
+        },
+        //20x: 0.33 mm wide, 
+        //5440 - 2 * 1920 = 1600 pix wide
+        //0.33 * 1000 / 1600 * 20 
+        "um_per_pixel_raw_1x": 4.125,
+        "should_sharp1": true,
+    },
+
+
+    "systems": [
+        //Default configuration
+        {
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: LapSun, model: L Plan 20X",
+                "vendor: LapSun, model: L Plan 10X",
+            ],
+        },
+    ],
+}
+

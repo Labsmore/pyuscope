@@ -169,16 +169,36 @@ class DirCSIP:
             # clean_tmp_files()
             pass
 
-    def correct_run(self, iindex_in, dir_out):
+    def correct_sharp1_run(self, iindex_in, dir_out, lazy=True):
         if not os.path.exists(dir_out):
             os.mkdir(dir_out)
         tb = TaskBarrier()
         for fn_in in iindex_in["images"].keys():
             fn_out = os.path.join(dir_out, os.path.basename(fn_in))
-            self.csip.queue_correct_ff1(fn_in=os.path.join(
-                iindex_in["dir"], fn_in),
-                                        fn_out=fn_out,
-                                        tb=tb)
+            if lazy and os.path.exists(fn_out):
+                self.log(f"lazy: skip {fn_out}")
+            else:
+                self.csip.queue_correct_sharp1(fn_in=os.path.join(
+                    iindex_in["dir"], fn_in),
+                                            fn_out=fn_out,
+                                            tb=tb)
+        # print("TB: wait w/ alloc %s vs completed %s" % (tb.ntasks_allocated, tb.ntasks_completed))
+        tb.wait()
+
+    def correct_ff1_run(self, iindex_in, dir_out, lazy=True):
+        if not os.path.exists(dir_out):
+            os.mkdir(dir_out)
+        tb = TaskBarrier()
+        for fn_in in iindex_in["images"].keys():
+            fn_out = os.path.join(dir_out, os.path.basename(fn_in))
+            if lazy and os.path.exists(fn_out):
+                self.log(f"lazy: skip {fn_out}")
+            else:
+                self.csip.queue_correct_ff1(fn_in=os.path.join(
+                    iindex_in["dir"], fn_in),
+                                            fn_out=fn_out,
+                                            tb=tb)
+        # print("TB: wait w/ alloc %s vs completed %s" % (tb.ntasks_allocated, tb.ntasks_completed))
         tb.wait()
 
     def run(self):
@@ -225,11 +245,21 @@ class DirCSIP:
                            best_effort=self.best_effort)
             working_iindex = index_scan_images(next_dir)
 
+        if not config.get_usc().imager.should_sharp1():
+            self.log("Sharp kernel correction: skip")
+        else:
+            self.log("Sharp kernel correction: start")
+            next_dir = os.path.join(working_iindex["dir"], "sharp1")
+            self.correct_sharp1_run(working_iindex, next_dir)
+            working_iindex = index_scan_images(next_dir)
+            print("Finishing")
+
         if not config.get_usc().imager.has_ff_cal():
             self.log("FF correction: skip")
         else:
-            next_dir = os.path.join(working_iindex["dir"], "correct")
-            self.correct_run(working_iindex, next_dir)
+            self.log("FF correction: start")
+            next_dir = os.path.join(working_iindex["dir"], "ff1")
+            self.correct_ff1_run(working_iindex, next_dir)
             working_iindex = index_scan_images(next_dir)
 
         # CloudStitch currently only supports .jpg

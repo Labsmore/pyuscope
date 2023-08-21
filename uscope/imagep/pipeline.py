@@ -108,7 +108,7 @@ class CSImageProcessorThread(threading.Thread):
                 ret = plugin.run(data_in=ip_params.data_in,
                                  data_out=ip_params.data_out,
                                  options=ip_params.options)
-                self.log("Command done")
+                # self.log("Command done")
                 finish_command("ok", ret)
             except Exception as e:
                 self.log("")
@@ -254,11 +254,24 @@ class CSImageProcessor(threading.Thread):
                           callback=None,
                           tb=None,
                           block=None):
-        """
-        Use enfuse to stack images of varying Z height
-        """
         ip_params = CSIPParams(
             task_name="correct-ff1",
+            data_in={"image": EtherealImageR(fn=fn_in)},
+            data_out={"image": EtherealImageW(want_fn=fn_out)},
+            options=options,
+            callback=callback,
+            tb=tb)
+        self.queue_task(ip_params=ip_params, block=block)
+
+    def queue_correct_sharp1(self,
+                          fn_in,
+                          fn_out,
+                          options={},
+                          callback=None,
+                          tb=None,
+                          block=None):
+        ip_params = CSIPParams(
+            task_name="correct-sharp1",
             data_in={"image": EtherealImageR(fn=fn_in)},
             data_out={"image": EtherealImageW(want_fn=fn_out)},
             options=options,

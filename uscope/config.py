@@ -297,6 +297,9 @@ class USCImager:
     def ff_cal_fn(self):
         return get_microscope_data_dir() + "/imager_calibration_ff.tif"
 
+    def should_sharp1(self):
+        return bool(self.j.get("should_sharp1", False))
+
     def has_ff_cal(self):
         return os.path.exists(self.ff_cal_fn())
 

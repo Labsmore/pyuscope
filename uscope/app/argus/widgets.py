@@ -289,7 +289,8 @@ class SnapshotWidget(AWidget):
                 else:
                     image.save(fn_full)
             # FIXME: refine
-            except Exception:
+            except Exception as e:
+                print(e)
                 self.ac.log('WARNING: failed to save %s' % fn_full)
 
         try_save()

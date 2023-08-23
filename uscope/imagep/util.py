@@ -7,6 +7,7 @@ import subprocess
 # https://oeis.org/A245461
 RC_CONST = 1.21966989
 
+
 class EtherealImageR:
     """
     An image that may be on filesystem or in memory

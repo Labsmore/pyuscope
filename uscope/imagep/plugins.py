@@ -9,8 +9,6 @@ import os
 import math
 from uscope import config
 import cv2
-
-
 """
 ImageProcessing plugin
 """
@@ -306,9 +304,12 @@ class CorrectFF1Plugin(IPPlugin):
                 im.putpixel((x, y), (pixr2, pixg2, pixb2))
         im.save(data_out["image"].get_filename(), quality=90)
 
+
 """
 Sharpen image using a kernel
 """
+
+
 class CorrectSharp1Plugin(IPPlugin):
     def __init__(self, log, default_options={}):
         self.kernel = None
@@ -321,12 +322,13 @@ class CorrectSharp1Plugin(IPPlugin):
         It's not particularly tuned
         In general I see shadows going further so shrug maybe should be bigger?
         """
-        self.kernel = np.array( [[-0.25, -0.50, -0.50, -0.50 -0.25],  # -2
-                        [-0.50, -0.75, -1.00, -0.75 -0.50], # -3.5
-                        [-0.50, -1.00, 15.00, -1.00 -0.50], # -3.0
-                        [-0.50, -0.75, -1.00, -0.75 -0.50], # -3.5
-                        [-0.25, -0.50, -0.50, -0.50 -0.25],  # -2
-                        ])
+        self.kernel = np.array([
+            [-0.25, -0.50, -0.50, -0.50 - 0.25],  # -2
+            [-0.50, -0.75, -1.00, -0.75 - 0.50],  # -3.5
+            [-0.50, -1.00, 15.00, -1.00 - 0.50],  # -3.0
+            [-0.50, -0.75, -1.00, -0.75 - 0.50],  # -3.5
+            [-0.25, -0.50, -0.50, -0.50 - 0.25],  # -2
+        ])
 
     def _run(self, data_in, data_out, options={}):
         assert self.kernel is not None
@@ -335,7 +337,8 @@ class CorrectSharp1Plugin(IPPlugin):
         pil_im = data_in["image"].to_im()
         cv_im = np.array(pil_im.convert('RGB'))[:, :, ::-1].copy()
         result = cv2.filter2D(cv_im, -1, self.kernel)
-        cv2.imwrite(data_out["image"].get_filename(), result, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+        cv2.imwrite(data_out["image"].get_filename(), result,
+                    [int(cv2.IMWRITE_JPEG_QUALITY), 90])
 
 
 def get_plugins(log=None):

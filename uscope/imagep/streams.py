@@ -180,8 +180,8 @@ class DirCSIP:
             else:
                 self.csip.queue_correct_sharp1(fn_in=os.path.join(
                     iindex_in["dir"], fn_in),
-                                            fn_out=fn_out,
-                                            tb=tb)
+                                               fn_out=fn_out,
+                                               tb=tb)
         # print("TB: wait w/ alloc %s vs completed %s" % (tb.ntasks_allocated, tb.ntasks_completed))
         tb.wait()
 

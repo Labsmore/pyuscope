@@ -171,6 +171,7 @@ def dump_devices():
         found_name = tostr(cp.card)
         print(f"  {found_name}")
 
+
 def find_device(name):
     cp = v4l2.v4l2_capability()
     for dev_name in sorted(glob.glob("/dev/video*")):
@@ -184,4 +185,3 @@ def find_device(name):
     else:
         dump_devices()
         raise Exception(f"Failed to find video device {name}")
-

@@ -1740,7 +1740,7 @@ class AdvancedTab(ArgusTab):
         self.stack_cb.setCurrentIndex(stacking.get("mode_index", 0))
         self.stack_drift_cb.setChecked(stacking.get("drift_correction", 0))
 
-    # 
+    #
     def update_stack_mode(self, *args):
         mode = self.stack_cb.currentIndex()
 
@@ -2192,13 +2192,17 @@ class JogSlider(QWidget):
             return val / self.jog_max
 
     def increase_key(self):
-        slider_val = min(self.slider_max,
-                         float(self.slider.value()) + self.slider_max * self.slider_adjust_factor)
+        slider_val = min(
+            self.slider_max,
+            float(self.slider.value()) +
+            self.slider_max * self.slider_adjust_factor)
         self.slider.setValue(slider_val)
 
     def decrease_key(self):
-        slider_val = max(self.slider_min,
-                         float(self.slider.value()) - self.slider_max * self.slider_adjust_factor)
+        slider_val = max(
+            self.slider_min,
+            float(self.slider.value()) -
+            self.slider_max * self.slider_adjust_factor)
         self.slider.setValue(slider_val)
 
     def set_jog_slider(self, val):
@@ -2283,8 +2287,7 @@ class MotionWidget(AWidget):
             layout.addWidget(self.move_abs_backlash_cb)
 
             self.autofocus_pb = QPushButton("AF")
-            self.autofocus_pb.clicked.connect(
-                self.autofocus_pushed)
+            self.autofocus_pb.clicked.connect(self.autofocus_pushed)
             layout.addWidget(self.autofocus_pb)
 
             return layout

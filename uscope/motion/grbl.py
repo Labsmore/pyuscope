@@ -1039,6 +1039,7 @@ class GRBL:
         assert len(ret) == 3
         return ret
 
+
 class GrblHal(MotionHAL):
     def __init__(self, verbose=None, port=None, grbl=None, **kwargs):
         self.grbl = None

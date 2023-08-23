@@ -5,16 +5,19 @@ from uscope import config
 from uscope.imagep.util import RC_CONST
 import os
 
+
 def run(microscope_name=None, verbose=True):
     print("Reading config...")
     usc = config.get_usc(name=microscope_name)
-    microscope_data_dir = os.path.join("data", "microscopes", config.default_microscope_name())
+    microscope_data_dir = os.path.join("data", "microscopes",
+                                       config.default_microscope_name())
 
     print("Image size:")
     raw_wh = usc.imager.raw_wh()
     print("  Step 1: raw sensor pixels: %uw x %uh" % (raw_wh[0], raw_wh[1]))
     crop_w, crop_h = usc.imager.cropped_wh()
-    print("  Step 2: crop %s => %uw x %uh" % (usc.imager.crop_tblr(), crop_w, crop_h))
+    print("  Step 2: crop %s => %uw x %uh" %
+          (usc.imager.crop_tblr(), crop_w, crop_h))
     image_scalar = usc.imager.scalar()
     print("  Step 3: apply scalar %0.2f" % image_scalar)
     final_wh = usc.imager.final_wh()
@@ -58,9 +61,11 @@ def run(microscope_name=None, verbose=True):
                                         load_data_dir=True).items():
         print("  %s: %s" % (propk, propv))
     # TODO: at some point this will need to be per serial number in lieu of global calibration
-    ff_filename = os.path.join(microscope_data_dir, "imager_calibration_ff.tif")
+    ff_filename = os.path.join(microscope_data_dir,
+                               "imager_calibration_ff.tif")
     has_ff = os.path.exists(ff_filename)
     print("Flat field calibration present: %s" % has_ff)
+
 
 def main():
     import argparse

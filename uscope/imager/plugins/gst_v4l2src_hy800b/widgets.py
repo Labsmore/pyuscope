@@ -65,9 +65,6 @@ groups_gst = OrderedDict([(
             "default": 5000,
             "type": "int",
         },
-
-
-
         {
             "prop_name": "Gain",
             "disp_name": "Gain",

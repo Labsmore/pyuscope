@@ -15,8 +15,6 @@ is there a flag that would have indicated which is supported?
 
 from uscope.gui.v4l_control_scroll import V4L2AutoExposureDisplayer, V4L2ControlScroll
 from collections import OrderedDict
-
-
 """
 these controls seem not to work
         {

@@ -78,6 +78,7 @@ class V4L2AutoExposureDisplayer(ICSDisplayer):
         else:
             return 1
 
+
 class V4L2ControlScroll(ImagerControlScroll):
     def __init__(self, vidpip, usc=None, parent=None, groups_gst=None):
         assert groups_gst is not None
@@ -164,8 +165,7 @@ class V4L2ControlScroll(ImagerControlScroll):
         # print("XXX: check auto exposure thing", name, value)
         if name == "Auto Exposure":
             # print("XXX: check auto exposure thing")
-            self.set_gui_driven(not value,
-                                disp_names=["Exposure"])
+            self.set_gui_driven(not value, disp_names=["Exposure"])
         if name == "Auto White Balance Temperature":
             self.set_gui_driven(not value,
                                 disp_names=["White Balance Temperature"])

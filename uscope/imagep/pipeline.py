@@ -265,12 +265,12 @@ class CSImageProcessor(threading.Thread):
         self.queue_task(ip_params=ip_params, block=block)
 
     def queue_correct_sharp1(self,
-                          fn_in,
-                          fn_out,
-                          options={},
-                          callback=None,
-                          tb=None,
-                          block=None):
+                             fn_in,
+                             fn_out,
+                             options={},
+                             callback=None,
+                             tb=None,
+                             block=None):
         ip_params = CSIPParams(
             task_name="correct-sharp1",
             data_in={"image": EtherealImageR(fn=fn_in)},

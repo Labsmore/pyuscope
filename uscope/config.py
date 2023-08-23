@@ -731,7 +731,7 @@ class USC:
         for objective in objectives:
             if "um_per_pixel" not in objective:
                 objective["um_per_pixel"] = um_per_pixel_raw_1x / objective[
-                    "magnification"] * self.imager.scalar()
+                    "magnification"] / self.imager.scalar()
             if "x_view" not in objective:
                 # um to mm
                 objective[

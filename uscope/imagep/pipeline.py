@@ -26,6 +26,7 @@ import queue
 from uscope.imagep.util import EtherealImageR, EtherealImageW
 from uscope.imagep.streams import StreamCSIP, DirCSIP
 from uscope.imagep.plugins import get_plugins
+from uscope import config
 
 
 def get_open_set(working_iindex):
@@ -365,12 +366,15 @@ class CSImageProcessor(threading.Thread):
 
 
 # was run_dir
-def process_dir(*args, nthreads=None, **kwargs):
+def process_dir(directory, *args, nthreads=None, **kwargs):
+    # If a microscope hasn't been specified yet
+    config.lazy_load_microscope_from_config(directory)
+
     ip = None
     try:
         ip = CSImageProcessor(nthreads=nthreads)
         ip.start()
-        ip.process_dir(*args, **kwargs)
+        ip.process_dir(directory, *args, **kwargs)
     finally:
         if ip:
             ip.stop()

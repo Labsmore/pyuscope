@@ -73,18 +73,32 @@
                 "max": 200000
             },
         },
-        "scalar": 0.5,
         "crop_pixels": {
             "top": 1024,
             "bottom": 1024,
             "left": 1920,
             "right": 1920,
         },
+        //"scalar": 0.5,
+        //1.5x
         //20x: 0.33 mm wide, 
         //5440 - 2 * 1920 = 1600 pix wide
         //0.33 * 1000 / 1600 * 20 
-        "um_per_pixel_raw_1x": 4.125,
-        "should_sharp1": true,
+        //"um_per_pixel_raw_1x": 4.125,
+        //2.0x
+        //"um_per_pixel_raw_1x": 3.09375,
+
+        //2.5x
+        //"um_per_pixel_raw_1x": 2.475,
+        //3.0x
+        //"um_per_pixel_raw_1x": 2.0625,
+        //3.5x
+        //"um_per_pixel_raw_1x": 1.767857143,
+
+        "scalar": 0.25,
+        //4.5x
+        "um_per_pixel_raw_1x": 1.375,
+        //"should_sharp1": true,
     },
 
 
@@ -95,6 +109,7 @@
             "objectives_db": [
                 "vendor: LapSun, model: L Plan 20X",
                 "vendor: LapSun, model: L Plan 10X",
+                "vendor: Mitutoyo, model: 46-147, magnification: 100, na: 0.70",
             ],
         },
     ],

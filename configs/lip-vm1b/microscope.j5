@@ -77,12 +77,15 @@ https://www.linuxtv.org/downloads/v4l-dvb-apis-old/V4L2-PIX-FMT-YUYV.html
 In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb and a Cr. 
 */
 {
-    "planner": {
-        //FIXME: not tuned
-        "tsettle_motion": 1.0,
-        //0.2 not enough
+    "kinematics": {
+        //1.0 / sec
+        //seems ok no matter settings
+        //Maybe it always has to flush a frame => gives sync time?
+        "tsettle_motion_na1": 0.10,
+        "tsettle_motion_base": 0.15,
         "tsettle_hdr": 0.4,
     },
+
     "motion": {
         "hal": "grbl-ser",
         //FIXME: what is the actual value?
@@ -147,16 +150,22 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         "width": 1280,
         "height": 960,
         //1.5x
+        /*
         "crop_pixels": {
             "top": 0,
             "bottom": 0,
             "left": 160,
             "right": 160,
         },
+        */
+        //1.5x
         //"scalar": 0.5
         // 0.33mm / 960px * 1000 = 0.34375
         // 0.34375 * 20x = 6.875
-        "um_per_pixel_raw_1x": 6.875,
+        //"um_per_pixel_raw_1x": 6.875,
+        //4.5x
+        "scalar": 0.5,
+        "um_per_pixel_raw_1x": 2.291666667,
     },
 
 

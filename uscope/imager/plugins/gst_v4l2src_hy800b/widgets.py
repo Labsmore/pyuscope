@@ -4,8 +4,7 @@ Hopefully works better than the original camera choice
 """
 
 from uscope.gui.v4l_control_scroll import V4L2AutoExposureDisplayer, V4L2ControlScroll
-from collections import OrderedDict
-
+from uscope.gui.control_scroll import BoolDisplayer
 from collections import OrderedDict
 
 groups_gst = OrderedDict([(
@@ -32,7 +31,7 @@ groups_gst = OrderedDict([(
             "prop_name": "Exposure (Absolute)",
             "disp_name": "Exposure",
             "min": 1,
-            "max": 10000,
+            "max": 5000,
             "default": 100,
             "type": "int",
             "optional": True,
@@ -41,18 +40,36 @@ groups_gst = OrderedDict([(
             "prop_name": "Exposure Time, Absolute",
             "disp_name": "Exposure",
             "min": 1,
-            "max": 10000,
+            "max": 5000,
             "default": 100,
             "type": "int",
             "optional": True,
         },
+        {
+            "prop_name": "Gain",
+            "disp_name": "Gain",
+            "min": 0,
+            "max": 63,
+            "default": 8,
+            "type": "int",
+        },
+        # think this is software brightness
+        #{
+        #    "prop_name": "Brightness",
+        #    "disp_name": "Brightness",
+        #    "min": 1,
+        #    "max": 16,
+        #    "default": 8,
+        #    "type": "int",
+        #},
         {
             "prop_name": "White Balance Temperature, Auto",
             "disp_name": "Auto White Balance Temperature",
             "min": 0,
             "max": 1,
             "default": 0,
-            "type": "int",
+            "ctor": BoolDisplayer,
+            "type": "ctor",
             # Not present on all host systems for some reason
             # maybe added in Linux 5.15?
             "optional": True,
@@ -63,22 +80,6 @@ groups_gst = OrderedDict([(
             "min": 1800,
             "max": 10000,
             "default": 5000,
-            "type": "int",
-        },
-        {
-            "prop_name": "Gain",
-            "disp_name": "Gain",
-            "min": 0,
-            "max": 63,
-            "default": 8,
-            "type": "int",
-        },
-        {
-            "prop_name": "Brightness",
-            "disp_name": "Brightness",
-            "min": 1,
-            "max": 16,
-            "default": 8,
             "type": "int",
         },
     ],

@@ -25,7 +25,7 @@ import threading
 import queue
 from uscope.imagep.util import EtherealImageR, EtherealImageW
 from uscope.imagep.streams import StreamCSIP, DirCSIP
-from uscope.imagep.plugins import get_plugins
+from uscope.imagep.plugins import get_plugins, get_plugin_ctors
 from uscope import config
 
 
@@ -273,6 +273,26 @@ class CSImageProcessor(threading.Thread):
                              block=None):
         ip_params = CSIPParams(
             task_name="correct-sharp1",
+            data_in={"image": EtherealImageR(fn=fn_in)},
+            data_out={"image": EtherealImageW(want_fn=fn_out)},
+            options=options,
+            callback=callback,
+            tb=tb)
+        self.queue_task(ip_params=ip_params, block=block)
+
+    def queue_correct_plugin(self,
+                             plugin,
+                             fn_in,
+                             fn_out,
+                             options={},
+                             callback=None,
+                             tb=None,
+                             block=None):
+        if plugin not in get_plugin_ctors():
+            print("Valid plugins:", get_plugin_ctors().keys())
+            assert 0, f"Bad plugin {plugin}"
+        ip_params = CSIPParams(
+            task_name=plugin,
             data_in={"image": EtherealImageR(fn=fn_in)},
             data_out={"image": EtherealImageW(want_fn=fn_out)},
             options=options,

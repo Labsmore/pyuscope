@@ -90,33 +90,41 @@ class ICSDisplayer:
         return val
 
 
+"""
+Display a 0 vs 1 int value as a checkbox
+"""
+
+
 class BoolDisplayer(ICSDisplayer):
-    def gui_changed(self, val):
+    def gui_changed(self):
         # Race conditon?
         if not self.config["gui_driven"]:
+            print("not gui driven")
             return
-        self.cs.verbose and print(
-            '%s (%s) req => %d, allowed %d' %
-            (self.config["disp_name"], self.config["prop_name"], val,
-             self.config["gui_driven"]))
-        self.cs.prop_write(self.config["prop_name"], val)
+        self.cs.disp_prop_write(self.config["disp_name"], self.cb.isChecked())
 
     def assemble(self, layoutg, row):
-        self.cb = QCheckBox(self.config["disp_name"])
-        if self.config["default"] is not None:
-            self.cb.setChecked(self.config["default"])
-        self.cb.stateChanged.connect(self.gui_changed)
-        # self.disp2widgets[self.config["disp_name"]] = cb
-        layoutg.addWidget(self.cb, row, 0, 1, 2)
+        # print("making cb")
+        layoutg.addWidget(QLabel(self.config["disp_name"]), row, 0)
+        self.cb = QCheckBox()
+        layoutg.addWidget(self.cb, row, 1)
         row += 1
-        return row
+        self.cb.stateChanged.connect(self.gui_changed)
 
-    def disp_property_set_widgets(self, val):
-        self.cb.setChecked(val)
+        return row
 
     def enable_user_controls(self, enabled, force=False):
         if self.config["gui_driven"] or force:
             self.cb.setEnabled(enabled)
+
+    def disp_property_set_widgets(self, val):
+        self.cb.setChecked(val)
+
+    def val_raw2disp(self, val):
+        return bool(val)
+
+    def val_disp2raw(self, val):
+        return int(bool(val))
 
 
 class IntDisplayer(ICSDisplayer):

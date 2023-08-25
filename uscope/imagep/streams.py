@@ -201,6 +201,25 @@ class DirCSIP:
         # print("TB: wait w/ alloc %s vs completed %s" % (tb.ntasks_allocated, tb.ntasks_completed))
         tb.wait()
 
+    def correct_plugin_run(self, plugin_config, iindex_in, dir_out, lazy=True):
+        # TODO: some options as well?
+        plugin = plugin_config["plugin"]
+        if not os.path.exists(dir_out):
+            os.mkdir(dir_out)
+        tb = TaskBarrier()
+        for fn_in in iindex_in["images"].keys():
+            fn_out = os.path.join(dir_out, os.path.basename(fn_in))
+            if lazy and os.path.exists(fn_out):
+                self.log(f"lazy: skip {fn_out}")
+            else:
+                self.csip.queue_correct_plugin(plugin,
+                                               fn_in=os.path.join(
+                                                   iindex_in["dir"], fn_in),
+                                               fn_out=fn_out,
+                                               tb=tb)
+        # print("TB: wait w/ alloc %s vs completed %s" % (tb.ntasks_allocated, tb.ntasks_completed))
+        tb.wait()
+
     def run(self):
         """
         Process a completed scan into processed images
@@ -244,15 +263,23 @@ class DirCSIP:
                            lazy=self.lazy,
                            best_effort=self.best_effort)
             working_iindex = index_scan_images(next_dir)
-
-        if not config.get_usc().imager.should_sharp1():
-            self.log("Sharp kernel correction: skip")
+        """
+        Now apply custom correction plugins
+        TODO: let the user actually determine order for these...ff1 before stack, etc
+        """
+        ipp = config.get_usc().imager.ipp_last()
+        if len(ipp) == 0:
+            self.log("Post corrections: skip")
         else:
-            self.log("Sharp kernel correction: start")
-            next_dir = os.path.join(working_iindex["dir"], "sharp1")
-            self.correct_sharp1_run(working_iindex, next_dir)
-            working_iindex = index_scan_images(next_dir)
-            print("Finishing")
+            for pipeline_this in ipp:
+                plugin = pipeline_this["plugin"]
+                this_dir = pipeline_this["dir"]
+                self.log(f"{plugin}: start")
+                next_dir = os.path.join(working_iindex["dir"], this_dir)
+                self.correct_plugin_run(pipeline_this, working_iindex,
+                                        next_dir)
+                working_iindex = index_scan_images(next_dir)
+                print("Finishing")
 
         if not config.get_usc().imager.has_ff_cal():
             self.log("FF correction: skip")

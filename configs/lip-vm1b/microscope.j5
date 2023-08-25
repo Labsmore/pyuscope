@@ -82,7 +82,7 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         //seems ok no matter settings
         //Maybe it always has to flush a frame => gives sync time?
         "tsettle_motion_na1": 0.10,
-        "tsettle_motion_base": 0.15,
+        "tsettle_motion_base": 0.25,
         "tsettle_hdr": 0.4,
     },
 
@@ -163,9 +163,17 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         // 0.33mm / 960px * 1000 = 0.34375
         // 0.34375 * 20x = 6.875
         //"um_per_pixel_raw_1x": 6.875,
+
+        //2.5x
+        "um_per_pixel_raw_1x": 4.125,
+
         //4.5x
-        "scalar": 0.5,
-        "um_per_pixel_raw_1x": 2.291666667,
+        //"scalar": 0.5,
+        //"um_per_pixel_raw_1x": 2.291666667,
+
+        "ipp_last": [
+            {"plugin": "correct-vm1v1", "dir": "vm1v1"},
+        ],
     },
 
 

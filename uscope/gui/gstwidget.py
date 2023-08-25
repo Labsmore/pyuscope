@@ -79,7 +79,7 @@ class SinkxWidget(QWidget):
         policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.setSizePolicy(policy)
         self.resize(500, 500)
-        print("after resize", self.width(), self.height())
+        # print("after resize", self.width(), self.height())
 
         # The actual QWidget
         self.gst_name = gst_name

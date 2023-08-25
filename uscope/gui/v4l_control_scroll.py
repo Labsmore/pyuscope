@@ -135,7 +135,6 @@ class V4L2ControlScroll(ImagerControlScroll):
                 val = self.template_property(propk)
                 propdict[val["prop_name"]] = val
             groups[group_name] = propdict
-        print("groups", groups)
         # import sys; sys.exit(1)
         return groups
 
@@ -144,10 +143,12 @@ class V4L2ControlScroll(ImagerControlScroll):
         for option in auto_exposure_options:
             if option in self.all_controls:
                 return option
+        assert 0, "Failed to find auto exposure name"
 
     def auto_exposure_enabled(self):
         # 1: no, 3: yes
-        return self.prop_read(self.get_auto_exposure_name()) == 3
+        return self.prop_read(
+            self.get_auto_exposure_name()) == AUTO_EXPOSURE_VAL
 
     def set_exposure(self, n):
         self.prop_write("Exposure (Absolute)", n)

@@ -341,10 +341,110 @@ class CorrectSharp1Plugin(IPPlugin):
                     [int(cv2.IMWRITE_JPEG_QUALITY), 90])
 
 
-def get_plugins(log=None):
+"""
+VM1 correction plugin, type 1
+VM1 has significant spread on blue
+Work around this by:
+-sharpen blue
+-bias image towards red / blue
+"""
+
+
+class CorrectVM1V1Plugin(IPPlugin):
+    def __init__(self, log, default_options={}):
+        self.kernel = None
+        super().__init__(log=log,
+                         default_options=default_options,
+                         need_tmp_dir=True)
+        psf_test = [
+            1.000,
+            2**-3,
+            2**-3,
+            2**-3,
+            2**-3,
+            2**-3,
+            2**-3,
+            2**-4,
+            2**-4,
+            2**-4,
+            2**-4,
+            2**-4,
+            2**-4,
+            2**-5,
+            2**-5,
+            2**-5,
+        ]
+        self.kernel = self.psf_to_kernel(psf_test, 9)
+
+    def psf_to_kernel(self, psf, size):
+        scalar = 1
+
+        assert size % 2 == 1
+        kernel = np.zeros((size, size), dtype=float)
+        center = size // 2
+        for dx in range(size // 2 + 1):
+            for dy in range(size // 2 + 1):
+                # print("dx", dx, "dy", dy)
+                if dx == 0 or dy == 0:
+                    val = -psf[(dx + dy) * scalar]
+                # Interpolate
+                else:
+                    dist = (dx * dx + dy * dy)**0.5 * scalar
+                    assert dist >= 1
+                    dist1 = int(math.ceil(dist))
+                    frac1 = 1.0 - (dist1 - dist)
+                    dist0 = dist1 - 1
+                    frac0 = 1.0 - frac1
+                    val = -(psf[dist0] * frac0 + psf[dist1] * frac1)
+
+                kernel[center + dx][center + dy] = val
+                kernel[center + dx][center - dy] = val
+                kernel[center - dx][center + dy] = val
+                kernel[center - dx][center - dy] = val
+        # Center should be weight to make a single positive image
+        kernel[center][center] = 0
+        kernel[center][center] = -sum(sum(kernel)) + 1
+        return kernel
+
+    def _run(self, data_in, data_out, options={}):
+        assert self.kernel is not None
+
+        print(f"VM1-1: run")
+        pil_im = data_in["image"].to_im()
+        cv_im = np.array(pil_im.convert('RGB'))[:, :, ::-1].copy()
+
+        b, g, r = cv2.split(cv_im)
+        corrected_b = b
+
+        # Otherwise getting wrapping...
+        b = (np.rint(corrected_b)).astype(float)
+
+        self.verbose and print("kernel sum", sum(sum(self.kernel)))
+        self.verbose and print("Running kernel")
+        corrected_b = cv2.filter2D(b, -1, self.kernel)
+        self.verbose and print("Scaling")
+        corrected_b = np.matrix.round(corrected_b * 0.5 + r * 0.25 + g * 0.25)
+
+        corrected_b = np.minimum(corrected_b, 255)
+        corrected_b = np.maximum(corrected_b, 0)
+        corrected_b = (np.rint(corrected_b)).astype(np.uint8)
+        self.verbose and print("size", len(corrected_b), len(corrected_b[0]),
+                               corrected_b[0][0].dtype)
+
+        merged = cv2.merge([corrected_b, g, r])
+        cv2.imwrite(data_out["image"].get_filename(), merged,
+                    [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+
+
+def get_plugin_ctors():
     return {
-        "stack-enfuse": StackEnfusePlugin(log=log),
-        "hdr-enfuse": HDREnfusePlugin(log=log),
-        "correct-ff1": CorrectFF1Plugin(log=log),
-        "correct-sharp1": CorrectSharp1Plugin(log=log),
+        "stack-enfuse": StackEnfusePlugin,
+        "hdr-enfuse": HDREnfusePlugin,
+        "correct-ff1": CorrectFF1Plugin,
+        "correct-sharp1": CorrectSharp1Plugin,
+        "correct-vm1v1": CorrectVM1V1Plugin,
     }
+
+
+def get_plugins(log=None):
+    return {k: v(log=log) for k, v in get_plugin_ctors().items()}

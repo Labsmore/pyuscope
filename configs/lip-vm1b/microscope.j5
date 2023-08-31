@@ -82,7 +82,8 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         //seems ok no matter settings
         //Maybe it always has to flush a frame => gives sync time?
         "tsettle_motion_na1": 0.10,
-        "tsettle_motion_base": 0.25,
+        //0.25 ocassionally misses
+        "tsettle_motion_base": 0.4,
         "tsettle_hdr": 0.4,
     },
 

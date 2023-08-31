@@ -4,6 +4,7 @@ import boto3
 from uscope import config
 from uscope.util import writej
 import datetime
+import json
 
 
 class CSInfo:
@@ -98,8 +99,16 @@ def upload_dir(directory,
             s3.upload_file(os.path.join(root, file), S3BUCKET,
                            DEST_DIR + '/' + file)
 
-    MOSAIC_RUN_CONTENT = u'{{ "email": "{}" }}'.format(
-        cs_info.notification_email())
+    serverj = {
+        "email": cs_info.notification_email(),
+    }
+    bc = config.get_bc()
+    if bc.labsmore_stitch_use_xyfstitch():
+        serverj["task"] = "mosaic_xyf_stitch"
+        serverj["container"] = "mosaic_xyf_stitcher"
+
+    MOSAIC_RUN_CONTENT = json.dumps(serverj)
+    print("up", MOSAIC_RUN_CONTENT)
     mosaic_run_json = io.BytesIO(bytes(MOSAIC_RUN_CONTENT, encoding='utf8'))
     s3.upload_fileobj(mosaic_run_json, S3BUCKET,
                       DEST_DIR + '/' + 'mosaic_run.json')

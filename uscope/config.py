@@ -1227,6 +1227,14 @@ class BaseConfig:
         self.joystick = JoystickConfig(self.j.get("joystick", {}))
         self.objective_db = ObjectiveDB()
 
+    def labsmore_stitch_use_xyfstitch(self):
+        """
+        xyfstitch is the newer higher fidelity stitch engine
+        It does more aggressive analysis to eliminate stitch errors
+        and uses a very different algorithm to stitch vs stock
+        """
+        return bool(self.j.get("labsmore_stitch", {}).get("use_xyfstitch"))
+
     def labsmore_stitch_aws_access_key(self):
         return self.j.get("labsmore_stitch", {}).get("aws_access_key")
 

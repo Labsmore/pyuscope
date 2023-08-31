@@ -136,6 +136,9 @@ A minimal configuration to do basic testing
         */
         //uneven illuminator...
         //be more conservative for now
+        //2778 - 393 * 2 = 1992
+        //3704 - 856 * 2 = 1992
+        //3968064 / 10289712 = 38% sensor usage in this config
         "crop_pixels": {
             "top": 393,
             "bottom": 393,

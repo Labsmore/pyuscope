@@ -1857,15 +1857,6 @@ class StitchingTab(ArgusTab):
             layout.addWidget(self.stitch_email, row, 1)
             row += 1
 
-            if self.ac.bc.dev_mode():
-                layout.addWidget(QLabel("Stitch CLI command"), row, 0)
-                self.stitch_cli = QLineEdit(self.ac.bc.argus_stitch_cli())
-                layout.addWidget(self.stitch_cli, row, 1)
-                row += 1
-            else:
-                # Keep it idle / blank
-                self.stitch_cli = QLineEdit()
-
             layout.addWidget(QLabel("Manual stitch directory"), row, 0)
             self.manual_stitch_dir = QLineEdit("")
             layout.addWidget(self.manual_stitch_dir, row, 1)
@@ -1875,14 +1866,6 @@ class StitchingTab(ArgusTab):
             self.cs_pb.clicked.connect(self.stitch_begin_manual_cs)
             layout.addWidget(self.cs_pb, row, 1)
             row += 1
-
-            if self.ac.bc.dev_mode():
-                self.cli_pb = QPushButton("Manual CLI stitch")
-                self.cli_pb.clicked.connect(self.stitch_begin_manual_cli)
-                layout.addWidget(self.cli_pb, row, 1)
-                row += 1
-            else:
-                self.cli_pb = None
 
             gb = QGroupBox("Cloud Stitching")
             gb.setLayout(layout)
@@ -1911,9 +1894,6 @@ class StitchingTab(ArgusTab):
         self.cloud_stitch_add(this_upload)
         self.last_cs_upload = this_upload
 
-    def stitch_begin_manual_cli(self):
-        self.cli_stitch_add(str(self.manual_stitch_dir.text()))
-
     def scan_completed(self, scan_config, result):
         if scan_config["dry"]:
             return
@@ -1921,29 +1901,18 @@ class StitchingTab(ArgusTab):
         if self.ac.mainTab.scan_widget.stitch_cb.isChecked():
             # CLI box is special => take priority
             # CLI may launch CloudStitch under the hood
-            if str(self.stitch_cli.text()):
-                self.cli_stitch_add(scan_config["out_dir"])
-            else:
-                self.cloud_stitch_add(scan_config["out_dir"])
+            self.stitch_add(scan_config["out_dir"])
 
         # Enable joystick control if appropriate
         self.ac.joystick_enable(asneeded=True)
 
-    def cloud_stitch_add(self, directory):
+    def stitch_add(self, directory):
         self.ac.log(f"CloudStitch: requested {directory}")
         if not os.path.exists(directory):
             self.ac.log(
                 f"Aborting stitch: directory does not exist: {directory}")
             return
         # Offload uploads etc to thread since they might take a while
-        """
-        # https://github.com/Labsmore/pyuscope/issues/194
-        # Change to image processing pipeline
-        self.stitcher_thread.cloud_stitch_add(
-            directory=directory,
-            cs_info=self.get_cs_info(),
-        )
-        """
         self.stitcher_thread.imagep_add(
             directory=directory,
             cs_info=self.get_cs_info(),
@@ -1954,18 +1923,6 @@ class StitchingTab(ArgusTab):
                       secret_key=str(self.stitch_secretkey.text()),
                       id_key=str(self.stitch_idkey.text()),
                       notification_email=str(self.stitch_email.text()))
-
-    def cli_stitch_add(self, directory):
-        command = str(self.stitch_cli.text())
-        self.ac.log(f"CLI stitch: requested {command} {directory}")
-        if not os.path.exists(directory):
-            self.ac.log(
-                f"Aborting stitch: directory does not exist: {directory}")
-            return
-        if not command:
-            self.ac.log(f"Aborting stitch: need command")
-            return
-        self.stitcher_thread.cli_stitch_add(directory, command)
 
 
 def snapshot_fn(user, extension, parent):

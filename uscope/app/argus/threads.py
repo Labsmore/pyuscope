@@ -18,6 +18,8 @@ import subprocess
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope.kinematics import Kinematics
 from uscope.imagep.pipeline import process_dir
+import psutil
+import sys
 
 
 def dbg(*args):
@@ -466,6 +468,42 @@ class StitcherThread(QThread):
         }
         self.queue.put(j)
 
+    def _imagep_run(self, j):
+        # Taking too much CPU
+        # For now let's kick off to own process
+        # process_dir(directory=j["directory"], cs_info=j["cs_info"])
+
+        self.log(f"Image processing CLI: kicking off {j['directory']}")
+        # Hacky but good enough for now
+        # Check terminal for process output
+        print("")
+        print("")
+        print("")
+        print(f"Image processing CLI: kicking off {j['directory']}")
+        cs_info = j["cs_info"]
+        args = [
+            "./utils/cs_auto.py", "--access-key",
+            cs_info.access_key(), "--secret-key",
+            cs_info.secret_key(), "--id-key",
+            cs_info.id_key(), "--notification-email",
+            cs_info.notification_email(), j["directory"]
+        ]
+        # subprocess.check_call(args)
+        popen = subprocess.Popen(args,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT,
+                                 universal_newlines=True)
+        p = psutil.Process(popen.pid)
+        # Lower priority so GUI runs smoothly
+        p.nice(10)
+        # proc.communicate()
+        for stdout_line in iter(popen.stdout.readline, ""):
+            sys.stdout.write(stdout_line)
+        popen.stdout.close()
+        return_code = popen.wait()
+        self.log(f"Image processing CLI: finished job w/ code {return_code}")
+        print(f"Image processing CLI: finished job w/ code {return_code}")
+
     def run(self):
         while self.running:
             try:
@@ -479,8 +517,7 @@ class StitcherThread(QThread):
                                             log=self.log,
                                             running=self.running)
                 elif j["type"] == "imagep":
-                    process_dir(directory=j["directory"], cs_info=j["cs_info"])
-                    # log=self.log)
+                    self._imagep_run(j)
                 elif j["type"] == "cli":
                     self.log(
                         f"Stitch CLI: kicking off {j['command']} {j['directory']}"

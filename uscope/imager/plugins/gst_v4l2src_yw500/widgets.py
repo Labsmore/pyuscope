@@ -1,4 +1,6 @@
 """
+This camera sucks, don't use it
+
 Exposure settings are pretty unreliable. Really wants you to use Auto Exposure
 If you really try to use manual exposure:
 -Auto Exposure level is not reflected in fetching exposure level

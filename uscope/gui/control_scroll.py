@@ -367,7 +367,7 @@ class ImagerControlScroll(QScrollArea):
         for element in self.disp2element.values():
             if element.config["default"] is None:
                 continue
-            element.property_set_widgets(element.config["default"])
+            element.disp_property_set_widgets(element.config["default"])
 
     def update_by_microscope_deafults(self):
         # Set defaults

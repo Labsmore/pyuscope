@@ -66,7 +66,7 @@ class V4L2AutoExposureDisplayer(ICSDisplayer):
         if self.config["gui_driven"] or force:
             self.cb.setEnabled(enabled)
 
-    def disp_property_set_widgets(self, val):
+    def disp_property_set_widgets(self, val, first_update=False):
         self.cb.setChecked(val)
 
     def val_raw2disp(self, val):
@@ -147,14 +147,14 @@ class V4L2ControlScroll(ImagerControlScroll):
 
     def auto_exposure_enabled(self):
         # 1: no, 3: yes
-        return self.prop_read(
+        return self.disp_prop_read(
             self.get_auto_exposure_name()) == AUTO_EXPOSURE_VAL
 
     def set_exposure(self, n):
-        self.prop_write("Exposure (Absolute)", n)
+        self.disp_prop_write("Exposure (Absolute)", n)
 
     def get_exposure(self):
-        return self.prop_read("Exposure (Absolute)")
+        return self.disp_prop_read("Exposure (Absolute)")
 
     def get_exposure_property(self):
         return "Exposure (Absolute)"

@@ -57,11 +57,14 @@ class ICSDisplayer:
 
         return ret
 
+    def gui_driven(self):
+        return self.config["gui_driven"]
+
     def set_gui_driven(self, val):
         self.config["gui_driven"] = val
         self.enable_user_controls(val, force=True)
 
-    def disp_property_set_widgets(self, val):
+    def disp_property_set_widgets(self, val, first_update=False):
         """
         Set an element to be displayed in the GUI
         Change of GUI state may trigger the property to be written
@@ -101,7 +104,9 @@ class BoolDisplayer(ICSDisplayer):
         if not self.config["gui_driven"]:
             print("not gui driven")
             return
-        self.cs.disp_prop_write(self.config["disp_name"], self.cb.isChecked())
+        is_checked = self.cb.isChecked()
+        # print("is_checked", is_checked)
+        self.cs.disp_prop_write(self.config["disp_name"], is_checked)
 
     def assemble(self, layoutg, row):
         # print("making cb")
@@ -117,7 +122,7 @@ class BoolDisplayer(ICSDisplayer):
         if self.config["gui_driven"] or force:
             self.cb.setEnabled(enabled)
 
-    def disp_property_set_widgets(self, val):
+    def disp_property_set_widgets(self, val, first_update=False):
         self.cb.setChecked(val)
 
     def val_raw2disp(self, val):
@@ -141,7 +146,7 @@ class IntDisplayer(ICSDisplayer):
                 '%s (%s) GUI changed to %d, gui_driven %d' %
                 (self.config["disp_name"], self.config["prop_name"], val,
                  self.config["gui_driven"]))
-            self.cs.prop_write(self.config["prop_name"], val)
+            self.cs.raw_prop_write(self.config["prop_name"], val)
             self.value_label.setText(str(val))
 
     def assemble(self, layoutg, row):
@@ -161,7 +166,7 @@ class IntDisplayer(ICSDisplayer):
         row += 1
         return row
 
-    def disp_property_set_widgets(self, val):
+    def disp_property_set_widgets(self, val, first_update=False):
         self.slider.setValue(val)
         self.value_label.setText(str(val))
 
@@ -188,6 +193,7 @@ class ImagerControlScroll(QScrollArea):
         if usc is None:
             usc = config.get_usc()
         self.usc = usc
+        self.first_update = True
         self.verbose = verbose
         # self.verbose = True
         self.log = lambda x: print(x)
@@ -330,6 +336,9 @@ class ImagerControlScroll(QScrollArea):
                 # Set directly in the library,
                 # but might as well also update GUI immediately?
                 self.prop_write(element.config["prop_name"], val)
+            # Always change the GUI to reflect the set value
+            # If GUI driven it will trigger the prop write
+            # Otherwise update for quicker response and in case read back fails
             element.disp_property_set_widgets(val)
 
     """
@@ -345,8 +354,11 @@ class ImagerControlScroll(QScrollArea):
         for disp_name, val in self.get_disp_properties().items():
             # print("Should update %s: %s" % (disp_name, self.disp2element[disp_name]["push_prop"]))
             element = self.disp2element[disp_name]
-            if not element.config["gui_driven"]:
-                element.disp_property_set_widgets(val)
+            # Force GUI to take readback values on first update
+            if not element.config["gui_driven"] or self.first_update:
+                element.disp_property_set_widgets(
+                    val, first_update=self.first_update)
+        self.first_update = False
 
     def update_by_cam_defaults(self):
         """
@@ -377,35 +389,48 @@ class ImagerControlScroll(QScrollArea):
         self.disp_prop_was_rw(name, value)
 
     def raw_prop_was_read(self, name, value):
-        element = self.raw2element[name]
-        self.disp_prop_was_read(element.config["disp_name"],
-                                element.val_raw2disp(value))
+        element = self.raw2element.get(name, None)
+        # Not every property may be mapped
+        if element:
+            self.disp_prop_was_read(element.config["disp_name"],
+                                    element.val_raw2disp(value))
 
     def disp_prop_was_read(self, name, value):
+        displayer = self.disp2element.get(name)
+        # Ignore incoming data when read but its a GUI driven element
+        # Among things this prevents race conditions when changing state
+        if displayer and displayer.gui_driven():
+            return
         self.disp_prop_was_rw(name, value)
 
     def disp_prop_was_rw(self, name, value):
         pass
 
-    def prop_write(self, name, value):
-        self.verbose and print(f"prop_write() {name} = {value}")
-        self.raw_prop_write(name, value)
+    def raw_prop_write(self, name, value):
+        """
+        Write a property as the raw name
+        """
+        self.verbose and print(f"raw_prop_write() {name} = {value}")
+        self._raw_prop_write(name, value)
         self.raw_prop_written(name, value)
 
-    def prop_read(self, name, default=False):
-        ret = self.raw_prop_read(name)
-        self.verbose and print(f"prop_read() {name} = {ret}")
+    def raw_prop_read(self, name, default=False):
+        """
+        Read a property as the raw name
+        """
+        ret = self._raw_prop_read(name)
+        self.verbose and print(f"raw_prop_read() {name} = {ret}")
         self.raw_prop_was_read(name, ret)
         return ret
 
-    def raw_prop_write(self, name, value):
+    def _raw_prop_write(self, name, value):
         """
         Write to the underlying stream
         In practice this means write a gstreamer property
         """
         raise Exception("Required")
 
-    def raw_prop_read(self, name):
+    def _raw_prop_read(self, name):
         """
         Read from the underlying stream
         In practice this means read a gstreamer property
@@ -414,14 +439,14 @@ class ImagerControlScroll(QScrollArea):
 
     def disp_prop_read(self, disp_name):
         element = self.disp2element[disp_name]
-        raw = self.prop_read(element.config["prop_name"])
+        raw = self.raw_prop_read(element.config["prop_name"])
         return element.val_raw2disp(raw)
 
     def disp_prop_write(self, disp_name, disp_val):
         element = self.disp2element[disp_name]
         raw_val = element.val_disp2raw(disp_val)
         # print("translate to raw val", raw_val)
-        self.prop_write(element.config["prop_name"], raw_val)
+        self.raw_prop_write(element.config["prop_name"], raw_val)
 
     def cal_load_clicked(self, checked):
         self.cal_load(load_data_dir=True)
@@ -439,11 +464,6 @@ class ImagerControlScroll(QScrollArea):
         if not j:
             return
         self.set_disp_properties(j)
-        """
-        # Requires special care not to thrash
-        self.prop_policy(self.get_exposure_property(),
-                         self.prop_read(self.get_exposure_property()))
-        """
 
     def cal_save(self):
         config.cal_save_to_data(source=self.vidpip.source_name,
@@ -452,6 +472,8 @@ class ImagerControlScroll(QScrollArea):
 
     def run(self):
         self.post_imager_ready()
+        # Initial update at 200 ms will read back values
+        # Then read cal after a few polls at 500 ms
         if self.update_timer:
             self.update_timer.start(200)
         # Doesn't load reliably, add a delay
@@ -486,6 +508,7 @@ class ImagerControlScroll(QScrollArea):
             None: all values
             iterable: only these
         """
+        # print("set_gui_driven(), disp_names", disp_names, "val", val)
         val = bool(val)
         if disp_names:
             self.validate_disp_names(disp_names)
@@ -604,11 +627,11 @@ class GstControlScroll(ImagerControlScroll):
     def flatten_hack(self, val):
         pass
 
-    def raw_prop_write(self, name, val):
+    def _raw_prop_write(self, name, val):
         source = self.vidpip.source
         source.set_property(name, val)
 
-    def raw_prop_read(self, name):
+    def _raw_prop_read(self, name):
         source = self.vidpip.source
         return source.get_property(name)
 

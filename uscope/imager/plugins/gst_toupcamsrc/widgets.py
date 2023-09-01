@@ -63,23 +63,26 @@ class TTControlScroll(GstControlScroll):
                                   parent=parent)
 
     def auto_exposure_enabled(self):
-        return bool(self.prop_read("auto-exposure"))
+        return bool(self.disp_prop_read("auto-exposure"))
 
     def set_exposure(self, n):
         self.prop_write("expotime", n)
 
     def get_exposure(self):
-        return self.prop_read("expotime")
+        return self.disp_prop_read("expotime")
 
     def get_exposure_property(self):
         return "expotime"
 
     def disp_prop_was_rw(self, name, value):
+        # print("disp prop rw", name, value)
         # Auto-exposure quickly fights with GUI
         # Disable the control when its activated
         if name == "auto-exposure":
             self.set_gui_driven(not value,
                                 disp_names=["expotime", "expoagain"])
+        if name == "awb-rgb":
+            self.set_gui_driven(not value, disp_names=["wb-r", "wb-g", "wb-b"])
 
     def flatten_hack(self, val):
         # NOTE: added source_properties_mod. Maybe leave this at actual max?

@@ -335,7 +335,7 @@ class ImagerControlScroll(QScrollArea):
                 # self.verbose and print(f"set_disp() {prop['prop_name']} {val}")
                 # Set directly in the library,
                 # but might as well also update GUI immediately?
-                self.prop_write(element.config["prop_name"], val)
+                self.disp_prop_write(element.config["disp_name"], val)
             # Always change the GUI to reflect the set value
             # If GUI driven it will trigger the prop write
             # Otherwise update for quicker response and in case read back fails

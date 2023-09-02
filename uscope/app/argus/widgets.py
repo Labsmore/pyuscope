@@ -103,10 +103,6 @@ class ArgusTab(AWidget):
     pass
 
 
-class ArgusTabPlugin(ArgusTab):
-    pass
-
-
 """
 Select objective and show FoV
 """

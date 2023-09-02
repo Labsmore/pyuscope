@@ -16,11 +16,11 @@ import os.path
 import sys
 import traceback
 import threading
-import importlib.util
 
 from uscope.app.argus.common import ArgusCommon, ArgusShutdown, error
 
 from uscope.app.argus.widgets import MainTab, ImagerTab, BatchImageTab, AdvancedTab, StitchingTab
+from uscope.app.argus.scripting import ScriptingTab
 
 
 class FullscreenVideo(QWidget):
@@ -46,11 +46,7 @@ class MainWindow(QMainWindow):
         self.ac.logs.append(self.mainTab.log)
         self.initUI()
         self.post_ui_init()
-        # save for plugin load
         self.cachej = None
-        plugin_name = os.getenv("PYUSCOPE_TAB_PLUGIN")
-        if plugin_name:
-            self.load_tab_plugin(plugin_name)
 
     def __del__(self):
         self.shutdown()
@@ -96,14 +92,16 @@ class MainWindow(QMainWindow):
         self.awidgets["Imager"] = self.imagerTab
         self.batchTab = BatchImageTab(ac=self.ac, parent=self)
         self.awidgets["Batch"] = self.batchTab
+        self.scriptingTab = ScriptingTab(ac=self.ac, parent=self)
+        self.awidgets["Scripting"] = self.scriptingTab
         self.advancedTab = AdvancedTab(ac=self.ac, parent=self)
         self.awidgets["Advanced"] = self.advancedTab
         self.stitchingTab = StitchingTab(ac=self.ac, parent=self)
         self.awidgets["CloudStitch"] = self.stitchingTab
         self.ac.mainTab = self.mainTab
+        self.ac.scriptingTab = self.scriptingTab
         self.ac.stitchingTab = self.stitchingTab
         self.ac.batchTab = self.batchTab
-        self.pluginTab = None
 
     def createMenuBar(self):
         self.exitAction = QAction("Exit", self)
@@ -226,9 +224,7 @@ class MainWindow(QMainWindow):
         self.mainTab.planner_widget_xy3p.poll_misc()
         self.mainTab.motion_widget.poll_misc()
         self.imagerTab.poll_misc()
-
-        if self.pluginTab:
-            self.pluginTab.poll_misc()
+        self.scriptingTab.poll_misc()
 
         # Save ocassionally / once 3 seconds
         if self.polli % 15 == 0:
@@ -258,23 +254,6 @@ class MainWindow(QMainWindow):
         k = event.key()
         if k == Qt.Key_Escape:
             self.ac.motion_thread.stop()
-
-    def load_tab_plugin(self, fn):
-        spec = importlib.util.spec_from_file_location("pyuscope_plugin", fn)
-        foo = importlib.util.module_from_spec(spec)
-        sys.modules["pyuscope_plugin"] = foo
-        spec.loader.exec_module(foo)
-        tab = foo.get_tab(ac=self.ac, parent=self)
-        self.pluginTab = tab
-        self.awidgets["Plugin"] = self.pluginTab
-        tab.initUI()
-        self.tab_widget.addTab(tab, "Plugin")
-        tab.post_ui_init()
-        # fixme not sure issue
-        cachej = self.cachej
-        if not cachej:
-            cachej = {}
-        self.pluginTab.cache_load(cachej)
 
     def invertKeyboardXYTriggered(self):
         mw = self.mainTab.motion_widget

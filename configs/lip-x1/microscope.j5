@@ -41,7 +41,9 @@ A minimal configuration to do basic testing
 
                 //max travel
                 //"$130=300.000", "$131=200.000", "$132=60.000",
-                "$130=480.000", "$131=320.000", "$132=96.000",
+                //"$130=480.000", "$131=320.000", "$132=96.000",
+                //z axis gearbox + 0.9 motor
+                "$130=480.000", "$131=320.000", "$132=960.000",
 
                 /*
                 //Non-homing scheme
@@ -56,7 +58,9 @@ A minimal configuration to do basic testing
                 //More proper homed scheme
                 //"G10 L2 P1 X-297.000 Y-197.000 Z-3.000",
                 //8/5 adjustment
-                "G10 L2 P1 X-475.200 Y-315.200 Z-4.800",
+                //"G10 L2 P1 X-475.200 Y-315.200 Z-4.800",
+                //gearbox + 0.9 motor
+                "G10 L2 P1 X-475.200 Y-315.200 Z-48.000",
                 "G10 L2 P2 X0 Y0 Z0",
                 //Select WCS2
                 "G55",
@@ -65,7 +69,11 @@ A minimal configuration to do basic testing
                 //"$24=25.0","$25=500.000",
                 //"$26=250","$27=15.000",
                 //8/5 adjustment
+                //$24: Homing feed, mm/min
+                //$25: Homing seek, mm/min
                 "$24=40.0","$25=800.000",
+                //$26: Homing debounce, milliseconds
+                //$27: Homing pull-off, mm
                 "$26=400","$27=24.000",
             ],
         },

@@ -253,7 +253,7 @@ class ScriptingTab(ArgusTab):
 
     def select_pb_clicked(self):
         if 1:
-            filename = QFileDialog.getOpenFileName(None, "Select script", '.',
+            filename = QFileDialog.getOpenFileName(None, "Select script", './uscope/script',
                                                    "Script (*.py)")
             if not filename:
                 return

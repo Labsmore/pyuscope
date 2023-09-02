@@ -58,7 +58,9 @@ A minimal configuration to do basic testing
                 //More proper homed scheme
                 //"G10 L2 P1 X-297.000 Y-197.000 Z-3.000",
                 //8/5 adjustment
-                "G10 L2 P1 X-475.200 Y-315.200 Z-4.800",
+                //"G10 L2 P1 X-475.200 Y-315.200 Z-4.800",
+                //gearbox + 0.9 motor
+                "G10 L2 P1 X-475.200 Y-315.200 Z-48.000",
                 "G10 L2 P2 X0 Y0 Z0",
                 //Select WCS2
                 "G55",

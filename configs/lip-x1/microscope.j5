@@ -4,9 +4,12 @@ A minimal configuration to do basic testing
 {
     "kinematics": {
         //FIXME: not tuned
-        "tsettle_motion_na1": 0.5,
-        "tsettle_motion_base": 0.1,
-        "tsettle_hdr": 0.2,
+        "tsettle_motion_na1": 0.1,
+        //2023-09-04: 0.1 seems tight w/o real tuning, increase 0.1 => 0.2
+        //suspect NA delay is actually helping us here, lower it in favor of fixed delay here
+        "tsettle_motion_base": 0.3,
+        //2023-09-04: saw miss at 0.2
+        "tsettle_hdr": 0.3,
     },
     "motion": {
         "hal": "grbl-ser",

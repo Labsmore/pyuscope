@@ -128,24 +128,35 @@ class ArgusScriptingPlugin(QThread):
         time.sleep(t)
         self.check_running()
 
+    def image(self):
+        """
+        Request and return a snapshot as PIL image
+        """
+        imager = self.imager()
+        return imager.get()["0"]
+
     """
     Advanced API
     Try to use the higher level functions first if possible
     """
+
+    def run_planner(self, pconfig):
+        assert 0, "FIXME"
 
     def motion(self):
         """
         Get a (thread safe) motion object
         Access to the more powerful but less stable stage API
         """
-        assert 0, "fixme"
+        self._ac.motion_thread.get_planner_motion()
 
     def imager(self):
         """
         Get a (thread safe) imager object
         Access to the more powerful but less stable camera API
         """
-        assert 0, "fixme"
+        # Planner uses this directly / is already thread safe
+        return self._ac.imager
 
     def kinematics(self):
         """
@@ -253,7 +264,8 @@ class ScriptingTab(ArgusTab):
 
     def select_pb_clicked(self):
         if 1:
-            filename = QFileDialog.getOpenFileName(None, "Select script", './uscope/script',
+            filename = QFileDialog.getOpenFileName(None, "Select script",
+                                                   './uscope/script',
                                                    "Script (*.py)")
             if not filename:
                 return
@@ -277,7 +289,7 @@ class ScriptingTab(ArgusTab):
         self.plugin.log_msg.connect(self.log_local)
         self.plugin.done.connect(self.plugin_done)
         """
-        tab = foo.get_tab(ac=self.ac, parent=self)
+        tab = foo.get_tab(ac=self._ac, parent=self)
 
         self.awidgets["Plugin"] = self.pluginTab
         tab.initUI()

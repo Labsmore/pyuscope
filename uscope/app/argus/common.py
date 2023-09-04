@@ -120,7 +120,7 @@ class ArgusCommon(QObject):
     cncProgress = pyqtSignal(dict)
     log_msg = pyqtSignal(str)
     takeSnapshot = pyqtSignal()
-    setJogSlider = pyqtSignal(int)
+    setJogSlider = pyqtSignal(float)
     """
     Dictionary w/ objective config
     The low level format supported by config file
@@ -222,8 +222,8 @@ class ArgusCommon(QObject):
         self.microscope.take_snapshot = take_snapshot_emit
 
         # self.microscope.set_jog_scale = self.mainTab.motion_widget.slider.set_jog_slider
-        def set_jog_scale_emit(int):
-            self.takeSnapshot.emit()
+        def set_jog_scale_emit(val):
+            self.setJogSlider.emit(val)
 
         self.setJogSlider.connect(
             self.mainTab.motion_widget.slider.set_jog_slider)

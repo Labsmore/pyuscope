@@ -29,6 +29,8 @@ class FullscreenVideo(QWidget):
         self.setWindowTitle("pyuscope fullscreen")
         layout = QVBoxLayout()
         layout.addWidget(widget)
+        policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        widget.setSizePolicy(policy)
         layout.setAlignment(Qt.AlignCenter)
         self.setLayout(layout)
         self.showMaximized()
@@ -160,10 +162,6 @@ class MainWindow(QMainWindow):
     def full_show(self):
         if self.fullscreen_widget:
             return
-        print("")
-        print("")
-        print("")
-        print("full show")
         # need to coordinate moving this to the right window
         # for now just let it float
         widget = self.ac.vidpip.add_full_widget()

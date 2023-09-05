@@ -1211,15 +1211,8 @@ class MainTab(ArgusTab):
         self.add_awidget("objective", self.objective_widget)
         self.video_widget = self.ac.vidpip.get_widget("zoomable")
         self.video_widget.setParent(self)
-        if 1:
-            policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            self.video_widget.setSizePolicy(policy)
-        if 0:
-            print("setting fixed policy")
-            policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            self.video_widget.setSizePolicy(policy)
-            self.video_widget.resize(300, 300)
-            print("setting fixed policy done")
+        policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.video_widget.setSizePolicy(policy)
 
         self.planner_widget_tabs = QTabWidget()
         # First sets up algorithm specific parameters

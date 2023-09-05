@@ -133,7 +133,6 @@ class SinkxWidget(QWidget):
     """
 
     def sizeHint(self):
-        # FIXME: only size hint is being respected
         return QSize(500, 500)
 
     def setupWidget(self, parent=None):
@@ -377,35 +376,23 @@ class GstVideoPipeline:
             widget_configs = OrderedDict()
             # Main window view
             # Placed next to each other
-            if overview:
-                widget_configs["overview"] = {
-                    "type": "overview",
-                    "group": "overview1"
-                }
             # Currently these two are more or less identical
             # but convey intent in case they start to diverge
+            # FIXME: now that widget sizing is now based on QWidget,
+            # simplify this
             if zoomable:
                 widget_configs["zoomable"] = {
                     "type": "zoomable",
-                    "group": "overview1"
                 }
-            if overview_roi:
-                widget_configs["overview_roi"] = {
-                    "type": "roi2",
-                    "group": "overview1"
-                }
-
             # For calibrating video feed
             if overview2:
                 widget_configs["overview2"] = {
                     "type": "zoomable",
-                    # "size": "small"
                 }
             # Stand alone window
             if overview_full_window:
                 widget_configs["overview_full_window"] = {
-                    "type": "overview",
-                    "size": "max"
+                    "type": "zoomable",
                 }
         # Needs to be done early so elements can be added before main setup
         self.player = Gst.Pipeline.new("player")
@@ -459,37 +446,6 @@ class GstVideoPipeline:
         """
         return self.widgets[name]
 
-    def group_widgets(self):
-        """
-        FIXME: this layout engine should be eliminated
-        If SinkxZoomableWidget / QWidget approach works
-
-        Figure out which widgets will be displayed in the same window
-        This will be used to manually allocate window space
-        """
-        group_configs = {
-            None: {
-                "widgets_h": 1,
-                "widgets_v": 1,
-            }
-        }
-        groups = set(
-            [wigdata.get("group") for wigdata in self.wigdatas.values()])
-        for group_name in groups:
-            if not group_name:
-                continue
-            # assume all h for now
-            widgets_h = 0
-            for wigdata in self.wigdatas.values():
-                if wigdata.get("group") == group_name:
-                    widgets_h += 1
-            # assert widgets_h >= 2
-            group_configs[group_name] = {
-                "widgets_h": widgets_h,
-                "widgets_v": 1,
-            }
-        return group_configs
-
     def size_widget(self, widget):
         if widget.is_fixed():
             self.size_widgets(widget_in=widget)
@@ -536,28 +492,28 @@ class GstVideoPipeline:
         self.widgets["zoomable"].change_roi_zoom(zoom)
 
     def add_full_widget(self):
-        assert 0, "FIXME: full2 widget overhaul"
-        """
-        Experiment to dynamically add a full screen widget after pipeline is running
-        Note this doesn't handle groups / assumes its the only widget on the screen
-        """
-        widget_config = {"type": "overview", "size": "max"}
+        # Don't think we have to pause first but might as well
+        self.player.set_state(Gst.State.PAUSED)
+        widget_config = {
+            "type": "zoomable",
+        }
         widget = self.create_widget("overview_full_window", widget_config)
-        widget.size_widget()
         widget.setupWidget()
         vc_dsts = []
         widget.create_elements(self.player, vc_dsts)
         self.link_tee_dsts(self.tee_vc, vc_dsts, add=False)
         widget.gst_link()
-        # Restart pipeline to get winid
+        # moved to after creating
+        # seems to be unreliable here
+        # maybe needs to be after window is made?
+        # self.full_restart_pipeline()
         return widget
 
     def full_restart_pipeline(self):
-        wigdata = self.wigdatas["overview_full_window"]
-        wigdata["winid"] = wigdata["widget"].winId()
-        assert wigdata["winid"], "Need widget_winid by run"
+        for widget in self.widgets.values():
+            widget.winid = widget.winId()
+            assert widget.winid, "Need widget_winid by run"
 
-        self.player.set_state(Gst.State.PAUSED)
         self.player.set_state(Gst.State.PLAYING)
 
     def remove_full_widget(self):

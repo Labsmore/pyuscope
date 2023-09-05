@@ -193,20 +193,27 @@ class SinkxZoomableWidget(SinkxWidget):
         Return the zoom level required to display camera feed at 2x the screen resolution
         """
         widget_width = self.width()
+        """
         widget_height = self.height()
         if widget_width / widget_height >= self.incoming_w / self.incoming_h:
             screen_w_1x = widget_height * self.incoming_w / self.incoming_h
         else:
             screen_w_1x = widget_width
-        pix_screen_to_incoming_1x = self.incoming_w / screen_w_1x
+        pix_incoming_to_screen_1x = screen_w_1x / self.incoming_w
+        """
 
         # Display 2 screen pixels for every camera pixel
         # TODO: HiDPI scale?
-        factor = 2.0
+        factor = 4.0
+        # Ex: widget 200 pixels wide, factor=2 => 100 incoming pixels used
         incoming_used_w = int(widget_width / factor)
-        screen_w_this = incoming_used_w / pix_screen_to_incoming_1x
-        zoom = screen_w_this / screen_w_1x
+        zoom = self.incoming_w / incoming_used_w
+        """
+        print("Widget pixels: %uw x %uh" % (widget_width, widget_height))
+        print("Incoming size: %uw x %uh" % (self.incoming_w, self.incoming_h))
+        print("Used screen width at 1x: %uw" % (screen_w_1x,))
         print("calc_zoom_magnified: settle zoom %0.3f" % zoom)
+        """
         return zoom
 
     def update_crop_scale(self):

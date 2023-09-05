@@ -497,6 +497,10 @@ class GRBLSer:
 
     def h(self):
         """
+        2023-09-04
+        timeout was 120, but now that it homes in one pass needs to be longer
+        Move to 180
+
         run homing cycle
         Can take a long time, easily 85 seconds
         Doesn't seem to be a way to get status while its running
@@ -514,7 +518,7 @@ class GRBLSer:
             [MSG:'$H'|'$X' to unlock]
         """
 
-        lines = self.txrxs("$H", trim_data=False, timeout=120)
+        lines = self.txrxs("$H", trim_data=False, timeout=180)
         for line in lines:
             if line.find("ALARM") >= 0:
                 raise HomingFailed()

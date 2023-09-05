@@ -195,3 +195,6 @@
    * Joystick tweaks
    * LIP-X1: homing should now work in 1 pass
 
+## 4.3.1
+  * Add second scripting path for pyuscope-rhodium
+

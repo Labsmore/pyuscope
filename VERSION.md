@@ -167,7 +167,7 @@
  * User plugin alpha support
  * Some v4l support revived (launch only, no scan)
 
-## 4.3.0 (WIP)
+## 4.3.0
  * Compatible with
    * gst-plugin-toupcam: v0.5.0
    * Motion HAL: GRBL
@@ -178,7 +178,7 @@
    * Focus stacking based on NA, not hard coded offsets
    * View widget rewrite
      * Eliminate ROI view in favor of zooming
- * Planner focus drift correction
+ * Planner focus drift correction added
  * Microscope support
    * LIP-VM1: beta support
    * LIP-A2: beta support

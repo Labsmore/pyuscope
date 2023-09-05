@@ -326,20 +326,33 @@ class USCMotion:
         # assert "hal" in self.j
 
     def format_position(self, axis, position):
+        """
+        This was intended to be a simple way to display high precision numbers
+        but is a bit of a mess
+
+        Goals:
+        -Allow displaying high precision measurements in an easy to to read way
+        -Display rounded values to avoid precision floor() issues making inaccurate display
+        """
         if self.j.get("z_format6") and axis == "z" or self.j.get(
                 "xyz_format6"):
+            if position >= 0:
+                sign = "+"
+            else:
+                sign = "-"
+            position = abs(position)
             whole = int(position)
-            position3f = abs(position - whole) * 1000
+            position3f = (position - whole) * 1000
             position3 = int(position3f)
             position6 = int(round((position3f - position3) * 1000))
-            # fixme: hacck
+            # Fixes when rounds up
             if position6 >= 1000:
                 position6 -= 1000
                 position3 += 1
                 if position3 >= 1000:
                     position3 -= 1000
                     whole += 1
-            return "%d.%03u %03u" % (whole, position3, position6)
+            return "%c%u.%03u %03u" % (sign, whole, position3, position6)
         else:
             return "%0.3f" % position
 

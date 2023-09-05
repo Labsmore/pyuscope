@@ -12,6 +12,7 @@ import os
 import ctypes
 import threading
 import time
+import traceback
 
 
 class TestFailed(Exception):
@@ -83,6 +84,15 @@ class ArgusScriptingPlugin(QThread):
         except TestAborted:
             self._succeeded = False
             self.result_message = "Aborted"
+        except TestFailed:
+            self._succeeded = False
+            self.result_message = "Failed"
+        except Exception as e:
+            self._succeeded = False
+            self.result_message = f"Exception: {e}"
+            print("")
+            print("Script generated unhandled exception")
+            traceback.print_exc()
         finally:
             self._running.clear()
             self.done.emit()
@@ -348,12 +358,17 @@ class ScriptingTab(ArgusTab):
 
     def plugin_done(self):
         if self.plugin.succeeded():
-            self.status_le.setText("Status: finished ok")
+            status = "Status: finished ok"
         else:
-            self.status_le.setText("Status: failed :(")
+            status = "Status: failed :("
+        self.status_le.setText(status)
         self.stop_pb.setEnabled(False)
         self.kill_pb.setEnabled(False)
-        self.log_local("Plugin done")
+        if self.plugin.succeeded():
+            self.log_local("Plugin completed ok")
+        else:
+            self.log_local("Plugin completed w/ issue")
+            self.log_local(self.plugin.result_message)
         self.running = False
 
     def post_ui_init(self):

@@ -1880,7 +1880,7 @@ class StitchingTab(ArgusTab):
         if this_upload == self.last_cs_upload:
             self.ac.log(f"Ignoring duplicate upload: {this_upload}")
             return
-        self.cloud_stitch_add(this_upload)
+        self.stitch_add(this_upload)
         self.last_cs_upload = this_upload
 
     def scan_completed(self, scan_config, result):

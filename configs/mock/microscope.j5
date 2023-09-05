@@ -3,7 +3,8 @@ A minimal configuration to do basic testing
 */
 {
     "motion": {
-        "hal": "mock"
+        "hal": "mock",
+        "z_format6": true,
     },
     "imager": {
         "source":"gst-videotestsrc",

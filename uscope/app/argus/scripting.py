@@ -135,6 +135,7 @@ class ArgusScriptingPlugin(QThread):
 
     def sleep(self, t):
         self.check_running()
+        # TODO: break this into smaller sleeps to check running
         time.sleep(t)
         self.check_running()
 
@@ -273,16 +274,12 @@ class ScriptingTab(ArgusTab):
         self.setLayout(layout)
 
     def select_pb_clicked(self):
-        if 1:
-            filename = QFileDialog.getOpenFileName(None, "Select script",
-                                                   './uscope/script',
-                                                   "Script (*.py)")
-            if not filename:
-                return
-            filename = str(filename[0])
-        else:
-            filename = "/home/mcmaster/doc/ext/pyuscope/uscope/script/hello.py"
-            filename = "/home/mcmaster/doc/ext/pyuscope/uscope/script/wobble.py"
+        filename = QFileDialog.getOpenFileName(None, "Select script",
+                                               './uscope/script',
+                                               "Script (*.py)")
+        if not filename:
+            return
+        filename = str(filename[0])
 
         spec = importlib.util.spec_from_file_location("pyuscope_plugin",
                                                       filename)
@@ -298,19 +295,6 @@ class ScriptingTab(ArgusTab):
 
         self.plugin.log_msg.connect(self.log_local)
         self.plugin.done.connect(self.plugin_done)
-        """
-        tab = foo.get_tab(ac=self._ac, parent=self)
-
-        self.awidgets["Plugin"] = self.pluginTab
-        tab.initUI()
-        self.tab_widget.addTab(tab, "Plugin")
-        tab.post_ui_init()
-        # fixme not sure issue
-        cachej = self.cachej
-        if not cachej:
-            cachej = {}
-        self.pluginTab.cache_load(cachej)
-        """
 
         self.log_widget.clear()
         self.status_le.setText("Status: idle")

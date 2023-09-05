@@ -71,6 +71,12 @@ class MotionThreadMotion(MotionHAL):
     def ar_stop(self):
         pass
 
+    def backlash_disable(self):
+        self.mt.backlash_disable(block=True)
+
+    def backlash_enable(self):
+        self.mt.backlash_enable(block=True)
+
 
 class MotionThread(QThread):
     log_msg = pyqtSignal(str)

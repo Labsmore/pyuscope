@@ -1,5 +1,5 @@
 from uscope.app.argus.widgets import ArgusTab
-from uscope.config import get_data_dir
+from uscope.config import get_data_dir, get_bc
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -32,11 +32,14 @@ class ArgusScriptingPlugin(QThread):
     def __init__(self, ac):
         super().__init__()
         self._ac = ac
-        self._succeeded = None
-        self.result_message = None
         self._input = None
         # Graceful shutdown request
         self._running = threading.Event()
+        self.reset()
+
+    def reset(self):
+        self._succeeded = None
+        self.result_message = None
         self._running.set()
 
     def log(self, s):
@@ -226,10 +229,22 @@ class ScriptingTab(ArgusTab):
         layout = QGridLayout()
         row = 0
 
-        self.select_pb = QPushButton("Select script")
-        self.select_pb.clicked.connect(self.select_pb_clicked)
-        layout.addWidget(self.select_pb, row, 0)
+        self.select_pb_rhodium_path = get_bc().script_rhodium_dir()
+
+        if self.select_pb_rhodium_path:
+            self.select_pb1 = QPushButton("Select script (uscope)")
+        else:
+            self.select_pb1 = QPushButton("Select script")
+        self.select_pb1.clicked.connect(self.select_pb1_clicked)
+        layout.addWidget(self.select_pb1, row, 0)
         row += 1
+
+        if self.select_pb_rhodium_path:
+            self.select_pb_rhodium = QPushButton("Select script (rhodium)")
+            self.select_pb_rhodium.clicked.connect(
+                self.select_pb_rhodium_clicked)
+            layout.addWidget(self.select_pb_rhodium, row, 0)
+            row += 1
 
         # self.test_name_cb = QComboBox()
 
@@ -254,9 +269,10 @@ class ScriptingTab(ArgusTab):
         self.input_label = QLabel("Input")
         self.input_label.setVisible(False)
         layout.addWidget(self.input_label, row, 0)
+        row += 1
         self.input_le = QLineEdit("")
         self.input_le.setVisible(False)
-        layout.addWidget(self.input_le, row, 1)
+        layout.addWidget(self.input_le, row, 0)
         row += 1
 
         self.status_le = QLineEdit("Status: idle")
@@ -273,14 +289,25 @@ class ScriptingTab(ArgusTab):
 
         self.setLayout(layout)
 
-    def select_pb_clicked(self):
+    def select_pb1_clicked(self):
         filename = QFileDialog.getOpenFileName(None, "Select script",
                                                './uscope/script',
                                                "Script (*.py)")
         if not filename:
             return
         filename = str(filename[0])
+        self.select_script(filename)
 
+    def select_pb_rhodium_clicked(self):
+        filename = QFileDialog.getOpenFileName(None, "Select script",
+                                               self.select_pb_rhodium_path,
+                                               "Script (*.py)")
+        if not filename:
+            return
+        filename = str(filename[0])
+        self.select_script(filename)
+
+    def select_script(self, filename):
         spec = importlib.util.spec_from_file_location("pyuscope_plugin",
                                                       filename)
         plugin_module = importlib.util.module_from_spec(spec)
@@ -304,7 +331,7 @@ class ScriptingTab(ArgusTab):
         # for now just support one function
         # self.test_name_cb.addItem("run")
         # self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
-        self.log_local("Plugin loaded")
+        self.log_local(f"Script selected: {filename}")
 
     def run_pb_clicked(self):
         if self.running:
@@ -315,7 +342,8 @@ class ScriptingTab(ArgusTab):
             self.plugin._input = str(self.input_le.text())
         self.stop_pb.setEnabled(True)
         self.kill_pb.setEnabled(True)
-        self.log_local("Plugin running")
+        self.log_local("Plugin loading")
+        self.plugin.reset()
         self.plugin.start()
         # pool = QThreadPool.globalInstance()
         # pool.start(self.plugin)

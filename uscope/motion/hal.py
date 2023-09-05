@@ -460,8 +460,12 @@ class MotionHAL:
     def disable_modifier(self, name):
         self.disabled_modifiers.add(name)
 
-    def enable_modifier(self, name):
-        self.disabled_modifiers.remove(name)
+    def enable_modifier(self, name, lazy=True):
+        try:
+            self.disabled_modifiers.remove(name)
+        except KeyError:
+            if not lazy:
+                raise
 
     def backlash_disable(self):
         """
@@ -473,7 +477,7 @@ class MotionHAL:
         """
         Revert above
         """
-        self.enable_modifier("backlash")
+        self.enable_modifier("backlash", lazy=True)
 
     def iter_active_modifiers(self):
         for modifier_name, modifier in self.modifiers.items():

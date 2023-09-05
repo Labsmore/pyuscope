@@ -1272,6 +1272,13 @@ class BaseConfig:
         """
         return self.j.get("dev_mode", False)
 
+    def script_rhodium_dir(self):
+        """
+        The path to the secondary script dir
+        Allows quick access to pyuscope-rhodium
+        """
+        return self.j.get("script_rhodium_dir", None)
+
 
 def get_bcj():
     try:

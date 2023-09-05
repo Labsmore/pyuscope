@@ -166,3 +166,32 @@
  * cs_auto parallel support
  * User plugin alpha support
  * Some v4l support revived (launch only, no scan)
+
+## 4.3.0 (WIP)
+ * Compatible with
+   * gst-plugin-toupcam: v0.5.0
+   * Motion HAL: GRBL
+ * Argus
+   * User scripting beta support
+   * Camera widget rewrite (misc fixes)
+   * Autofocus support
+   * Focus stacking based on NA, not hard coded offsets
+   * View widget rewrite
+     * Eliminate ROI view in favor of zooming
+ * Planner focus drift correction
+ * Microscope support
+   * LIP-VM1: beta support
+   * LIP-A2: beta support
+ * Imaging
+   * Image processing pipeline overhaul
+     * Add flat field correction
+     * Argus CloudStitch checkbox will run before uploading to cloud
+   * V4L2: automatically find camera
+   * V4L2: misc control improvements
+ * GRBL
+   * Microscope metadata support (ex: unit S/N)
+   * Soft homing support
+ * Misc fixes / improvements
+   * Joystick tweaks
+   * LIP-X1: homing should now work in 1 pass
+

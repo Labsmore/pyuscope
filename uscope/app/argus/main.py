@@ -24,6 +24,8 @@ from uscope.app.argus.scripting import ScriptingTab
 
 
 class FullscreenVideo(QWidget):
+    closing = pyqtSignal()
+
     def __init__(self, widget):
         super().__init__()
         self.setWindowTitle("pyuscope fullscreen")
@@ -35,11 +37,15 @@ class FullscreenVideo(QWidget):
         self.setLayout(layout)
         self.showMaximized()
 
+    def closeEvent(self, event):
+        self.closing.emit()
+
 
 class MainWindow(QMainWindow):
     def __init__(self, microscope=None, verbose=False):
         QMainWindow.__init__(self)
         self.verbose = verbose
+        self.shutting_down = False
         self.ac = None
         self.awidgets = OrderedDict()
         self.polli = 0
@@ -76,7 +82,18 @@ class MainWindow(QMainWindow):
                       indent=4,
                       separators=(",", ": "))
 
+    def closeEvent(self, event):
+        self.shutdown()
+
     def shutdown(self):
+        # Concern multiple closing events may fight
+        if self.shutting_down:
+            return
+        self.shutting_down = True
+
+        if self.fullscreen_widget:
+            self.fullscreen_widget.close()
+
         self.cache_save()
         for tab in self.awidgets.values():
             tab.shutdown()
@@ -168,6 +185,7 @@ class MainWindow(QMainWindow):
         self.fullscreen_widget = FullscreenVideo(widget)
         self.fullscreen_widget.show()
         self.ac.vidpip.full_restart_pipeline()
+        self.fullscreen_widget.closing.connect(self.shutdown)
 
     """
     def full_hide(self):

@@ -247,9 +247,12 @@ class ImagerControlScroll(QScrollArea):
     def buttonLayout(self):
         layout = QHBoxLayout()
 
-        self.cam_default_pb = QPushButton("Camera default")
-        layout.addWidget(self.cam_default_pb)
-        self.cam_default_pb.clicked.connect(self.update_by_cam_defaults)
+        bc = config.get_bc()
+        self.cam_default_pb = None
+        if bc.dev_mode():
+            self.cam_default_pb = QPushButton("Camera default")
+            layout.addWidget(self.cam_default_pb)
+            self.cam_default_pb.clicked.connect(self.update_by_cam_defaults)
 
         self.microscope_default_pb = QPushButton("Microscope default")
         layout.addWidget(self.microscope_default_pb)

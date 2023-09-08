@@ -83,7 +83,7 @@ A minimal configuration to do basic testing
         "scalars": {
             "x": 1.6,
             "y": 1.6,
-            "z": 8.0,
+            "z": 16.0,
         },
         /*
         Actual limits should be:
@@ -181,7 +181,7 @@ A minimal configuration to do basic testing
         },
 
         //Sticker EV1, was wm3020-vmu1
-        //On loan
+        //Engineering unit, a little off the others
         {
             "camera_sn": "FIXME",
             //Replaces default objectives_db
@@ -191,14 +191,10 @@ A minimal configuration to do basic testing
         },
 
         //Sticker EV2, was wm3020-vmu3
-        //By door
+        //Dataplate S/N 2308001
         {
             "camera_sn": "TP230221161310F5C01079C0DE4CAA5",
             "motion": {
-                "scalars_scalar": {
-                    //5X gearbox + 1.8 => 0.9 degree motor
-                    "z": 2.0,
-                },
             },
             "turret": {
                 "slots": 4,
@@ -220,15 +216,9 @@ A minimal configuration to do basic testing
         },
 
         //Sticker EV3, was wm3020-vmu2
-        //By probe station
+        //Dataplate S/N 2308002 (reserved, not affixed)
         {
             "camera_sn": "TP211009093136C4AD0DD74ABF49936",
-            "motion": {
-                "scalars_scalar": {
-                    //5X gearbox + 1.8 => 0.9 degree motor
-                    "z": 2.0,
-                },
-            },
             //Replaces default objectives_db
             "objectives_db": [
                 "vendor: Mitutoyo, model: 46-143, magnification: 5, na: 0.14",

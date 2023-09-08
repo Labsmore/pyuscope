@@ -2250,14 +2250,14 @@ class MotionWidget(AWidget):
             self.reference_le = QLineEdit()
             layout.addWidget(self.reference_le)
 
-            layout.addWidget(QLabel("Difference"))
-            self.difference_le = QLineEdit()
-            layout.addWidget(self.difference_le)
-
             self.reference_moveto_pb = QPushButton("MoveTo")
             self.reference_moveto_pb.clicked.connect(
                 self.reference_moveto_pb_pushed)
             layout.addWidget(self.reference_moveto_pb)
+
+            layout.addWidget(QLabel("Difference"))
+            self.difference_le = QLineEdit()
+            layout.addWidget(self.difference_le)
 
             return layout
 

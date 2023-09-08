@@ -325,7 +325,7 @@ class USCMotion:
         # not a good idea?
         # assert "hal" in self.j
 
-    def format_position(self, axis, position):
+    def format_position(self, axis, position, digit_spaces=True):
         """
         This was intended to be a simple way to display high precision numbers
         but is a bit of a mess
@@ -340,6 +340,10 @@ class USCMotion:
                 sign = "+"
             else:
                 sign = "-"
+            if digit_spaces:
+                digit_space = " "
+            else:
+                digit_space = ""
             position = abs(position)
             whole = int(position)
             position3f = (position - whole) * 1000
@@ -352,7 +356,8 @@ class USCMotion:
                 if position3 >= 1000:
                     position3 -= 1000
                     whole += 1
-            return "%c%u.%03u %03u" % (sign, whole, position3, position6)
+            return "%c%u.%03u%s%03u" % (sign, whole, position3, digit_space,
+                                        position6)
         else:
             return "%0.3f" % position
 
@@ -361,8 +366,9 @@ class USCMotion:
         for axis, this_pos in sorted(position.items()):
             if ret:
                 ret += " "
-            ret += "%c%s" % (axis.upper(), self.format_position(
-                axis, this_pos))
+            ret += "%c%s" % (axis.upper(),
+                             self.format_position(
+                                 axis, this_pos, digit_spaces=False))
         return ret
 
     def validate_axes_dict(self, axes):

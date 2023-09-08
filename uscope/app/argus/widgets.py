@@ -2238,6 +2238,29 @@ class MotionWidget(AWidget):
 
             return layout
 
+        def measure():
+            layout = QHBoxLayout()
+
+            self.set_difference_pb = QPushButton("Set reference")
+            self.set_difference_pb.clicked.connect(
+                self.set_difference_pb_pushed)
+            layout.addWidget(self.set_difference_pb)
+
+            layout.addWidget(QLabel("Reference"))
+            self.reference_le = QLineEdit()
+            layout.addWidget(self.reference_le)
+
+            layout.addWidget(QLabel("Difference"))
+            self.difference_le = QLineEdit()
+            layout.addWidget(self.difference_le)
+
+            self.reference_moveto_pb = QPushButton("MoveTo")
+            self.reference_moveto_pb.clicked.connect(
+                self.reference_moveto_pb_pushed)
+            layout.addWidget(self.reference_moveto_pb)
+
+            return layout
+
         def mdi():
             layout = QHBoxLayout()
             layout.addWidget(QLabel("MDI"))
@@ -2251,6 +2274,8 @@ class MotionWidget(AWidget):
         self.mdi_le = None
         if self.usc.app("argus").show_mdi():
             layout.addLayout(mdi())
+
+        layout.addLayout(measure())
 
         # XXX: make this a proper signal emitting changed value
         self.slider.slider.valueChanged.connect(self.sliderChanged)
@@ -2296,6 +2321,38 @@ class MotionWidget(AWidget):
             s = str(self.mdi_le.text())
             self.ac.log("Sending MDI: %s" % s)
             self.motion_thread.mdi(s)
+
+    def set_difference_pb_pushed(self):
+        pos = self.ac.motion_thread.pos_cache
+        self.reference_le.setText(self.ac.usc.motion.format_positions(pos))
+
+    def reference_moveto_pb_pushed(self):
+        try:
+            reference = motion_util.parse_move(str(self.reference_le.text()))
+        except ValueError:
+            self.log("Invalid reference")
+            return
+        self.motion_thread.move_absolute(reference)
+
+    def update_reference(self):
+        def get_str():
+            pos = self.ac.motion_thread.pos_cache
+            if pos is None:
+                return "Invalid"
+
+            try:
+                reference = motion_util.parse_move(
+                    str(self.reference_le.text()))
+            except ValueError:
+                return "Invalid"
+
+            diff = {}
+            for k in reference:
+                diff[k] = pos.get(k, 0.0) - reference.get(k, 0.0)
+
+            return self.ac.usc.motion.format_positions(diff)
+
+        self.difference_le.setText(get_str())
 
     # XXX: make this a proper signal emitting changed value
     def sliderChanged(self):
@@ -2393,6 +2450,7 @@ class MotionWidget(AWidget):
             self.motion_thread.stop()
 
     def poll_misc(self):
+        self.update_reference()
         joystick = self.ac.microscope.joystick
         if joystick:
             slider_val = self.slider.get_jog_val()
@@ -2412,6 +2470,15 @@ class MotionWidget(AWidget):
 
     def autofocus_pushed(self):
         self.ac.image_processing_thread.auto_focus()
+
+    def cache_save(self, cachej):
+        j = {}
+        j["reference"] = str(self.reference_le.text())
+        cachej["motion"] = j
+
+    def cache_load(self, cachej):
+        j = cachej.get("motion", {})
+        self.reference_le.setText(j.get("reference", ""))
 
 
 class SimpleScanNameWidget(AWidget):

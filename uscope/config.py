@@ -1254,6 +1254,9 @@ class BaseConfig:
         """
         return bool(self.j.get("labsmore_stitch", {}).get("use_xyfstitch"))
 
+    def is_shared_space(self):
+        return self.j.get("is_shared_space", False)
+
     def labsmore_stitch_aws_access_key(self):
         return self.j.get("labsmore_stitch", {}).get("aws_access_key")
 

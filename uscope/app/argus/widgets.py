@@ -1815,27 +1815,32 @@ class StitchingTab(ArgusTab):
             layout = QGridLayout()
             row = 0
 
-            layout.addWidget(QLabel("AccessKey"), row, 0)
-            # Is there a reasonable default here?
-            self.stitch_accesskey = QLineEdit(
-                self.ac.bc.labsmore_stitch_aws_access_key())
-            layout.addWidget(self.stitch_accesskey, row, 1)
-            row += 1
+            # If shared_space_config set then get these from config file and
+            # hide the form fields.
+            if self.ac.bc.is_shared_space():
+                pass
+            else:
+                layout.addWidget(QLabel("AccessKey"), row, 0)
+                # Is there a reasonable default here?
+                self.stitch_accesskey = QLineEdit(
+                    self.ac.bc.labsmore_stitch_aws_access_key())
+                layout.addWidget(self.stitch_accesskey, row, 1)
+                row += 1
 
-            layout.addWidget(QLabel("SecretKey"), row, 0)
-            self.stitch_secretkey = QLineEdit(
-                self.ac.bc.labsmore_stitch_aws_secret_key())
-            self.stitch_secretkey.setEchoMode(QLineEdit.Password)
-            layout.addWidget(self.stitch_secretkey, row, 1)
-            row += 1
+                layout.addWidget(QLabel("SecretKey"), row, 0)
+                self.stitch_secretkey = QLineEdit(
+                    self.ac.bc.labsmore_stitch_aws_secret_key())
+                self.stitch_secretkey.setEchoMode(QLineEdit.Password)
+                layout.addWidget(self.stitch_secretkey, row, 1)
+                row += 1
 
-            layout.addWidget(QLabel("IDKey"), row, 0)
-            # Is there a reasonable default here?
-            self.stitch_idkey = QLineEdit(
-                self.ac.bc.labsmore_stitch_aws_id_key())
-            self.stitch_idkey.setEchoMode(QLineEdit.Password)
-            layout.addWidget(self.stitch_idkey, row, 1)
-            row += 1
+                layout.addWidget(QLabel("IDKey"), row, 0)
+                # Is there a reasonable default here?
+                self.stitch_idkey = QLineEdit(
+                    self.ac.bc.labsmore_stitch_aws_id_key())
+                self.stitch_idkey.setEchoMode(QLineEdit.Password)
+                layout.addWidget(self.stitch_idkey, row, 1)
+                row += 1
 
             layout.addWidget(QLabel("Notification Email Address"), row, 0)
             self.stitch_email = QLineEdit(
@@ -1908,10 +1913,17 @@ class StitchingTab(ArgusTab):
         )
 
     def get_cs_info(self):
-        return CSInfo(access_key=str(self.stitch_accesskey.text()),
+        if self.ac.bc.is_shared_space():
+            return CSInfo(access_key=str(self.ac.bc.labsmore_stitch_aws_access_key()),
+                      secret_key=str(self.ac.bc.labsmore_stitch_aws_secret_key()),
+                      id_key=str(self.ac.bc.labsmore_stitch_aws_id_key()),
+                      notification_email=str(self.stitch_email.text()))
+        else:
+            return CSInfo(access_key=str(self.stitch_accesskey.text()),
                       secret_key=str(self.stitch_secretkey.text()),
                       id_key=str(self.stitch_idkey.text()),
                       notification_email=str(self.stitch_email.text()))
+
 
 
 def snapshot_fn(user, extension, parent):

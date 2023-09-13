@@ -149,11 +149,16 @@ class MainWindow(QMainWindow):
                                         checkable=True)
         motionMenu.addAction(self.invertKeyboardXY)
         self.invertKeyboardXY.triggered.connect(self.invertKeyboardXYTriggered)
-        self.invertJoystickXY = QAction("Invert joystick XY",
+        self.invertJoystickX = QAction("Invert joystick X",
                                         motionMenu,
                                         checkable=True)
-        motionMenu.addAction(self.invertJoystickXY)
-        self.invertJoystickXY.triggered.connect(self.invertJoystickXYTriggered)
+        motionMenu.addAction(self.invertJoystickX)
+        self.invertJoystickX.triggered.connect(self.invertJoystickXTriggered)
+        self.invertJoystickY = QAction("Invert joystick Y",
+                                        motionMenu,
+                                        checkable=True)
+        motionMenu.addAction(self.invertJoystickY)
+        self.invertJoystickY.triggered.connect(self.invertJoystickYTriggered)
 
         # Help menu
         helpMenu = menuBar.addMenu("Help")
@@ -278,13 +283,19 @@ class MainWindow(QMainWindow):
         else:
             mw.set_keyboard_xy_scalar(+1.0)
 
-    def invertJoystickXYTriggered(self):
+    def invertJoystickXTriggered(self):
         mw = self.mainTab.motion_widget
-        if self.invertJoystickXY.isChecked():
-            mw.set_joystick_xy_scalar(-1.0)
+        if self.invertJoystickX.isChecked():
+            mw.set_joystick_x_scalar(-1.0)
         else:
-            mw.set_joystick_xy_scalar(+1.0)
+            mw.set_joystick_x_scalar(+1.0)
 
+    def invertJoystickYTriggered(self):
+        mw = self.mainTab.motion_widget
+        if self.invertJoystickY.isChecked():
+            mw.set_joystick_y_scalar(-1.0)
+        else:
+            mw.set_joystick_y_scalar(+1.0)
 
 def parse_args():
     import argparse

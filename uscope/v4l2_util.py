@@ -185,3 +185,53 @@ def find_device(name):
     else:
         dump_devices()
         raise Exception(f"Failed to find video device {name}")
+
+
+class V4L2ControlRWBase:
+    def __init__(self, fd):
+        assert fd is not None
+        self.fd = fd
+
+    def ctrls(self):
+        assert 0, "required"
+
+    def ctrl_set(self, name, val):
+        assert 0, "required"
+
+    def ctrl_get(self, name):
+        assert 0, "required"
+
+    def dump_control_names(self):
+        assert 0, "required"
+
+
+"""
+import v4l2
+"""
+
+
+class V4L2ControlRWOriginal(V4L2ControlRWBase):
+    def __init__(self, fd):
+        assert v4l2, "Need v4l2 module to use this engine"
+        super().__init__(fd)
+
+    def ctrls(self):
+        return ctrls(self.fd)
+
+    def ctrl_set(self, name, val):
+        ctrl_set(self.fd, name, val)
+
+    def ctrl_get(self, name):
+        return ctrl_get(self.fd, name)
+
+    def dump_control_names(self):
+        dump_control_names(self.fd)
+
+
+"""
+Alternate engine?
+"""
+
+
+def get_control_rw(fd):
+    return V4L2ControlRWOriginal(fd)

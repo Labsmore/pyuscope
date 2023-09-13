@@ -91,9 +91,11 @@ class V4L2ControlScroll(ImagerControlScroll):
 
         layout = QVBoxLayout()
         layout.addLayout(self.buttonLayout())
+        self.control_rw = None
 
     def run(self):
-        self.all_controls = set(v4l2_util.ctrls(self.fd()))
+        self.control_rw = v4l2_util.get_control_rw(self.fd())
+        self.all_controls = set(self.control_rw.ctrls())
         super().run()
 
     def fd(self):
@@ -103,18 +105,17 @@ class V4L2ControlScroll(ImagerControlScroll):
         return fd
 
     def raw_prop_write(self, name, val):
-        self.verbose and print(f"v4l2 raw_prop_write() {name} = {val}")
-        fd = self.fd()
-        if fd >= 0:
-            v4l2_util.ctrl_set(fd, name, val)
+        if self.control_rw is not None:
+            self.verbose and print(f"v4l2 raw_prop_write() {name} = {val}")
+            self.control_rw.ctrl_set(name, val)
 
     def raw_prop_read(self, name):
-        fd = self.fd()
-        if fd < 0:
+        if self.control_rw is None:
             return None
-        ret = v4l2_util.ctrl_get(fd, name)
-        self.verbose and print(f"v4l2 raw_prop_read() {name} = {ret}")
-        return ret
+        else:
+            ret = self.control_rw.ctrl_get(name)
+            self.verbose and print(f"v4l2 raw_prop_read() {name} = {ret}")
+            return ret
 
     def template_property(self, prop_entry):
         ret = {}
@@ -176,6 +177,6 @@ class V4L2ControlScroll(ImagerControlScroll):
             return True
         if prop_config.get("optional", False):
             return False
-        v4l2_util.dump_control_names(self.fd())
+        self.control_rw.dump_control_names()
         print("prop_config", prop_config)
         raise ValueError("Bad control name: {prop_config['prop_name']}")

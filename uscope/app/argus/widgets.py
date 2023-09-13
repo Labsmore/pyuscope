@@ -2202,7 +2202,7 @@ class MotionWidget(AWidget):
         layout = QVBoxLayout()
         self.joystick_listener = None
         if self.ac.joystick_thread:
-            self.joystick_listener = JoystickListener("  Joystick Contol",
+            self.joystick_listener = JoystickListener("  Joystick Control",
                                                       self)
         self.listener = JogListener("XXX", self)
         self.update_jog_text()

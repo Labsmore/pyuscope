@@ -702,7 +702,64 @@ class MockGRBLSer(GRBLSer):
         return "mock"
 
     def hash(self):
-        return ["[G54:0.000,0.000,0.000]"]
+        return [
+            "G54:0.000,0.000,0.000",
+            "G55:0.000,0.000,0.000",
+            "G56:0.000,0.000,0.000",
+            "G57:0.000,0.000,0.000",
+            "G58:0.000,0.000,0.000",
+            "G59:0.000,0.000,0.000",
+            "G28:0.000,0.000,0.000",
+            "G30:0.000,0.000,0.000",
+            "G92:0.000,0.000,0.000",
+            "TLO:0.000",
+            "PRB:0.000,0.000,0.000:0",
+        ]
+
+    def i(self):
+        return [
+            "VER:mock:",
+            "OPT:V,15,128",
+        ]
+
+    def dollar(self):
+        return [
+            "$$",
+            "$0=10",
+            "$1=25",
+            "$2=0",
+            "$3=2",
+            "$4=0",
+            "$5=0",
+            "$6=0",
+            "$10=1",
+            "$11=0.010",
+            "$12=0.002",
+            "$13=0",
+            "$20=0",
+            "$21=0",
+            "$22=0",
+            "$23=0",
+            "$24=25.000",
+            "$25=500.000",
+            "$26=250",
+            "$27=1.000",
+            "$30=1000",
+            "$31=0",
+            "$32=0",
+            "$100=800.000",
+            "$101=800.000",
+            "$102=800.000",
+            "$110=1000.000",
+            "$111=1000.000",
+            "$112=600.000",
+            "$120=30.000",
+            "$121=30.000",
+            "$122=30.000",
+            "$130=200.000",
+            "$131=200.000",
+            "$132=200.000",
+        ]
 
 
 class GRBL:
@@ -730,6 +787,8 @@ class GRBL:
             int(os.getenv("GRBL_VERBOSE", "0")))
         self.port = None
         if gs is None:
+            if port is None:
+                port = default_port()
             if port == "mock":
                 gs = MockGRBLSer(verbose=verbose)
             else:
@@ -1372,6 +1431,7 @@ def grbl_read_meta(gs):
             buf += struct.pack("<i", int(float(part) * 1000))[0:3]
         items[wcsn] = buf
 
+    assert WCS_CONFIG in items, "Failed to parse WCS"
     if items[WCS_CONFIG][0:len(USCOPE_MAGIC)] != USCOPE_MAGIC:
         raise NoGRBLMeta()
     ret = {}

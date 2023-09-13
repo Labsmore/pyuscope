@@ -418,7 +418,7 @@ class XYPlanner2PWidget(PlannerWidget):
         self.pb_gos["0"] = {
             "x_le": self.plan_x0_le,
             "y_le": self.plan_y0_le,
-            "pb": QPushButton("Scan"),
+            "pb": QPushButton("MoveTo"),
         }
         gl.addWidget(self.pb_gos["0"]["pb"], row, 3)
         row += 1
@@ -434,7 +434,7 @@ class XYPlanner2PWidget(PlannerWidget):
         self.pb_gos["1"] = {
             "x_le": self.plan_x1_le,
             "y_le": self.plan_y1_le,
-            "pb": QPushButton("Scan"),
+            "pb": QPushButton("MoveTo"),
         }
         gl.addWidget(self.pb_gos["1"]["pb"], row, 3)
         row += 1

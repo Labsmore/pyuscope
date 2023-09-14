@@ -384,9 +384,11 @@ class ImagerControlScroll(QScrollArea):
         Allows setting more advanced control behaviors
         Ex: when auto-exposure is enabled disable manaul exposure control
         """
-        element = self.raw2element[name]
-        self.disp_prop_written(element.config["disp_name"],
-                               element.val_raw2disp(value))
+        element = self.raw2element.get(name, None)
+        # Not every property may be mapped
+        if element:
+            self.disp_prop_written(element.config["disp_name"],
+                                   element.val_raw2disp(value))
 
     def disp_prop_written(self, name, value):
         self.disp_prop_was_rw(name, value)

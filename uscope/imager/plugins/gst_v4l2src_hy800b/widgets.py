@@ -6,6 +6,12 @@ Hopefully works better than the original camera choice
 from uscope.gui.v4l_control_scroll import V4L2AutoExposureDisplayer, V4L2ControlScroll
 from uscope.gui.control_scroll import BoolDisplayer
 from collections import OrderedDict
+"""
+this is a "menu"
+auto temp is a "bool"
+why?
+
+"""
 
 groups_gst = OrderedDict([(
     "Controls",
@@ -74,11 +80,12 @@ groups_gst = OrderedDict([(
             # maybe added in Linux 5.15?
             "optional": True,
         },
+        # <class 'pyrav4l2.device.WrongIntValue'>: '6509' is not valid for 'White Balance Temperature'. Allowed values: 2800 - 6500 (step: 1)
         {
             "prop_name": "White Balance Temperature",
             "disp_name": "White Balance Temperature",
-            "min": 1800,
-            "max": 10000,
+            "min": 2800,
+            "max": 6500,
             "default": 5000,
             "type": "int",
         },

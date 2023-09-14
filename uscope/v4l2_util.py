@@ -7,6 +7,11 @@ try:
 except:
     v4l2 = None
 
+try:
+    import pyrav4l2
+except:
+    pyrav4l2 = None
+
 import fcntl
 import errno
 import glob
@@ -27,7 +32,8 @@ class V4L2ControlRWBase:
     def ctrl_get(self, name):
         assert 0, "required"
 
-    def dump_control_names(self):
+    @staticmethod
+    def find_device(name):
         assert 0, "required"
 
 
@@ -131,7 +137,8 @@ class V4L2ControlRWOriginal(V4L2ControlRWBase):
     @staticmethod
     def fd_dump_control_names(fd):
         print("valid control names")
-        for queryctrl, group, index in get_device_controls_ex(fd):
+        for queryctrl, group, index in V4L2ControlRWOriginal.fd_get_device_controls_ex(
+                fd):
             print("  %s (%s: %d)" %
                   (queryctrl.name.decode("ascii"), group, index))
             if queryctrl.flags & v4l2.V4L2_CTRL_FLAG_DISABLED:
@@ -209,6 +216,8 @@ class V4L2ControlRWOriginal(V4L2ControlRWBase):
 
     @staticmethod
     def find_device(name):
+        assert v4l2, "Need v4l2 module to use this engine"
+
         cp = v4l2.v4l2_capability()
         for dev_name in sorted(glob.glob("/dev/video*")):
             vd = open(dev_name, "r")
@@ -231,8 +240,75 @@ class V4L2ControlRWOriginal(V4L2ControlRWBase):
     def ctrl_get(self, name):
         return V4L2ControlRWOriginal.fd_ctrl_get(self.fd, name)
 
-    def dump_control_names(self):
-        V4L2ControlRWOriginal.fd_dump_control_names(self.fd)
+
+# sudo pip3 install git+https://github.com/antmicro/pyrav4l2.git
+
+# FIXME: needs path, not fd
+# hack around to run some initial tests
+dev_name_cache_hack = None
+
+
+class V4L2ControlRWNew:
+    def __init__(self, fd):
+        assert pyrav4l2, "Need pyrav4l2 module to use this engine"
+        assert fd is not None
+        self.fd = fd
+        self.dev_name = dev_name_cache_hack
+        print("Opening", self.dev_name)
+        self.dev = pyrav4l2.Device(self.dev_name)
+
+        # Doesn't appear to have a name index?
+        self.controls = {}
+        for control in self.dev.controls:
+            self.controls[control.name] = control
+
+    def ctrls(self):
+        ret = []
+        for control in self.dev.controls:
+            ret.append(control.name)
+        return ret
+
+    def ctrl_set(self, name, val):
+        control = self.controls[name]
+        # FIXME: hack
+        if control.type == pyrav4l2.v4l2.V4L2_CTRL_TYPE_BOOLEAN:
+            val = bool(val)
+        # print("set", name, "val", val, "type", control.type, type(val))
+        if isinstance(control, pyrav4l2.controls.Menu):
+            item = pyrav4l2.controls.Item(ctrl_id=control.id, index=val)
+            self.dev.set_control_value(control, item)
+        else:
+            self.dev.set_control_value(control, val)
+
+    def ctrl_get(self, name):
+        control = self.controls[name]
+        ret = self.dev.get_control_value(control)
+        if isinstance(control, pyrav4l2.controls.Menu):
+            return ret.index
+        else:
+            return ret
+
+    @staticmethod
+    def dump_devices():
+        print("Available devices:")
+        for dev_name in sorted(glob.glob("/dev/video*")):
+            dev = pyrav4l2.Device(dev_name)
+            found_name = str(dev.device_name)
+            print(f"  {found_name}")
+
+    @staticmethod
+    def find_device(name):
+        global dev_name_cache_hack
+        assert pyrav4l2, "Need pyrav4l2 module to use this engine"
+        for dev_name in sorted(glob.glob("/dev/video*")):
+            dev = pyrav4l2.Device(dev_name)
+            found_name = str(dev.device_name)
+            if found_name == name:
+                dev_name_cache_hack = dev_name
+                return dev_name
+        else:
+            V4L2ControlRWNew.dump_devices()
+            raise Exception(f"Failed to find video device {name}")
 
 
 """
@@ -241,7 +317,13 @@ Alternate engine?
 
 
 def get_control_rw_class():
-    return V4L2ControlRWOriginal
+    if pyrav4l2:
+        return V4L2ControlRWNew
+    elif v4l2:
+        assert 0, "Deprecated. Please install pyrav4l2"
+        return V4L2ControlRWOriginal
+    else:
+        assert 0, "Failed to import a V4L2 control engine"
 
 
 def get_control_rw(fd):

@@ -37,10 +37,14 @@ install_antmicro_v4l2() {
     pushd tmp-installv4l2
     git clone https://github.com/antmicro/python3-v4l2.git
     pushd python3-v4l2
-    python3 ./setup.py install --user
+    sudo python3 ./setup.py install
     popd
     popd
     rm -rf tmp-installv4l2
+}
+
+install_pyrav4l2() {
+    sudo pip3 install git+https://github.com/antmicro/pyrav4l2.git
 }
 
 # For GRBL etc serial port
@@ -56,7 +60,9 @@ install_gst_plugin_toupcam() {
 
 install_gst_plugin_toupcam
 install_pyuscope
-install_antmicro_v4l2
+# Deprecated, use pyrav4l2
+# install_antmicro_v4l2
+install_pyrav4l2
 
 if [ "$PYUSCOPE_MICROSCOPE" != "none" ] ; then
     # Found some systems don't read .profile....shrug

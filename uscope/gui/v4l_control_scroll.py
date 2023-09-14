@@ -104,12 +104,12 @@ class V4L2ControlScroll(ImagerControlScroll):
         #    print("WARNING: bad fd")
         return fd
 
-    def raw_prop_write(self, name, val):
+    def _raw_prop_write(self, name, val):
         if self.control_rw is not None:
             self.verbose and print(f"v4l2 raw_prop_write() {name} = {val}")
             self.control_rw.ctrl_set(name, val)
 
-    def raw_prop_read(self, name):
+    def _raw_prop_read(self, name):
         if self.control_rw is None:
             return None
         else:
@@ -161,6 +161,10 @@ class V4L2ControlScroll(ImagerControlScroll):
         return "Exposure (Absolute)"
 
     def disp_prop_was_rw(self, name, value):
+        # FIXME: these aren't translating to disp,
+        # looks like its raw prop
+        # https://github.com/Labsmore/pyuscope/issues/280
+
         # Auto Exposure quickly fights with GUI
         # Disable the control when its activated
         # if name == "Auto Exposure":

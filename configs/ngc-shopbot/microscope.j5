@@ -1,0 +1,74 @@
+/*
+Note this wasn't actually a shopbot but something simlar
+I think there was a data plate we eventually found but don't recall the manufacturer
+*/
+{
+    "kinematics": {
+        //FIXME: not tuned
+        "tsettle_motion_na1": 0.5,
+        "tsettle_motion_base": 0.1,
+        "tsettle_hdr": 0.2,
+    },
+    "motion": {
+        "hal": "gcode",
+        "system": "shopbot",
+
+        //disable, don't think we need this
+        "backlash_compensation": null,
+        "xyz_format6": true,
+
+        "scalars": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0,
+        },
+    },
+
+    /*
+    Canon EOS 70D
+    20.2 MP
+    Megapixels, 20.2 ; Total Pixels, 20.9 ; Sensor Size, 22.5 x 15.0mm ; Pixel Dimensions, 5472 x 3648 ; Pixel Size, 4.1µm
+    Maybe 20 cm field of view?
+    200 mm / 5472 => 0.036549708 mm / pix => 36.5 um / pix
+
+    zoomed out all the way
+        15.5 x 9.5"
+        393.7 x 241.3
+        393.7 / 5472 * 1000 = 71.94
+    zoomed in all the way
+        5.25 x 3.5"
+        133.35 x 88.9
+    how big is the sample?
+
+    46 x 45
+    1168.4 x 1143
+
+
+    recalibrate
+    14.5 wide
+    368.3 mm
+
+    368.3 / 5472
+    67.3
+
+    */
+    "imager": {
+        "source":"gcode",
+        "trigger":"dwell",
+
+        "width": 5472,
+        "height": 3648,
+
+        "um_per_pixel_raw_1x": 67.3,
+    },
+
+    "systems": [
+        //Default configuration
+        {
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: Mitutoyo, model: 58-235, magnification: 1, na: 0.025",
+            ],
+        },
+   ],
+}

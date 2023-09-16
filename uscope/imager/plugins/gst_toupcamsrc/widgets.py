@@ -71,7 +71,7 @@ class TTControlScroll(GstControlScroll):
     def get_exposure(self):
         return self.disp_prop_read("expotime")
 
-    def get_exposure_property(self):
+    def get_exposure_disp_property(self):
         return "expotime"
 
     def disp_prop_was_rw(self, name, value):

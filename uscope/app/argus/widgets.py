@@ -506,7 +506,12 @@ class XYPlanner2PWidget(PlannerWidget):
                                                objective=objective,
                                                contour=contour_json)
 
-        self.ac.update_pconfig(pconfig)
+        try:
+            self.ac.update_pconfig(pconfig)
+        # especially ValueError from bad GUI items
+        except Exception as e:
+            self.log(f"Scan config aborted: {e}")
+            return
 
         # Ignored app specific metadata
         pconfig["app"] = {
@@ -1430,14 +1435,19 @@ class ImagerTab(ArgusTab):
         self.hdr_le.setText(le_str)
 
     def update_pconfig_hdr(self, pconfig):
-        raw = str(self.hdr_le.text())
+        raw = str(self.hdr_le.text()).strip()
         if not raw:
             return
 
-        # XXX: consider gain as well
-        properties_list = []
-        for val in [int(x) for x in raw.split(",")]:
-            properties_list.append({self.ac.get_exposure_property(): val})
+        try:
+            # XXX: consider gain as well
+            properties_list = []
+            for val in [int(x) for x in raw.split(",")]:
+                properties_list.append(
+                    {self.ac.get_exposure_disp_property(): val})
+        except ValueError:
+            self.log("Invalid HDR exposure value")
+            raise
         ret = {
             "properties_list": properties_list,
             # this is probably a good approximation for now

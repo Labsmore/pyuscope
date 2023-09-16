@@ -293,8 +293,8 @@ class ArgusCommon(QObject):
     def get_exposure(self):
         return self.control_scroll.get_exposure()
 
-    def get_exposure_property(self):
-        return self.control_scroll.get_exposure_property()
+    def get_exposure_disp_property(self):
+        return self.control_scroll.get_exposure_disp_property()
 
     # FIXME: better abstraction
     def is_idle(self):

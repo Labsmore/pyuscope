@@ -139,7 +139,7 @@ class V4L2ControlScroll(ImagerControlScroll):
         # import sys; sys.exit(1)
         return groups
 
-    def get_auto_exposure_name(self):
+    def get_auto_exposure_raw_name(self):
         auto_exposure_options = ["Exposure, Auto", "Auto Exposure"]
         for option in auto_exposure_options:
             if option in self.all_controls:
@@ -149,16 +149,19 @@ class V4L2ControlScroll(ImagerControlScroll):
     def auto_exposure_enabled(self):
         # 1: no, 3: yes
         return self.disp_prop_read(
-            self.get_auto_exposure_name()) == AUTO_EXPOSURE_VAL
+            self.get_auto_exposure_disp_property()) == AUTO_EXPOSURE_VAL
 
     def set_exposure(self, n):
-        self.disp_prop_write("Exposure (Absolute)", n)
+        self.disp_prop_write(self.get_exposure_disp_property(), n)
 
     def get_exposure(self):
-        return self.disp_prop_read("Exposure (Absolute)")
+        return self.disp_prop_read(self.get_exposure_disp_property())
 
-    def get_exposure_property(self):
-        return "Exposure (Absolute)"
+    def get_auto_exposure_disp_property(self):
+        return "Auto Exposure"
+
+    def get_exposure_disp_property(self):
+        return "Exposure"
 
     def disp_prop_was_rw(self, name, value):
         # FIXME: these aren't translating to disp,
@@ -183,4 +186,4 @@ class V4L2ControlScroll(ImagerControlScroll):
             return False
         self.control_rw.dump_control_names()
         print("prop_config", prop_config)
-        raise ValueError("Bad control name: {prop_config['prop_name']}")
+        raise ValueError(f"Bad control name: {prop_config['prop_name']}")

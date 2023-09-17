@@ -1376,6 +1376,10 @@ class MainTab(ArgusTab):
         if planner is not None:
             self.planner_widget_tabs.setCurrentIndex(planner)
 
+    def show_minmax(self, visible):
+        self.planner_widget_xy2p.show_minmax(visible)
+        self.planner_widget_xy3p.show_minmax(visible)
+
 
 class ImagerTab(ArgusTab):
     def __init__(self, ac, parent=None):

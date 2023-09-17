@@ -154,6 +154,12 @@ class MainWindow(QMainWindow):
                                         checkable=True)
         motionMenu.addAction(self.invertJoystickXY)
         self.invertJoystickXY.triggered.connect(self.invertJoystickXYTriggered)
+        self.displayLimits = QAction("Limit display",
+                                     motionMenu,
+                                     checkable=True)
+        motionMenu.addAction(self.displayLimits)
+        self.displayLimits.setChecked(config.bc.dev_mode())
+        self.displayLimits.triggered.connect(self.displayLimitsTriggered)
 
         # Help menu
         helpMenu = menuBar.addMenu("Help")
@@ -307,6 +313,9 @@ class MainWindow(QMainWindow):
             mw.set_joystick_xy_scalar(-1.0)
         else:
             mw.set_joystick_xy_scalar(+1.0)
+
+    def displayLimitsTriggered(self):
+        self.ac.mainTab.show_minmax(bool(self.displayLimits.isChecked()))
 
 
 def parse_args():

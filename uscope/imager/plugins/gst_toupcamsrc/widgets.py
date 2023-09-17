@@ -6,17 +6,25 @@ from PyQt5.QtWidgets import *
 from collections import OrderedDict
 
 from uscope.gui.control_scroll import GstControlScroll
+from uscope import config
 
-groups_gst = OrderedDict([
+groups_gst = [
     ("Exposure", [
         "auto-exposure",
         "expotime",
         "expoagain",
     ]),
-    ("Flip", [
-        "hflip",
-        "vflip",
-    ]),
+]
+
+if config.get_bc().dev_mode():
+    groups_gst.extend([
+        ("Flip", [
+            "hflip",
+            "vflip",
+        ]),
+    ])
+
+groups_gst.extend([
     (
         "AWB",
         [
@@ -49,6 +57,8 @@ groups_gst = OrderedDict([
     #        #"name": "esize", "ro": True,
     #    ]),
 ])
+
+groups_gst = OrderedDict(groups_gst)
 
 
 class TTControlScroll(GstControlScroll):

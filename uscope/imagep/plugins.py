@@ -201,10 +201,29 @@ class CorrectFF1Plugin(IPPlugin):
                          need_tmp_dir=True)
         # Plugin is always registered
         # Maybe should have a mechanism to exclude if it can't actually run?
+        self.ff_im = None
+
         if self.usc.imager.has_ff_cal():
-            self.ffi_im = Image.open(self.usc.imager.ff_cal_fn())
-        else:
-            self.ffi_im = None
+            self.ff_im = Image.open(self.usc.imager.ff_cal_fn())
+            self.ff_rband_im, self.ff_gband_im, self.ff_bband_im = self.ff_im.split(
+            )
+            self.ff_rband_np = np.array(self.ff_rband_im)
+            self.ff_gband_np = np.array(self.ff_gband_im)
+            self.ff_bband_np = np.array(self.ff_bband_im)
+            self.ff_minmax()
+
+            # Boost dim values by scalars in the range 1.0 to near 0.0
+            # The lower the flat field value, the more it needs to be scaled
+            # Values at max flat field value stay the same
+            # Note: dead pixels always 0 not currently handled / will crash
+            self.rband_scalar = self.ff_rmax / self.ff_rband_np
+            self.gband_scalar = self.ff_gmax / self.ff_gband_np
+            self.bband_scalar = self.ff_bmax / self.ff_bband_np
+
+            # It's easy to have an outlier that boosts everything
+            self.verbose and print(f"ffi r: {self.ffi_rmin} : {self.ffi_rmax}")
+            self.verbose and print(f"ffi g: {self.ffi_gmin} : {self.ffi_gmax}")
+            self.verbose and print(f"ffi b: {self.ffi_bmin} : {self.ffi_bmax}")
 
     def npf2im(self, statef):
         #return statef, None
@@ -227,82 +246,79 @@ class CorrectFF1Plugin(IPPlugin):
 
         return im
 
-    def bounds_close_band(self, ffi, band):
-        hist = band.histogram()
-        width, height = ffi.size
-        npixels = width * height
-        thresh = 0.01
+    def ff_minmax(self):
+        def bounds_close_band(band):
+            hist = band.histogram()
+            width, height = band.size
+            npixels = width * height
+            thresh = 0.01
 
-        low = None
-        high = None
-        pixels = 0
-        for i, vals in enumerate(hist):
-            pixels += vals
-            if low is None and pixels / npixels >= thresh:
-                low = i
-            if high is None and pixels / npixels >= (1.0 - thresh):
-                high = i
-                break
-        return low, high
+            low = None
+            high = None
+            pixels = 0
+            for i, vals in enumerate(hist):
+                pixels += vals
+                if low is None and pixels / npixels >= thresh:
+                    low = i
+                if high is None and pixels / npixels >= (1.0 - thresh):
+                    high = i
+                    break
+            return low, high
 
-    def bounds_close(self, ffi):
-        rband, gband, bband = ffi.split()
-        return self.bounds_close_band(ffi, rband), self.bounds_close_band(
-            ffi, gband), self.bounds_close_band(ffi, bband)
+        (self.ff_rmin, self.ff_rmax) = bounds_close_band(self.ff_rband_im)
+        (self.ff_gmin, self.ff_gmax) = bounds_close_band(self.ff_gband_im)
+        (self.ff_bmin, self.ff_bmax) = bounds_close_band(self.ff_bband_im)
 
     def _run(self, data_in, data_out, options={}):
         # Calibration must be loaded
-        assert self.ffi_im
+        assert self.ff_im
 
         print(f"FF1: run")
-
-        # It's easy to have an outlier that boosts everything
-        # hmm
-        if 0:
-            ((ffi_rmin, ffi_rmax), (ffi_gmin, ffi_gmax),
-             (ffi_bmin, ffi_bmax)) = self.ffi_im.getextrema()
-        else:
-            ((ffi_rmin, ffi_rmax), (ffi_gmin, ffi_gmax),
-             (ffi_bmin, ffi_bmax)) = self.bounds_close(self.ffi_im)
-        self.verbose and print(f"ffi r: {ffi_rmin} : {ffi_rmax}")
-        self.verbose and print(f"ffi g: {ffi_gmin} : {ffi_gmax}")
-        self.verbose and print(f"ffi b: {ffi_bmin} : {ffi_bmax}")
 
         self.verbose and print("")
 
         image_in = data_in["image"]
         # im_in = "cal/cal06_ff_1.5x/2023-06-20_01-22-25_blue_20x_cal6_1.5x_pic/c000_r001.jpg"
         im = image_in.to_mutable_im()
-        if im.size != self.ffi_im.size:
+        if im.size != self.ff_im.size:
             raise Exception(
                 "Calibration image size %uw x %uh but got image %uw x %uh" %
-                (self.ffi_im.width, self.ffi_im.height, im.width, im.height))
-        for x in range(im.width):
-            for y in range(im.height):
-                pixr, pixg, pixb = list(im.getpixel((x, y)))
-                ffr, ffg, ffb = list(self.ffi_im.getpixel((x, y)))
-                # nop
-                if 0:
-                    pixr2 = pixr
-                    pixg2 = pixg
-                    pixb2 = pixb
-                # expected version
-                if 1:
-                    pixr2 = int(math.ceil(min(255, pixr * ffi_rmax / ffr)))
-                    pixg2 = int(math.ceil(min(255, pixg * ffi_gmax / ffg)))
-                    pixb2 = int(math.ceil(min(255, pixb * ffi_bmax / ffb)))
-                # old code sort of hack
-                if 0:
-                    pixr2 = int(min(255, pixr * ffr / ffi_rmin))
-                    pixg2 = int(min(255, pixg * ffg / ffi_gmin))
-                    pixb2 = int(min(255, pixb * ffb / ffi_bmin))
-                if x == 0 and y == 0 or x == 400 and y == 300:
-                    self.verbose and print(
-                        f"x={x}, y={y}: ({pixr}, {pixg}, {pixg}) => ({pixr2}, {pixg2}, {pixg2})"
-                    )
-                    self.verbose and print(pixr, ffi_rmax, ffr, ffi_rmax / ffr)
-                im.putpixel((x, y), (pixr2, pixg2, pixb2))
-        im.save(data_out["image"].get_filename(), quality=90)
+                (self.ff_im.width, self.ff_im.height, im.width, im.height))
+
+        rband_im, gband_im, bband_im = im.split()
+        # fixme = Image.merge("RGB", (rband_im, gband_im, bband_im))
+        rband_np = np.array(rband_im)
+        gband_np = np.array(gband_im)
+        bband_np = np.array(bband_im)
+
+        # Rescale based on flat field
+        rband_np = np.multiply(rband_np, self.rband_scalar)
+        gband_np = np.multiply(gband_np, self.gband_scalar)
+        bband_np = np.multiply(bband_np, self.bband_scalar)
+
+        # floats aren't ideal for images
+        rband_np = np.round(rband_np)
+        gband_np = np.round(gband_np)
+        bband_np = np.round(bband_np)
+        # print("max", rband_np.max(), gband_np.max(), bband_np.max())
+
+        rband_np = np.minimum(rband_np, 255)
+        gband_np = np.minimum(gband_np, 255)
+        bband_np = np.minimum(bband_np, 255)
+        # print("max", rband_np.max(), gband_np.max(), bband_np.max())
+
+        rband_np = rband_np.astype(np.uint8)
+        gband_np = gband_np.astype(np.uint8)
+        bband_np = bband_np.astype(np.uint8)
+        # print("max", rband_np.max(), gband_np.max(), bband_np.max())
+
+        # Convert back into more standard PIL format
+        final_im_r = Image.fromarray(rband_np, "L")
+        final_im_g = Image.fromarray(gband_np, "L")
+        final_im_b = Image.fromarray(bband_np, "L")
+        final_im = Image.merge("RGB", (final_im_r, final_im_g, final_im_b))
+
+        final_im.save(data_out["image"].get_filename(), quality=90)
 
 
 """

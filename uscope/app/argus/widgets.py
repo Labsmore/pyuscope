@@ -311,38 +311,6 @@ Provides camera overview and ROI side by side
 """
 
 
-class FullROIWidget(AWidget):
-    def __init__(self, ac, parent=None):
-        super().__init__(ac=ac, parent=parent)
-
-    def initUI(self):
-        # Overview
-        def low_res_layout():
-            layout = QVBoxLayout()
-            if "overview" in self.ac.vidpip.wigdatas:
-                layout.addWidget(QLabel("Overview"))
-                layout.addWidget(self.ac.vidpip.get_widget("overview"))
-
-            return layout
-
-        # Higher res in the center for focusing
-        def high_res_layout():
-            layout = QVBoxLayout()
-            if "overview_roi" in self.ac.vidpip.wigdatas:
-                layout.addWidget(QLabel("Focus"))
-                layout.addWidget(self.ac.vidpip.get_widget("overview_roi"))
-
-            return layout
-
-        layout = QHBoxLayout()
-        layout.addLayout(low_res_layout())
-        layout.addLayout(high_res_layout())
-        self.setLayout(layout)
-
-    def post_ui_init(self):
-        pass
-
-
 class PlannerWidget(AWidget):
     def __init__(self, ac, scan_widget, objective_widget, parent=None):
         super().__init__(ac=ac, parent=parent)
@@ -1214,10 +1182,6 @@ class MainTab(ArgusTab):
         self.add_awidget("snapshot", self.snapshot_widget)
         self.objective_widget = ObjectiveWidget(ac=ac)
         self.add_awidget("objective", self.objective_widget)
-        self.video_widget = self.ac.vidpip.get_widget("zoomable")
-        self.video_widget.setParent(self)
-        policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.video_widget.setSizePolicy(policy)
 
         self.planner_widget_tabs = QTabWidget()
         # First sets up algorithm specific parameters
@@ -1276,7 +1240,6 @@ class MainTab(ArgusTab):
 
         layout = QHBoxLayout()
         layout.addWidget(left_layout())
-        layout.addWidget(self.video_widget)
         self.setLayout(layout)
 
         # Offload callback to GUI thread so it can do GUI ops
@@ -1341,20 +1304,6 @@ class MainTab(ArgusTab):
         if planner is not None:
             self.planner_widget_tabs.setCurrentIndex(planner)
 
-    def keyPressEvent(self, event):
-        k = event.key()
-        # Ignore duplicates, want only real presses
-        if 0 and event.isAutoRepeat():
-            return
-
-        # KiCAD zoom in / out => F1 / F2
-        if k == Qt.Key_F1:
-            self.ac.vidpip.zoomable_plus()
-        elif k == Qt.Key_F2:
-            self.ac.vidpip.zoomable_minus()
-        elif k == Qt.Key_F3:
-            self.ac.vidpip.zoomable_high_toggle()
-
 
 class ImagerTab(ArgusTab):
     def __init__(self, ac, parent=None):
@@ -1363,12 +1312,6 @@ class ImagerTab(ArgusTab):
     def initUI(self):
         # Most of the layout is filled in from the ControlScroll
         self.layout = QVBoxLayout()
-
-        if "overview2" in self.ac.vidpip.widgets:
-            # screws up the original
-            layout2 = QHBoxLayout()
-            layout2.addWidget(self.ac.vidpip.get_widget("overview2"))
-            self.layout.addLayout(layout2)
 
         def hdr_gb():
             layout = QGridLayout()

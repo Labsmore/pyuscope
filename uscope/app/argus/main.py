@@ -207,16 +207,26 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon(config.GUI.icon_files["logo"]))
         self.fullscreen_widget = None
 
-        self.tab_widget = QTabWidget()
+        layout = QHBoxLayout()
 
+        self.video_widget = self.ac.vidpip.get_widget("zoomable")
+        self.video_widget.setParent(self)
+        policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.video_widget.setSizePolicy(policy)
+
+        self.tab_widget = QTabWidget()
         for tab_name, tab in self.awidgets.items():
             tab.initUI()
             self.tab_widget.addTab(tab, tab_name)
         self.cache_load()
-
         self.batchTab.add_pconfig_source(self.mainTab, "Main tab")
 
-        self.setCentralWidget(self.tab_widget)
+        layout.addWidget(self.tab_widget)
+        layout.addWidget(self.video_widget)
+
+        self.central_widget = QWidget()
+        self.central_widget.setLayout(layout)
+        self.setCentralWidget(self.central_widget)
         self.createMenuBar()
         self.showMaximized()
         self.show()
@@ -267,9 +277,22 @@ class MainWindow(QMainWindow):
         self.poll_timer.start(200)
 
     def keyPressEvent(self, event):
+
         k = event.key()
         if k == Qt.Key_Escape:
             self.ac.motion_thread.stop()
+
+        # Ignore duplicates, want only real presses
+        if 0 and event.isAutoRepeat():
+            return
+
+        # KiCAD zoom in / out => F1 / F2
+        if k == Qt.Key_F1:
+            self.ac.vidpip.zoomable_plus()
+        elif k == Qt.Key_F2:
+            self.ac.vidpip.zoomable_minus()
+        elif k == Qt.Key_F3:
+            self.ac.vidpip.zoomable_high_toggle()
 
     def invertKeyboardXYTriggered(self):
         mw = self.mainTab.motion_widget

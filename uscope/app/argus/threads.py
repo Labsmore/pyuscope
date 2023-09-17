@@ -321,6 +321,9 @@ class MotionThread(QThread):
                 # Depending on the motion controller this may be a bad idea
                 # Only some of them retain the old coordinate system / may need re-home
                 except MotionCritical as e:
+                    self.log(
+                        f"ERROR: motion thread crashed with critical error: {e}"
+                    )
                     print("")
                     print("ERROR: motion controller crashed w/ critical error")
                     print(traceback.format_exc())
@@ -329,7 +332,10 @@ class MotionThread(QThread):
                     if command_done:
                         command_done(command, args, e)
                     continue
+                except AxisExceeded as e:
+                    self.log(f"Motion command failed: {e}")
                 except Exception as e:
+                    self.log(f"WARNING: motion thread crashed: {e}")
                     print("")
                     print("WARNING: motion thread crashed")
                     print(traceback.format_exc())

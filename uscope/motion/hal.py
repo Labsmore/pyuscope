@@ -284,12 +284,16 @@ class SoftLimitMM(MotionModifier):
         self.soft_limits = soft_limits
 
     def move_absolute_pre(self, pos, options={}):
+        cur_pos_xyz = self.motion.cur_pos_cache()
         for axis, axpos in pos.items():
             limit = self.soft_limits.get(axis)
             if not limit:
                 continue
             axmin, axmax = limit
-            if axpos < axmin or axpos > axmax:
+            cur_pos = cur_pos_xyz[axis]
+            # Reject if its out of bounds and making things worse
+            # Otherwise user can't recover
+            if axpos < axmin and axpos < cur_pos or axpos > axmax and axpos > cur_pos:
                 raise AxisExceeded(
                     "axis %s: move violates %0.3f <= new pos %0.3f <= %0.3f" %
                     (axis, axmin, axpos, axmax))

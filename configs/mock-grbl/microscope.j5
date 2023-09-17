@@ -7,12 +7,21 @@ A minimal configuration to do basic testing
         "grbl": {
             "port": "mock",
         },
+
+        "soft_limits": {
+            "xmin": 10.0,
+            "xmax": 100.0,
+            "ymin": 20.0,
+            "ymax": 200.0,
+        },
     },
     "imager": {
         "source":"gst-videotestsrc",
-		"width": 150,
-		"height": 50
-    },
+        "width": 800,
+        "height": 750,
+        //In the ballpark of a typical value
+        "um_per_pixel_raw_1x": 5.0,
+   },
     "objectives": [
 		{
 			"name":"Objective",

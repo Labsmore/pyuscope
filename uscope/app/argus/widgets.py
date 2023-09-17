@@ -331,6 +331,110 @@ class PlannerWidget(AWidget):
     def get_objective(self):
         return self.objective_widget.obj_config
 
+    def show_minmax(self, visible):
+        for label in self.axis_machine_min_label.values():
+            label.setVisible(visible)
+        for label in self.axis_soft_min_label.values():
+            label.setVisible(visible)
+        for label in self.axis_soft_max_label.values():
+            label.setVisible(visible)
+        for label in self.axis_machine_max_label.values():
+            label.setVisible(visible)
+        for label in self.minmax_labels:
+            label.setVisible(visible)
+
+    def fill_minmax(self):
+        """
+        These values are fixed per machine as currently configured
+        As in you can't change soft limit after launch
+        """
+
+        # Access motion before motion thread starts while its still thread safe
+        # although it should be cached at startup
+        machine_limits = self.ac.motion_thread.motion.get_machine_limits()
+        soft_limits = self.ac.motion_thread.motion.get_soft_limits()
+
+        # Sanity check
+        for axis in self.ac.motion_thread.motion.axes():
+            machine_min = machine_limits["mins"].get(axis)
+            soft_min = soft_limits["mins"].get(axis)
+            if machine_min is not None and soft_min is not None:
+                assert machine_min <= soft_min, f"Invalid limit min config on {axis}, expect {machine_min} <= {soft_min}"
+
+            machine_max = machine_limits["maxs"].get(axis)
+            soft_max = soft_limits["maxs"].get(axis)
+            if machine_max is not None and soft_max is not None:
+                assert machine_max >= soft_max, f"Invalid limit max config on {axis}, expect {machine_max} >= {soft_max}"
+
+        def fill_group(label_group, limits_group, axis):
+            val = limits_group.get(axis, None)
+            if val is None:
+                s = "None"
+            else:
+                s = self.ac.usc.motion.format_position(axis, val)
+            label = label_group[axis]
+            label.setText(s)
+
+        for axis in "xyz":
+            fill_group(self.axis_machine_min_label,
+                       machine_limits.get("mins", {}), axis)
+            fill_group(self.axis_soft_min_label, soft_limits.get("mins", {}),
+                       axis)
+            fill_group(self.axis_soft_max_label, soft_limits.get("maxs", {}),
+                       axis)
+            fill_group(self.axis_machine_max_label,
+                       machine_limits.get("maxs", {}), axis)
+
+    def add_axis_rows(self, gl, row):
+        gl.addWidget(QLabel("X (mm)"), row, 1)
+        gl.addWidget(QLabel("Y (mm)"), row, 2)
+        gl.addWidget(QLabel("Z (mm)"), row, 3)
+        row += 1
+
+        self.minmax_labels = []
+
+        def add_axis_row(label_dict, label):
+            nonlocal row
+
+            def minmax_label(txt):
+                label = QLabel(txt)
+                self.minmax_labels.append(label)
+                return label
+
+            gl.addWidget(minmax_label(label), row, 0)
+            label = QLabel("?")
+            gl.addWidget(label, row, 1)
+            label_dict['x'] = label
+            label = QLabel("?")
+            gl.addWidget(label, row, 2)
+            label_dict['y'] = label
+            label = QLabel("?")
+            gl.addWidget(label, row, 3)
+            label_dict['z'] = label
+            row += 1
+
+        self.axis_machine_min_label = {}
+        add_axis_row(self.axis_machine_min_label, "Machine Minimum")
+        self.axis_soft_min_label = {}
+        add_axis_row(self.axis_soft_min_label, "Soft Minimum")
+        self.axis_pos_label = {}
+        add_axis_row(self.axis_pos_label, "Current")
+        self.axis_soft_max_label = {}
+        add_axis_row(self.axis_soft_max_label, "Soft Maximum")
+        self.axis_machine_max_label = {}
+        add_axis_row(self.axis_machine_max_label, "Machine Maximum")
+
+        # Useful but clutters the UI a bit
+        # Give a drop down option for now
+        # but show if you want "programmer GUI"
+        self.show_minmax(config.bc.dev_mode())
+        # self.show_minmax(True)
+
+        return row
+
+    def post_ui_init(self):
+        self.fill_minmax()
+
 
 """
 Integrates both 2D planner controls and current display
@@ -350,23 +454,7 @@ class XYPlanner2PWidget(PlannerWidget):
         row = 0
         self.pb_gos = {}
 
-        gl.addWidget(QLabel("X (mm)"), row, 1)
-        gl.addWidget(QLabel("Y (mm)"), row, 2)
-        gl.addWidget(QLabel("Z (mm)"), row, 3)
-        row += 1
-
-        self.axis_pos_label = {}
-        gl.addWidget(QLabel("Current"), row, 0)
-        label = QLabel("?")
-        gl.addWidget(label, row, 1)
-        self.axis_pos_label['x'] = label
-        label = QLabel("?")
-        gl.addWidget(label, row, 2)
-        self.axis_pos_label['y'] = label
-        label = QLabel("?")
-        gl.addWidget(label, row, 3)
-        self.axis_pos_label['z'] = label
-        row += 1
+        row = self.add_axis_rows(gl, row)
 
         start_label, end_label, start_icon, end_icon = {
             "ll": ("Lower left", "Upper right", config.GUI.icon_files["SW"],
@@ -587,23 +675,7 @@ class XYPlanner3PWidget(PlannerWidget):
         gl = QGridLayout()
         row = 0
 
-        gl.addWidget(QLabel("X (mm)"), row, 1)
-        gl.addWidget(QLabel("Y (mm)"), row, 2)
-        gl.addWidget(QLabel("Z (mm)"), row, 3)
-        row += 1
-
-        self.axis_pos_label = {}
-        gl.addWidget(QLabel("Current"), row, 0)
-        label = QLabel("?")
-        gl.addWidget(label, row, 1)
-        self.axis_pos_label['x'] = label
-        label = QLabel("?")
-        gl.addWidget(label, row, 2)
-        self.axis_pos_label['y'] = label
-        label = QLabel("?")
-        gl.addWidget(label, row, 3)
-        self.axis_pos_label['z'] = label
-        row += 1
+        row = self.add_axis_rows(gl, row)
 
         self.corner_widgets = OrderedDict()
 

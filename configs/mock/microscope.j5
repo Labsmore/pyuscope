@@ -5,11 +5,18 @@ A minimal configuration to do basic testing
     "motion": {
         "hal": "mock",
         "z_format6": true,
+
+        "soft_limits": {
+            "xmin": -5.0,
+            "xmax": 35.0,
+            "ymin": -5.0,
+            "ymax": 35.0,
+        },
     },
     "imager": {
         "source":"gst-videotestsrc",
         "width": 800,
-        "height": 600,
+        "height": 750,
         //In the ballpark of a typical value
         "um_per_pixel_raw_1x": 5.0,
     },

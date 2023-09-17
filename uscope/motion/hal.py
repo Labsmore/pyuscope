@@ -79,6 +79,9 @@ class MotionModifier:
         """
         pass
 
+    def get_machine_limits(self, limits):
+        pass
+
 
 """
 Do active backlash compensation on absolute and relative moves
@@ -336,7 +339,7 @@ class ScalarMM(MotionModifier):
         Internal: what the machine uses
         Fixup layer for gearboxes and such
         """
-        pos_in = dict(pos)
+        # pos_in = dict(pos)
         for k, v in dict(pos).items():
             pos[k] = v * self.scalars.get(k, 1.0) + self.wcs_offsets.get(
                 k, 0.0)
@@ -377,6 +380,9 @@ class ScalarMM(MotionModifier):
     def jog(self, scalars, options={}):
         self.scale_e2i_rel(scalars)
 
+    def get_machine_limits(self, limits):
+        self.scale_i2e_abs(limits)
+
 
 class MotionHAL:
     def __init__(self, log=None, verbose=None, microscope=None):
@@ -385,6 +391,7 @@ class MotionHAL:
         self.jog_rate = 0
         self.stop_on_del = True
         self.modifiers = None
+        self.options = None
 
         # dict containing (min, min) for each axis
         if log is None:
@@ -415,6 +422,63 @@ class MotionHAL:
             "x": 0.000010,
             "y": 0.000010,
             "z": 0.000010,
+        }
+
+    def _get_machine_limits(self):
+        return {}
+
+    def get_machine_limits(self):
+        """
+        return like
+        {
+            "mins": {
+                "x": 0.0,
+                ...
+            },
+            "maxs": {
+                "x": 123.0,
+                ...
+            },
+        """
+        limits = self._get_machine_limits()
+        for modifier in self.iter_active_modifiers():
+            if "mins" in limits:
+                modifier.get_machine_limits(limits["mins"])
+            if "maxs" in limits:
+                modifier.get_machine_limits(limits["maxs"])
+        return limits
+
+    def get_soft_limits(self):
+        # Unlike machine limits which are up to the HAL,
+        # these are user specified in the "final" coordinate system
+        """
+        config is like
+        "soft_limits": {
+            "xmin": -5.0,
+            "xmax": 35.0,
+            "ymin": -5.0,
+            "ymax": 35.0,
+        },
+        but returned like
+        {'x': (-5.0, 35.0), 'y': (-5.0, 35.0)}
+
+        but transform to be like above function
+        """
+        assert self.options, "Not configured"
+
+        limits = self.options.get("soft_limits", {})
+        if limits is None:
+            limits = {}
+        mins = OrderedDict()
+        maxs = OrderedDict()
+        for axis in "xyz":
+            this = limits.get(axis, None)
+            if this is not None:
+                mins[axis] = this[0]
+                maxs[axis] = this[1]
+        return {
+            "mins": mins,
+            "maxs": maxs,
         }
 
     def equivalent_axis_pos(self, axis, value1, value2):
@@ -480,6 +544,7 @@ class MotionHAL:
         self.enable_modifier("backlash", lazy=True)
 
     def iter_active_modifiers(self):
+        assert self.modifiers is not None, "Not configured yet"
         for modifier_name, modifier in self.modifiers.items():
             if modifier_name in self.disabled_modifiers:
                 continue

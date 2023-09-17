@@ -756,9 +756,9 @@ class MockGRBLSer(GRBLSer):
             "$120=30.000",
             "$121=30.000",
             "$122=30.000",
-            "$130=200.000",
-            "$131=200.000",
-            "$132=200.000",
+            "$130=130.000",
+            "$131=231.000",
+            "$132=332.000",
         ]
 
 
@@ -1102,12 +1102,29 @@ class GRBL:
         assert len(ret) == 3
         return ret
 
+    def axis_ranges(self):
+        ret = {}
+        for k, v in self.dollar_kvs():
+            v = v.strip().split()[0]
+            if k == "$130":
+                ret["x"] = float(v)
+            elif k == "$131":
+                ret["y"] = float(v)
+            elif k == "$132":
+                ret["z"] = float(v)
+        assert len(ret) == 3, ret
+        return ret
+
 
 class GrblHal(MotionHAL):
     def __init__(self, verbose=None, port=None, grbl=None, **kwargs):
         self.grbl = None
         self.feedrate = None
         self._steps_per_mm = None
+        self._machine_mins = None
+        self._machine_maxs = None
+        self._soft_mins = None
+        self._soft_maxs = None
 
         MotionHAL.__init__(self, verbose=verbose, **kwargs)
         if grbl:
@@ -1127,6 +1144,7 @@ class GrblHal(MotionHAL):
 
     def _configured(self):
         self.calc_steps_per_mm()
+        self.calc_min_max()
 
     def calc_steps_per_mm(self):
         """
@@ -1139,13 +1157,31 @@ class GrblHal(MotionHAL):
             steps_per_mm["x"] *= scalars["x"]
             steps_per_mm["y"] *= scalars["y"]
             steps_per_mm["z"] *= scalars["z"]
-        self.steps_per_mm = steps_per_mm
+        self._steps_per_mm = steps_per_mm
 
     def epsilon(self):
         return {
-            "x": 1 / self.steps_per_mm["x"],
-            "y": 1 / self.steps_per_mm["y"],
-            "z": 1 / self.steps_per_mm["z"],
+            "x": 1 / self._steps_per_mm["x"],
+            "y": 1 / self._steps_per_mm["y"],
+            "z": 1 / self._steps_per_mm["z"],
+        }
+
+    def calc_min_max(self):
+        ranges = self.grbl.axis_ranges()
+        # Believe machine is a simple 0 to N range
+        # However WCS can adjust these
+        self._machine_mins = {"x": 0.0, "y": 0.0, "z": 0.0}
+        self._machine_maxs = {
+            "x": ranges["x"],
+            "y": ranges["y"],
+            "z": ranges["z"]
+        }
+
+    def _get_machine_limits(self):
+        # TODO: should check if machine limits are enabled?
+        return {
+            "mins": self._machine_mins,
+            "maxs": self._machine_maxs,
         }
 
     def home(self):

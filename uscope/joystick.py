@@ -71,7 +71,9 @@ class Joystick:
         self.hat_scalars = scalars
 
     def configure(self):
-        pass
+        # 0.2 default
+        # self._jog_fractioned_period = config.get_bc().joystick.scan_secs()
+        self._jog_fractioned_period = 0.5
 
     def execute(self):
         # Get events and perform actions
@@ -80,8 +82,17 @@ class Joystick:
         # Expected format of config is:
         #     dict(fn_name(dict(fn_args))
         # Call the fn with provided args
+
+        # jogs across multiple axes need to be issued together
+        # otherwise it will override the previous jog
+        self._jog_queue = {}
         for fn in self.joystick_fn_map:
             getattr(self, fn)(**self.joystick_fn_map[fn])
+        if len(self._jog_queue):
+            # print(self._jog_queue)
+            self.microscope.jog_fractioned_lazy(self._jog_queue,
+                                                self._jog_fractioned_period)
+            self._jog_queue = None
 
     def debug_dump(self):
         pygame.event.get()
@@ -94,10 +105,13 @@ class Joystick:
         for i in range(self.joystick.get_numhats()):
             print("Hat({}): {}".format(i, self.joystick.get_hat(i)))
 
-    def _jog(self, axis, val):
+    def _jog_add_queue(self, axis, val):
+        # import time
+        # hack: set in ac
         # self.ac.motion_thread.jog_lazy({axis: val})
-        # FIXME: distance vs feedrate?
-        self.microscope.jog_fractioned({axis: val})
+        # print("jog joystick", time.time())
+        # self.microscope.jog_fractioned_lazy({axis: val}, self._jog_fractioned_period)
+        self._jog_queue[axis] = val
 
     # The following functions can be specified in the fn_map of the
     # joystick configuration files.
@@ -136,22 +150,22 @@ class Joystick:
         val = self.joystick.get_axis(id)
         if self.process_skip("x", "axis_move_x", val):
             return
-        self._jog("x",
-                  self.axis_cal_scalars["x"] * self.axis_scalars["x"] * val)
+        self._jog_add_queue(
+            "x", self.axis_cal_scalars["x"] * self.axis_scalars["x"] * val)
 
     def axis_move_y(self, id):
         val = self.joystick.get_axis(id)
         if self.process_skip("y", "axis_move_y", val):
             return
-        self._jog("y",
-                  self.axis_cal_scalars["y"] * self.axis_scalars["y"] * val)
+        self._jog_add_queue(
+            "y", self.axis_cal_scalars["y"] * self.axis_scalars["y"] * val)
 
     def axis_move_z(self, id):
         val = self.joystick.get_axis(id)
         if self.process_skip("z", "axis_move_z", val):
             return
-        self._jog("z",
-                  self.axis_cal_scalars["z"] * self.axis_scalars["z"] * val)
+        self._jog_add_queue(
+            "z", self.axis_cal_scalars["z"] * self.axis_scalars["z"] * val)
 
     def hat_move_z(self, id, idx):
         val = self.joystick.get_hat(id)[idx]
@@ -159,7 +173,8 @@ class Joystick:
         if self.process_skip("z", "hat_move_z", val):
             return
         # Hat values are either -1 or 1, so we can just multiply for sign
-        self._jog("z", self.hat_cal_scalars["z"] * self.hat_scalars["z"] * val)
+        self._jog_add_queue(
+            "z", self.hat_cal_scalars["z"] * self.hat_scalars["z"] * val)
 
     def btn_capture_image(self, id):
         if self.joystick.get_button(id):

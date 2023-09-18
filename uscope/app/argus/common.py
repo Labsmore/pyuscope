@@ -209,7 +209,9 @@ class ArgusCommon(QObject):
         self.vidpip.setupWidgets()
 
     def post_ui_init(self):
+        # hack...used by joystick...
         self.microscope.jog_lazy = self.motion_thread.jog_lazy
+        self.microscope.jog_fractioned_lazy = self.motion_thread.jog_fractioned_lazy
         self.microscope.cancel_jog = self.motion_thread.stop
 
         # FIXME: these are not thread safe

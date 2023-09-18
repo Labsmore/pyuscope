@@ -92,6 +92,9 @@ class ICSDisplayer:
         """
         return val
 
+    def setVisible(self, val):
+        assert 0, "Required"
+
 
 """
 Display a 0 vs 1 int value as a checkbox
@@ -110,7 +113,8 @@ class BoolDisplayer(ICSDisplayer):
 
     def assemble(self, layoutg, row):
         # print("making cb")
-        layoutg.addWidget(QLabel(self.config["disp_name"]), row, 0)
+        self.label = QLabel(self.config["disp_name"])
+        layoutg.addWidget(self.label, row, 0)
         self.cb = QCheckBox()
         layoutg.addWidget(self.cb, row, 1)
         row += 1
@@ -131,6 +135,10 @@ class BoolDisplayer(ICSDisplayer):
     def val_disp2raw(self, val):
         return int(bool(val))
 
+    def setVisible(self, val):
+        self.label.setVisible(val)
+        self.cb.setVisible(val)
+
 
 class IntDisplayer(ICSDisplayer):
     def gui_changed(self):
@@ -150,7 +158,8 @@ class IntDisplayer(ICSDisplayer):
             self.value_label.setText(str(val))
 
     def assemble(self, layoutg, row):
-        layoutg.addWidget(QLabel(self.config["disp_name"]), row, 0)
+        self.label = QLabel(self.config["disp_name"])
+        layoutg.addWidget(self.label, row, 0)
         self.value_label = QLabel(str(self.config["default"]))
         layoutg.addWidget(self.value_label, row, 1)
         row += 1
@@ -173,6 +182,11 @@ class IntDisplayer(ICSDisplayer):
     def enable_user_controls(self, enabled, force=False):
         if self.config["gui_driven"] or force:
             self.slider.setEnabled(enabled)
+
+    def setVisible(self, val):
+        self.label.setVisible(val)
+        self.value_label.setVisible(val)
+        self.slider.setVisible(val)
 
 
 """

@@ -16,15 +16,12 @@ groups_gst = [
     ]),
 ]
 
-# FIXME: disp property set => means we can't remove this
-# either move to raw properties or hide this (probably better)
-if 1 or config.get_bc().dev_mode():
-    groups_gst.extend([
-        ("Flip", [
-            "hflip",
-            "vflip",
-        ]),
-    ])
+groups_gst.extend([
+    ("Flip", [
+        "hflip",
+        "vflip",
+    ]),
+])
 
 groups_gst.extend([
     (
@@ -73,6 +70,12 @@ class TTControlScroll(GstControlScroll):
                                   groups_gst=groups_gst,
                                   usc=usc,
                                   parent=parent)
+
+        # Normal users don't need to change these
+        # but its needed to configure the camera
+        # See https://github.com/Labsmore/pyuscope/issues/274
+        self.disp2element["hflip"].setVisible(config.get_bc().dev_mode())
+        self.disp2element["vflip"].setVisible(config.get_bc().dev_mode())
 
     def auto_exposure_enabled(self):
         return bool(self.disp_prop_read("auto-exposure"))

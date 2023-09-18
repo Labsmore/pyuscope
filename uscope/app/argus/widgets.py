@@ -2110,7 +2110,7 @@ class JogSlider(QWidget):
         # log scaled to slider
         self.jog_cur = None
 
-        self.jog_min = 1
+        self.jog_min = 0.1
         self.jog_max = 100
         self.slider_min = 1
         self.slider_max = 100
@@ -2121,6 +2121,7 @@ class JogSlider(QWidget):
 
         def labels():
             layout = QHBoxLayout()
+            layout.addWidget(QLabel("0.1"))
             layout.addWidget(QLabel("1"))
             layout.addWidget(QLabel("10"))
             layout.addWidget(QLabel("100"))
@@ -2133,7 +2134,7 @@ class JogSlider(QWidget):
         self.slider.setMaximum(self.slider_max)
         self.slider.setValue(self.slider_max // 2)
         self.slider.setTickPosition(QSlider.TicksBelow)
-        self.slider.setTickInterval(50)
+        self.slider.setTickInterval(33)
         # Send keyboard events to CNC navigation instead
         self.slider.setFocusPolicy(Qt.NoFocus)
         self.layout.addWidget(self.slider)
@@ -2422,21 +2423,19 @@ class MotionWidget(AWidget):
             # FIXME: now that using real machine units need to revisit this
             if self.fine_move:
                 if axis == "z":
-                    fine_scalar = 0.05
+                    fine_scalar = 0.01
                 else:
                     fine_scalar = 0.01
             jog_val = keyboard_sign * self.keyboard_xy_scalar * fine_scalar * self.slider.get_jog_fraction(
             ) * max_velocity
-            if jog_val < 0:
-                jog_val = min(-0.0001, jog_val)
-            else:
-                jog_val = max(+0.0001, jog_val)
 
             # print("scalar %0.3f" % scalar, "fine", self.fine_move)
             # print("Key jogging %s%c" % (axis, {1: '+', -1: '-'}[sign]))
             # don't spam events if its not done processing
             # self.motion_thread.jog_lazy({axis: jog_val}, jog_val)
-            self.motion_thread.jog_fractioned_lazy({axis: jog_val})
+            # Looks like these are submitted every 120 ms, 250 gives good overhead
+            self.motion_thread.jog_fractioned_lazy({axis: jog_val},
+                                                   period=0.25)
         else:
             pass
             # print("unknown key %s" % (k, ))

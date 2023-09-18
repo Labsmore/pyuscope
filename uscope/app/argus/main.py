@@ -271,6 +271,7 @@ class MainWindow(QMainWindow):
         self.ac.update_pconfigs.append(self.advancedTab.update_pconfig)
         self.ac.update_pconfigs.append(self.imagerTab.update_pconfig)
         # Start services
+        # This will microscope.configure() which is needed by later tabs
         self.ac.post_ui_init()
 
         # Tabs

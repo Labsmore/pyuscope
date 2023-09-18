@@ -848,17 +848,17 @@ class GRBL:
 
         typical resposne is < 0.05 sec
         """
-        tbegin = time.time()
+        # tbegin = time.time()
 
         if not self.gs.in_reset():
             return
-        print("grbl: failed to respond, attempting reset recovery")
+        # print("grbl: failed to respond, attempting reset recovery")
         self.gs.reset_recover()
 
         # Run full status command to be sure
         self.qstatus()
         # grbl: recovered after 1.388 sec
-        print("grbl: recovered after %0.3f sec" % (time.time() - tbegin, ))
+        # print("grbl: recovered after %0.3f sec" % (time.time() - tbegin, ))
 
     def general_recover(self, retry=True):
         """
@@ -1004,11 +1004,12 @@ class GRBL:
         Note: jog is skipped in the case of command error
         """
 
+        assert rate >= 0, rate
         try:
-            axes_str = " ".joing([
+            axes_str = " ".join([
                 "%s%0.3f" % (axis, scalar) for axis, scalar in scalars.items()
             ])
-            cmd = "G91 %s F%u" % (axis, axes_str, rate)
+            cmd = "G91 %s F%u" % (axes_str, rate)
             self.verbose and print("JOG:", cmd)
             self.gs.j(cmd)
             if 0 and self.verbose:
@@ -1021,16 +1022,41 @@ class GRBL:
             self.general_recover()
 
     def do_cancel_jog(self):
+        """
+        Retry logic to really try to cancel jog if at all possible
+        Ex: a serial transmission error should still reliably cancel
+
+        X1
+            z is higher velocity gearbox => takes longer to stop
+            This was set to 1.5 timeout (as 3 * 0.5) originally which looks like on rare ocassions can timeout
+            Increase to proper 2.0 second timeout to give plenty of margin
+
+            xy
+            cancel jog after 83 attempts, 0.7591941356658936 seconds
+            cancel jog after 83 attempts, 0.7646291255950928 seconds
+
+            z
+            cancel jog after 158 attempts, 1.4465827941894531 seconds
+            cancel jog after 155 attempts, 1.441417932510376 seconds
+        """
         tries = 3
-        timeout = 0.5
+        timeout = 2.0
+        cancels = 0
+        main_tstart = time.time()
         for i in range(tries):
             try:
                 tstart = time.time()
                 while True:
                     if time.time() - tstart > timeout:
-                        raise Timeout("Failed to cancel jog")
+                        dt = time.time() - main_tstart
+                        raise Timeout(
+                            f"Failed to cancel jog after {cancels} attempts, {dt} seconds"
+                        )
                     self.gs.cancel_jog()
+                    cancels += 1
                     if self.qstatus()["status"] == "Idle":
+                        dt = time.time() - main_tstart
+                        # print(f"cancel jog after {cancels} attempts, {dt} seconds")
                         return
                     self.verbose and print("cancel: not idle yet")
             except Exception:

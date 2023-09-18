@@ -159,18 +159,18 @@ class MotionThread(QThread):
     def mdi(self, cmd):
         self.command("mdi", cmd)
 
-    def jog_fractioned(self, axes, timeout=0.1):
+    def jog_fractioned(self, axes, period=1.0):
         """
         An easier to use command using fractions of max velocity
         Each axis should be in scale 0 to 1
         Where 1 represents a jog at max velocity
         timeout: if you want
         """
-        assert 0, "FIXME"
+        self.command("jog_fractioned", axes, period)
 
-    def jog_fractioned_lazy(self, axes, timeout=0.1):
+    def jog_fractioned_lazy(self, axes, period=1.0):
         if self.qsize() < 1:
-            self.jog_fractioned(axes, timeout)
+            self.jog_fractioned(axes, period)
 
     def jog(self, pos, rate):
         self.command("jog", pos, rate)
@@ -315,6 +315,7 @@ class MotionThread(QThread):
                     'move_absolute': move_absolute,
                     'move_relative': move_relative,
                     'jog': self.motion.jog,
+                    'jog_fractioned': self.motion.jog_fractioned,
                     'pos': self.motion.pos,
                     'home': self.motion.home,
                     'backlash_disable': self.motion.backlash_disable,

@@ -16,7 +16,9 @@ groups_gst = [
     ]),
 ]
 
-if config.get_bc().dev_mode():
+# FIXME: disp property set => means we can't remove this
+# either move to raw properties or hide this (probably better)
+if 1 or config.get_bc().dev_mode():
     groups_gst.extend([
         ("Flip", [
             "hflip",

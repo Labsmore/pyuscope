@@ -70,7 +70,7 @@ class MotionModifier:
     def move_relative_post(self, ok, options={}):
         pass
 
-    def jog(self, scalars, rate, options={}):
+    def jog(self, scalars, rate_ref, options={}):
         pass
 
     def update_status(self, status):
@@ -252,7 +252,7 @@ class BacklashMM(MotionModifier):
             pos, cur_pos=self.motion.cur_pos_cache())
         self.move_x_pre(dst_abs_pos=final_abs_pos, options=options)
 
-    def jog(self, scalars, rate, options={}):
+    def jog(self, scalars, rate_ref, options={}):
         # Don't modify jog commands, but invalidate compensation
         for axis in scalars.keys():
             self.compensated[axis] = False
@@ -304,7 +304,7 @@ class SoftLimitMM(MotionModifier):
             self.motion.estimate_relative_pos(
                 pos, cur_pos=self.motion.cur_pos_cache()))
 
-    def jog(self, scalars, rate, options={}):
+    def jog(self, scalars, rate_ref, options={}):
         self.move_absolute_pre(
             self.motion.estimate_relative_pos(
                 scalars, cur_pos=self.motion.cur_pos_cache()))
@@ -381,9 +381,17 @@ class ScalarMM(MotionModifier):
             self.scale_i2e_abs(status["pos"])
             # print('status scaling2 %s' % status["pos"])
 
-    def jog(self, scalars, rate, options={}):
+    def jog(self, scalars, rate_ref, options={}):
         self.scale_e2i_rel(scalars)
-        self.scale_e2i_rel(rate)
+        """
+        Rate is tricky since it applies to all axes but they may not be at the same scalar
+        In practice jogged axes should be similar but who knows
+        Favor the lowest possible rate to avoid going too fast?
+        """
+        rate_candidates = dict([(axis, rate_ref[0])
+                                for axis in scalars.keys()])
+        self.scale_e2i_rel(rate_candidates)
+        rate_ref[0] = min(rate_candidates.values())
 
     def munge_axes(self, axes):
         self.scale_i2e_abs(axes)
@@ -396,6 +404,11 @@ class MotionHAL:
         self.stop_on_del = True
         self.modifiers = None
         self.options = None
+
+        # Cache some computed values
+        self._hal_max_velocities = None
+        self._hal_max_accelerations = None
+        self._hal_machine_limits = None
 
         # dict containing (min, min) for each axis
         if log is None:
@@ -449,14 +462,11 @@ class MotionHAL:
                 ...
             },
         """
-        limits = self._get_machine_limits()
-        if "mins" in limits:
-            self.munge_axes(limits["mins"])
-        if "maxs" in limits:
-            self.munge_axes(limits["maxs"])
-        return limits
+        assert self.options is not None, "Not configured"
+        return self._hal_machine_limits
 
     def get_soft_limits(self):
+
         # Unlike machine limits which are up to the HAL,
         # these are user specified in the "final" coordinate system
         """
@@ -472,34 +482,22 @@ class MotionHAL:
 
         but transform to be like above function
         """
-        assert self.options, "Not configured"
-
-        limits = self.options.get("soft_limits", {})
-        if limits is None:
-            limits = {}
-        mins = OrderedDict()
-        maxs = OrderedDict()
-        for axis in "xyz":
-            this = limits.get(axis, None)
-            if this is not None:
-                mins[axis] = this[0]
-                maxs[axis] = this[1]
-        return {
-            "mins": mins,
-            "maxs": maxs,
-        }
+        assert self.options is not None, "Not configured"
+        return self._hal_soft_limits
 
     def _get_max_velocities(self):
         return {}
 
     def get_max_velocities(self):
-        return self.munge_axes(self._get_max_velocities())
+        assert self.options is not None, "Not configured"
+        return self._hal_max_velocities
 
     def _get_max_accelerations(self):
         return {}
 
     def get_max_accelerations(self):
-        return self.munge_axes(self._get_max_accelerations())
+        assert self.options is not None, "Not configured"
+        return self._hal_max_accelerations
 
     def equivalent_axis_pos(self, axis, value1, value2):
         """
@@ -508,6 +506,46 @@ class MotionHAL:
         """
         delta = abs(value2 - value1)
         return delta / 2 <= self.epsilon()[axis]
+
+    def cache_constants(self):
+        def calc_max_velocities():
+            self._hal_max_velocities = self._get_max_velocities()
+            self.munge_axes(self._hal_max_velocities)
+
+        calc_max_velocities()
+
+        def calc_max_accelerations():
+            self._hal_max_accelerations = self._get_max_accelerations()
+            self.munge_axes(self._hal_max_accelerations)
+
+        calc_max_accelerations()
+
+        def calc_machine_limits():
+            self._hal_machine_limits = dict(self._get_machine_limits())
+            if "mins" in self._hal_machine_limits:
+                self.munge_axes(self._hal_machine_limits["mins"])
+            if "maxs" in self._hal_machine_limits:
+                self.munge_axes(self._hal_machine_limits["maxs"])
+
+        calc_machine_limits()
+
+        def calc_soft_limits():
+            limits = self.options.get("soft_limits", {})
+            if limits is None:
+                limits = {}
+            mins = OrderedDict()
+            maxs = OrderedDict()
+            for axis in "xyz":
+                this = limits.get(axis, None)
+                if this is not None:
+                    mins[axis] = this[0]
+                    maxs[axis] = this[1]
+            self._hal_soft_limits = {
+                "mins": mins,
+                "maxs": maxs,
+            }
+
+        calc_soft_limits()
 
     def configure(self, options):
         self.use_wcs_offsets = bool(options.get("use_wcs_offsets", False))
@@ -536,7 +574,10 @@ class MotionHAL:
             self.modifiers["scalar"] = ScalarMM(self,
                                                 scalars=scalars,
                                                 wcs_offsets=wcs_offsets)
+
         self._configured()
+        # need to let GRBL fetch values
+        self.cache_constants()
 
     def _configured(self):
         pass
@@ -747,12 +788,18 @@ class MotionHAL:
         # Always allow moving away from the bad area though if we are already in there
         if len(scalars) == 0:
             return
+        assert rate >= 0
+        scalars = dict(scalars)
         # XXX: invalidates on recursion
         self.cur_pos_cache_invalidate()
         try:
+            # print("jog in", scalars, rate)
             self.validate_axes(scalars.keys())
+            rate_ref = [rate]
             for modifier in self.iter_active_modifiers():
-                modifier.jog(scalars, rate, options=options)
+                modifier.jog(scalars, rate_ref, options=options)
+            rate = rate_ref[0]
+            # print("jog to grbl", scalars, rate)
             self._jog(scalars, rate)
         finally:
             self.cur_pos_cache_invalidate()
@@ -763,6 +810,32 @@ class MotionHAL:
         WARNING: under development / unstable API
         '''
         raise NotSupported("Required for jogging")
+
+    def jog_fractioned(self, axes, period=1.0):
+        """
+        Axes: values containing jog rate in rane [-1.0 to +1.0]
+            +1.0 => jog at max speed
+        period: how often commands will be issued
+            longer period => jog further to keep constant
+        """
+        # print("")
+        # print("jog_fractioned", axes, period)
+        self.validate_axes(axes.keys())
+        for axis, frac in axes.items():
+            assert -1.0 <= frac <= +1.0, (axis, frac)
+        # How fast, in machine units, were we requested to go?
+        velocities = dict([(axis, self.get_max_velocities()[axis] * frac)
+                           for axis, frac in axes.items()])
+        # print("velocities", velocities)
+        # How far can we go in this time?
+        scalars = dict([(axis, velocities[axis] * period)
+                        for axis, frac in velocities.items()])
+        # print("scalars", scalars)
+        # Usually only XY is jogged together and they typically have the same max velocity
+        # Take the smallest possible value so they all go the same scaled speed
+        rate = min([abs(velocity) for velocity in velocities.values()])
+        rate = int(round(max(1, rate)))
+        self.jog(scalars, rate)
 
     '''
     In modern systems the first is almost always used

@@ -7,10 +7,10 @@ A minimal configuration to do basic testing
         "z_format6": true,
 
         "soft_limits": {
-            "xmin": -5.0,
-            "xmax": 35.0,
-            "ymin": -5.0,
-            "ymax": 35.0,
+            "xmin": -50.0,
+            "xmax": 350.0,
+            "ymin": -50.0,
+            "ymax": 350.0,
         },
     },
     "imager": {

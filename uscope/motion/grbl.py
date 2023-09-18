@@ -1183,8 +1183,10 @@ class GrblHal(MotionHAL):
     def _configured(self):
         self.calc_steps_per_mm()
         self.calc_min_max()
-        self._max_velocities = self.grbl.axes_max_rate()
-        self._max_acelerations = self.grbl.axes_max_acceleration()
+        # xxx: just have these returned from the query functions
+        self._max_velocities = self.only_used_axes(self.grbl.axes_max_rate())
+        self._max_acelerations = self.only_used_axes(
+            self.grbl.axes_max_acceleration())
 
     def calc_steps_per_mm(self):
         """

@@ -9,10 +9,10 @@ A minimal configuration to do basic testing
         },
 
         "soft_limits": {
-            "xmin": 10.0,
-            "xmax": 100.0,
-            "ymin": 20.0,
-            "ymax": 200.0,
+            "xmin": 0.0,
+            "xmax": 120.0,
+            "ymin": 0.0,
+            "ymax": 205.0,
         },
     },
     "imager": {

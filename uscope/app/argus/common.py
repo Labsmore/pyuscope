@@ -3,7 +3,8 @@ from uscope.gui.control_scrolls import get_control_scroll
 from uscope.config import get_usj, USC, get_bc, get_data_dir
 from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
-from uscope.app.argus.threads import MotionThread, ImageProcessingThread
+from uscope.app.argus.threads import ImageProcessingThread
+from uscope.motion.thread import QMotionThread
 from uscope.app.argus.threads import JoystickThread, JoystickNotFound
 from uscope.microscope import Microscope
 
@@ -187,7 +188,7 @@ class ArgusCommon(QObject):
 
         self.planner_thread = None
         # motion.progress = self.hal_progress
-        self.motion_thread = MotionThread(usc=self.usc)
+        self.motion_thread = QMotionThread(usc=self.usc)
         self.motion_thread.log_msg.connect(self.log)
         self.motion = self.motion_thread.motion
 

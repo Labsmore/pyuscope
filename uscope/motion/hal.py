@@ -447,7 +447,7 @@ class MotionHAL:
         return axes
 
     def _get_machine_limits(self):
-        return {}
+        return {"mins": {}, "maxs": {}}
 
     def get_machine_limits(self):
         """
@@ -486,14 +486,20 @@ class MotionHAL:
         return self._hal_soft_limits
 
     def _get_max_velocities(self):
-        return {}
+        """
+        assume GRBL units: 110: "X Max rate, mm/min",
+        """
+        assert 0, "Required"
 
     def get_max_velocities(self):
+        """
+        assume GRBL units: 120: "X Acceleration, mm/sec^2",
+        """
         assert self.options is not None, "Not configured"
         return self._hal_max_velocities
 
     def _get_max_accelerations(self):
-        return {}
+        assert 0, "Required"
 
     def get_max_accelerations(self):
         assert self.options is not None, "Not configured"
@@ -511,16 +517,23 @@ class MotionHAL:
         def calc_max_velocities():
             self._hal_max_velocities = self._get_max_velocities()
             self.munge_axes(self._hal_max_velocities)
+            # Jogging depends on this
+            self.assert_all_axes(self._hal_max_velocities)
 
         calc_max_velocities()
 
         def calc_max_accelerations():
             self._hal_max_accelerations = self._get_max_accelerations()
             self.munge_axes(self._hal_max_accelerations)
+            # 2023-09-18: not currently used
+            # Could drop this requirement if good reason
+            self.assert_all_axes(self._hal_max_accelerations)
 
         calc_max_accelerations()
 
         def calc_machine_limits():
+            # xxx: think this is always defined?
+            # unclear if this is accurate on all machines though
             self._hal_machine_limits = dict(self._get_machine_limits())
             if "mins" in self._hal_machine_limits:
                 self.munge_axes(self._hal_machine_limits["mins"])
@@ -575,8 +588,10 @@ class MotionHAL:
                                                 scalars=scalars,
                                                 wcs_offsets=wcs_offsets)
 
+        print("callin configured")
         self._configured()
         # need to let GRBL fetch values
+        print("callin cache")
         self.cache_constants()
 
     def _configured(self):
@@ -657,6 +672,25 @@ class MotionHAL:
     def axes(self):
         '''Return supported axes'''
         raise Exception("Required")
+
+    def only_used_axes(self, d):
+        """
+        Filter a dict containing raw machine axes into a dict
+        containing axes actually in use
+        """
+        ret = {}
+        for axis in self.axes():
+            if axis in d:
+                ret[axis] = d[axis]
+        return ret
+
+    def assert_all_axes(self, axes):
+        """
+        Assert that axes contains one key for each active axis and nothing else  
+        """
+        axes = set(axes)
+        have = set(self.axes())
+        assert axes == have, (f"expected axes {have}, but was given {axes}")
 
     def home(self):
         '''Set current position to 0.0'''
@@ -824,6 +858,8 @@ class MotionHAL:
         for axis, frac in axes.items():
             assert -1.0 <= frac <= +1.0, (axis, frac)
         # How fast, in machine units, were we requested to go?
+        # GRBL: machine reports velocity in mm / min, feed rate is also mm / min
+        # However note that acceleration is in mm / sec2
         velocities = dict([(axis, self.get_max_velocities()[axis] * frac)
                            for axis, frac in axes.items()])
         # print("velocities", velocities)
@@ -924,6 +960,12 @@ class MockHal(MotionHAL):
 
     def axes(self):
         return self._axes
+
+    def _get_max_velocities(self):
+        return {'x': 100.0, 'y': 100.0, 'z': 60.0}
+
+    def _get_max_accelerations(self):
+        return {'x': 100.0, 'y': 100.0, 'z': 60.0}
 
     def home(self):
         for axis in self._axes:

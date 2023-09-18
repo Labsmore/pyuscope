@@ -1843,27 +1843,36 @@ class StitchingTab(ArgusTab):
             layout = QGridLayout()
             row = 0
 
-            layout.addWidget(QLabel("AccessKey"), row, 0)
+            self.key_widgets = []
+
+            def key_widget(widget):
+                self.key_widgets.append(widget)
+                return widget
+
+            layout.addWidget(key_widget(QLabel("AccessKey")), row, 0)
             # Is there a reasonable default here?
-            self.stitch_accesskey = QLineEdit(
-                self.ac.bc.labsmore_stitch_aws_access_key())
+            self.stitch_accesskey = key_widget(
+                QLineEdit(self.ac.bc.labsmore_stitch_aws_access_key()))
             layout.addWidget(self.stitch_accesskey, row, 1)
             row += 1
 
-            layout.addWidget(QLabel("SecretKey"), row, 0)
-            self.stitch_secretkey = QLineEdit(
-                self.ac.bc.labsmore_stitch_aws_secret_key())
+            layout.addWidget(key_widget(QLabel("SecretKey")), row, 0)
+            self.stitch_secretkey = key_widget(
+                QLineEdit(self.ac.bc.labsmore_stitch_aws_secret_key()))
             self.stitch_secretkey.setEchoMode(QLineEdit.Password)
             layout.addWidget(self.stitch_secretkey, row, 1)
             row += 1
 
-            layout.addWidget(QLabel("IDKey"), row, 0)
+            layout.addWidget(key_widget(QLabel("IDKey")), row, 0)
             # Is there a reasonable default here?
-            self.stitch_idkey = QLineEdit(
-                self.ac.bc.labsmore_stitch_aws_id_key())
+            self.stitch_idkey = key_widget(
+                QLineEdit(self.ac.bc.labsmore_stitch_aws_id_key()))
             self.stitch_idkey.setEchoMode(QLineEdit.Password)
             layout.addWidget(self.stitch_idkey, row, 1)
             row += 1
+
+            for widget in self.key_widgets:
+                widget.setVisible(config.get_bc().dev_mode())
 
             layout.addWidget(QLabel("Notification Email Address"), row, 0)
             self.stitch_email = QLineEdit(

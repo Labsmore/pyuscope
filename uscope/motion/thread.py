@@ -2,7 +2,6 @@ from uscope.motion.plugins import get_motion_hal
 from uscope.motion.hal import AxisExceeded, MotionHAL, MotionCritical
 
 import threading
-from PyQt5.QtCore import QThread, pyqtSignal
 import queue
 import time
 import datetime
@@ -340,14 +339,3 @@ class MotionThreadBase:
 
 class SimpleMotionThread(MotionThreadBase, threading.Thread):
     pass
-
-
-class QMotionThread(MotionThreadBase, QThread):
-    log_msg = pyqtSignal(str)
-
-    def __init__(self, usc):
-        QThread.__init__(self)
-        MotionThreadBase.__init__(self, usc=usc)
-
-    def log(self, msg):
-        self.log_msg.emit(msg)

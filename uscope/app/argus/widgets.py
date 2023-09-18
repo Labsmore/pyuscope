@@ -1,7 +1,7 @@
 from uscope.config import PC, get_data_dir
 from uscope.imager.imager_util import get_scaled
 from uscope.benchmark import Benchmark
-from uscope.app.argus.threads import PlannerThread, StitcherThread
+from uscope.app.argus.threads import QPlannerThread, StitcherThread
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import config
 from uscope.motion import motion_util
@@ -1148,9 +1148,8 @@ class ScanWidget(AWidget):
                 #"verbosity": 2,
             }
 
-            self.ac.planner_thread = PlannerThread(self,
-                                                   planner_args,
-                                                   progress_cb=emitCncProgress)
+            self.ac.planner_thread = QPlannerThread(
+                self, planner_args, progress_cb=emitCncProgress)
             self.ac.planner_thread.log_msg.connect(self.ac.log)
             self.ac.planner_thread.plannerDone.connect(self.plannerDone)
             self.setControlsEnabled(False)

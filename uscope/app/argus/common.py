@@ -3,10 +3,10 @@ from uscope.gui.control_scrolls import get_control_scroll
 from uscope.config import get_usj, USC, get_bc, get_data_dir
 from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
-from uscope.app.argus.threads import ImageProcessingThread
-from uscope.motion.thread import QMotionThread
-from uscope.app.argus.threads import JoystickThread, JoystickNotFound
+from uscope.app.argus.threads import QMotionThread, QImageProcessingThread, QJoystickThread
+from uscope.joystick import JoystickNotFound
 from uscope.microscope import Microscope
+from uscope.kinematics import Kinematics
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -201,8 +201,10 @@ class ArgusCommon(QObject):
             auto=False,
             configure=False)
 
+        # TODO: we should try to make this allow connecting and disconnecting joystick
+        # its not required for any critical initialization / would be easy to do
         try:
-            self.joystick_thread = JoystickThread(ac=self)
+            self.joystick_thread = QJoystickThread(ac=self)
         except JoystickNotFound:
             self.log("Joystick not found")
 
@@ -248,9 +250,15 @@ class ArgusCommon(QObject):
             self.joystick_thread.log_msg.connect(self.log)
             self.joystick_thread.start()
         # Needs imager which isn't initialized until gst GUI objects are made
-        self.image_processing_thread = ImageProcessingThread(
-            motion_thread=self.motion_thread, ac=self)
-        self.kinematics = self.image_processing_thread.kinematics
+        self.image_processing_thread = QImageProcessingThread(ac=self)
+
+        self.kinematics = Kinematics(
+            microscope=self.microscope,
+            log=self.log,
+        )
+        self.kinematics.configure()
+        self.microscope.kinematics = self.kinematics
+
         self.image_processing_thread.log_msg.connect(self.log)
         self.image_processing_thread.start()
 

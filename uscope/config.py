@@ -519,6 +519,20 @@ class USCMotion:
     def use_wcs_offsets(self):
         return bool(self.j.get("use_wcs_offsets", 0))
 
+    def limit_switches(self):
+        """
+        Used to be extra careful to avoid homing systems without limit switches
+        """
+
+        v = self.j.get("limit_switches")
+        if v is None:
+            return None
+        else:
+            return bool(v)
+
+    def axes(self):
+        return set(self.j.get("axes", "xyz"))
+
 
 class USCPlanner:
     def __init__(self, j={}):
@@ -700,7 +714,7 @@ class USC:
         In the future we might use other info
         Expect file to have a default entry with null key or might consie
         """
-        if microscope:
+        if microscope and microscope.imager:
             camera_sn = microscope.imager.get_sn()
         else:
             camera_sn = None

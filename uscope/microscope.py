@@ -42,10 +42,15 @@ class Microscope:
         self,
         bc=None,
         usc=None,
+        name=None,
         imager=None,
+        make_imager=True,
         kinematics=None,
+        make_kinematics=True,
         motion=None,
+        make_motion=True,
         joystick=None,
+        make_joystick=True,
         imager_cli=False,
         auto=True,
     ):
@@ -54,28 +59,34 @@ class Microscope:
         self.bc = bc
 
         if usc is None:
-            usc = get_usc()
+            usc = get_usc(name=name)
         self.usc = usc
 
-        if imager is None and imager_cli and auto:
+        if not auto:
+            make_motion = False
+            make_imager = False
+            make_kinematics = False
+            make_joystick = False
+
+        if imager is None and imager_cli and make_imager:
             imager = gst.get_cli_imager_by_config(usc=self.usc,
                                                   microscope=self)
         self.imager = imager
 
-        if motion is None and auto:
+        if motion is None and make_motion:
             motion = get_motion_hal(usc=self.usc,
                                     microscope=self,
                                     log=self.log)
         self.motion = motion
 
-        if kinematics is None and auto:
+        if kinematics is None and make_kinematics:
             kinematics = Kinematics(
                 microscope=self,
                 log=self.log,
             )
         self.kinematics = kinematics
         """
-        if joystick is None and auto:
+        if joystick is None and make_joystick:
             try:
                 joystick = Joystick(ac=self.ac)
             except JoystickNotFound:
@@ -106,3 +117,17 @@ def get_cli_microscope(name=None):
 def get_gui_microscope(name=None):
     usc = get_usc(name=name)
     return Microscope(usc=usc, imager_gui=True)
+
+
+def get_microscope_for_motion(name=None):
+    """
+    Create a microscope for given microscope configuration without the imager
+    """
+    return Microscope(name=name, make_motion=True, make_imager=False)
+
+
+def get_microscope_for_imager(name=None):
+    """
+    Create a microscope for given microscope configuration without the motion
+    """
+    return Microscope(name=name, make_motion=False, make_imager=True)

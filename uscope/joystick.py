@@ -96,7 +96,8 @@ class Joystick:
 
     def _jog(self, axis, val):
         # self.ac.motion_thread.jog_lazy({axis: val})
-        self.microscope.jog_lazy({axis: val})
+        # FIXME: distance vs feedrate?
+        self.microscope.jog_fractioned({axis: val})
 
     # The following functions can be specified in the fn_map of the
     # joystick configuration files.

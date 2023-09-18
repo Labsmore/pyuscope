@@ -18,7 +18,7 @@ import glob
 import struct
 from uscope.util import tobytes, tostr
 import hashlib
-from uscope.config import default_microscope_name
+from uscope.config import default_microscope_name, get_usc
 
 
 class GrblException(Exception):
@@ -245,6 +245,7 @@ class GRBLSer:
                                (port, threading.get_ident()))
 
         # workaround for pyserial toggling flow control lines on open
+        # Other the MCU will reboot on open
         # https://github.com/pyserial/pyserial/issues/124
         f = open(port)
         attrs = termios.tcgetattr(f)
@@ -769,7 +770,6 @@ class GRBL:
                  probe=True,
                  reset=False,
                  gs=None,
-                 scalar=None,
                  verbose=None):
         """
         port: serial port file name
@@ -1005,14 +1005,16 @@ class GRBL:
         """
 
         try:
-            for axis, scalar in scalars.items():
-                cmd = "G91 %s%0.3f F%u" % (axis, scalar, rate)
-                self.verbose and print("JOG:", cmd)
-                self.gs.j(cmd)
-                if 0 and self.verbose:
-                    mpos = self.qstatus()["MPos"]
-                    print("jog: X%0.3f Y%0.3f Z%0.3F" %
-                          (mpos["x"], mpos["y"], mpos["z"]))
+            axes_str = " ".joing([
+                "%s%0.3f" % (axis, scalar) for axis, scalar in scalars.items()
+            ])
+            cmd = "G91 %s F%u" % (axis, axes_str, rate)
+            self.verbose and print("JOG:", cmd)
+            self.gs.j(cmd)
+            if 0 and self.verbose:
+                mpos = self.qstatus()["MPos"]
+                print("jog: X%0.3f Y%0.3f Z%0.3F" %
+                      (mpos["x"], mpos["y"], mpos["z"]))
         except Timeout:
             # Better to under jog than retry and over jog
             self.verbose and print("WARNING: dropping jog")
@@ -1078,11 +1080,7 @@ class GRBL:
             k, v = l.strip().split("=")
             yield k, v
 
-    def steps_per_mm(self):
-        """
-        Number steps to move x, y, and z axis
-        Parameters 100, 101, and 102
-        """
+    def get_dollar_xyz_float(self, k1, k2, k3):
         ret = {}
         for k, v in self.dollar_kvs():
             """
@@ -1093,27 +1091,37 @@ class GRBL:
             500.000 (x axis pulse:step/mm)
             """
             v = v.strip().split()[0]
-            if k == "$100":
+            if k == k1:
                 ret["x"] = float(v)
-            elif k == "$101":
+            elif k == k2:
                 ret["y"] = float(v)
-            elif k == "$102":
+            elif k == k3:
                 ret["z"] = float(v)
         assert len(ret) == 3
         return ret
 
-    def axis_ranges(self):
-        ret = {}
-        for k, v in self.dollar_kvs():
-            v = v.strip().split()[0]
-            if k == "$130":
-                ret["x"] = float(v)
-            elif k == "$131":
-                ret["y"] = float(v)
-            elif k == "$132":
-                ret["z"] = float(v)
-        assert len(ret) == 3, ret
-        return ret
+    def steps_per_mm(self):
+        """
+        Number steps to move x, y, and z axis
+        Parameters 100, 101, and 102
+        """
+        """
+        $100=800.000
+        $101=800.000
+        $102=800.000
+        Sometimes the output is a string similar to:
+        500.000 (x axis pulse:step/mm)
+        """
+        return self.get_dollar_xyz_float("$100", "$101", "$102")
+
+    def axes_max_travel(self):
+        return self.get_dollar_xyz_float("$130", "$131", "$132")
+
+    def axes_max_rate(self):
+        return self.get_dollar_xyz_float("$110", "$111", "$112")
+
+    def axes_max_acceleration(self):
+        return self.get_dollar_xyz_float("$120", "$121", "$122")
 
 
 class GrblHal(MotionHAL):
@@ -1121,10 +1129,14 @@ class GrblHal(MotionHAL):
         self.grbl = None
         self.feedrate = None
         self._steps_per_mm = None
+        self._epsilon = None
         self._machine_mins = None
         self._machine_maxs = None
         self._soft_mins = None
         self._soft_maxs = None
+        self._max_velocities = None
+        self._max_acelerations = None
+        self._axes = get_usc().motion.axes()
 
         MotionHAL.__init__(self, verbose=verbose, **kwargs)
         if grbl:
@@ -1139,12 +1151,14 @@ class GrblHal(MotionHAL):
             self.validate_microscope_model(microscope_name)
 
         # hack: qstatus will fail before home
-        self.home()
+        self.home(force=False)
         self.grbl.set_qstatus_updated_cb(self.qstatus_updated)
 
     def _configured(self):
         self.calc_steps_per_mm()
         self.calc_min_max()
+        self._max_velocities = self.grbl.axes_max_rate()
+        self._max_acelerations = self.grbl.axes_max_acceleration()
 
     def calc_steps_per_mm(self):
         """
@@ -1154,28 +1168,24 @@ class GrblHal(MotionHAL):
         steps_per_mm = self.grbl.steps_per_mm()
         if "scalar" in self.modifiers:
             scalars = self.modifiers["scalar"].scalars
-            steps_per_mm["x"] *= scalars["x"]
-            steps_per_mm["y"] *= scalars["y"]
-            steps_per_mm["z"] *= scalars["z"]
+            for axis in self.axes():
+                steps_per_mm[axis] *= scalars[axis]
         self._steps_per_mm = steps_per_mm
 
+        self._epsilon = {}
+        for axis in self.axes():
+            self._epsilon[axis] = 1 / self._steps_per_mm[axis]
+
     def epsilon(self):
-        return {
-            "x": 1 / self._steps_per_mm["x"],
-            "y": 1 / self._steps_per_mm["y"],
-            "z": 1 / self._steps_per_mm["z"],
-        }
+        return self._epsilon
 
     def calc_min_max(self):
-        ranges = self.grbl.axis_ranges()
+        ranges = self.grbl.axes_max_travel()
         # Believe machine is a simple 0 to N range
         # However WCS can adjust these
-        self._machine_mins = {"x": 0.0, "y": 0.0, "z": 0.0}
-        self._machine_maxs = {
-            "x": ranges["x"],
-            "y": ranges["y"],
-            "z": ranges["z"]
-        }
+        self._machine_mins = dict([(axis, 0.0) for axis in self.axes()])
+        self._machine_maxs = dict([(axis, ranges[axis])
+                                   for axis in self.axes()])
 
     def _get_machine_limits(self):
         # TODO: should check if machine limits are enabled?
@@ -1184,16 +1194,51 @@ class GrblHal(MotionHAL):
             "maxs": self._machine_maxs,
         }
 
-    def home(self):
-        # Commands will fail until homed
-        self.check_home()
+    def _get_max_velocities(self):
+        return self._max_velocities
+
+    def _get_max_accelerations(self):
+        return self._max_acelerations
+
+    def home(self, force=False):
+        """
+        Depending on machine configuration homing may or may not be required
+        """
+
+        # Explicitly skip if the system is known not to have limit switches
+        if get_usc().motion.limit_switches() == False:
+            assert not force, "Requested homing on a system that can't home"
+            print("Homing: skip on no limit switches")
+            return
+
+        if not force and self.is_homed():
+            return
+
+        tstart = time.time()
+        # TLDR: gearbox means we need ot home several times
+        # 2023-04-19: required 7 cycles in worst case...hmm add more wiggle room for now
+        # related to 8/5 adjustment?
+        # 2023-09-17: all systems should do proper homing now
+        # maybe keep one retry in here
+        for homing_try in range(2):
+            print("Sending home command %u" % (homing_try + 1, ))
+            try:
+                self.grbl.gs.h()
+                break
+            except HomingFailed:
+                print("Homing timed out, nudging again")
+        else:
+            raise HomingFailed("Failed to home despite several attempts :(")
+        deltat = time.time() - tstart
+        print("Homing successful after %0.1f sec. Ready to use!" % (deltat, ))
+        self.set_is_homed()
 
     def qstatus_updated(self, status):
         # careful this will get modified up the stack
         self.update_status({"pos": dict(status["MPos"])})
 
     def axes(self):
-        return {'x', 'y', 'z'}
+        return self._axes
 
     def _wcs_offsets(self):
         return self.grbl.wcs_offsets()
@@ -1218,8 +1263,8 @@ class GrblHal(MotionHAL):
         # print("grbl mv_rel", pos)
         self.grbl.move_relative(pos, f=1000)
 
-    def _jog(self, scalars):
-        self.grbl.jog(scalars, self.jog_rate)
+    def _jog(self, scalars, rate):
+        self.grbl.jog(scalars, rate)
 
     def stop(self):
         # May be called during unclean shutdown
@@ -1282,30 +1327,6 @@ class GrblHal(MotionHAL):
     def set_is_homed(self, is_homed=True):
         flags = int(is_homed)
         self.grbl.gs.txrxs("T%u" % flags)
-
-    def check_home(self, lazy=True, force=False):
-        """
-        Depending on machine configuration homing may or may not be required
-        """
-        if not force and self.is_homed() and lazy:
-            return
-
-        tstart = time.time()
-        # TLDR: gearbox means we need ot home several times
-        # 2023-04-19: required 7 cycles in worst case...hmm add more wiggle room for now
-        # related to 8/5 adjustment?
-        for homing_try in range(8):
-            print("Sending home command %u" % (homing_try + 1, ))
-            try:
-                self.grbl.gs.h()
-                break
-            except HomingFailed:
-                print("Homing timed out, nudging again")
-        else:
-            raise HomingFailed("Failed to home despite several attempts :(")
-        deltat = time.time() - tstart
-        print("Homing successful after %0.1f sec. Ready to use!" % (deltat, ))
-        self.set_is_homed()
 
 
 class NoGRBLMeta(Exception):
@@ -1395,6 +1416,12 @@ def write_wcs_packed(gs, wcs, data):
     gs.txrxs(out)
 
 
+def write_wcs_vals(gs, wcs, vals):
+    out = "G10 L2 P%u X%.3f Y%.3f Z%.3f" % (wcs, vals[0], vals[1], vals[2])
+    # print("out", out)
+    gs.txrxs(out)
+
+
 def wcs_pad_str(s):
     assert len(s) <= WCS_STR_LEN
 
@@ -1409,6 +1436,12 @@ def wcs_pad_bytes(s):
     if len(s) < WCS_STR_LEN:
         s = s + (b" " * (WCS_STR_LEN - len(s)))
     return s
+
+
+def grbl_delete_meta(gs):
+    write_wcs_vals(gs, WCS_COMMENT, (0, 0, 0))
+    write_wcs_vals(gs, WCS_SN, (0, 0, 0))
+    write_wcs_vals(gs, WCS_CONFIG, (0, 0, 0))
 
 
 def grbl_write_meta(gs, config=None, sn=None, comment=None):

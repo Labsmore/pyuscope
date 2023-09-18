@@ -75,7 +75,7 @@ register_plugins()
 
 def get_motion_hal(usc=None, usc_motion=None, log=None, microscope=None):
     if usc is None:
-        usc = get_usc()
+        usc = get_usc(name=microscope)
     if usc_motion is None:
         usc_motion = usc.motion
     if log is None:

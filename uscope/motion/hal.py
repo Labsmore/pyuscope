@@ -70,7 +70,7 @@ class MotionModifier:
     def move_relative_post(self, ok, options={}):
         pass
 
-    def jog(self, scalars, options={}):
+    def jog(self, scalars, rate, options={}):
         pass
 
     def update_status(self, status):
@@ -79,7 +79,7 @@ class MotionModifier:
         """
         pass
 
-    def get_machine_limits(self, limits):
+    def munge_axes(self, axes):
         pass
 
 
@@ -252,7 +252,7 @@ class BacklashMM(MotionModifier):
             pos, cur_pos=self.motion.cur_pos_cache())
         self.move_x_pre(dst_abs_pos=final_abs_pos, options=options)
 
-    def jog(self, scalars, options={}):
+    def jog(self, scalars, rate, options={}):
         # Don't modify jog commands, but invalidate compensation
         for axis in scalars.keys():
             self.compensated[axis] = False
@@ -304,7 +304,7 @@ class SoftLimitMM(MotionModifier):
             self.motion.estimate_relative_pos(
                 pos, cur_pos=self.motion.cur_pos_cache()))
 
-    def jog(self, scalars, options={}):
+    def jog(self, scalars, rate, options={}):
         self.move_absolute_pre(
             self.motion.estimate_relative_pos(
                 scalars, cur_pos=self.motion.cur_pos_cache()))
@@ -381,18 +381,18 @@ class ScalarMM(MotionModifier):
             self.scale_i2e_abs(status["pos"])
             # print('status scaling2 %s' % status["pos"])
 
-    def jog(self, scalars, options={}):
+    def jog(self, scalars, rate, options={}):
         self.scale_e2i_rel(scalars)
+        self.scale_e2i_rel(rate)
 
-    def get_machine_limits(self, limits):
-        self.scale_i2e_abs(limits)
+    def munge_axes(self, axes):
+        self.scale_i2e_abs(axes)
 
 
 class MotionHAL:
     def __init__(self, log=None, verbose=None, microscope=None):
         # Per axis? Currently is global
         self.microscope = microscope
-        self.jog_rate = 0
         self.stop_on_del = True
         self.modifiers = None
         self.options = None
@@ -428,6 +428,11 @@ class MotionHAL:
             "z": 0.000010,
         }
 
+    def munge_axes(self, axes):
+        for modifier in self.iter_active_modifiers():
+            modifier.munge_axes(axes)
+        return axes
+
     def _get_machine_limits(self):
         return {}
 
@@ -445,11 +450,10 @@ class MotionHAL:
             },
         """
         limits = self._get_machine_limits()
-        for modifier in self.iter_active_modifiers():
-            if "mins" in limits:
-                modifier.get_machine_limits(limits["mins"])
-            if "maxs" in limits:
-                modifier.get_machine_limits(limits["maxs"])
+        if "mins" in limits:
+            self.munge_axes(limits["mins"])
+        if "maxs" in limits:
+            self.munge_axes(limits["maxs"])
         return limits
 
     def get_soft_limits(self):
@@ -484,6 +488,18 @@ class MotionHAL:
             "mins": mins,
             "maxs": maxs,
         }
+
+    def _get_max_velocities(self):
+        return {}
+
+    def get_max_velocities(self):
+        return self.munge_axes(self._get_max_velocities())
+
+    def _get_max_accelerations(self):
+        return {}
+
+    def get_max_accelerations(self):
+        return self.munge_axes(self._get_max_accelerations())
 
     def equivalent_axis_pos(self, axis, value1, value2):
         """
@@ -722,7 +738,7 @@ class MotionHAL:
                 raise ValueError("Got axis %s but expect axis in %s" %
                                  (axis, self.axes()))
 
-    def jog(self, scalars, options={}):
+    def jog(self, scalars, rate, options={}):
         """
         scalars: generally either +1 or -1 per axis to jog
         Final value is globally multiplied by the jog_rate and individually by the axis scalar
@@ -736,20 +752,17 @@ class MotionHAL:
         try:
             self.validate_axes(scalars.keys())
             for modifier in self.iter_active_modifiers():
-                modifier.jog(scalars, options=options)
-            self._jog(scalars)
+                modifier.jog(scalars, rate, options=options)
+            self._jog(scalars, rate)
         finally:
             self.cur_pos_cache_invalidate()
 
-    def _jog(self, axes):
+    def _jog(self, axes, rate):
         '''
         axes: dict of axis with value to move
         WARNING: under development / unstable API
         '''
         raise NotSupported("Required for jogging")
-
-    def set_jog_rate(self, rate):
-        self.jog_rate = rate
 
     '''
     In modern systems the first is almost always used
@@ -856,7 +869,7 @@ class MockHal(MotionHAL):
             self._pos_cache[axis] += adelta
         0 and self._log('relative move to ' + pos_str(delta))
 
-    def _jog(self, axes):
+    def _jog(self, axes, rate):
         for axis, adelta in axes.items():
             self._pos_cache[axis] += adelta
 

@@ -38,6 +38,10 @@ Original "pr0nscope" mk2 BH2 CNC microscope
             "ymax": 40.0,
         },
 
+        //Be extra careful
+        "limit_switches": false,
+        "axes": "xy",
+
         "grbl": {
             "rc": [
                 //$100, $101 and $102 – [X,Y,Z] steps/mm

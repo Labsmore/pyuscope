@@ -21,8 +21,9 @@ class Kinematics:
             "Kinematics(): tsettle_hdr: %0.3f" % self.tsettle_hdr)
 
     def configure(self, tsettle_motion=None, tsettle_hdr=None):
-        assert self.microscope.imager
-        assert self.microscope.motion
+        # some CLI apps don't require these
+        # assert self.microscope.imager
+        # assert self.microscope.motion
 
         if tsettle_motion is None:
             tsettle_motion = self.microscope.usc.kinematics.tsettle_motion_max(
@@ -40,7 +41,7 @@ class Kinematics:
         self.tsettle_hdr = tsettle_hdr
 
     def wait_motion(self):
-        if self.tsettle_motion <= 0:
+        if self.microscope.motion is None or self.tsettle_motion <= 0:
             return
         tsettle = self.tsettle_motion - self.microscope.motion.since_last_motion(
         )
@@ -50,7 +51,7 @@ class Kinematics:
             time.sleep(tsettle)
 
     def wait_hdr(self):
-        if self.tsettle_hdr <= 0:
+        if self.microscope.imager is None or self.tsettle_hdr <= 0:
             return
         tsettle = self.tsettle_hdr - self.microscope.imager.since_properties_change(
         )

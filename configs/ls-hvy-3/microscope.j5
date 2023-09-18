@@ -12,6 +12,11 @@ UT100 NEMA23 stages
     */
     "motion": {
         "hal": "grbl-ser",
+
+        //Be extra careful
+        "limit_switches": false,
+        "axes": "xy",
+
         "grbl": {
             "rc": [
                 //$0 – Step pulse, microseconds

@@ -2093,6 +2093,14 @@ class JogListener(QPushButton):
         self.setPalette(p)
 
 
+"""
+Slider is displayed as log scale ticks 1, 10, 100
+    Represents percent of max velocity to use
+Internal state is 1 to 100 linear (fraction moved across)
+However, actual moves need to get scaled by the
+"""
+
+
 class JogSlider(QWidget):
     def __init__(self, usc, parent=None):
         super().__init__(parent=parent)
@@ -2100,12 +2108,13 @@ class JogSlider(QWidget):
         self.usc = usc
 
         # log scaled to slider
-        self.jog_min = self.usc.app("argus").jog_min()
-        self.jog_max = self.usc.app("argus").jog_max()
         self.jog_cur = None
 
+        self.jog_min = 1
+        self.jog_max = 100
         self.slider_min = 1
         self.slider_max = 100
+        # As fraction of slider max value
         self.slider_adjust_factor = 0.1
 
         self.layout = QVBoxLayout()
@@ -2115,7 +2124,6 @@ class JogSlider(QWidget):
             layout.addWidget(QLabel("1"))
             layout.addWidget(QLabel("10"))
             layout.addWidget(QLabel("100"))
-            layout.addWidget(QLabel("1000"))
             return layout
 
         self.layout.addLayout(labels())
@@ -2125,18 +2133,14 @@ class JogSlider(QWidget):
         self.slider.setMaximum(self.slider_max)
         self.slider.setValue(self.slider_max // 2)
         self.slider.setTickPosition(QSlider.TicksBelow)
-        self.slider.setTickInterval(33)
+        self.slider.setTickInterval(50)
         # Send keyboard events to CNC navigation instead
         self.slider.setFocusPolicy(Qt.NoFocus)
         self.layout.addWidget(self.slider)
 
         self.setLayout(self.layout)
 
-    def get_feedrate_val(self):
-        """
-        Return feedrate (without fine adjustment)
-        This is the main value displayed
-        """
+    def get_jog_percentage(self):
         verbose = 0
         slider_val = float(self.slider.value())
         v = math.log(slider_val, 10)
@@ -2155,16 +2159,12 @@ class JogSlider(QWidget):
                           (slider_val, ret, v))
         return ret
 
-    def get_jog_val(self):
+    def get_jog_fraction(self):
         """
-        Return a proportion of how to scale the jog distance
+        Return a proportion of how to scale the jog (0 to 1.0)
+        No fine scaling applied
         """
-        if 0:
-            slider_val = float(self.slider.value())
-            return slider_val / self.slider_max
-        else:
-            val = self.get_feedrate_val()
-            return val / self.jog_max
+        return self.get_jog_percentage() / self.jog_max
 
     def increase_key(self):
         slider_val = min(
@@ -2184,7 +2184,7 @@ class JogSlider(QWidget):
         # val is expected to be between 0.0 to 1.0
         val_min = 0
         val_max = 1.0
-        if (val == 0):
+        if val == 0:
             self.slider.setValue(self.slider_min)
             return
         old_range = val_max - val_min
@@ -2217,6 +2217,7 @@ class MotionWidget(AWidget):
         # Can be used to invert keyboard, joystick XY inputs
         self.keyboard_xy_scalar = 1.0
         self.joystick_xy_scalar = 1.0
+        # self.max_velocities = None
 
     def set_keyboard_xy_scalar(self, val):
         self.keyboard_xy_scalar = val
@@ -2306,11 +2307,11 @@ class MotionWidget(AWidget):
 
         layout.addLayout(measure())
 
-        # XXX: make this a proper signal emitting changed value
-        self.slider.slider.valueChanged.connect(self.sliderChanged)
-        self.sliderChanged()
-
         self.setLayout(layout)
+
+    def post_ui_init(self):
+        # self.max_velocities = self.ac.motion_thread.motion.get_max_velocities()
+        pass
 
     def move_abs_le_process(self):
         s = str(self.move_abs_le.text())
@@ -2383,21 +2384,6 @@ class MotionWidget(AWidget):
 
         self.difference_le.setText(get_str())
 
-    # XXX: make this a proper signal emitting changed value
-    def sliderChanged(self):
-        self.update_jog()
-
-    def update_jog(self):
-        jog_cur = self.slider.get_feedrate_val()
-        if self.fine_move:
-            jog_cur /= 20
-        # Feedrate must be at least 1?
-        # Feels like a bug, might have a bad format string somewhere
-        # wm3020: hmm feedrates below some whole number are all the same
-        self.jog_cur = int(max(1, jog_cur))
-        # print("update_jog() scale %u => %u" % (jog_cur, self.jog_cur))
-        self.motion_thread.set_jog_rate(self.jog_cur)
-
     def update_jog_text(self):
         if self.fine_move:
             label = "Jog (fine)"
@@ -2414,7 +2400,6 @@ class MotionWidget(AWidget):
         if k == Qt.Key_F:
             self.fine_move = not self.fine_move
             self.update_jog_text()
-            self.update_jog()
             return
         elif k == Qt.Key_Z:
             self.slider.decrease_key()
@@ -2430,29 +2415,28 @@ class MotionWidget(AWidget):
             # worry sonce focus gets re-integrated
 
             # TODO: scale to selected objective
-            axis, scalar = self.axis_map[k]
-            # print("got", axis, scalar)
-            scalar *= self.slider.get_jog_val()
-            # print("slider scaled", axis, scalar)
+            axis, keyboard_sign = self.axis_map[k]
+            # max_velocity = self.max_velocities[axis]
+            max_velocity = 1.0
+            fine_scalar = 1.0
+            # FIXME: now that using real machine units need to revisit this
             if self.fine_move:
                 if axis == "z":
-                    scalar /= 20
+                    fine_scalar = 0.05
                 else:
-                    scalar /= 100
-            scalar *= self.keyboard_xy_scalar
-            if scalar < 0:
-                scalar = min(-0.0001, scalar)
+                    fine_scalar = 0.01
+            jog_val = keyboard_sign * self.keyboard_xy_scalar * fine_scalar * self.slider.get_jog_fraction(
+            ) * max_velocity
+            if jog_val < 0:
+                jog_val = min(-0.0001, jog_val)
             else:
-                scalar = max(+0.0001, scalar)
+                jog_val = max(+0.0001, jog_val)
 
             # print("scalar %0.3f" % scalar, "fine", self.fine_move)
             # print("Key jogging %s%c" % (axis, {1: '+', -1: '-'}[sign]))
             # don't spam events if its not done processing
-            if self.motion_thread.qsize() <= 1:
-                self.motion_thread.jog({axis: scalar})
-            else:
-                # print("qsize drop jog")
-                pass
+            # self.motion_thread.jog_lazy({axis: jog_val}, jog_val)
+            self.motion_thread.jog_fractioned_lazy({axis: jog_val})
         else:
             pass
             # print("unknown key %s" % (k, ))
@@ -2482,7 +2466,7 @@ class MotionWidget(AWidget):
         self.update_reference()
         joystick = self.ac.microscope.joystick
         if joystick:
-            slider_val = self.slider.get_jog_val()
+            slider_val = self.slider.get_jog_fraction()
             joystick.set_axis_scalars({
                 "x":
                 self.joystick_xy_scalar * slider_val,

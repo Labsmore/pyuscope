@@ -159,15 +159,28 @@ class MotionThread(QThread):
     def mdi(self, cmd):
         self.command("mdi", cmd)
 
-    def jog(self, pos):
-        self.command("jog", pos)
+    def jog_fractioned(self, axes, timeout=0.1):
+        """
+        An easier to use command using fractions of max velocity
+        Each axis should be in scale 0 to 1
+        Where 1 represents a jog at max velocity
+        timeout: if you want
+        """
+        assert 0, "FIXME"
 
-    def jog_lazy(self, pos):
+    def jog_fractioned_lazy(self, axes, timeout=0.1):
+        if self.qsize() < 1:
+            self.jog_fractioned(axes, timeout)
+
+    def jog(self, pos, rate):
+        self.command("jog", pos, rate)
+
+    def jog_lazy(self, pos, rate):
         """
         Only jog if events haven't already stacked up high
         """
         if self.qsize() < 1:
-            self.command("jog", pos)
+            self.command("jog", pos, rate)
 
     def stop(self):
         # self.command("stop")
@@ -191,9 +204,6 @@ class MotionThread(QThread):
 
     def move_relative(self, pos, block=False, callback=None):
         self.command("move_relative", pos, block=block, callback=callback)
-
-    def set_jog_rate(self, rate):
-        self.command("set_jog_rate", rate)
 
     def update_pos_cache(self):
         self.command("update_pos_cache")
@@ -306,7 +316,6 @@ class MotionThread(QThread):
                     'move_relative': move_relative,
                     'jog': self.motion.jog,
                     'pos': self.motion.pos,
-                    'set_jog_rate': self.motion.set_jog_rate,
                     'home': self.motion.home,
                     'backlash_disable': self.motion.backlash_disable,
                     'backlash_enable': self.motion.backlash_enable,

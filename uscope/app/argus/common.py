@@ -42,10 +42,6 @@ class USCArgus:
         """
         self.j = j
 
-    # FIXME: default should be actual max jog rate
-    def jog_max(self):
-        return int(self.j.get("jog_max", 1000))
-
     def scan_dir(self):
         """
         Where scan jobs go
@@ -108,8 +104,14 @@ class USCArgus:
             return bool(val)
         return bool(self.j.get("mdi", 0))
 
+    """
     def jog_min(self):
         return int(self.j.get("jog_min", 1))
+
+    # FIXME: default should be actual max jog rate
+    def jog_max(self):
+        return int(self.j.get("jog_max", 1000))
+    """
 
 
 class ArgusCommon(QObject):

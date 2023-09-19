@@ -1,9 +1,11 @@
+from uscope.imager.autofocus import choose_best_image
+from uscope.imager.imager_util import get_scaled
+from uscope.imagep.pipeline import process_snapshots
+
 import threading
 import queue
 import traceback
-
-from uscope.kinematics import Kinematics
-from uscope.imager.autofocus import choose_best_image
+from PIL import Image
 
 
 class ImageProcessingThreadBase:
@@ -29,7 +31,7 @@ class ImageProcessingThreadBase:
                 ret.append(ret_e)
                 ready.set()
                 if callback:
-                    callback()
+                    callback(command, ret_e)
 
         self.queue.put((command, command_done))
         if block:
@@ -84,7 +86,7 @@ class ImageProcessingThreadBase:
                  (target_pos, fni + 1, steps))
         self.move_absolute({"z": target_pos})
 
-    def do_auto_focus(self):
+    def _do_auto_focus(self):
         # MVP intended for 20x
         # 2 um is standard focus step size
         self.log("autofocus: coarse")
@@ -92,6 +94,33 @@ class ImageProcessingThreadBase:
         self.log("autofocus: medium")
         self.auto_focus_pass(step_size=0.002, step_pm=3)
         self.log("autofocus: done")
+
+    def process_snapshot(self, options, block=False, callback=None):
+        j = {
+            "type": "process_snapshot",
+            "options": options,
+        }
+        self.command(j, block=block, callback=callback)
+
+    def _do_process_snapshot(self, options):
+        image = get_scaled(options["image"],
+                           options["scale_factor"],
+                           filt=Image.NEAREST)
+
+        if "scale_expected_wh" in options:
+            expected_wh = options["scale_expected_wh"]
+            assert expected_wh[0] == image.size[0] and expected_wh[
+                1] == image.size[
+                    1], "Unexpected image size: expected %s, got %s" % (
+                        expected_wh, image.size)
+
+        image = process_snapshots([image])
+
+        if "save_filename" in options:
+            kwargs = {}
+            if "save_quality" in options:
+                kwargs["quality"] = options["save_quality"]
+            image.save(options["save_filename"], **kwargs)
 
     def run(self):
         while self.running:
@@ -101,12 +130,14 @@ class ImageProcessingThreadBase:
                 continue
             try:
                 if j["type"] == "auto_focus":
-                    self.do_auto_focus()
+                    ret = self._do_auto_focus()
+                elif j["type"] == "process_snapshot":
+                    ret = self._do_process_snapshot(j["options"])
                 else:
                     assert 0, j
 
                 if command_done:
-                    command_done(j, None)
+                    command_done(j, ret)
 
             except Exception as e:
                 self.log('WARNING: image processing thread crashed: %s' %

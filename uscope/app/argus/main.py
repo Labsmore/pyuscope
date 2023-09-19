@@ -187,6 +187,7 @@ class MainWindow(QMainWindow):
             return
         # need to coordinate moving this to the right window
         # for now just let it float
+        # self.ac.vidpip.player.set_state(Gst.State.PAUSED)
         widget = self.ac.vidpip.add_full_widget()
         self.fullscreen_widget = FullscreenVideo(widget)
         self.fullscreen_widget.show()

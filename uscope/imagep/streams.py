@@ -330,6 +330,73 @@ class DirCSIP:
                                     verbose=self.verbose)
 
 
+class SnapshotCSIP:
+    def __init__(self, csip, images, best_effort=True, verbose=True):
+        self.csip = csip
+        self.log = csip.log
+        self.images = images
+        self.best_effort = best_effort
+        self.verbose = verbose
+
+    def run(self):
+        self.log("Microscope: %s" % (config.default_microscope_name(), ))
+        self.log("  Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
+
+        self.log("")
+
+        current_images = self.images
+
+        if len(current_images) > 1:
+            # need to change self.images to have some dict annoation structure
+            # or something like that
+            assert 0, "FIXME: hdr, stack, or ...?"
+
+            tb = TaskBarrier()
+            data_out = self.csip.queue_hdr_enfuse(im_in=current_images,
+                                                  want_im=True,
+                                                  tb=tb)
+            tb.wait()
+            current_images = data_out["image"].to_im()
+
+            tb = TaskBarrier()
+            data_out = self.csip.queue_hdr_stack(im_in=current_images,
+                                                 want_im=True,
+                                                 tb=tb)
+            tb.wait()
+            current_images = data_out["image"].to_im()
+
+        assert len(current_images) == 1
+        current_image = current_images[0]
+
+        ipp = config.get_usc().imager.ipp_last()
+        if len(ipp) == 0:
+            self.log("Post corrections: skip")
+        else:
+            for pipeline_this in ipp:
+                plugin = pipeline_this["plugin"]
+                self.log(f"{plugin}: start")
+                tb = TaskBarrier()
+                data_out = self.csip.queue_correct_plugin(plugin,
+                                                          im_in=current_image,
+                                                          want_im=True,
+                                                          tb=tb)
+                tb.wait()
+                current_image = data_out["image"].to_im()
+
+        if not config.get_usc().imager.has_ff_cal():
+            self.log("FF correction: skip")
+        else:
+            self.log("FF correction: start")
+            tb = TaskBarrier()
+            self.csip.queue_correct_ff1(im_in=current_image,
+                                        want_im=True,
+                                        tb=tb)
+            tb.wait()
+            current_image = data_out["image"].to_im()
+
+        return current_image
+
+
 """
 WIP, not tested / used currently
 See https://github.com/Labsmore/pyuscope/issues/190
@@ -343,6 +410,7 @@ If it fails you'll need to fall back to DirCSIP
 
 class StreamCSIP:
     def __init__(self, csip, image_stream, upload=False):
+        assert 0, "WIP"
         self.csip = csip
         self.image_stream = image_stream
 

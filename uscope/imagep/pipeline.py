@@ -24,7 +24,7 @@ import multiprocessing
 import threading
 import queue
 from uscope.imagep.util import EtherealImageR, EtherealImageW
-from uscope.imagep.streams import StreamCSIP, DirCSIP
+from uscope.imagep.streams import StreamCSIP, DirCSIP, SnapshotCSIP
 from uscope.imagep.plugins import get_plugins, get_plugin_ctors
 from uscope import config
 
@@ -178,7 +178,11 @@ class CSImageProcessor(threading.Thread):
         self.queue_in = queue.Queue()
         self.queue_out = queue.Queue()
         self.running = threading.Event()
+        self.ready = threading.Event()
         self.workers = OrderedDict()
+
+        # Used
+        self.temp_dir = None
 
         if not nthreads:
             nthreads = multiprocessing.cpu_count()
@@ -202,6 +206,10 @@ class CSImageProcessor(threading.Thread):
                 worker.join()
             self.workers = None
 
+        if self.temp_dir:
+            shutil.rmtree(self.temp_dir)
+            self.temp_dir = None
+
     def queue_task(self, ip_params, callback=None, block=None):
         assert not block, "fixme"
         if ip_params.tb:
@@ -211,8 +219,12 @@ class CSImageProcessor(threading.Thread):
         self.queue_in.put(ip_params)
 
     def queue_hdr_enfuse(self,
-                         fns_in,
-                         fn_out,
+                         fns_in=None,
+                         fn_out=None,
+                         ims_in=None,
+                         want_im_out=False,
+                         data_in=None,
+                         data_out=None,
                          options={},
                          callback=None,
                          tb=None,
@@ -220,18 +232,35 @@ class CSImageProcessor(threading.Thread):
         """
         Use enfuse to HDR process a sequence of images of varying exposures
         """
-        ip_params = CSIPParams(
-            task_name="hdr-enfuse",
-            data_in={"images": [EtherealImageR(fn=fn_in) for fn_in in fns_in]},
-            data_out={"image": EtherealImageW(want_fn=fn_out)},
-            options=options,
-            callback=callback,
-            tb=tb)
+        if fns_in is not None:
+            data_in = {
+                "images": [EtherealImageR(fn=fn_in) for fn_in in fns_in]
+            }
+        if fn_out is not None:
+            data_out = {"image": EtherealImageW(want_fn=fn_out)}
+        if ims_in is not None:
+            data_in = {
+                "images": [EtherealImageR(im=im_in) for im_in in ims_in]
+            }
+        if want_im_out:
+            data_out = {
+                "image": EtherealImageW(want_im=True, temp_dir=self.temp_dir)
+            }
+        ip_params = CSIPParams(task_name="hdr-enfuse",
+                               data_in=data_in,
+                               data_out=data_out,
+                               options=options,
+                               callback=callback,
+                               tb=tb)
         self.queue_task(ip_params=ip_params, block=block)
 
     def queue_stack_enfuse(self,
-                           fns_in,
-                           fn_out,
+                           fns_in=None,
+                           fn_out=None,
+                           ims_in=None,
+                           want_im_out=False,
+                           data_in=None,
+                           data_out=None,
                            options={},
                            callback=None,
                            tb=None,
@@ -239,51 +268,42 @@ class CSImageProcessor(threading.Thread):
         """
         Use enfuse to stack images of varying Z height
         """
-        ip_params = CSIPParams(
-            task_name="stack-enfuse",
-            data_in={"images": [EtherealImageR(fn=fn_in) for fn_in in fns_in]},
-            data_out={"image": EtherealImageW(want_fn=fn_out)},
-            options=options,
-            callback=callback,
-            tb=tb)
+        if fns_in is not None:
+            data_in = {
+                "images": [EtherealImageR(fn=fn_in) for fn_in in fns_in]
+            }
+        if fn_out is not None:
+            data_out = {"image": EtherealImageW(want_fn=fn_out)}
+        if ims_in is not None:
+            data_in = {
+                "images": [EtherealImageR(im=im_in) for im_in in ims_in]
+            }
+        if want_im_out:
+            data_out = {
+                "image": EtherealImageW(want_im=True, temp_dir=self.temp_dir)
+            }
+        ip_params = CSIPParams(task_name="stack-enfuse",
+                               data_in=data_in,
+                               data_out=data_out,
+                               options=options,
+                               callback=callback,
+                               tb=tb)
         self.queue_task(ip_params=ip_params, block=block)
 
-    def queue_correct_ff1(self,
-                          fn_in,
-                          fn_out,
-                          options={},
-                          callback=None,
-                          tb=None,
-                          block=None):
-        ip_params = CSIPParams(
-            task_name="correct-ff1",
-            data_in={"image": EtherealImageR(fn=fn_in)},
-            data_out={"image": EtherealImageW(want_fn=fn_out)},
-            options=options,
-            callback=callback,
-            tb=tb)
-        self.queue_task(ip_params=ip_params, block=block)
+    def queue_correct_ff1(self, **kwargs):
+        return self.queue_correct_plugin(plugin="correct-ff1", **kwargs)
 
-    def queue_correct_sharp1(self,
-                             fn_in,
-                             fn_out,
-                             options={},
-                             callback=None,
-                             tb=None,
-                             block=None):
-        ip_params = CSIPParams(
-            task_name="correct-sharp1",
-            data_in={"image": EtherealImageR(fn=fn_in)},
-            data_out={"image": EtherealImageW(want_fn=fn_out)},
-            options=options,
-            callback=callback,
-            tb=tb)
-        self.queue_task(ip_params=ip_params, block=block)
+    def queue_correct_sharp1(self, **kwargs):
+        return self.queue_correct_plugin(plugin="correct-sharp1", **kwargs)
 
     def queue_correct_plugin(self,
                              plugin,
-                             fn_in,
-                             fn_out,
+                             fn_in=None,
+                             fn_out=None,
+                             im_in=None,
+                             want_im_out=False,
+                             data_in=None,
+                             data_out=None,
                              options={},
                              callback=None,
                              tb=None,
@@ -291,14 +311,24 @@ class CSImageProcessor(threading.Thread):
         if plugin not in get_plugin_ctors():
             print("Valid plugins:", get_plugin_ctors().keys())
             assert 0, f"Bad plugin {plugin}"
-        ip_params = CSIPParams(
-            task_name=plugin,
-            data_in={"image": EtherealImageR(fn=fn_in)},
-            data_out={"image": EtherealImageW(want_fn=fn_out)},
-            options=options,
-            callback=callback,
-            tb=tb)
+        if fn_in is not None:
+            data_in = {"image": EtherealImageR(fn=fn_in)}
+        if fn_out is not None:
+            data_out = {"image": EtherealImageW(want_fn=fn_out)}
+        if im_in is not None:
+            data_in = {"image": EtherealImageR(im=im_in)}
+        if want_im_out:
+            data_out = {
+                "image": EtherealImageW(want_im=True, temp_dir=self.temp_dir)
+            }
+        ip_params = CSIPParams(task_name=plugin,
+                               data_in=data_in,
+                               data_out=data_out,
+                               options=options,
+                               callback=callback,
+                               tb=tb)
         self.queue_task(ip_params=ip_params, block=block)
+        return data_out
 
     def fix_dir(self, this_iindex, dir_out):
         """
@@ -364,6 +394,9 @@ class CSImageProcessor(threading.Thread):
     def process_stream(self, *args, **kwargs):
         StreamCSIP(self, *args, **kwargs).run()
 
+    def process_snapshots(self, *args, **kwargs):
+        return SnapshotCSIP(self, *args, **kwargs).run()
+
     # was run_dir
     def process_dir(self, *args, **kwargs):
         DirCSIP(self, *args, **kwargs).run()
@@ -374,6 +407,8 @@ class CSImageProcessor(threading.Thread):
 
         for worker in self.workers.values():
             worker.start()
+
+        self.ready.set()
 
         while self.running.is_set():
             for worker in self.workers.values():
@@ -394,7 +429,24 @@ def process_dir(directory, *args, nthreads=None, **kwargs):
     try:
         ip = CSImageProcessor(nthreads=nthreads)
         ip.start()
+        ip.ready.wait(1.0)
         ip.process_dir(directory, *args, **kwargs)
+    finally:
+        if ip:
+            ip.stop()
+    del ip
+
+
+def process_snapshots(images, *args, nthreads=None, **kwargs):
+    ip = None
+    try:
+        ip = CSImageProcessor(nthreads=nthreads)
+        ip.start()
+        # nothing to process => can try to shutdown before it starts
+        ip.ready.wait(1.0)
+        ret = ip.process_snapshots(images, *args, **kwargs)
+        print("ok, shutting down")
+        return ret
     finally:
         if ip:
             ip.stop()

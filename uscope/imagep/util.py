@@ -2,6 +2,7 @@ import time
 import os
 from PIL import Image
 import subprocess
+import tempfile
 
 # Rayleigh criterion
 # https://oeis.org/A245461
@@ -97,19 +98,44 @@ class EtherealImageW:
     FIXME: filename centric. Allow setting an Image
     This mostly works as we currently write all intermediate images anyway
     """
+
+    temp_images = 0
+
+    # NOTE: this is thread safe because EtherealImageW()s are constructed in the queing process
+    # from the controller
+    # However it would be ideal to make this thread safe
+    @staticmethod
+    def get_image_id():
+        EtherealImageW.temp_images += 1
+        return EtherealImageW.temp_images
+
     def __init__(self,
                  want_dir=None,
                  want_basename=None,
                  want_fn=None,
-                 meta=None):
+                 want_im=False,
+                 meta=None,
+                 temp_dir=None):
         # for now assume will get the desired output file name
         self.im = None
+        self.want_fn = None
+        self.temp_filename = None
+        self.want_im = False
+
+        tempfile.TemporaryDirectory()
+
         if want_fn:
             self.want_fn = want_fn
         elif want_dir and want_basename:
             self.want_fn = os.path.join(want_dir, want_basename)
+        elif want_im:
+            self.want_im = True
+            assert temp_dir
+            self.temp_filename = os.path.join(
+                temp_dir, "ethereal_%u04u.tif" % EtherealImageW.get_image_id())
+            self.want_fn = self.temp_filename
         else:
-            assert 0, "FIXME"
+            assert 0, "Unknown operating mode"
         self.meta = meta
 
     def get_filename(self):

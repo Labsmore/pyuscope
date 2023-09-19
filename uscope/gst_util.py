@@ -125,29 +125,29 @@ class CaptureSink(CbSink):
             return Image.frombytes('RGB', (width, height), bytes(buf), 'raw',
                                    'RGB')
 
+        # Can we query caps or something to do this more properly?
         # FIXME: jpg etc
         # assume raw for now
         elif source_type.find("gst-v4l2src") == 0:
-            if 0:
-                with open("raw.bin", "wb") as f:
-                    f.write(buf)
-                print("buf", self.width, self.height, len(buf))
-            # assert 0, "fixme"
-
             w = width
             h = height
             shape = (h, w, 2)
             yuv = np.frombuffer(buf, dtype=np.uint8)
             yuv = yuv.reshape(shape)
-            if 0:
-                bgra = cv2.cvtColor(yuv, cv2.COLOR_YUV2RGBA_YUYV)
-                rgb = cv2.cvtColor(bgra, cv2.COLOR_BGR2RGB)
-            if 1:
-                rgba = cv2.cvtColor(yuv, cv2.COLOR_YUV2RGBA_YUYV)
-                rgb = cv2.cvtColor(rgba, cv2.COLOR_RGBA2RGB)
+            rgba = cv2.cvtColor(yuv, cv2.COLOR_YUV2RGBA_YUYV)
+            rgb = cv2.cvtColor(rgba, cv2.COLOR_RGBA2RGB)
             return Image.fromarray(rgb)
-        elif source_type == "jpg":
-            return Image.open(io.BytesIO(buf))
+        elif source_type.find("gst-videotestsrc") == 0:
+            w = width
+            h = height
+            shape = (h, w, 4)
+            rgba = np.frombuffer(buf, dtype=np.uint8)
+            rgba = rgba.reshape(shape)
+            rgb = cv2.cvtColor(rgba, cv2.COLOR_BGRA2RGB)
+            return Image.fromarray(rgb)
+        # XXX: revisit. some v4l2src will be of type jpg
+        # elif source_type == "jpg":
+        #    return Image.open(io.BytesIO(buf))
         else:
             assert 0, source_type
 

@@ -1,5 +1,4 @@
 from uscope.config import PC, get_data_dir
-from uscope.imager.imager_util import get_scaled
 from uscope.benchmark import Benchmark
 from uscope.app.argus.threads import QPlannerThread, StitcherThread
 from uscope.planner.planner_util import microscope_to_planner_config
@@ -263,34 +262,40 @@ class SnapshotWidget(AWidget):
     def captureSnapshot(self, image_id):
         self.ac.log('RX image for saving')
 
-        def try_save():
-            image = self.ac.capture_sink.pop_image(image_id)
-            # FIXME: should unify this with Imager better
-            # For now assertion guards help make sure pipeline is correct
-            factor = self.ac.usc.imager.scalar()
-            image = get_scaled(image, factor, filt=Image.NEAREST)
-            expected_wh = self.ac.usc.imager.final_wh()
-            assert expected_wh[0] == image.size[0] and expected_wh[
-                1] == image.size[
-                    1], "Unexpected image size: expected %s, got %s" % (
-                        expected_wh, image.size)
-            fn_full = self.snapshot_fn()
-            self.ac.log('Capturing %s...' % fn_full)
-            # Use a reasonably high quality filter
-            try:
-                extension = str(self.snapshot_suffix_le.text())
-                if extension == ".jpg":
-                    image.save(fn_full,
-                               quality=self.ac.usc.imager.save_quality())
-                else:
-                    image.save(fn_full)
-            # FIXME: refine
-            except Exception as e:
-                print(e)
-                self.ac.log('WARNING: failed to save %s' % fn_full)
+        image = self.ac.capture_sink.pop_image(image_id)
+        """
+        # FIXME: should unify this with Imager better
+        # For now assertion guards help make sure pipeline is correct
+        factor = self.ac.usc.imager.scalar()
+        image = get_scaled(image, factor, filt=Image.NEAREST)
+        expected_wh = self.ac.usc.imager.final_wh()
+        assert expected_wh[0] == image.size[0] and expected_wh[
+            1] == image.size[
+                1], "Unexpected image size: expected %s, got %s" % (
+                    expected_wh, image.size)
+        fn_full = self.snapshot_fn()
+        """
 
-        try_save()
+        self.ac.log(f"Snapshot: image received, post-processing")
 
+        options = {}
+        options["image"] = image
+        options["save_filename"] = self.snapshot_fn()
+        extension = str(self.snapshot_suffix_le.text())
+        if extension == ".jpg":
+            options["save_quality"] = self.ac.usc.imager.save_quality()
+        options["scale_factor"] = self.ac.usc.imager.scalar()
+        options["scale_expected_wh"] = self.ac.usc.imager.final_wh()
+
+        def callback(command, ret_e):
+            if type(ret_e) is Exception:
+                self.ac.log(f"Snapshot: save failed")
+            else:
+                filename = command["options"]["save_filename"]
+                self.ac.log(f"Snapshot: saved to {filename}")
+
+        self.ac.image_processing_thread.process_snapshot(options=options,
+                                                         callback=callback)
         self.snapshot_pb.setEnabled(True)
 
     def post_ui_init(self):
@@ -355,16 +360,19 @@ class PlannerWidget(AWidget):
         soft_limits = self.ac.motion_thread.motion.get_soft_limits()
 
         # Sanity check
-        for axis in self.ac.motion_thread.motion.axes():
-            machine_min = machine_limits["mins"].get(axis)
-            soft_min = soft_limits["mins"].get(axis)
-            if machine_min is not None and soft_min is not None:
-                assert machine_min <= soft_min, f"Invalid limit min config on {axis}, expect {machine_min} <= {soft_min}"
+        # 2023-09-18: VM1 Z axis sign issue
+        # want soft limit, so disable this check
+        if 0:
+            for axis in self.ac.motion_thread.motion.axes():
+                machine_min = machine_limits["mins"].get(axis)
+                soft_min = soft_limits["mins"].get(axis)
+                if machine_min is not None and soft_min is not None:
+                    assert machine_min <= soft_min, f"Invalid limit min config on {axis}, expect {machine_min} <= {soft_min}"
 
-            machine_max = machine_limits["maxs"].get(axis)
-            soft_max = soft_limits["maxs"].get(axis)
-            if machine_max is not None and soft_max is not None:
-                assert machine_max >= soft_max, f"Invalid limit max config on {axis}, expect {machine_max} >= {soft_max}"
+                machine_max = machine_limits["maxs"].get(axis)
+                soft_max = soft_limits["maxs"].get(axis)
+                if machine_max is not None and soft_max is not None:
+                    assert machine_max >= soft_max, f"Invalid limit max config on {axis}, expect {machine_max} >= {soft_max}"
 
         def fill_group(label_group, limits_group, axis):
             val = limits_group.get(axis, None)

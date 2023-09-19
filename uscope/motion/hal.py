@@ -293,10 +293,12 @@ class SoftLimitMM(MotionModifier):
             cur_pos = cur_pos_xyz[axis]
             # Reject if its out of bounds and making things worse
             # Otherwise user can't recover
-            if axpos < axmin and axpos < cur_pos or axpos > axmax and axpos > cur_pos:
-                raise AxisExceeded(
-                    "axis %s: move violates %0.3f <= new pos %0.3f <= %0.3f" %
-                    (axis, axmin, axpos, axmax))
+            if not self.motion.axis_pos_in_range(axis, axmin, axpos, axmax):
+                # But maybe its making it better?
+                if axpos < axmin and axpos < cur_pos or axpos > axmax and axpos > cur_pos:
+                    raise AxisExceeded(
+                        "axis %s: move violates %0.3f <= new pos %0.3f <= %0.3f"
+                        % (axis, axmin, axpos, axmax))
 
     def move_relative_pre(self, pos, options={}):
         assert 0, "FIXME: unsupported"
@@ -305,6 +307,53 @@ class SoftLimitMM(MotionModifier):
                 pos, cur_pos=self.motion.cur_pos_cache()))
 
     def jog(self, scalars, rate_ref, options={}):
+        """
+        # Don't allow going beyond machine limits
+        # Jogs are relative though so we need to check against global coordinates
+        # and maybe do an adjustment
+
+        WARNING: due to queuing this logic isn't perfect
+
+        Two major adjustment cases:
+        -We are close to end. Reduce jog to a safe value
+        -We have already exceed axis and are trying to make it worse. Zero jog
+        """
+        if options.get("trim", True):
+            # print("")
+            # print("initial jog vals", scalars)
+            soft_limits = self.motion.get_soft_limits()
+            # print("soft_limits", soft_limits)
+            cur_pos = self.motion.cur_pos_cache()
+            # print("cur_pos", cur_pos)
+            new_pos = self.motion.estimate_relative_pos(scalars,
+                                                        cur_pos=cur_pos)
+            # print("new_pos", new_pos)
+            for axis in list(scalars.keys()):
+                # Make the jog reach no further than the limit
+                ax_min = soft_limits["mins"].get(axis)
+                if ax_min is not None:
+                    to_min = new_pos[axis] - ax_min
+                    if to_min < 0:
+                        # print("axis", axis, "to_min", to_min, "scalar", scalars[axis])
+                        # is this jog making it worse?
+                        # can't correct without reversing direction
+                        if cur_pos[axis] <= ax_min and scalars[axis] <= 0:
+                            scalars[axis] = 0.0
+                        else:
+                            scalars[axis] = ax_min - cur_pos[axis]
+                ax_max = soft_limits["maxs"].get(axis)
+                if ax_max is not None:
+                    to_max = new_pos[axis] - ax_max
+                    if to_max > 0:
+                        # is this jog making it worse?
+                        # can't correct without reversing direction
+                        if cur_pos[axis] >= ax_max and scalars[axis] >= 0:
+                            # del scalars[axis]
+                            scalars[axis] = 0.0
+                        else:
+                            scalars[axis] = ax_max - cur_pos[axis]
+            # print("final jog vals", scalars)
+
         self.move_absolute_pre(
             self.motion.estimate_relative_pos(
                 scalars, cur_pos=self.motion.cur_pos_cache()))
@@ -410,6 +459,9 @@ class MotionHAL:
         self._hal_max_accelerations = None
         self._hal_machine_limits = None
 
+        # Used to cache position while computing motion modifiers
+        self._cur_pos_cache = None
+
         # dict containing (min, min) for each axis
         if log is None:
 
@@ -512,6 +564,15 @@ class MotionHAL:
         """
         delta = abs(value2 - value1)
         return delta / 2 <= self.epsilon()[axis]
+
+    def axis_pos_in_range(self, axis, axis_min, value, axis_max):
+        """
+        Return true if the position is in range subject to minimum movement size
+        Prevents rounding errors when checking valid positions
+        """
+        return axis_min <= value <= axis_max or self.equivalent_axis_pos(
+            axis, axis_min, value) or self.equivalent_axis_pos(
+                axis, axis_max, value)
 
     def cache_constants(self):
         def calc_max_velocities():
@@ -866,6 +927,7 @@ class MotionHAL:
         # How far can we go in this time?
         scalars = dict([(axis, velocities[axis] * period)
                         for axis, frac in velocities.items()])
+
         # print("scalars", scalars)
         # Usually only XY is jogged together and they typically have the same max velocity
         # Take the smallest possible value so they all go the same scaled speed

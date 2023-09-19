@@ -307,7 +307,13 @@ class GRBLSer:
             while True:
                 c = self.serial.read(1024)
                 if b"Estop is activated" in c:
-                    raise Estop()
+                    raise Estop(
+                        "Emergency stop is activated. Check estop button and/or power supply and then re-home"
+                    )
+                if b"Check Limits" in c:
+                    raise Estop(
+                        "Limit switch tripped. Manually move away from limit switches and then re-home"
+                    )
                 if not c:
                     return
         finally:
@@ -1228,6 +1234,17 @@ class GrblHal(MotionHAL):
     def _get_max_accelerations(self):
         return self._max_acelerations
 
+    def is_limit_panicking(self):
+        """
+        VM1 spams this when crashed
+
+        [MSG:Check Limits]
+        ok
+        [MSG:Check Limits]
+        ok
+        [MSG:Check Limits]
+        """
+
     def home(self, force=False):
         """
         Depending on machine configuration homing may or may not be required
@@ -1238,6 +1255,10 @@ class GrblHal(MotionHAL):
             assert not force, "Requested homing on a system that can't home"
             print("Homing: skip on no limit switches")
             return
+
+        # changed general parse to detect this
+        #if self.is_limit_panicking():
+        #    raise HomingFailed("Machine cannot home while crashed. Move away from limit switches and then re-home")
 
         if not force and self.is_homed():
             return

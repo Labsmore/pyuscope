@@ -108,6 +108,9 @@ class Microscope:
     def get_planner(self, pconfig, out_dir):
         raise Exception("fixme")
 
+    def has_z(self):
+        return "z" in self.motion.axes()
+
 
 def get_cli_microscope(name=None):
     usc = get_usc(name=name)

@@ -71,6 +71,9 @@ class TTControlScroll(GstControlScroll):
                                   usc=usc,
                                   parent=parent)
 
+    def post_imager_ready(self):
+        GstControlScroll.post_imager_ready(self)
+
         # Normal users don't need to change these
         # but its needed to configure the camera
         # See https://github.com/Labsmore/pyuscope/issues/274

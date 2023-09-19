@@ -28,14 +28,13 @@ Original "pr0nscope" mk2 BH2 CNC microscope
         */
         "scalars": {
             "x": -4.0,
-            "y": -4.0,
+            "y": +4.0,
         },
-        //FIXME: once calibrated
-        "!soft_limits": {
+        "soft_limits": {
             "xmin": -5.0,
-            "xmax": 40.0,
+            "xmax": 35.0,
             "ymin": -5.0,
-            "ymax": 40.0,
+            "ymax": 35.0,
         },
 
         //Be extra careful

@@ -319,6 +319,7 @@ class SoftLimitMM(MotionModifier):
         -We have already exceed axis and are trying to make it worse. Zero jog
         """
         if options.get("trim", True):
+            assert len(scalars)
             # print("")
             # print("initial jog vals", scalars)
             soft_limits = self.motion.get_soft_limits()
@@ -338,7 +339,8 @@ class SoftLimitMM(MotionModifier):
                         # is this jog making it worse?
                         # can't correct without reversing direction
                         if cur_pos[axis] <= ax_min and scalars[axis] <= 0:
-                            scalars[axis] = 0.0
+                            del scalars[axis]
+                            # scalars[axis] = 0.0
                         else:
                             scalars[axis] = ax_min - cur_pos[axis]
                 ax_max = soft_limits["maxs"].get(axis)
@@ -348,11 +350,13 @@ class SoftLimitMM(MotionModifier):
                         # is this jog making it worse?
                         # can't correct without reversing direction
                         if cur_pos[axis] >= ax_max and scalars[axis] >= 0:
-                            # del scalars[axis]
-                            scalars[axis] = 0.0
+                            del scalars[axis]
+                            # scalars[axis] = 0.0
                         else:
                             scalars[axis] = ax_max - cur_pos[axis]
             # print("final jog vals", scalars)
+            if len(scalars) == 0:
+                raise AxisExceeded("Jog dropped: all moves would exceed axis")
 
         self.move_absolute_pre(
             self.motion.estimate_relative_pos(
@@ -431,16 +435,20 @@ class ScalarMM(MotionModifier):
             # print('status scaling2 %s' % status["pos"])
 
     def jog(self, scalars, rate_ref, options={}):
+        # print("jog scale in", scalars)
         self.scale_e2i_rel(scalars)
         """
         Rate is tricky since it applies to all axes but they may not be at the same scalar
         In practice jogged axes should be similar but who knows
         Favor the lowest possible rate to avoid going too fast?
         """
+        # assert rate_ref[0] > 0, rate_ref[0]
         rate_candidates = dict([(axis, rate_ref[0])
                                 for axis in scalars.keys()])
         self.scale_e2i_rel(rate_candidates)
-        rate_ref[0] = min(rate_candidates.values())
+        rate_ref[0] = min([abs(x) for x in rate_candidates.values()])
+        # assert rate_ref[0] > 0, rate_ref[0]
+        # print("jog scale out", scalars)
 
     def munge_axes(self, axes):
         self.scale_i2e_abs(axes)
@@ -497,6 +505,12 @@ class MotionHAL:
         for modifier in self.iter_active_modifiers():
             modifier.munge_axes(axes)
         return axes
+
+    def munge_axes_abs(self, axes):
+        for modifier in self.iter_active_modifiers():
+            modifier.munge_axes(axes)
+        for k, v in axes.items():
+            axes[k] = abs(v)
 
     def _get_machine_limits(self):
         return {"mins": {}, "maxs": {}}
@@ -577,7 +591,11 @@ class MotionHAL:
     def cache_constants(self):
         def calc_max_velocities():
             self._hal_max_velocities = self._get_max_velocities()
-            self.munge_axes(self._hal_max_velocities)
+            for v in self._hal_max_velocities.values():
+                assert v > 0, self._hal_max_velocities
+            self.munge_axes_abs(self._hal_max_velocities)
+            for v in self._hal_max_velocities.values():
+                assert v > 0, self._hal_max_velocities
             # Jogging depends on this
             self.assert_all_axes(self._hal_max_velocities)
 
@@ -585,7 +603,7 @@ class MotionHAL:
 
         def calc_max_accelerations():
             self._hal_max_accelerations = self._get_max_accelerations()
-            self.munge_axes(self._hal_max_accelerations)
+            self.munge_axes_abs(self._hal_max_accelerations)
             # 2023-09-18: not currently used
             # Could drop this requirement if good reason
             self.assert_all_axes(self._hal_max_accelerations)
@@ -593,6 +611,9 @@ class MotionHAL:
         calc_max_accelerations()
 
         def calc_machine_limits():
+            # XXX: min / max for an inverted axis gets nasty
+            # but currently we don't actively use machine limits
+            # in favor of higher level pyuscope soft limits
             # xxx: think this is always defined?
             # unclear if this is accurate on all machines though
             self._hal_machine_limits = dict(self._get_machine_limits())

@@ -731,6 +731,7 @@ class XYPlanner3PWidget(PlannerWidget):
         self.track_z_cb.stateChanged.connect(self.track_z_cb_changed)
         self.track_z_cb_changed(None)
         gl.addWidget(self.track_z_cb, row, 1)
+        self.track_z_cb.setEnabled(self.ac.microscope.has_z())
         self.pb_afgo = QPushButton("AF + Scan")
         self.pb_afgo.clicked.connect(self.afgo)
         self.pb_afgo.setIcon(QIcon(config.GUI.icon_files['go']))
@@ -1676,8 +1677,9 @@ class AdvancedTab(ArgusTab):
             gb.setLayout(layout)
             return gb
 
-        layout.addWidget(stack_gb(), row, 0)
-        row += 1
+        if self.ac.microscope.has_z():
+            layout.addWidget(stack_gb(), row, 0)
+            row += 1
 
         # FIXME: display for now, but should make editable
         # Or maybe have it log a report instead of making widgets?
@@ -1710,7 +1712,8 @@ class AdvancedTab(ArgusTab):
         backlashes = self.ac.usc.motion.backlash()
         self.ac.log("    X: %s" % backlashes["x"])
         self.ac.log("    Y: %s" % backlashes["y"])
-        self.ac.log("    Z: %s" % backlashes["z"])
+        if self.ac.microscope.has_z():
+            self.ac.log("    Z: %s" % backlashes["z"])
         self.ac.log("Planner")
         pconfig = microscope_to_planner_config(self.ac.usj,
                                                objective={"x_view": None},
@@ -1740,30 +1743,35 @@ class AdvancedTab(ArgusTab):
             pconfig["stacker-drift"] = {}
 
     def update_pconfig(self, pconfig):
-        self.update_pconfig_stack(pconfig)
+        if self.ac.microscope.has_z():
+            self.update_pconfig_stack(pconfig)
 
     def post_ui_init(self):
-        self.ac.objectiveChanged.connect(self.update_stack_mode)
-        self.stack_cb.currentIndexChanged.connect(self.update_stack_mode)
-        self.update_stack_mode()
+        if self.ac.microscope.has_z():
+            self.ac.objectiveChanged.connect(self.update_stack_mode)
+            self.stack_cb.currentIndexChanged.connect(self.update_stack_mode)
+            self.update_stack_mode()
 
     def cache_save(self, cachej):
-        cachej["advanced"] = {
-            "stacking": {
+        j = {}
+        if self.ac.microscope.has_z():
+            j["stacking"] = {
                 "images_pm": self.stacker_number_le.text(),
                 "distance_pm": self.stacker_distance_le.text(),
                 "mode_index": self.stack_cb.currentIndex(),
                 "drift_correction": self.stack_drift_cb.isChecked(),
             }
-        }
+        cachej["advanced"] = j
 
     def cache_load(self, cachej):
         j = cachej.get("advanced", {})
-        stacking = j.get("stacking", {})
-        self.stacker_number_le.setText(stacking.get("images_pm", "0"))
-        self.stacker_distance_le.setText(stacking.get("distance_pm", "0.0"))
-        self.stack_cb.setCurrentIndex(stacking.get("mode_index", 0))
-        self.stack_drift_cb.setChecked(stacking.get("drift_correction", 0))
+        if self.ac.microscope.has_z():
+            stacking = j.get("stacking", {})
+            self.stacker_number_le.setText(stacking.get("images_pm", "0"))
+            self.stacker_distance_le.setText(stacking.get(
+                "distance_pm", "0.0"))
+            self.stack_cb.setCurrentIndex(stacking.get("mode_index", 0))
+            self.stack_drift_cb.setChecked(stacking.get("drift_correction", 0))
 
     #
     def update_stack_mode(self, *args):
@@ -2226,9 +2234,12 @@ class MotionWidget(AWidget):
             Qt.Key_D: ("x", 1),
             Qt.Key_S: ("y", -1),
             Qt.Key_W: ("y", 1),
-            Qt.Key_Q: ("z", -1),
-            Qt.Key_E: ("z", 1),
         }
+        if self.ac.microscope.has_z():
+            self.axis_map.update({
+                Qt.Key_Q: ("z", -1),
+                Qt.Key_E: ("z", 1),
+            })
 
         self.last_send = time.time()
         # Can be used to invert keyboard, joystick XY inputs

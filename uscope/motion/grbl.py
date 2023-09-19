@@ -486,9 +486,12 @@ class GRBLSer:
         <Idle|MPos:0.000,0.000,0.000|FS:0,0>
         """
         self.tx("?", nl=False)
-        l = self.readline()
-        self.verbose and print("rx '%s'" % (l, ))
-        return trim_status_line(l)
+        while True:
+            l = self.readline()
+            self.verbose and print("rx '%s'" % (l, ))
+            l = trim_status_line(l)
+            if len(l):
+                return l
 
     def c(self):
         """

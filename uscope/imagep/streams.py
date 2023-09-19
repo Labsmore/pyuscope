@@ -353,17 +353,17 @@ class SnapshotCSIP:
 
             tb = TaskBarrier()
             data_out = self.csip.queue_hdr_enfuse(im_in=current_images,
-                                                  want_im=True,
+                                                  want_im_out=True,
                                                   tb=tb)
             tb.wait()
-            current_images = data_out["image"].to_im()
+            current_images = data_out["image"].get_im()
 
             tb = TaskBarrier()
             data_out = self.csip.queue_hdr_stack(im_in=current_images,
-                                                 want_im=True,
+                                                 want_im_out=True,
                                                  tb=tb)
             tb.wait()
-            current_images = data_out["image"].to_im()
+            current_images = data_out["image"].get_im()
 
         assert len(current_images) == 1
         current_image = current_images[0]
@@ -378,10 +378,10 @@ class SnapshotCSIP:
                 tb = TaskBarrier()
                 data_out = self.csip.queue_correct_plugin(plugin,
                                                           im_in=current_image,
-                                                          want_im=True,
+                                                          want_im_out=True,
                                                           tb=tb)
                 tb.wait()
-                current_image = data_out["image"].to_im()
+                current_image = data_out["image"].get_im()
 
         if not config.get_usc().imager.has_ff_cal():
             self.log("FF correction: skip")
@@ -389,10 +389,10 @@ class SnapshotCSIP:
             self.log("FF correction: start")
             tb = TaskBarrier()
             self.csip.queue_correct_ff1(im_in=current_image,
-                                        want_im=True,
+                                        want_im_out=True,
                                         tb=tb)
             tb.wait()
-            current_image = data_out["image"].to_im()
+            current_image = data_out["image"].get_im()
 
         return current_image
 

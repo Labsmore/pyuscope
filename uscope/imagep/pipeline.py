@@ -14,6 +14,11 @@ They generally take one or more images in and produce a single image out
 """
 
 from uscope.scan_util import index_scan_images
+from uscope.imagep.util import EtherealImageR, EtherealImageW
+from uscope.imagep.streams import StreamCSIP, DirCSIP, SnapshotCSIP
+from uscope.imagep.plugins import get_plugins, get_plugin_ctors
+from uscope import config
+
 import os
 import glob
 import subprocess
@@ -23,10 +28,7 @@ import traceback
 import multiprocessing
 import threading
 import queue
-from uscope.imagep.util import EtherealImageR, EtherealImageW
-from uscope.imagep.streams import StreamCSIP, DirCSIP, SnapshotCSIP
-from uscope.imagep.plugins import get_plugins, get_plugin_ctors
-from uscope import config
+import tempfile
 
 
 def get_open_set(working_iindex):
@@ -182,7 +184,8 @@ class CSImageProcessor(threading.Thread):
         self.workers = OrderedDict()
 
         # Used
-        self.temp_dir = None
+        self.temp_dir_object = tempfile.TemporaryDirectory()
+        self.temp_dir = self.temp_dir_object.name
 
         if not nthreads:
             nthreads = multiprocessing.cpu_count()
@@ -206,8 +209,9 @@ class CSImageProcessor(threading.Thread):
                 worker.join()
             self.workers = None
 
-        if self.temp_dir:
-            shutil.rmtree(self.temp_dir)
+        if self.temp_dir_object:
+            # shutil.rmtree(self.temp_dir)
+            self.temp_dir_object.cleanup()
             self.temp_dir = None
 
     def queue_task(self, ip_params, callback=None, block=None):

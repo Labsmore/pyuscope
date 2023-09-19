@@ -1157,7 +1157,7 @@ class ScanWidget(AWidget):
             }
 
             self.ac.planner_thread = QPlannerThread(
-                self, planner_args, progress_cb=emitCncProgress)
+                planner_args, progress_cb=emitCncProgress, parent=self)
             self.ac.planner_thread.log_msg.connect(self.ac.log)
             self.ac.planner_thread.plannerDone.connect(self.plannerDone)
             self.setControlsEnabled(False)

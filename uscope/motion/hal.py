@@ -649,10 +649,8 @@ class MotionHAL:
                                                 scalars=scalars,
                                                 wcs_offsets=wcs_offsets)
 
-        print("callin configured")
         self._configured()
         # need to let GRBL fetch values
-        print("callin cache")
         self.cache_constants()
 
     def _configured(self):
@@ -1121,6 +1119,12 @@ class DryHal(MotionHAL):
 
     def ar_stop(self):
         pass
+
+    def _get_max_velocities(self):
+        return self.hal.get_max_velocities()
+
+    def _get_max_accelerations(self):
+        return self.hal.get_max_accelerations()
 
 
 class GCodeHalImager(Imager):

@@ -168,6 +168,12 @@ class QPlannerThread(PlannerThreadBase, QThread):
     plannerDone = pyqtSignal(dict)
     log_msg = pyqtSignal(str)
 
+    def __init__(self, planner_args, progress_cb, parent=None):
+        QThread.__init__(self, parent)
+        PlannerThreadBase.__init__(self,
+                                   planner_args=planner_args,
+                                   progress_cb=progress_cb)
+
     def log(self, msg=""):
         self.log_msg.emit(msg)
 

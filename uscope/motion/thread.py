@@ -52,6 +52,12 @@ class MotionThreadMotion(MotionHAL):
     def backlash_enable(self):
         self.mt.backlash_enable(block=True)
 
+    def _get_max_velocities(self):
+        return self.mt.motion.get_max_velocities()
+
+    def _get_max_accelerations(self):
+        return self.mt.motion.get_max_accelerations()
+
 
 class MotionThreadBase:
     def __init__(self, usc):

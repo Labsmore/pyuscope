@@ -200,6 +200,7 @@ class ArgusCommon(QObject):
             # should all be initialized
             auto=False,
             configure=False)
+        self.microscope.motion_thread = self.motion_thread
 
         # TODO: we should try to make this allow connecting and disconnecting joystick
         # its not required for any critical initialization / would be easy to do
@@ -207,6 +208,7 @@ class ArgusCommon(QObject):
             self.joystick_thread = QJoystickThread(ac=self)
         except JoystickNotFound:
             self.log("Joystick not found")
+        self.microscope.joystick_thread = self.joystick_thread
 
     def initUI(self):
         self.vidpip.setupWidgets()

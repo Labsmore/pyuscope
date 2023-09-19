@@ -91,26 +91,17 @@ A minimal configuration to do basic testing
         Y: 0.0 to 200.0, homed at -197 (12)
         Z: -60.0 to 0.0, homed at -2.4
         */
-        /*
-        TODO: need a better way to recover in GUI
-        Disable until then
         "soft_limits": {
-            "xmin": 2.5,
-            "xmax": 297.5,
-            "ymin": 2.5,
-            "ymax": 197.5,
-            "zmin": -58.5,
-            "ymax": -2.5,
-        },
-        */
-        //Token limits for now
-        "!soft_limits": {
-            "xmin": 0.0,
-            "xmax": 300.0,
-            "ymin": 0.0,
-            "ymax": 200.0,
-            "zmin": -60.0,
-            "ymax": -0.0,
+            //machine: 0.0 to 300.0
+            "xmin": 10.0,
+            "xmax": 290.0,
+            //machine: 0.0 to 200.0
+            "ymin": 10.0,
+            "ymax": 190.0,
+            //machine: -60.0 to 0.0
+            //LIA-TT-1 is well within this range
+            "zmin": -50.0,
+            "zmax": -10.0,
         },
     },
 

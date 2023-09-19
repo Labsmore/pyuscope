@@ -17,19 +17,14 @@ groups_gst = [
 ]
 
 groups_gst.extend([
-    ("Flip", [
-        "hflip",
-        "vflip",
-    ]),
-])
-
-groups_gst.extend([
     (
-        "AWB",
+        "Misc",
         [
             "awb-rgb",
             # not sure what this is but doesn't work
             #"awb-tt",
+            "hflip",
+            "vflip",
         ]),
     # software based, leave out for now
     #("Black balance", [

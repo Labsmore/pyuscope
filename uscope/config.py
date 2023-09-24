@@ -1250,8 +1250,23 @@ class JoystickConfig:
                     'id': 2
                 }
             }
+        elif model == "CH Products CH Products IPD Launch":
+            return {
+                'btn_capture_image': {
+                    'id': 0
+                },
+                'axis_move_x': {
+                    'id': 0
+                },
+                'axis_move_y_inv': {
+                    'id': 1
+                },
+                'axis_move_z': {
+                    'id': 2
+                }
+            }
         else:
-            raise Exception("Required (need model)")
+            raise ValueError(f"Unsupported joystick model {model}")
 
 
 class BaseConfig:

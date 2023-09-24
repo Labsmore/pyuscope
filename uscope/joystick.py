@@ -146,35 +146,51 @@ class Joystick:
                 self.microscope.cancel_jog()
         return skip
 
-    def axis_move_x(self, id):
+    def axis_move_x(self, id, scalar=1.0):
         val = self.joystick.get_axis(id)
         if self.process_skip("x", "axis_move_x", val):
             return
         self._jog_add_queue(
-            "x", self.axis_cal_scalars["x"] * self.axis_scalars["x"] * val)
+            "x",
+            self.axis_cal_scalars["x"] * self.axis_scalars["x"] * val * scalar)
 
-    def axis_move_y(self, id):
+    def axis_move_x_inv(self, id):
+        self.axis_move_x(id, scalar=-1.0)
+
+    def axis_move_y(self, id, scalar=1.0):
         val = self.joystick.get_axis(id)
         if self.process_skip("y", "axis_move_y", val):
             return
         self._jog_add_queue(
-            "y", self.axis_cal_scalars["y"] * self.axis_scalars["y"] * val)
+            "y",
+            self.axis_cal_scalars["y"] * self.axis_scalars["y"] * val * scalar)
 
-    def axis_move_z(self, id):
+    def axis_move_y_inv(self, id):
+        self.axis_move_y(id, scalar=-1.0)
+
+    def axis_move_z(self, id, scalar=1.0):
         val = self.joystick.get_axis(id)
         if self.process_skip("z", "axis_move_z", val):
             return
         self._jog_add_queue(
-            "z", self.axis_cal_scalars["z"] * self.axis_scalars["z"] * val)
+            "z",
+            self.axis_cal_scalars["z"] * self.axis_scalars["z"] * val * scalar)
 
-    def hat_move_z(self, id, idx):
+    def axis_move_z_inv(self, id):
+        self.axis_move_z(id, scalar=-1.0)
+
+    def hat_move_z(self, id, idx, scalar=1.0):
         val = self.joystick.get_hat(id)[idx]
         # If hat is not pressed skip
         if self.process_skip("z", "hat_move_z", val):
             return
         # Hat values are either -1 or 1, so we can just multiply for sign
         self._jog_add_queue(
-            "z", self.hat_cal_scalars["z"] * self.hat_scalars["z"] * val)
+            "z",
+            self.hat_cal_scalars["z"] * self.hat_scalars["z"] * val * scalar)
+
+    def hat_move_z_inv(self, id, idx):
+        self.hat_move_z(id, idx, scalar=-1.0)
 
     def btn_capture_image(self, id):
         if self.joystick.get_button(id):

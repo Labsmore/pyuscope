@@ -153,15 +153,15 @@ class MotionThreadBase:
         if self.qsize() < 1:
             self.jog_fractioned(axes, period)
 
-    def jog(self, pos, rate):
+    def jog_abs(self, pos, rate):
         self.command("jog", pos, rate)
 
-    def jog_lazy(self, pos, rate):
+    def jog_abs_lazy(self, pos, rate):
         """
         Only jog if events haven't already stacked up high
         """
         if self.qsize() < 1:
-            self.command("jog", pos, rate)
+            self.command("jog_abs", pos, rate)
 
     def stop(self):
         # self.command("stop")
@@ -295,7 +295,7 @@ class MotionThreadBase:
                     'update_pos_cache': update_pos_cache,
                     'move_absolute': move_absolute,
                     'move_relative': move_relative,
-                    'jog': self.motion.jog,
+                    'jog_abs': self.motion.jog_abs,
                     'jog_fractioned': self.motion.jog_fractioned,
                     'pos': self.motion.pos,
                     'home': self.motion.home,

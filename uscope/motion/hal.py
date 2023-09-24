@@ -70,7 +70,7 @@ class MotionModifier:
     def move_relative_post(self, ok, options={}):
         pass
 
-    def jog(self, scalars, rate_ref, options={}):
+    def jog_abs(self, scalars, rate_ref, options={}):
         pass
 
     def update_status(self, status):
@@ -252,9 +252,9 @@ class BacklashMM(MotionModifier):
             pos, cur_pos=self.motion.cur_pos_cache())
         self.move_x_pre(dst_abs_pos=final_abs_pos, options=options)
 
-    def jog(self, scalars, rate_ref, options={}):
+    def jog_abs(self, pos, rate_ref, options={}):
         # Don't modify jog commands, but invalidate compensation
-        for axis in scalars.keys():
+        for axis in pos.keys():
             self.compensated[axis] = False
 
     def move_absolute_post(self, ok, options={}):
@@ -306,7 +306,7 @@ class SoftLimitMM(MotionModifier):
             self.motion.estimate_relative_pos(
                 pos, cur_pos=self.motion.cur_pos_cache()))
 
-    def jog(self, scalars, rate_ref, options={}):
+    def jog_abs(self, pos, rate_ref, options={}):
         """
         # Don't allow going beyond machine limits
         # Jogs are relative though so we need to check against global coordinates
@@ -319,48 +319,47 @@ class SoftLimitMM(MotionModifier):
         -We have already exceed axis and are trying to make it worse. Zero jog
         """
         if options.get("trim", True):
-            assert len(scalars)
+            assert len(pos)
             # print("")
             # print("initial jog vals", scalars)
             soft_limits = self.motion.get_soft_limits()
             # print("soft_limits", soft_limits)
             cur_pos = self.motion.cur_pos_cache()
             # print("cur_pos", cur_pos)
-            new_pos = self.motion.estimate_relative_pos(scalars,
-                                                        cur_pos=cur_pos)
             # print("new_pos", new_pos)
-            for axis in list(scalars.keys()):
+            for axis in list(pos.keys()):
                 # Make the jog reach no further than the limit
                 ax_min = soft_limits["mins"].get(axis)
-                if ax_min is not None:
-                    to_min = new_pos[axis] - ax_min
-                    if to_min < 0:
-                        # print("axis", axis, "to_min", to_min, "scalar", scalars[axis])
-                        # is this jog making it worse?
-                        # can't correct without reversing direction
-                        if cur_pos[axis] <= ax_min and scalars[axis] <= 0:
-                            del scalars[axis]
-                            # scalars[axis] = 0.0
-                        else:
-                            scalars[axis] = ax_min - cur_pos[axis]
+                if ax_min is not None and pos[axis] < ax_min:
+                    # In red zone but getting better? Allow it
+                    if pos[axis] >= cur_pos[axis]:
+                        pass
+                    # Could we move closer but not exceed?
+                    elif ax_min < cur_pos[axis]:
+                        pos[axis] = ax_min
+                    # Out of range and making it worse
+                    # Drop it
+                    else:
+                        del pos[axis]
+                        continue
                 ax_max = soft_limits["maxs"].get(axis)
-                if ax_max is not None:
-                    to_max = new_pos[axis] - ax_max
-                    if to_max > 0:
-                        # is this jog making it worse?
-                        # can't correct without reversing direction
-                        if cur_pos[axis] >= ax_max and scalars[axis] >= 0:
-                            del scalars[axis]
-                            # scalars[axis] = 0.0
-                        else:
-                            scalars[axis] = ax_max - cur_pos[axis]
+                if ax_max is not None and pos[axis] > ax_max:
+                    # In red zone but getting better? Allow it
+                    if pos[axis] <= cur_pos[axis]:
+                        pass
+                    # Could we move closer but not exceed?
+                    elif ax_max > cur_pos[axis]:
+                        pos[axis] = ax_max
+                    # Out of range and making it worse
+                    # Drop it
+                    else:
+                        del pos[axis]
+                        continue
             # print("final jog vals", scalars)
-            if len(scalars) == 0:
+            if len(pos) == 0:
                 raise AxisExceeded("Jog dropped: all moves would exceed axis")
 
-        self.move_absolute_pre(
-            self.motion.estimate_relative_pos(
-                scalars, cur_pos=self.motion.cur_pos_cache()))
+        self.move_absolute_pre(pos)
 
 
 """
@@ -434,17 +433,16 @@ class ScalarMM(MotionModifier):
             self.scale_i2e_abs(status["pos"])
             # print('status scaling2 %s' % status["pos"])
 
-    def jog(self, scalars, rate_ref, options={}):
+    def jog_abs(self, pos, rate_ref, options={}):
         # print("jog scale in", scalars)
-        self.scale_e2i_rel(scalars)
+        self.scale_e2i_abs(pos)
         """
         Rate is tricky since it applies to all axes but they may not be at the same scalar
         In practice jogged axes should be similar but who knows
         Favor the lowest possible rate to avoid going too fast?
         """
         # assert rate_ref[0] > 0, rate_ref[0]
-        rate_candidates = dict([(axis, rate_ref[0])
-                                for axis in scalars.keys()])
+        rate_candidates = dict([(axis, rate_ref[0]) for axis in pos.keys()])
         self.scale_e2i_rel(rate_candidates)
         rate_ref[0] = min([abs(x) for x in rate_candidates.values()])
         # assert rate_ref[0] > 0, rate_ref[0]
@@ -893,7 +891,7 @@ class MotionHAL:
                 raise ValueError("Got axis %s but expect axis in %s" %
                                  (axis, self.axes()))
 
-    def jog(self, scalars, rate, options={}):
+    def jog_abs(self, scalars, rate, options={}, keep_pos_cache=False):
         """
         scalars: generally either +1 or -1 per axis to jog
         Final value is globally multiplied by the jog_rate and individually by the axis scalar
@@ -905,20 +903,21 @@ class MotionHAL:
         assert rate >= 0
         scalars = dict(scalars)
         # XXX: invalidates on recursion
-        self.cur_pos_cache_invalidate()
+        if not keep_pos_cache:
+            self.cur_pos_cache_invalidate()
         try:
             # print("jog in", scalars, rate)
             self.validate_axes(scalars.keys())
             rate_ref = [rate]
             for modifier in self.iter_active_modifiers():
-                modifier.jog(scalars, rate_ref, options=options)
+                modifier.jog_abs(scalars, rate_ref, options=options)
             rate = rate_ref[0]
             # print("jog to grbl", scalars, rate)
-            self._jog(scalars, rate)
+            self._jog_abs(scalars, rate)
         finally:
             self.cur_pos_cache_invalidate()
 
-    def _jog(self, axes, rate):
+    def _jog_abs(self, pos, rate):
         '''
         axes: dict of axis with value to move
         WARNING: under development / unstable API
@@ -944,15 +943,18 @@ class MotionHAL:
                            for axis, frac in axes.items()])
         # print("velocities", velocities)
         # How far can we go in this time?
-        scalars = dict([(axis, velocities[axis] * period)
+        self.cur_pos_cache_invalidate()
+        cur_pos = self.cur_pos_cache()
+        abs_pos = dict([(axis, cur_pos[axis] + velocities[axis] * period)
                         for axis, frac in velocities.items()])
+        # print("frac pos", axes, abs_pos)
 
         # print("scalars", scalars)
         # Usually only XY is jogged together and they typically have the same max velocity
         # Take the smallest possible value so they all go the same scaled speed
         rate = min([abs(velocity) for velocity in velocities.values()])
         rate = int(round(max(1, rate)))
-        self.jog(scalars, rate)
+        self.jog_abs(abs_pos, rate, keep_pos_cache=True)
 
     '''
     In modern systems the first is almost always used

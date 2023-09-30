@@ -939,21 +939,40 @@ class MotionHAL:
         # How fast, in machine units, were we requested to go?
         # GRBL: machine reports velocity in mm / min, feed rate is also mm / min
         # However note that acceleration is in mm / sec2
-        velocities = dict([(axis, self.get_max_velocities()[axis] * frac)
-                           for axis, frac in axes.items()])
+        velocities_per_minute = dict([(axis,
+                                       self.get_max_velocities()[axis] * frac)
+                                      for axis, frac in axes.items()])
+        velocities_per_second = dict([
+            (axis, self.get_max_velocities()[axis] / 60.0 * frac)
+            for axis, frac in axes.items()
+        ])
         # print("velocities", velocities)
         # How far can we go in this time?
         self.cur_pos_cache_invalidate()
         cur_pos = self.cur_pos_cache()
-        abs_pos = dict([(axis, cur_pos[axis] + velocities[axis] * period)
-                        for axis, frac in velocities.items()])
-        # print("frac pos", axes, abs_pos)
+        abs_pos = dict([(axis,
+                         cur_pos[axis] + velocities_per_second[axis] * period)
+                        for axis, frac in velocities_per_second.items()])
 
         # print("scalars", scalars)
         # Usually only XY is jogged together and they typically have the same max velocity
         # Take the smallest possible value so they all go the same scaled speed
-        rate = min([abs(velocity) for velocity in velocities.values()])
+        # rate = min([abs(velocity) for velocity in velocities.values()])
+        # min => max: the other axis is already a smaller step
+        # this will just hurt the major axis
+        rate = max(
+            [abs(velocity) for velocity in velocities_per_minute.values()])
         rate = int(round(max(1, rate)))
+
+        if 1:
+            print("jog_fractioned()")
+            print("  ", time.time())
+            print("  fractions", axes)
+            print("  max_velocities per sec", self.get_max_velocities())
+            print("  period", period)
+            print("  cur_pos", cur_pos)
+            print("  pos", abs_pos)
+            print("  rate", rate)
         self.jog_abs(abs_pos, rate, keep_pos_cache=True)
 
     '''
@@ -969,6 +988,9 @@ class MotionHAL:
         '''Take a picture and save it to internal.  File name is generated automatically'''
         raise Exception("Unsupported")
     """
+
+    def jog_cancel(self):
+        raise NotSupported("Required for jogging")
 
     def on(self):
         '''Call at start of MDI phase, before planner starts'''

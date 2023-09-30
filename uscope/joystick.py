@@ -10,6 +10,7 @@ class JoystickNotFound(Exception):
 class Joystick:
     def __init__(self, microscope):
         self.microscope = microscope
+        self.was_jogging = False
         pygame.init()
         pygame.joystick.init()
         try:
@@ -27,9 +28,10 @@ class Joystick:
             model=model)
 
         self.axis_threshold = {
-            "x": 0.1,
-            "y": 0.1,
-            "z": 0.1,
+            "axis_x": 0.02,
+            "axis_y": 0.02,
+            "axis_z": 0.02,
+            "hat_z": 0.02,
         }
         if model == "CH Products CH Products IP Desktop Controller":
             # FIXME: hack. should load from joystick config
@@ -90,9 +92,16 @@ class Joystick:
             getattr(self, fn)(**self.joystick_fn_map[fn])
         if len(self._jog_queue):
             # print(self._jog_queue)
+            print("joystick: submit")
             self.microscope.jog_fractioned_lazy(self._jog_queue,
                                                 self._jog_fractioned_period)
             self._jog_queue = None
+            self.was_jogging = True
+        elif self.was_jogging:
+            print("joystick: cancel")
+            self.microscope.jog_cancel()
+            # self.microscope.motion_stop()
+            self.was_jogging = False
 
     def debug_dump(self):
         pygame.event.get()
@@ -137,18 +146,11 @@ class Joystick:
     # multiple triggers could be mapped (use buttons or axis to move x).
 
     def process_skip(self, axis, function, val):
-        skip = abs(val) < self.axis_threshold[axis]
-        last_skip = self._last_skips.get(function)
-        self._last_skips[function] = skip
-        if skip:
-            # Need to cancel jog to clear queue
-            if not last_skip:
-                self.microscope.cancel_jog()
-        return skip
+        return abs(val) < self.axis_threshold[axis]
 
     def axis_move_x(self, id, scalar=1.0):
         val = self.joystick.get_axis(id)
-        if self.process_skip("x", "axis_move_x", val):
+        if abs(val) < self.axis_threshold["axis_x"]:
             return
         self._jog_add_queue(
             "x",
@@ -159,7 +161,7 @@ class Joystick:
 
     def axis_move_y(self, id, scalar=1.0):
         val = self.joystick.get_axis(id)
-        if self.process_skip("y", "axis_move_y", val):
+        if abs(val) < self.axis_threshold["axis_y"]:
             return
         self._jog_add_queue(
             "y",
@@ -170,7 +172,7 @@ class Joystick:
 
     def axis_move_z(self, id, scalar=1.0):
         val = self.joystick.get_axis(id)
-        if self.process_skip("z", "axis_move_z", val):
+        if abs(val) < self.axis_threshold["axis_z"]:
             return
         self._jog_add_queue(
             "z",
@@ -182,7 +184,7 @@ class Joystick:
     def hat_move_z(self, id, idx, scalar=1.0):
         val = self.joystick.get_hat(id)[idx]
         # If hat is not pressed skip
-        if self.process_skip("z", "hat_move_z", val):
+        if abs(val) < self.axis_threshold["hat_z"]:
             return
         # Hat values are either -1 or 1, so we can just multiply for sign
         self._jog_add_queue(

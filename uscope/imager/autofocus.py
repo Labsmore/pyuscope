@@ -3,6 +3,8 @@ import numpy as np
 
 
 def choose_best_image(images_iter, log=None):
+    take_center = True
+
     if not log:
 
         def log(s):
@@ -19,6 +21,17 @@ def choose_best_image(images_iter, log=None):
 
         def image_pil2cv(im):
             return np.array(im)[:, :, ::-1].copy()
+
+        if take_center:
+            width, height = im_pil.size
+
+            left = (width - width / 3) / 2
+            top = (height - height / 3) / 2
+            right = (width + width / 3) / 2
+            bottom = (height + height / 3) / 2
+
+            # Crop the center of the image
+            im_pil = im_pil.crop((left, top, right, bottom))
 
         im_cv = image_pil2cv(im_pil)
         score = get_score(im_cv)

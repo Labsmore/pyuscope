@@ -163,6 +163,9 @@ class MotionThreadBase:
         if self.qsize() < 1:
             self.command("jog_abs", pos, rate)
 
+    def jog_cancel(self):
+        self.command("jog_cancel")
+
     def stop(self):
         # self.command("stop")
         self._stop = True
@@ -297,6 +300,7 @@ class MotionThreadBase:
                     'move_relative': move_relative,
                     'jog_abs': self.motion.jog_abs,
                     'jog_fractioned': self.motion.jog_fractioned,
+                    'jog_cancel': self.motion.jog_cancel,
                     'pos': self.motion.pos,
                     'home': self.motion.home,
                     'backlash_disable': self.motion.backlash_disable,
@@ -307,6 +311,7 @@ class MotionThreadBase:
                     'mdi': self.motion.command,
                     'log_info': self.motion.log_info,
                 }.get(command, default)
+                tstart = time.time()
                 try:
                     ret = f(*args)
                 # Depending on the motion controller this may be a bad idea
@@ -333,6 +338,13 @@ class MotionThreadBase:
                     if command_done:
                         command_done(command, args, e)
                     continue
+                # motion command update_pos_cache completed in 0.006439208984375
+                # motion command jog_fractioned completed in 0.021370649337768555
+                # motion command update_pos_cache completed in 0.21372413635253906
+                # motion command jog_fractioned completed in 0.27429747581481934
+                # why does this sometimes take much longer?
+                print(f"motion command {command} completed in",
+                      time.time() - tstart)
 
                 if command_done:
                     command_done(command, args, ret)

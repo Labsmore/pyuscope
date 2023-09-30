@@ -568,7 +568,7 @@ class GRBLSer:
         """
         self.txrx0("$X")
 
-    def cancel_jog(self):
+    def jog_cancel(self):
         """
         Immediately cancels the current jog state by a feed hold and
         automatically flushing any remaining jog commands in the buffer.
@@ -698,7 +698,7 @@ class MockGRBLSer(GRBLSer):
         self.state = self.STATE_RESET
         time.sleep(0.05)
 
-    def cancel_jog(self):
+    def jog_cancel(self):
         self.state = self.STATE_IDLE
         time.sleep(0.05)
 
@@ -832,7 +832,7 @@ class GRBL:
         # sometimes the stop is ignored
         # seems to happen especially for very low jog amounts
         while True:
-            self.cancel_jog()
+            self.jog_cancel()
             if self.qstatus()["status"] == "Idle":
                 break
             time.sleep(0.01)
@@ -1015,10 +1015,12 @@ class GRBL:
                 ["%s%0.3f" % (axis, scalar) for axis, scalar in pos.items()])
             cmd = "G90 %s F%u" % (axes_str, rate)
             self.verbose and print("JOG:", cmd)
+            print("JOG:", cmd)
+            print("  ", self.qstatus()["MPos"])
             # Cancel the previous jog and immediately submit the new jog
             # Clears the queue to make the new command take effect
             # Small window => rotor initeria should make this smooth
-            self.gs.cancel_jog()
+            # self.gs.jog_cancel()
             self.gs.j(cmd)
             if 0 and self.verbose:
                 mpos = self.qstatus()["MPos"]
@@ -1029,7 +1031,7 @@ class GRBL:
             self.verbose and print("WARNING: dropping jog")
             self.general_recover()
 
-    def do_cancel_jog(self):
+    def do_jog_cancel(self):
         """
         Retry logic to really try to cancel jog if at all possible
         Ex: a serial transmission error should still reliably cancel
@@ -1060,7 +1062,7 @@ class GRBL:
                         raise Timeout(
                             f"Failed to cancel jog after {cancels} attempts, {dt} seconds"
                         )
-                    self.gs.cancel_jog()
+                    self.gs.jog_cancel()
                     cancels += 1
                     if self.qstatus()["status"] == "Idle":
                         dt = time.time() - main_tstart
@@ -1073,8 +1075,8 @@ class GRBL:
                     raise
                 self.general_recover()
 
-    def cancel_jog(self):
-        self.do_cancel_jog()
+    def jog_cancel(self):
+        self.do_jog_cancel()
         # Remove the feed hold a jog cancel causes
         self.gs.tilda()
 
@@ -1321,6 +1323,9 @@ class GrblHal(MotionHAL):
         # May be called during unclean shutdown
         if self.grbl:
             self.grbl.stop()
+
+    def jog_cancel(self):
+        self.grbl.jog_cancel()
 
     def log_info(self):
         self.log("GRBL info")

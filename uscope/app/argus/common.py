@@ -217,7 +217,8 @@ class ArgusCommon(QObject):
         # hack...used by joystick...
         # self.microscope.jog_abs_lazy = self.motion_thread.jog_abs_lazy
         self.microscope.jog_fractioned_lazy = self.motion_thread.jog_fractioned_lazy
-        self.microscope.cancel_jog = self.motion_thread.stop
+        self.microscope.jog_cancel = self.motion_thread.jog_cancel
+        self.microscope.motion_stop = self.motion_thread.stop
 
         # FIXME: these are not thread safe
         # convert to signals

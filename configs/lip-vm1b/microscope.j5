@@ -175,6 +175,11 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
             "right": 160,
         },
         */
+
+        //spec sheet says
+        //Pixel size: 2um(H) x 2um(V)
+
+        
         //1.5x
         //"scalar": 0.5
         // 0.33mm / 960px * 1000 = 0.34375

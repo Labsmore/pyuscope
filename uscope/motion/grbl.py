@@ -1287,8 +1287,21 @@ class GrblHal(MotionHAL):
         #if self.is_limit_panicking():
         #    raise HomingFailed("Machine cannot home while crashed. Move away from limit switches and then re-home")
 
-        if not force and self.is_homed():
-            return
+        if not force:
+            if self.is_homed():
+                return
+            while True:
+                print("System is not homed. Enter Y to home or N to abort")
+                print(
+                    "Ensure system is clear of fingers, cables, etc before proceeding"
+                )
+                got = input().upper()
+                if got == "Y":
+                    break
+                elif got == "N":
+                    raise Exception("Homing aborted")
+                print("Invalid response")
+                print("")
 
         tstart = time.time()
         # TLDR: gearbox means we need ot home several times

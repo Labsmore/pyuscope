@@ -71,18 +71,15 @@ class JogController:
         self.motion_thread = motion_thread
         self.period = period
         self.jogging = False
+        self.dts = []
         self.tlast = None
 
     def update(self, axes):
         # XXX: adjust jogging based on actual loop time instead of estimated?
         tthis = time.time()
         period = self.period
-        if self.tlast:
+        if self.tlast is not None:
             dt = tthis - self.tlast
-            # This is probably a better estimate in general
-            # However it does reflect last, not typical time
-            # Maybe average the last few?
-            period = dt
             if dt < self.period:
                 """
                 looks like qt can undershoot period maybe depending on how events stack up
@@ -99,14 +96,25 @@ class JogController:
                     f"JOG WARNING: actual loop time {dt} is significantly larger than estimated period {self.period}. Jogging may stutter"
                 )
 
+            # Try to figure out the typical loop time
+            # Take the median over the last few measurements
+            self.dts.append(dt)
+            if len(self.dts) > 5:
+                self.dts = self.dts[1:]
+            # take median dt
+            dt = sorted(self.dts)[len(self.dts) // 2]
+
+            period = dt
+
         # Most of the time these will be 0
         for axis, value in list(axes.items()):
             if self.motion_thread.motion.is_zero(axis, value):
                 del axes[axis]
 
         if len(axes):
+            # XXX: what if it starts dropping commands?
             # print(self._jog_queue)
-            print("joystick: submit")
+            print("JC: submit", time.time())
             # TODO: consider squishing them into valid range
             for axis, value in axes.items():
                 assert -1 <= value <= +1, f"bad jog value {axis} : {value}"
@@ -114,9 +122,17 @@ class JogController:
             self.jogging = True
         # Was jogging but no longer?
         elif self.jogging:
-            print("joystick: cancel")
-            self.motion_thread.jog_cancel()
+            print("JC: cancel", time.time())
+            # Unclear which of these is better
+            # If jogs are queued up its better to force a stop?
+            # Could make it slightly less responsive if you are zero crossing
+            # but the queue was going to go through there anyway
+            # However the queue is also processed quickly, so a jog cancel
+            # should be quick
+            # self.motion_thread.jog_cancel()
+            self.motion_thread.stop()
             self.jogging = False
+
         self.tlast = tthis
 
 
@@ -210,8 +226,12 @@ class MotionThreadBase:
     def jog_fractioned_lazy(self, axes, period):
         # WARNING: GRBL controller will queue
         # so with relative jogs be careful
-        if self.qsize() < 1:
+        # Also update_pos_cache() may queue up
+        # So just prevent excessive queueing
+        if self.qsize() < 4:
             self.jog_fractioned(axes, period)
+        else:
+            print("WARNING: drop jog")
 
     def jog_abs(self, pos, rate):
         self.command("jog", pos, rate)
@@ -406,7 +426,7 @@ class MotionThreadBase:
                 # motion command update_pos_cache completed in 0.21372413635253906
                 # motion command jog_fractioned completed in 0.27429747581481934
                 # why does this sometimes take much longer?
-                0 and print(f"motion command {command} completed in",
+                1 and print(f"motion command {command} completed in",
                             time.time() - tstart)
 
                 if command_done:

@@ -1041,8 +1041,9 @@ class MotionHAL:
         period: how often commands will be issued
             longer period => jog further to keep constant
         """
-        # print("")
-        # print("jog_fractioned", axes, period)
+        print("")
+        print("jog_fractioned", axes, period, time.time())
+        tstart = time.time()
         self.validate_axes(axes.keys())
         for axis, frac in axes.items():
             assert -1.0 <= frac <= +1.0, (axis, frac)
@@ -1056,12 +1057,7 @@ class MotionHAL:
             (axis, self.get_max_velocities()[axis] / 60.0 * frac)
             for axis, frac in axes.items()
         ])
-        # print("velocities", velocities)
-        # How far can we go in this time?
-        self.cur_pos_cache_invalidate()
-        cur_pos = self.cur_pos_cache()
-        abs_pos = dict([(axis,
-                         cur_pos[axis] + velocities_per_second[axis] * period)
+        rel_pos = dict([(axis, velocities_per_second[axis] * period)
                         for axis, frac in velocities_per_second.items()])
 
         # print("scalars", scalars)
@@ -1080,10 +1076,11 @@ class MotionHAL:
             print("  fractions", axes)
             print("  max_velocities per sec", self.get_max_velocities())
             print("  period", period)
-            print("  cur_pos", cur_pos)
-            print("  pos", abs_pos)
+            print("  rel_pos", rel_pos)
             print("  rate", rate)
-        self.jog_rel(abs_pos, rate, keep_pos_cache=True)
+        self.jog_rel(rel_pos, rate, keep_pos_cache=True)
+        tend = time.time()
+        print("jog took", tend - tstart)
 
     '''
     In modern systems the first is almost always used

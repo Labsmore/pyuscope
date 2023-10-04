@@ -219,6 +219,7 @@ class ArgusCommon(QObject):
         self.microscope.jog_fractioned_lazy = self.motion_thread.jog_fractioned_lazy
         self.microscope.jog_cancel = self.motion_thread.jog_cancel
         self.microscope.motion_stop = self.motion_thread.stop
+        self.microscope.get_jog_controller = self.motion_thread.get_jog_controller
 
         # FIXME: these are not thread safe
         # convert to signals

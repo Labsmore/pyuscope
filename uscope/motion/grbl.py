@@ -1008,6 +1008,29 @@ class GRBL:
                 break
             time.sleep(0.1)
 
+    def jog_rel(self, pos, rate):
+        assert rate >= 0, rate
+        try:
+            axes_str = " ".join(
+                ["%s%0.3f" % (axis, scalar) for axis, scalar in pos.items()])
+            cmd = "G91 %s F%u" % (axes_str, rate)
+            self.verbose and print("JOG:", cmd)
+            print("JOG:", cmd)
+            print("  ", self.qstatus()["MPos"])
+            # Cancel the previous jog and immediately submit the new jog
+            # Clears the queue to make the new command take effect
+            # Small window => rotor initeria should make this smooth
+            # self.gs.jog_cancel()
+            self.gs.j(cmd)
+            if 0 and self.verbose:
+                mpos = self.qstatus()["MPos"]
+                print("jog: X%0.3f Y%0.3f Z%0.3F" %
+                      (mpos["x"], mpos["y"], mpos["z"]))
+        except Timeout:
+            # Better to under jog than retry and over jog
+            self.verbose and print("WARNING: dropping jog")
+            self.general_recover()
+
     def jog_abs(self, pos, rate):
         assert rate >= 0, rate
         try:
@@ -1316,15 +1339,18 @@ class GrblHal(MotionHAL):
         # print("grbl mv_rel", pos)
         self.grbl.move_relative(pos, f=1000)
 
-    def _jog_abs(self, scalars, rate):
-        self.grbl.jog_abs(scalars, rate)
-
     def stop(self):
         # May be called during unclean shutdown
         if self.grbl:
             self.grbl.stop()
 
-    def jog_cancel(self):
+    def _jog_rel(self, pos, rate):
+        self.grbl.jog_rel(pos, rate)
+
+    def _jog_abs(self, pos, rate):
+        self.grbl.jog_abs(pos, rate)
+
+    def _jog_cancel(self):
         self.grbl.jog_cancel()
 
     def log_info(self):

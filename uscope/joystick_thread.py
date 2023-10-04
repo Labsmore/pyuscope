@@ -25,7 +25,7 @@ class JoystickThreadBase:
         self.log(f"  Hats: {self.joystick.joystick.numhats}")
         self.log(f"  Buttons: {self.joystick.joystick.numbuttons}")
 
-    def log(self, msg):
+    def log(self, msg=""):
         print(msg)
 
     def shutdown(self):

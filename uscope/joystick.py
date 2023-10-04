@@ -75,7 +75,8 @@ class Joystick:
     def configure(self):
         # 0.2 default
         # self._jog_fractioned_period = config.get_bc().joystick.scan_secs()
-        self._jog_fractioned_period = 0.5
+        # self._jog_fractioned_period = 0.2
+        self.jog_controller = self.microscope.get_jog_controller(period=0.2)
 
     def execute(self):
         # Get events and perform actions
@@ -90,18 +91,8 @@ class Joystick:
         self._jog_queue = {}
         for fn in self.joystick_fn_map:
             getattr(self, fn)(**self.joystick_fn_map[fn])
-        if len(self._jog_queue):
-            # print(self._jog_queue)
-            print("joystick: submit")
-            self.microscope.jog_fractioned_lazy(self._jog_queue,
-                                                self._jog_fractioned_period)
-            self._jog_queue = None
-            self.was_jogging = True
-        elif self.was_jogging:
-            print("joystick: cancel")
-            self.microscope.jog_cancel()
-            # self.microscope.motion_stop()
-            self.was_jogging = False
+        self.jog_controller.update(self._jog_queue)
+        self._jog_queue = None
 
     def debug_dump(self):
         pygame.event.get()

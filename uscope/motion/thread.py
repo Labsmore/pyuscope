@@ -59,6 +59,67 @@ class MotionThreadMotion(MotionHAL):
         return self.mt.motion.get_max_accelerations()
 
 
+"""
+Several sources need to periodically send jog commands based on stimulus
+Helps decide when to cancel jog
+Standard period is 0.2 sec => update every 0.2 to 0.3 seconds
+"""
+
+
+class JogController:
+    def __init__(self, motion_thread, period):
+        self.motion_thread = motion_thread
+        self.period = period
+        self.jogging = False
+        self.tlast = None
+
+    def update(self, axes):
+        # XXX: adjust jogging based on actual loop time instead of estimated?
+        tthis = time.time()
+        period = self.period
+        if self.tlast:
+            dt = tthis - self.tlast
+            # This is probably a better estimate in general
+            # However it does reflect last, not typical time
+            # Maybe average the last few?
+            period = dt
+            if dt < self.period:
+                """
+                looks like qt can undershoot period maybe depending on how events stack up
+                assert 0, f"JOG: actual loop time {dt} is less than estimated period {self.period}. GRBL jog queue may overflow"
+                JOG WARNING: actual loop time 0.16197466850280762 is less than estimated period 0.2. GRBL jog queue may overflow
+                JOG WARNING: actual loop time 0.189927339553833 is less than estimated period 0.2. GRBL jog queue may overflow
+                JOG WARNING: actual loop time 0.18992257118225098 is less than estimated period 0.2. GRBL jog queue may overflow
+                """
+                0 and print(
+                    f"JOG WARNING: actual loop time {dt} is less than estimated period {self.period}. GRBL jog queue may overflow"
+                )
+            if dt > 1.5 * self.period:
+                1 and print(
+                    f"JOG WARNING: actual loop time {dt} is significantly larger than estimated period {self.period}. Jogging may stutter"
+                )
+
+        # Most of the time these will be 0
+        for axis, value in list(axes.items()):
+            if self.motion_thread.motion.is_zero(axis, value):
+                del axes[axis]
+
+        if len(axes):
+            # print(self._jog_queue)
+            print("joystick: submit")
+            # TODO: consider squishing them into valid range
+            for axis, value in axes.items():
+                assert -1 <= value <= +1, f"bad jog value {axis} : {value}"
+            self.motion_thread.jog_fractioned_lazy(axes, period=period)
+            self.jogging = True
+        # Was jogging but no longer?
+        elif self.jogging:
+            print("joystick: cancel")
+            self.motion_thread.jog_cancel()
+            self.jogging = False
+        self.tlast = tthis
+
+
 class MotionThreadBase:
     def __init__(self, usc):
         self.usc = usc
@@ -82,14 +143,11 @@ class MotionThreadBase:
         # Seed state / refuse to start without motion
         self.init_motion()
 
-    def log(self, msg):
+    def log(self, msg=""):
         print(msg)
 
     def init_motion(self):
         self.motion = get_motion_hal(usc=self.usc, log=self.log)
-
-    def log(self, msg):
-        self.log_msg.emit(msg)
 
     def log_info(self):
         self.command("log_info")
@@ -149,7 +207,9 @@ class MotionThreadBase:
         """
         self.command("jog_fractioned", axes, period)
 
-    def jog_fractioned_lazy(self, axes, period=1.0):
+    def jog_fractioned_lazy(self, axes, period):
+        # WARNING: GRBL controller will queue
+        # so with relative jogs be careful
         if self.qsize() < 1:
             self.jog_fractioned(axes, period)
 
@@ -165,6 +225,9 @@ class MotionThreadBase:
 
     def jog_cancel(self):
         self.command("jog_cancel")
+
+    def get_jog_controller(self, period):
+        return JogController(self, period=period)
 
     def stop(self):
         # self.command("stop")
@@ -343,8 +406,8 @@ class MotionThreadBase:
                 # motion command update_pos_cache completed in 0.21372413635253906
                 # motion command jog_fractioned completed in 0.27429747581481934
                 # why does this sometimes take much longer?
-                print(f"motion command {command} completed in",
-                      time.time() - tstart)
+                0 and print(f"motion command {command} completed in",
+                            time.time() - tstart)
 
                 if command_done:
                     command_done(command, args, ret)

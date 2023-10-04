@@ -973,7 +973,6 @@ class ScanWidget(AWidget):
                  setControlsEnabled,
                  parent=None):
         super().__init__(ac=ac, parent=parent)
-        self.position_poll_timer = None
         self.go_current_pconfig = go_current_pconfig
         self.setControlsEnabled = setControlsEnabled
         self.current_scan_config = None
@@ -2243,15 +2242,12 @@ class MotionWidget(AWidget):
 
         self.last_send = time.time()
         # Can be used to invert keyboard, joystick XY inputs
-        self.keyboard_xy_scalar = 1.0
-        self.joystick_xy_scalar = 1.0
+        self.kj_xy_scalar = 1.0
         # self.max_velocities = None
 
-    def set_keyboard_xy_scalar(self, val):
-        self.keyboard_xy_scalar = val
-
-    def set_joystick_xy_scalar(self, val):
-        self.joystick_xy_scalar = val
+    # Used to invert XY for user preference
+    def set_kj_xy_scalar(self, val):
+        self.kj_xy_scalar = val
 
     def initUI(self):
         # ?
@@ -2339,7 +2335,8 @@ class MotionWidget(AWidget):
 
     def post_ui_init(self):
         # self.max_velocities = self.ac.motion_thread.motion.get_max_velocities()
-        pass
+        self.jog_controller = self.motion_thread.get_jog_controller(0.2)
+        self.keys_up = {}
 
     def move_abs_le_process(self):
         s = str(self.move_abs_le.text())
@@ -2422,8 +2419,10 @@ class MotionWidget(AWidget):
     def keyPressEventCaptured(self, event):
         k = event.key()
         # Ignore duplicates, want only real presses
-        if 0 and event.isAutoRepeat():
-            return
+        # if 0 and event.isAutoRepeat():
+        #     return
+
+        self.keys_up[k] = True
 
         if k == Qt.Key_F:
             self.fine_move = not self.fine_move
@@ -2433,36 +2432,6 @@ class MotionWidget(AWidget):
             self.slider.decrease_key()
         elif k == Qt.Key_C:
             self.slider.increase_key()
-        elif self.axis_map.get(k):
-            # spamming too many commands and queing up
-            if time.time() - self.last_send < 0.1:
-                return
-            self.last_send = time.time()
-
-            # Focus is sensitive...should step slower?
-            # worry sonce focus gets re-integrated
-
-            # TODO: scale to selected objective
-            axis, keyboard_sign = self.axis_map[k]
-            # max_velocity = self.max_velocities[axis]
-            max_velocity = 1.0
-            fine_scalar = 1.0
-            # FIXME: now that using real machine units need to revisit this
-            if self.fine_move:
-                if axis == "z":
-                    fine_scalar = 0.01
-                else:
-                    fine_scalar = 0.01
-            jog_val = keyboard_sign * self.keyboard_xy_scalar * fine_scalar * self.slider.get_jog_fraction(
-            ) * max_velocity
-
-            # print("scalar %0.3f" % scalar, "fine", self.fine_move)
-            # print("Key jogging %s%c" % (axis, {1: '+', -1: '-'}[sign]))
-            # don't spam events if its not done processing
-            # self.motion_thread.jog_lazy({axis: jog_val}, jog_val)
-            # Looks like these are submitted every 120 ms, 250 gives good overhead
-            self.motion_thread.jog_fractioned_lazy({axis: jog_val},
-                                                   period=0.25)
         else:
             pass
             # print("unknown key %s" % (k, ))
@@ -2472,6 +2441,7 @@ class MotionWidget(AWidget):
         # if not self.video_container.hasFocus():
         #    return
         k = event.key()
+        self.keys_up[k] = False
 
         # Hmm larger GUI doesn't get these if this handler is active
         if k == Qt.Key_Escape:
@@ -2488,24 +2458,48 @@ class MotionWidget(AWidget):
             # print("cancel jog on release")
             self.motion_thread.stop()
 
-    def poll_misc(self):
-        self.update_reference()
+    def update_jogging(self):
         joystick = self.ac.microscope.joystick
         if joystick:
             slider_val = self.slider.get_jog_fraction()
             joystick.set_axis_scalars({
-                "x":
-                self.joystick_xy_scalar * slider_val,
-                "y":
-                self.joystick_xy_scalar * slider_val,
-                "z":
-                self.joystick_xy_scalar * slider_val,
+                "x": self.kj_xy_scalar * slider_val,
+                "y": self.kj_xy_scalar * slider_val,
+                "z": self.kj_xy_scalar * slider_val,
             })
             joystick.set_hat_scalars({
-                "x": self.joystick_xy_scalar * slider_val,
-                "y": self.joystick_xy_scalar * slider_val,
-                "z": self.joystick_xy_scalar * slider_val,
+                "x": self.kj_xy_scalar * slider_val,
+                "y": self.kj_xy_scalar * slider_val,
+                "z": self.kj_xy_scalar * slider_val,
             })
+
+        # Check keyboard jogging state
+        jogs = dict([(axis, 0.0)
+                     for axis in self.ac.motion_thread.motion.axes()])
+        for k, (axis, keyboard_sign) in self.axis_map.items():
+            # not all systems have z
+            if axis not in jogs:
+                continue
+
+            if not self.keys_up.get(k, False):
+                continue
+
+            fine_scalar = 1.0
+            # FIXME: now that using real machine units need to revisit this
+            if self.fine_move:
+                if axis == "z":
+                    fine_scalar = 0.01
+                else:
+                    fine_scalar = 0.01
+            jog_val = keyboard_sign * self.kj_xy_scalar * fine_scalar * self.slider.get_jog_fraction(
+            )
+            jogs[axis] = jog_val
+
+        self.jog_controller.update(jogs)
+
+    def poll_misc(self):
+        self.update_reference()
+        self.update_jogging()
 
     def autofocus_pushed(self):
         self.ac.image_processing_thread.auto_focus()

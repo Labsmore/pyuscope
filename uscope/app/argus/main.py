@@ -144,16 +144,14 @@ class MainWindow(QMainWindow):
         videoMenu.addAction(self.fullShow)
 
         motionMenu = menuBar.addMenu("Motion")
-        self.invertKeyboardXY = QAction("Invert keyboard XY",
-                                        motionMenu,
-                                        checkable=True)
-        motionMenu.addAction(self.invertKeyboardXY)
-        self.invertKeyboardXY.triggered.connect(self.invertKeyboardXYTriggered)
-        self.invertJoystickXY = QAction("Invert joystick XY",
-                                        motionMenu,
-                                        checkable=True)
-        motionMenu.addAction(self.invertJoystickXY)
-        self.invertJoystickXY.triggered.connect(self.invertJoystickXYTriggered)
+        # Some people prefer perspective of moving camera, some prefer moving stage
+        self.invertKJXY = QAction("Invert keyboard/joystick XY",
+                                  motionMenu,
+                                  checkable=True)
+        motionMenu.addAction(self.invertKJXY)
+        self.invertKJXY.triggered.connect(self.invertKJXYTriggered)
+        # Adds a lot of clutter
+        # off by default
         self.displayLimits = QAction("Limit display",
                                      motionMenu,
                                      checkable=True)
@@ -302,19 +300,12 @@ class MainWindow(QMainWindow):
         elif k == Qt.Key_F3:
             self.ac.vidpip.zoomable_high_toggle()
 
-    def invertKeyboardXYTriggered(self):
+    def invertKJXYTriggered(self):
         mw = self.mainTab.motion_widget
-        if self.invertKeyboardXY.isChecked():
-            mw.set_keyboard_xy_scalar(-1.0)
+        if self.invertKJXY.isChecked():
+            mw.set_kj_xy_scalar(-1.0)
         else:
-            mw.set_keyboard_xy_scalar(+1.0)
-
-    def invertJoystickXYTriggered(self):
-        mw = self.mainTab.motion_widget
-        if self.invertJoystickXY.isChecked():
-            mw.set_joystick_xy_scalar(-1.0)
-        else:
-            mw.set_joystick_xy_scalar(+1.0)
+            mw.set_kj_xy_scalar(+1.0)
 
     def displayLimitsTriggered(self):
         self.ac.mainTab.show_minmax(bool(self.displayLimits.isChecked()))

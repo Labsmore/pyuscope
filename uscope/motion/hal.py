@@ -70,7 +70,10 @@ class MotionModifier:
     def move_relative_post(self, ok, options={}):
         pass
 
-    def jog_abs(self, scalars, rate_ref, options={}):
+    def jog_rel(self, pos, rate_ref, options={}):
+        pass
+
+    def jog_abs(self, pos, rate_ref, options={}):
         pass
 
     def update_status(self, status):
@@ -252,6 +255,11 @@ class BacklashMM(MotionModifier):
             pos, cur_pos=self.motion.cur_pos_cache())
         self.move_x_pre(dst_abs_pos=final_abs_pos, options=options)
 
+    def jog_rel(self, pos, rate_ref, options={}):
+        # Don't modify jog commands, but invalidate compensation
+        for axis in pos.keys():
+            self.compensated[axis] = False
+
     def jog_abs(self, pos, rate_ref, options={}):
         # Don't modify jog commands, but invalidate compensation
         for axis in pos.keys():
@@ -300,11 +308,52 @@ class SoftLimitMM(MotionModifier):
                         "axis %s: move violates %0.3f <= new pos %0.3f <= %0.3f"
                         % (axis, axmin, axpos, axmax))
 
-    def move_relative_pre(self, pos, options={}):
+    def move_relative_pre(self, pos, cur_pos=None, options={}):
         assert 0, "FIXME: unsupported"
+        if cur_pos is None:
+            cur_pos = self.motion.cur_pos_cache()
         self.move_absolute_pre(
-            self.motion.estimate_relative_pos(
-                pos, cur_pos=self.motion.cur_pos_cache()))
+            self.motion.estimate_relative_pos(pos, cur_pos=cur_pos))
+
+    def jog_rel(self, pos, rate_ref, options={}):
+        """
+        # Don't allow going beyond machine limits
+        # Jogs are relative though so we need to check against global coordinates
+        # and maybe do an adjustment
+
+        WARNING: due to queuing this logic isn't perfect
+
+        Two major adjustment cases:
+        -We are close to end. Reduce jog to a safe value
+        -We have already exceed axis and are trying to make it worse. Zero jog
+        """
+        if options.get("trim", True):
+            requested_final_pos = {}
+            cur_pos = self.motion.cur_pos_cache()
+            for axis, delta in pos.items():
+                start = None
+                if self.motion.jog_estimated_end:
+                    start = self.motion.jog_estimated_end.get(axis, None)
+                if start is None:
+                    start = cur_pos[axis]
+                requested_final_pos[axis] = start + delta
+            actual_final_pos = dict(requested_final_pos)
+            self.jog_abs(actual_final_pos, rate_ref)
+            # Now calculate the adjusted jogs (if any adjustment)
+            for axis in set(pos.keys()):
+                # May have been trimmed as out of range
+                # Note if all are trimmed will throw AxisExceeded
+                if axis not in actual_final_pos:
+                    del pos[axis]
+                else:
+                    # If jog was trimmed, make relative adjustment
+                    adjustment = actual_final_pos[axis] - requested_final_pos[
+                        axis]
+                    if adjustment:
+                        print(f"DEBUG: jog adjustment {adjustment}")
+                    pos[axis] += adjustment
+        else:
+            self.move_relative_pre(pos)
 
     def jog_abs(self, pos, rate_ref, options={}):
         """
@@ -358,8 +407,8 @@ class SoftLimitMM(MotionModifier):
             # print("final jog vals", scalars)
             if len(pos) == 0:
                 raise AxisExceeded("Jog dropped: all moves would exceed axis")
-
-        self.move_absolute_pre(pos)
+        else:
+            self.move_absolute_pre(pos)
 
 
 """
@@ -459,6 +508,7 @@ class MotionHAL:
         self.stop_on_del = True
         self.modifiers = None
         self.options = None
+        self.jog_estimated_end = None
 
         # Cache some computed values
         self._hal_max_velocities = None
@@ -484,6 +534,10 @@ class MotionHAL:
         # self.progress = lambda pos: None
         self.status_cbs = []
         self.mv_lastt = time.time()
+        # An *estimate* of where jogs will land us if they all complete
+        # There are several ways this can go wrong
+        # ex: if we start jogging when not idle
+        self.jog_estimated_end = None
 
     def __del__(self):
         self.close()
@@ -576,6 +630,9 @@ class MotionHAL:
         """
         delta = abs(value2 - value1)
         return delta / 2 <= self.epsilon()[axis]
+
+    def is_zero(self, axis, value):
+        return self.equivalent_axis_pos(axis, value, 0.0)
 
     def axis_pos_in_range(self, axis, axis_min, value, axis_max):
         """
@@ -819,6 +876,7 @@ class MotionHAL:
 
     def move_absolute(self, pos, options={}):
         '''Absolute move to positions specified by pos dict'''
+        assert self.jog_estimated_end is None, "Can't move while jogging"
         if len(pos) == 0:
             return
         self.validate_axes(pos.keys())
@@ -856,6 +914,7 @@ class MotionHAL:
 
     def move_relative(self, pos, options={}):
         '''Absolute move to positions specified by pos dict'''
+        assert self.jog_estimated_end is None, "Can't move while jogging"
         if len(pos) == 0:
             return
         self.validate_axes(pos.keys())
@@ -891,29 +950,80 @@ class MotionHAL:
                 raise ValueError("Got axis %s but expect axis in %s" %
                                  (axis, self.axes()))
 
-    def jog_abs(self, scalars, rate, options={}, keep_pos_cache=False):
+    def jog_rel(self, axes, rate, options={}, keep_pos_cache=False):
         """
         scalars: generally either +1 or -1 per axis to jog
         Final value is globally multiplied by the jog_rate and individually by the axis scalar
         """
         # Try to estimate if jog would go over limit
         # Always allow moving away from the bad area though if we are already in there
-        if len(scalars) == 0:
+        if len(axes) == 0:
             return
         assert rate >= 0
-        scalars = dict(scalars)
+        axes = dict(axes)
         # XXX: invalidates on recursion
         if not keep_pos_cache:
             self.cur_pos_cache_invalidate()
         try:
             # print("jog in", scalars, rate)
-            self.validate_axes(scalars.keys())
+            current_position = self.cur_pos_cache()
+            self.validate_axes(axes.keys())
             rate_ref = [rate]
             for modifier in self.iter_active_modifiers():
-                modifier.jog_abs(scalars, rate_ref, options=options)
+                modifier.jog_rel(axes, rate_ref, options=options)
             rate = rate_ref[0]
             # print("jog to grbl", scalars, rate)
-            self._jog_abs(scalars, rate)
+            self._jog_rel(axes, rate)
+
+            # Jog was accepted. Update estimate
+            if self.jog_estimated_end is None:
+                self.jog_estimated_end = {}
+            for k, v in axes.items():
+                if k in self.jog_estimated_end:
+                    self.jog_estimated_end[k] += v
+                else:
+                    self.jog_estimated_end[k] = current_position[k] + v
+        finally:
+            self.cur_pos_cache_invalidate()
+
+    def _jog_rel(self, pos, rate):
+        '''
+        axes: dict of axis with value to move
+        WARNING: under development / unstable API
+        '''
+        raise NotSupported("Required for jogging")
+
+    # WARNING: jog_abs is generally not reccomended
+    # this API may be removed
+
+    def jog_abs(self, axes, rate, options={}, keep_pos_cache=False):
+        """
+        scalars: generally either +1 or -1 per axis to jog
+        Final value is globally multiplied by the jog_rate and individually by the axis scalar
+        """
+        # Try to estimate if jog would go over limit
+        # Always allow moving away from the bad area though if we are already in there
+        if len(axes) == 0:
+            return
+        assert rate >= 0
+        axes = dict(axes)
+        # XXX: invalidates on recursion
+        if not keep_pos_cache:
+            self.cur_pos_cache_invalidate()
+        try:
+            # print("jog in", scalars, rate)
+            self.validate_axes(axes.keys())
+            rate_ref = [rate]
+            for modifier in self.iter_active_modifiers():
+                modifier.jog_abs(axes, rate_ref, options=options)
+            rate = rate_ref[0]
+            # print("jog to grbl", scalars, rate)
+            self._jog_abs(axes, rate)
+            # Jog was accepted. Update estimate
+            if self.jog_estimated_end is None:
+                self.jog_estimated_end = {}
+            for k, v in axes.items():
+                self.jog_estimated_end[k] = v
         finally:
             self.cur_pos_cache_invalidate()
 
@@ -973,7 +1083,7 @@ class MotionHAL:
             print("  cur_pos", cur_pos)
             print("  pos", abs_pos)
             print("  rate", rate)
-        self.jog_abs(abs_pos, rate, keep_pos_cache=True)
+        self.jog_rel(abs_pos, rate, keep_pos_cache=True)
 
     '''
     In modern systems the first is almost always used
@@ -989,8 +1099,13 @@ class MotionHAL:
         raise Exception("Unsupported")
     """
 
-    def jog_cancel(self):
+    def _jog_cancel(self):
         raise NotSupported("Required for jogging")
+
+    def jog_cancel(self):
+        self._jog_cancel()
+        # No longer jogging
+        self.jog_estimated_end = None
 
     def on(self):
         '''Call at start of MDI phase, before planner starts'''

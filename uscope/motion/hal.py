@@ -82,7 +82,13 @@ class MotionModifier:
         """
         pass
 
-    def munge_axes(self, axes):
+    def unmunge_axes_rel(self, axes):
+        pass
+
+    def munge_axes_rel(self, axes):
+        pass
+
+    def munge_axes_abs(self, axes):
         pass
 
 
@@ -331,14 +337,18 @@ class SoftLimitMM(MotionModifier):
             requested_final_pos = {}
             cur_pos = self.motion.cur_pos_cache()
             for axis, delta in pos.items():
+                assert abs(delta) < 1e6, (axis, delta)
                 start = None
                 if self.motion.jog_estimated_end:
                     start = self.motion.jog_estimated_end.get(axis, None)
+                    # print("estimated end", axis, start)
                 if start is None:
                     start = cur_pos[axis]
+                assert abs(start) < 1e6, (axis, start, cur_pos)
                 requested_final_pos[axis] = start + delta
             actual_final_pos = dict(requested_final_pos)
             self.jog_abs(actual_final_pos, rate_ref)
+            # print("trim check", requested_final_pos, actual_final_pos)
             # Now calculate the adjusted jogs (if any adjustment)
             for axis in set(pos.keys()):
                 # May have been trimmed as out of range
@@ -349,8 +359,8 @@ class SoftLimitMM(MotionModifier):
                     # If jog was trimmed, make relative adjustment
                     adjustment = actual_final_pos[axis] - requested_final_pos[
                         axis]
-                    if adjustment:
-                        print(f"DEBUG: jog adjustment {adjustment}")
+                    #if adjustment:
+                    #    print(f"DEBUG: jog adjustment {adjustment}")
                     pos[axis] += adjustment
         else:
             self.move_relative_pre(pos)
@@ -497,7 +507,30 @@ class ScalarMM(MotionModifier):
         # assert rate_ref[0] > 0, rate_ref[0]
         # print("jog scale out", scalars)
 
-    def munge_axes(self, axes):
+    def jog_rel(self, pos, rate_ref, options={}):
+        # print("jog scale in", scalars)
+        # print("jog rel in", pos)
+        self.scale_e2i_rel(pos)
+        # print("jog rel out", pos)
+        """
+        Rate is tricky since it applies to all axes but they may not be at the same scalar
+        In practice jogged axes should be similar but who knows
+        Favor the lowest possible rate to avoid going too fast?
+        """
+        # assert rate_ref[0] > 0, rate_ref[0]
+        rate_candidates = dict([(axis, rate_ref[0]) for axis in pos.keys()])
+        self.scale_e2i_rel(rate_candidates)
+        rate_ref[0] = min([abs(x) for x in rate_candidates.values()])
+        # assert rate_ref[0] > 0, rate_ref[0]
+        # print("jog scale out", scalars)
+
+    def unmunge_axes_rel(self, axes):
+        self.scale_e2i_rel(axes)
+
+    def munge_axes_rel(self, axes):
+        self.scale_i2e_rel(axes)
+
+    def munge_axes_abs(self, axes):
         self.scale_i2e_abs(axes)
 
 
@@ -538,6 +571,7 @@ class MotionHAL:
         # There are several ways this can go wrong
         # ex: if we start jogging when not idle
         self.jog_estimated_end = None
+        self.last_jog_time = None
 
     def __del__(self):
         self.close()
@@ -553,14 +587,19 @@ class MotionHAL:
             "z": 0.000010,
         }
 
-    def munge_axes(self, axes):
+    def unmunge_axes_rel(self, axes):
         for modifier in self.iter_active_modifiers():
-            modifier.munge_axes(axes)
+            modifier.unmunge_axes_rel(axes)
+        return axes
+
+    def munge_axes_rel(self, axes):
+        for modifier in self.iter_active_modifiers():
+            modifier.munge_axes_rel(axes)
         return axes
 
     def munge_axes_abs(self, axes):
         for modifier in self.iter_active_modifiers():
-            modifier.munge_axes(axes)
+            modifier.munge_axes_abs(axes)
         for k, v in axes.items():
             axes[k] = abs(v)
 
@@ -646,9 +685,11 @@ class MotionHAL:
     def cache_constants(self):
         def calc_max_velocities():
             self._hal_max_velocities = self._get_max_velocities()
+            # print("calc max velocities", self._hal_max_velocities)
             for v in self._hal_max_velocities.values():
                 assert v > 0, self._hal_max_velocities
-            self.munge_axes_abs(self._hal_max_velocities)
+            self.munge_axes_rel(self._hal_max_velocities)
+            # print("calc max velocities", self._hal_max_velocities)
             for v in self._hal_max_velocities.values():
                 assert v > 0, self._hal_max_velocities
             # Jogging depends on this
@@ -658,7 +699,7 @@ class MotionHAL:
 
         def calc_max_accelerations():
             self._hal_max_accelerations = self._get_max_accelerations()
-            self.munge_axes_abs(self._hal_max_accelerations)
+            self.munge_axes_rel(self._hal_max_accelerations)
             # 2023-09-18: not currently used
             # Could drop this requirement if good reason
             self.assert_all_axes(self._hal_max_accelerations)
@@ -673,9 +714,9 @@ class MotionHAL:
             # unclear if this is accurate on all machines though
             self._hal_machine_limits = dict(self._get_machine_limits())
             if "mins" in self._hal_machine_limits:
-                self.munge_axes(self._hal_machine_limits["mins"])
+                self.munge_axes_abs(self._hal_machine_limits["mins"])
             if "maxs" in self._hal_machine_limits:
-                self.munge_axes(self._hal_machine_limits["maxs"])
+                self.munge_axes_abs(self._hal_machine_limits["maxs"])
 
         calc_machine_limits()
 
@@ -975,6 +1016,13 @@ class MotionHAL:
             # print("jog to grbl", scalars, rate)
             self._jog_rel(axes, rate)
 
+            # May have been trimmed
+            # Convert it back in lieu of the original value
+            # print("jog_rel finishing, estimated end", self.jog_estimated_end)
+            # print("jog_rel finishing, pre-munge", axes)
+            self.munge_axes_rel(axes)
+            # print("jog_rel finishing, post-munge", axes)
+
             # Jog was accepted. Update estimate
             if self.jog_estimated_end is None:
                 self.jog_estimated_end = {}
@@ -983,6 +1031,7 @@ class MotionHAL:
                     self.jog_estimated_end[k] += v
                 else:
                     self.jog_estimated_end[k] = current_position[k] + v
+            # print("jog_rel finishing, estimated end", self.jog_estimated_end)
         finally:
             self.cur_pos_cache_invalidate()
 
@@ -1019,6 +1068,11 @@ class MotionHAL:
             rate = rate_ref[0]
             # print("jog to grbl", scalars, rate)
             self._jog_abs(axes, rate)
+
+            # May have been trimmed
+            # Convert it back in lieu of the original value
+            self.munge_axes_abs(axes)
+
             # Jog was accepted. Update estimate
             if self.jog_estimated_end is None:
                 self.jog_estimated_end = {}
@@ -1041,9 +1095,13 @@ class MotionHAL:
         period: how often commands will be issued
             longer period => jog further to keep constant
         """
-        print("")
-        print("jog_fractioned", axes, period, time.time())
+        # print("")
+        # print("jog_fractioned", axes, period, time.time())
         tstart = time.time()
+        # Slightly under-stuff so that the queue is not stacking
+        # FIXME: this is more than it should be and still stacking
+        # Investigate why
+        global_scalar = 0.70
         self.validate_axes(axes.keys())
         for axis, frac in axes.items():
             assert -1.0 <= frac <= +1.0, (axis, frac)
@@ -1057,7 +1115,8 @@ class MotionHAL:
             (axis, self.get_max_velocities()[axis] / 60.0 * frac)
             for axis, frac in axes.items()
         ])
-        rel_pos = dict([(axis, velocities_per_second[axis] * period)
+        rel_pos = dict([(axis,
+                         velocities_per_second[axis] * period * global_scalar)
                         for axis, frac in velocities_per_second.items()])
 
         # print("scalars", scalars)
@@ -1070,17 +1129,24 @@ class MotionHAL:
             [abs(velocity) for velocity in velocities_per_minute.values()])
         rate = int(round(max(1, rate)))
 
-        if 1:
+        if 0:
             print("jog_fractioned()")
-            print("  ", time.time())
+            print("  now", time.time())
+            if self.last_jog_time:
+                last_dt = self.last_jog_time - tstart
+                print("  last", last_dt)
+                if last_dt > 0.3:
+                    print("    *****")
             print("  fractions", axes)
-            print("  max_velocities per sec", self.get_max_velocities())
+            print("  max_velocities per minute", self.get_max_velocities())
+            print("  velocities_per_second desired", velocities_per_second)
             print("  period", period)
             print("  rel_pos", rel_pos)
             print("  rate", rate)
         self.jog_rel(rel_pos, rate, keep_pos_cache=True)
-        tend = time.time()
-        print("jog took", tend - tstart)
+        # tend = time.time()
+        # print("jog took", tend - tstart)
+        self.last_jog_time = tstart
 
     '''
     In modern systems the first is almost always used
@@ -1103,6 +1169,7 @@ class MotionHAL:
         self._jog_cancel()
         # No longer jogging
         self.jog_estimated_end = None
+        self.last_jog_time = None
 
     def on(self):
         '''Call at start of MDI phase, before planner starts'''
@@ -1120,13 +1187,21 @@ class MotionHAL:
         '''Called after machine is no longer in planer use.  Motors must maintain position for MDI'''
         pass
 
-    def stop(self):
+    def _stop(self):
         '''Stop motion as soon as convenient.  Motors must maintain position'''
         pass
 
+    def stop(self):
+        self._stop()
+        self.jog_estimated_end = None
+        self.last_jog_time = None
+
+    def _estop(self):
+        self.stop()
+
     def estop(self):
         '''Stop motion ASAP.  Motors are not required to maintain position'''
-        pass
+        self._estop()
 
     def unestop(self):
         '''Allow system to move again after estop'''

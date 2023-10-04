@@ -78,9 +78,10 @@ class JogController:
         # XXX: adjust jogging based on actual loop time instead of estimated?
         tthis = time.time()
         period = self.period
+        this_dt = None
         if self.tlast is not None:
-            dt = tthis - self.tlast
-            if dt < self.period:
+            this_dt = tthis - self.tlast
+            if this_dt < self.period:
                 """
                 looks like qt can undershoot period maybe depending on how events stack up
                 assert 0, f"JOG: actual loop time {dt} is less than estimated period {self.period}. GRBL jog queue may overflow"
@@ -89,16 +90,16 @@ class JogController:
                 JOG WARNING: actual loop time 0.18992257118225098 is less than estimated period 0.2. GRBL jog queue may overflow
                 """
                 0 and print(
-                    f"JOG WARNING: actual loop time {dt} is less than estimated period {self.period}. GRBL jog queue may overflow"
+                    f"JOG WARNING: actual loop time {this_dt} is less than estimated period {self.period}. GRBL jog queue may overflow"
                 )
-            if dt > 1.5 * self.period:
+            if this_dt > 1.5 * self.period:
                 1 and print(
-                    f"JOG WARNING: actual loop time {dt} is significantly larger than estimated period {self.period}. Jogging may stutter"
+                    f"JOG WARNING: actual loop time {this_dt} is significantly larger than estimated period {self.period}. Jogging may stutter"
                 )
 
             # Try to figure out the typical loop time
             # Take the median over the last few measurements
-            self.dts.append(dt)
+            self.dts.append(this_dt)
             if len(self.dts) > 5:
                 self.dts = self.dts[1:]
             # take median dt
@@ -114,7 +115,7 @@ class JogController:
         if len(axes):
             # XXX: what if it starts dropping commands?
             # print(self._jog_queue)
-            print("JC: submit", time.time())
+            # print("JC: submit", time.time(), this_dt)
             # TODO: consider squishing them into valid range
             for axis, value in axes.items():
                 assert -1 <= value <= +1, f"bad jog value {axis} : {value}"
@@ -122,7 +123,7 @@ class JogController:
             self.jogging = True
         # Was jogging but no longer?
         elif self.jogging:
-            print("JC: cancel", time.time())
+            # print("JC: cancel", time.time())
             # Unclear which of these is better
             # If jogs are queued up its better to force a stop?
             # Could make it slightly less responsive if you are zero crossing
@@ -426,7 +427,7 @@ class MotionThreadBase:
                 # motion command update_pos_cache completed in 0.21372413635253906
                 # motion command jog_fractioned completed in 0.27429747581481934
                 # why does this sometimes take much longer?
-                1 and print(f"motion command {command} completed in",
+                0 and print(f"motion command {command} completed in",
                             time.time() - tstart)
 
                 if command_done:

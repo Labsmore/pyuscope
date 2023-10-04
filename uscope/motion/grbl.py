@@ -37,6 +37,10 @@ class Estop(GrblException):
     pass
 
 
+class LimitSwitchActive(Estop):
+    pass
+
+
 def default_port():
     port = os.getenv("GRBL_PORT", None)
     if port:
@@ -311,7 +315,7 @@ class GRBLSer:
                         "Emergency stop is activated. Check estop button and/or power supply and then re-home"
                     )
                 if b"Check Limits" in c:
-                    raise Estop(
+                    raise LimitSwitchActive(
                         "Limit switch tripped. Manually move away from limit switches and then re-home"
                     )
                 if not c:
@@ -593,7 +597,9 @@ class GRBLSer:
             if len(l):
                 break
         else:
-            raise Exception("Timed out reestablishing communications")
+            raise Exception(
+                "Timed out reestablishing communications. Limit switch? Force reboot GRBL or re-plug USB cable"
+            )
 
         # Initial response should be newline
         # Wait until grbl reset prompt
@@ -906,6 +912,9 @@ class GRBL:
 
         noisy example:
         rx '<Idle|MPos:-72.425,-25.634,0.000FS:0,0>'
+
+        limit switch triggered line
+        Alarm|MPos:0.000,0.000,0.000|Bf:35,254|FS:0,0|Pn:Y
         """
         tries = 3
         for i in range(tries):
@@ -913,16 +922,21 @@ class GRBL:
                 raw = self.gs.question()
                 parts = raw.split("|")
                 # FIXME: extra
-                ij, mpos, fs = parts[0:3]
-                mpos = (float(x) for x in mpos.split(":")[1].split(","))
-                mpos = dict([(k, v) for k, v in zip("xyz", mpos)])
-                self.set_pos_cache(mpos)
+                ij = parts[0]
                 ret = {
                     # Idle, Jog
                     "status": ij,
-                    "MPos": mpos,
-                    "FS": fs,
                 }
+                for part in parts[1:]:
+                    k, v = part.split(":")
+                    if k == "MPos":
+                        v = (float(x) for x in v.split(","))
+                        v = dict([(k, v) for k, v in zip("xyz", v)])
+                        self.set_pos_cache(v)
+                    elif k == "Pn":
+                        assert v == "Y"
+                        v = True
+                    ret[k] = v
                 if self.qstatus_updated_cb:
                     self.qstatus_updated_cb(ret)
                 return ret
@@ -939,6 +953,9 @@ class GRBL:
     def mpos(self):
         """Return current absolute machine position (as opposed to WCS)"""
         return self.qstatus()["MPos"]
+
+    def limit_switch_triggered(self):
+        return self.qstatus().get("Pn", False)
 
     def wcs_offsets(self):
         """
@@ -1015,8 +1032,8 @@ class GRBL:
                 ["%s%0.3f" % (axis, scalar) for axis, scalar in pos.items()])
             cmd = "G91 %s F%u" % (axes_str, rate)
             self.verbose and print("JOG:", cmd)
-            print("JOG:", cmd)
-            print("  ", self.qstatus()["MPos"])
+            # print("JOG:", cmd)
+            # print("  ", self.qstatus()["MPos"])
             # Cancel the previous jog and immediately submit the new jog
             # Clears the queue to make the new command take effect
             # Small window => rotor initeria should make this smooth
@@ -1261,17 +1278,6 @@ class GrblHal(MotionHAL):
     def _get_max_accelerations(self):
         return self._max_acelerations
 
-    def is_limit_panicking(self):
-        """
-        VM1 spams this when crashed
-
-        [MSG:Check Limits]
-        ok
-        [MSG:Check Limits]
-        ok
-        [MSG:Check Limits]
-        """
-
     def home(self, force=False):
         """
         Depending on machine configuration homing may or may not be required
@@ -1283,14 +1289,18 @@ class GrblHal(MotionHAL):
             print("Homing: skip on no limit switches")
             return
 
-        # changed general parse to detect this
-        #if self.is_limit_panicking():
-        #    raise HomingFailed("Machine cannot home while crashed. Move away from limit switches and then re-home")
-
         if not force:
             if self.is_homed():
                 return
+            # X1 doesn't spam limit switch trip estop
+            # Need to manually check for it
+            if self.grbl.limit_switch_triggered():
+                raise LimitSwitchActive(
+                    "Limit switch tripped. Manually move away from limit switches and then re-home"
+                )
+
             while True:
+                print("")
                 print("System is not homed. Enter Y to home or N to abort")
                 print(
                     "Ensure system is clear of fingers, cables, etc before proceeding"
@@ -1352,7 +1362,7 @@ class GrblHal(MotionHAL):
         # print("grbl mv_rel", pos)
         self.grbl.move_relative(pos, f=1000)
 
-    def stop(self):
+    def _stop(self):
         # May be called during unclean shutdown
         if self.grbl:
             self.grbl.stop()

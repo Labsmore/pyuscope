@@ -764,7 +764,9 @@ class GstVideoPipeline:
 
 
 def excepthook(excType, excValue, tracebackobj):
-    print('%s: %s' % (excType, excValue))
+    print("")
+    print("excepthook: got exception")
+    print("%s: %s" % (excType, excValue))
     traceback.print_tb(tracebackobj)
     os._exit(1)
 
@@ -789,15 +791,25 @@ def gstwidget_main(AQMainWindow, parse_args=default_parse_args):
 
     GObject.threads_init()
 
-    app = QApplication(sys.argv)
-    # FIXME: becoming unreadable
-    # app.setStyleSheet(pathlib.Path(config.GUI.stylesheet_file).read_text())
+    try:
+        app = QApplication(sys.argv)
+        # FIXME: becoming unreadable
+        # app.setStyleSheet(pathlib.Path(config.GUI.stylesheet_file).read_text())
 
-    kwargs = {}
-    if parse_args:
-        kwargs = parse_args()
-    _mainwin = AQMainWindow(**kwargs)
-    # XXX: what about the gstreamer message bus?
-    # Is it simply not running?
-    # must be what pygst is doing
-    sys.exit(app.exec_())
+        kwargs = {}
+        if parse_args:
+            kwargs = parse_args()
+        _mainwin = AQMainWindow(**kwargs)
+        # XXX: what about the gstreamer message bus?
+        # Is it simply not running?
+        # must be what pygst is doing
+        sys.exit(app.exec_())
+    # in some instances excepthook isn't triggering
+    # (has to be an error?)
+    # so explicitly handle to ensure clean exit
+    # notably homing fail
+    except Exception as e:
+        print("")
+        print("main: got exception")
+        traceback.print_exc()
+        os._exit(1)

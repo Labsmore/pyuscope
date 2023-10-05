@@ -282,6 +282,9 @@ class MainWindow(QMainWindow):
         self.poll_timer.timeout.connect(self.poll_misc)
         self.poll_timer.start(200)
 
+        #if self.ac.microscope.joystick:
+        #    self.addTab(JoystickTab(ac=self.ac, parent=self))
+
     def keyPressEvent(self, event):
 
         k = event.key()

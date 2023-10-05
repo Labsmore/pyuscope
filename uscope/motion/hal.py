@@ -1321,6 +1321,13 @@ class DryHal(MotionHAL):
     def axes(self):
         return self.hal.axes()
 
+    def filter_axes(self, vals):
+        ret = {}
+        for k in self.axes():
+            if k in vals:
+                ret[k] = vals[k]
+        return ret
+
     def home(self):
         for axis in self._axes:
             self._posd[axis] = 0.0

@@ -1,9 +1,156 @@
 import math
 import pygame
+from uscope import config
+import json5
+from collections import OrderedDict
+import os
 
 
 class JoystickNotFound(Exception):
     pass
+
+
+"""
+Configuration more related to machine / user than a specific microscope
+"""
+"""
+If the joystick is plugged in use this
+But by default don't require it
+maybe add an option to fault if not found
+
+
+Sample uscope.j5 entry:
+{
+    ...
+    "joystick": {
+        //(float) in seconds, to query/run the joystick actions
+        "scan_secs": 0.2
+        "fn_map": {
+            //"func_from_joystick_file": dict(keyword args for the function),
+            'axis_set_jog_slider_value': {'id': 3},
+            'btn_capture_image': {'id': 0},
+            'axis_move_x': {'id': 0},
+            'axis_move_y': {'id': 1},
+            'hat_move_z': {'id': 0, 'idx': 1}
+          }
+      }
+}
+
+The function names specified in "fn_map" are the functions to be
+mapped/triggered, and correspond to a function exposed within
+uscope.motion.joystick. The value for the function name is
+a dictionary of key:vals corresponding to the required arguments
+for the chosen function.
+
+See the docs in uscope/joystick.py for available functions
+"""
+
+
+# Originally this was in config
+# given close dependence between calibration and configure
+# moved here and making distinct object
+class JoystickConfig:
+    def __init__(self, jbc={}):
+        self.jbc = jbc
+        # Early configurable not related to model or
+        # needed to get model
+        self._scan_secs = self.jbc.get("scan_secs", 0.2)
+        self._device_number = self.jbc.get("device_number", 0)
+        self._volatile_scalars = None
+        self._function_map = None
+
+    # Late configuration after model is selected
+    def configure(self, model):
+        with open(os.path.join(config.get_configs_dir(), "joystick.j5")) as f:
+            jdb = json5.load(f, object_pairs_hook=OrderedDict)
+
+        self.model = model
+        self._function_map = self.make_function_map(model, jdb)
+        self._volatile_scalars = {}
+        """
+        # Things that can take a calibration constant
+        self._function_unsigned_axes = set()
+        self._function_signed_axes = set()
+        for function in self._function_map:
+            if "axis_move_" in function or "hat_move_" in function:
+                self._function_signed_axes.add(function)
+            # A 0 to 100 scalar
+            # No sign convention as min and max is explicit
+            if "axis_set_jog_slider_value" == function:
+                self._function_unsigned_axes.add(function)
+        """
+
+    # User scalars: user supplied calibration
+    # Non-volatile / can be saved
+
+    def reset_user_scalars(self):
+        for config in self._function_map.values():
+            config["user_scalar"] = 1.0
+
+    def set_user_scalars(self, scalars):
+        # External tuning not implicit to configuration
+        # ex: if user wants to increase or decrease sensitivity
+        # self._user_scalars = scalars
+        for function, val in scalars:
+            config = self._function_map[function]
+            config["user_scalar"] = val
+
+    def device_number(self):
+        return self._device_number
+
+    def set_volatile_scalars(self, volatile_scalars):
+        self._volatile_scalars = volatile_scalars
+
+    def volatile_scalars(self):
+        return self._volatile_scalars
+
+    def scan_secs(self):
+        # assert 0, "hard coded loop time assumptions? tread carefully"
+        return self._scan_secs
+
+    def function_map(self):
+        """
+        Return the raw function map structure
+        """
+        return self._function_map
+
+    def process_axis(self, function, axis, value):
+        config = self._function_map[function]
+        threshold = config.get("threshold")
+        if threshold:
+            if abs(value) < threshold:
+                return 0.0
+        return value * config.get("scalar", 1.0) * config.get(
+            "user_scalar", 1.0) * self._volatile_scalars.get(axis)
+
+    def process_hat(self, axis, value):
+        config = self._function_map[axis]
+        # Hat values are either -1 or 1, so we can just multiply for sign
+        return value * config.get("scalar", 1.0) * config.get(
+            "user_scalar", 1.0)
+
+    def make_function_map(self, model, jdb):
+        # If user manually specifies just take that
+        ret = self.jbc.get("function_map", None)
+        if ret:
+            return ret
+        # Auto detection requires model
+        if model is None:
+            raise Exception("Required (need model)")
+
+        joystick_config = jdb.get(model)
+        if joystick_config is None:
+            raise ValueError(f"Unsupported joystick model {model}")
+
+        # Some models have multiple names
+        # should ideally only be one level of indirection here
+        while True:
+            alias = joystick_config.get("alias")
+            if alias:
+                joystick_config = jdb.get(alias)
+            break
+
+        return joystick_config["function_map"]
 
 
 # FIXME: low level joystick object should not depend on Argus
@@ -13,64 +160,20 @@ class Joystick:
         self.was_jogging = False
         pygame.init()
         pygame.joystick.init()
+
+        self.config = JoystickConfig(
+            jbc=self.microscope.bc.j.get("joystick", {}))
         try:
             self.joystick = pygame.joystick.Joystick(
-                self.microscope.bc.joystick.device_number())
+                self.config.device_number())
         except pygame.error:
             raise JoystickNotFound()
 
-        print("Joystick: detected %s" % (self.joystick.get_name(), ))
         # This init is required by some systems.
         pygame.joystick.init()
         self.joystick.init()
         model = self.joystick.get_name()
-        self.joystick_fn_map = self.microscope.bc.joystick.function_map(
-            model=model)
-
-        self.axis_threshold = {
-            "axis_x": 0.02,
-            "axis_y": 0.02,
-            "axis_z": 0.02,
-            "hat_z": 0.02,
-        }
-        if model == "CH Products CH Products IP Desktop Controller":
-            # FIXME: hack. should load from joystick config
-            self.axis_cal_scalars = {
-                "x": +1.0,
-                "y": -1.0,
-                "z": +1.0,
-            }
-        else:
-            self.axis_cal_scalars = {
-                "x": +1.0,
-                "y": +1.0,
-                "z": +1.0,
-            }
-
-        self.axis_scalars = {
-            "x": 1.0,
-            "y": 1.0,
-            "z": 1.0,
-        }
-
-        self.hat_cal_scalars = {
-            "x": 1.0,
-            "y": 1.0,
-            "z": 1.0,
-        }
-        self.hat_scalars = {
-            "x": 1.0,
-            "y": 1.0,
-            "z": 1.0,
-        }
-        # Used to know when joystick is idle to cancel jogs
-        self._last_skips = {}
-
-    def set_axis_scalars(self, scalars):
-        self.axis_scalars = scalars
-
-    def set_hat_scalars(self, scalars):
-        self.hat_scalars = scalars
+        self.config.configure(model)
 
     def configure(self):
         # 0.2 default
@@ -89,8 +192,8 @@ class Joystick:
         # jogs across multiple axes need to be issued together
         # otherwise it will override the previous jog
         self._jog_queue = {}
-        for fn in self.joystick_fn_map:
-            getattr(self, fn)(**self.joystick_fn_map[fn])
+        for fn, config in self.config._function_map.items():
+            getattr(self, fn)(**config["args"])
         self.jog_controller.update(self._jog_queue)
         self._jog_queue = None
 
@@ -136,54 +239,25 @@ class Joystick:
     # Not all functions need to be mapped to triggers, and potentially
     # multiple triggers could be mapped (use buttons or axis to move x).
 
-    def process_skip(self, axis, function, val):
-        return abs(val) < self.axis_threshold[axis]
-
-    def axis_move_x(self, id, scalar=1.0):
+    def axis_move_x(self, id):
         val = self.joystick.get_axis(id)
-        if abs(val) < self.axis_threshold["axis_x"]:
-            return
-        self._jog_add_queue(
-            "x",
-            self.axis_cal_scalars["x"] * self.axis_scalars["x"] * val * scalar)
+        val = self.config.process_axis("axis_move_x", "x", val)
+        self._jog_add_queue("x", +val)
 
-    def axis_move_x_inv(self, id):
-        self.axis_move_x(id, scalar=-1.0)
-
-    def axis_move_y(self, id, scalar=1.0):
+    def axis_move_y(self, id):
         val = self.joystick.get_axis(id)
-        if abs(val) < self.axis_threshold["axis_y"]:
-            return
-        self._jog_add_queue(
-            "y",
-            self.axis_cal_scalars["y"] * self.axis_scalars["y"] * val * scalar)
+        val = self.config.process_axis("axis_move_y", "y", val)
+        self._jog_add_queue("y", +val)
 
-    def axis_move_y_inv(self, id):
-        self.axis_move_y(id, scalar=-1.0)
-
-    def axis_move_z(self, id, scalar=1.0):
+    def axis_move_z(self, id):
         val = self.joystick.get_axis(id)
-        if abs(val) < self.axis_threshold["axis_z"]:
-            return
-        self._jog_add_queue(
-            "z",
-            self.axis_cal_scalars["z"] * self.axis_scalars["z"] * val * scalar)
+        val = self.config.process_axis("axis_move_z", "z", val)
+        self._jog_add_queue("z", +val)
 
-    def axis_move_z_inv(self, id):
-        self.axis_move_z(id, scalar=-1.0)
-
-    def hat_move_z(self, id, idx, scalar=1.0):
+    def hat_move_z(self, id, idx):
         val = self.joystick.get_hat(id)[idx]
-        # If hat is not pressed skip
-        if abs(val) < self.axis_threshold["hat_z"]:
-            return
-        # Hat values are either -1 or 1, so we can just multiply for sign
-        self._jog_add_queue(
-            "z",
-            self.hat_cal_scalars["z"] * self.hat_scalars["z"] * val * scalar)
-
-    def hat_move_z_inv(self, id, idx):
-        self.hat_move_z(id, idx, scalar=-1.0)
+        val = self.config.process_hat("hat_move_z", "z", val)
+        self._jog_add_queue("z", +val)
 
     def btn_capture_image(self, id):
         if self.joystick.get_button(id):

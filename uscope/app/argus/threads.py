@@ -236,7 +236,7 @@ class QJoystickThread(JoystickThreadBase, QThread):
     def run(self):
         while self.running:
             try:
-                time.sleep(self.ac.bc.joystick.scan_secs())
+                time.sleep(self.joystick.config.scan_secs())
                 # It is important to check that the button is both enabled and
                 # active before performing actions. This allows us to preserve
                 # state by disabling and enabling the button only during scans.

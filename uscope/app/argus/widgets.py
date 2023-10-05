@@ -2116,6 +2116,17 @@ class JogListener(QPushButton):
         self.setPalette(p)
 
 
+class HLinearSlider100(QSlider):
+    def __init__(self, default, parent=None):
+        super().__init__(Qt.Horizontal, parent=parent)
+        self.setMinimum(1)
+        self.setMaximum(100)
+        self.setValue(default)
+        self.setTickPosition(QSlider.TicksBelow)
+        self.setTickInterval(10)
+        self.setFocusPolicy(Qt.NoFocus)
+
+
 """
 Slider is displayed as log scale ticks 1, 10, 100
     Represents percent of max velocity to use
@@ -2462,15 +2473,13 @@ class MotionWidget(AWidget):
         joystick = self.ac.microscope.joystick
         if joystick:
             slider_val = self.slider.get_jog_fraction()
-            joystick.set_axis_scalars({
-                "x": self.kj_xy_scalar * slider_val,
-                "y": self.kj_xy_scalar * slider_val,
-                "z": self.kj_xy_scalar * slider_val,
-            })
-            joystick.set_hat_scalars({
-                "x": self.kj_xy_scalar * slider_val,
-                "y": self.kj_xy_scalar * slider_val,
-                "z": self.kj_xy_scalar * slider_val,
+            joystick.config.set_volatile_scalars({
+                "x":
+                self.kj_xy_scalar * slider_val,
+                "y":
+                self.kj_xy_scalar * slider_val,
+                "z":
+                self.kj_xy_scalar * slider_val,
             })
 
         # Check keyboard jogging state
@@ -2604,3 +2613,74 @@ class SiPr0nScanNameWidget(AWidget):
         return {
             "user_basename": ret,
         }
+
+
+"""
+class JoystickTab(ArgusTab):
+    def __init__(self, ac, parent=None):
+        super().__init__(ac=ac, parent=parent)
+
+        layout = QGridLayout()
+        row = 0
+
+        for axis in self.ac.motion_thread.motion.axes():
+            layout = QGridLayout()
+            row = 0
+            axis_up = axis.upper()
+
+            widgets = {
+                "sensitivity": HLinearSlider100(50),
+                "deadzone": HLinearSlider100(10),
+                "invert": QCheckBox()
+            }
+
+            layout.addWidget(QLabel(f"{axis_up}"), row, 0)
+            layout.addWidget((axis), row, 1)
+            row += 1
+
+            gb = QGroupBox("Dead zone")
+            gb.setLayout(layout)
+            return gb
+
+        def deadzone_gb():
+            layout = QGridLayout()
+            row = 0
+
+            sliders = {
+                "x": HLinearSlider100(10),
+                "y": HLinearSlider100(10),
+                "z": HLinearSlider100(10),
+            }
+
+            layout.addWidget(QLabel("X"), row, 0)
+            layout.addWidget(sliders["x"], row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Y"), row, 0)
+            layout.addWidget(sliders["y"], row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Z"), row, 0)
+            layout.addWidget(sliders["z"], row, 1)
+            row += 1
+
+            gb = QGroupBox("Dead zone")
+            gb.setLayout(layout)
+            return gb
+
+        layout.addWidget(deadzone_gb(), row, 0)
+        row += 1
+
+        self.setLayout(layout)
+
+    def post_ui_init(self):
+        pass
+
+    def cache_save(self, cachej):
+        j = {}
+        cachej["joystick"] = j
+
+    def cache_load(self, cachej):
+        j = cachej.get("joystick", {})
+
+"""

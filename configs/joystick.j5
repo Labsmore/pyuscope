@@ -68,34 +68,12 @@
         },
     },
     "CH Products CH Products IPD Launch": {
-        "function_map": {
-            "btn_capture_image": {
-                "args": {
-                    "id": 0,
-                },
-            },
-            "axis_move_x": {
-                "args": {
-                    "id": 0,
-                },
-                "threshold": 0.02,
-                "scalar": 1.0,
-            },
-            "axis_move_y": {
-                "args": {
-                    "id": 1,
-                },
-                "threshold": 0.02,
-                "scalar": -1.0,
-            },
-            "axis_move_z": {
-                "args": {
-                    "id": 2,
-                },
-                "threshold": 0.02,
-                "scalar": 1.0,
-            }
-        },
-    }
+        "alias": "CH Products CH Products IP Desktop Controller",
+    },
+    "CH PRODUCTS AXIS 295 VIDEO SURVEILLANCE JOYSTICK": {
+        "alias": "CH Products CH Products IP Desktop Controller",
+    },
+    "CH PRODUCTS CH PRODUCTS IP DESKTOP CONTROLLER": {
+        "alias": "CH Products CH Products IP Desktop Controller",
+    },
 }
-

@@ -165,33 +165,6 @@ A minimal configuration to do basic testing
         {
             "camera_sn": null,
             "objectives_db": [
-                "vendor: Mitutoyo, model: 46-143, magnification: 5, na: 0.14",
-                "vendor: Mitutoyo, model: 46-144, magnification: 10, na: 0.28",
-                "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.42",
-            ],
-        },
-
-        //Sticker EV1, was wm3020-vmu1
-        //Engineering unit, a little off the others
-        {
-            "camera_sn": "FIXME",
-            //Replaces default objectives_db
-            "objectives_db": [
-                "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.42",
-            ],
-        },
-
-        //Sticker EV2, was wm3020-vmu3
-        //Dataplate S/N 2308001
-        {
-            "camera_sn": "TP230221161310F5C01079C0DE4CAA5",
-            "motion": {
-            },
-            "turret": {
-                "slots": 4,
-            },
-            //Replaces default objectives_db
-            "objectives_db": [
                 "vendor: Mitutoyo, model: 58-235, magnification: 1, na: 0.025",
                 "vendor: Mitutoyo, model: 46-142, magnification: 2, na: 0.055",
                 "vendor: Mitutoyo, model: 46-143, magnification: 5, na: 0.14",
@@ -205,19 +178,5 @@ A minimal configuration to do basic testing
                 "vendor: Nikon, model: VC 60X",
             ],
         },
-
-        //Sticker EV3, was wm3020-vmu2
-        //Dataplate S/N 2308002 (reserved, not affixed)
-        {
-            "camera_sn": "TP211009093136C4AD0DD74ABF49936",
-            //Replaces default objectives_db
-            "objectives_db": [
-                "vendor: Mitutoyo, model: 46-143, magnification: 5, na: 0.14",
-                "vendor: Mitutoyo, model: 46-144, magnification: 10, na: 0.28",
-                "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.42",
-                "vendor: Mitutoyo, model: 46-147, magnification: 100, na: 0.70",
-                "vendor: Nikon, model: VC 60X, magnification: 60",
-           ],
-        },
-    ],
+   ],
 }

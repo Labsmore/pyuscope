@@ -1096,6 +1096,7 @@ class ScanWidget(AWidget):
             self.scan_configs = None
             self.restore_properties = None
             self.setControlsEnabled(True)
+            self.ac.motion_thread.jog_enable(True)
             # Prevent accidental start after done
             self.dry_cb.setChecked(True)
             self.ac.control_scroll.enable_user_controls(True)
@@ -1951,11 +1952,6 @@ class StitchingTab(ArgusTab):
             # CLI box is special => take priority
             # CLI may launch CloudStitch under the hood
             self.stitch_add(scan_config["out_dir"])
-
-        # Enable joystick control if appropriate
-        # just let user re-enable it if they want it
-        # self.ac.joystick_enable(asneeded=True)
-        self.ac.motion_thread.jog_enable(True)
 
     def stitch_add(self, directory):
         self.ac.log(f"CloudStitch: requested {directory}")

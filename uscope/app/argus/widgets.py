@@ -244,6 +244,11 @@ class SnapshotWidget(AWidget):
         self.setLayout(layout)
 
     def take_snapshot(self):
+        # joystick can stack up events
+        if not self.snapshot_pb.isEnabled():
+            self.ac.log("Snapshot already requested. Please wait before requesting another")
+            return
+
         self.ac.log('Requesting snapshot')
         # Disable until snapshot is completed
         self.snapshot_pb.setEnabled(False)

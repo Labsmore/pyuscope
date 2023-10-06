@@ -51,7 +51,7 @@
     pygame 2.5.2 (SDL 2.28.2, Python 3.9.2)
     joystick Logitech Extreme 3D pro 0300ea9f6d04000015c2000011010000
     */
-    "0300ea9f6d04000015c2000011010000":
+    "0300ea9f6d04000015c2000011010000": {
         "alias": "Logitech Extreme 3D",
     },
 

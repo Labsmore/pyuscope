@@ -131,7 +131,9 @@ class JogController:
             # However the queue is also processed quickly, so a jog cancel
             # should be quick
             # self.motion_thread.jog_cancel()
-            self.motion_thread.stop()
+            # stop will cause lots of weird side affects
+            # do the cleaner jog cancel which should execute soon enough
+            self.motion_thread.jog_cancel()
             self.jogging = False
 
         self.tlast = tthis
@@ -244,7 +246,7 @@ class MotionThreadBase:
         if self.qsize() < 4:
             self.jog_fractioned(axes, period)
         else:
-            print("WARNING: drop jog")
+            print("WARNING: drop jog on backing up queue")
 
     def jog_abs(self, pos, rate):
         self.command("jog", pos, rate)
@@ -315,6 +317,12 @@ class MotionThreadBase:
             self.motion.jog_fractioned(*args, **kwargs)
         else:
             self.log("WARNING: jog disabled, dropping jog")
+
+    def _jog_cancel(self, *args, **kwargs):
+        if self._jog_enabled:
+            self.motion.jog_cancel()
+        else:
+            self.log("WARNING: jog disabled, dropping jog cancel")
 
     def run(self):
         self.verbose and print("Motion thread started: %s" %
@@ -408,7 +416,7 @@ class MotionThreadBase:
                     'move_relative': move_relative,
                     'jog_abs': self._jog_abs,
                     'jog_fractioned': self._jog_fractioned,
-                    'jog_cancel': self.motion.jog_cancel,
+                    'jog_cancel': self._jog_cancel,
                     'pos': self.motion.pos,
                     'home': self.motion.home,
                     'backlash_disable': self.motion.backlash_disable,

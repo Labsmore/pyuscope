@@ -2233,6 +2233,9 @@ class MotionWidget(AWidget):
                 Qt.Key_Q: ("z", -1),
                 Qt.Key_E: ("z", 1),
             })
+        # Poll time misses quick presses
+        # https://github.com/Labsmore/pyuscope/issues/300
+        self.jog_last_presses = {}
 
         self.last_send = time.time()
         # Can be used to invert keyboard, joystick XY inputs
@@ -2417,7 +2420,7 @@ class MotionWidget(AWidget):
         #     return
 
         self.keys_up[k] = True
-
+        self.jog_last_presses[k] = True
         if k == Qt.Key_F:
             self.fine_move = not self.fine_move
             self.update_jog_text()
@@ -2445,13 +2448,6 @@ class MotionWidget(AWidget):
         if event.isAutoRepeat():
             return
 
-        axis = self.axis_map.get(k, None)
-        # print("release %s" % (axis, ))
-        # return
-        if axis:
-            # print("cancel jog on release")
-            self.motion_thread.stop()
-
     def update_jogging(self):
         joystick = self.ac.microscope.joystick
         if joystick:
@@ -2473,7 +2469,8 @@ class MotionWidget(AWidget):
             if axis not in jogs:
                 continue
 
-            if not self.keys_up.get(k, False):
+            if not (self.keys_up.get(k, False)
+                    or self.jog_last_presses.get(k, False)):
                 continue
 
             fine_scalar = 1.0
@@ -2488,6 +2485,7 @@ class MotionWidget(AWidget):
             jogs[axis] = jog_val
 
         self.jog_controller.update(jogs)
+        self.jog_last_presses = {}
 
     def poll_misc(self):
         self.update_reference()

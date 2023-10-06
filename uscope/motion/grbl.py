@@ -934,8 +934,11 @@ class GRBL:
                         v = dict([(k, v) for k, v in zip("xyz", v)])
                         self.set_pos_cache(v)
                     elif k == "Pn":
-                        assert v == "Y"
-                        v = True
+                        # Y and Z are valid values
+                        # Z appears to be when unhomed?
+                        # assert v == "Y"
+                        # v = True
+                        pass
                     ret[k] = v
                 if self.qstatus_updated_cb:
                     self.qstatus_updated_cb(ret)
@@ -955,7 +958,7 @@ class GRBL:
         return self.qstatus()["MPos"]
 
     def limit_switch_triggered(self):
-        return self.qstatus().get("Pn", False)
+        return self.qstatus().get("Pn", "N") == "Y"
 
     def wcs_offsets(self):
         """
@@ -1420,6 +1423,7 @@ class GrblHal(MotionHAL):
             status = self.grbl.qstatus()["status"]
             print(f"GRBL homing w/ INIT_LOCK, main status: {status}")
             # Otherwise should be Alarm state
+            # FIXME: if we are jogging it might try to home here...
             return status == "Idle"
         # A BadThing TM: no way to natively know if homed
         else:

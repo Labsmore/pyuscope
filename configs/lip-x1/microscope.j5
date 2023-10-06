@@ -98,7 +98,7 @@ A minimal configuration to do basic testing
         Y: 0.0 to 200.0, homed at -197 (12)
         Z: -60.0 to 0.0, homed at -2.4
         */
-        "!soft_limits": {
+        "soft_limits": {
             //machine: 0.0 to 300.0
             "xmin": 10.0,
             "xmax": 290.0,

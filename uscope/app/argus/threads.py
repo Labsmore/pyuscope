@@ -229,20 +229,32 @@ class QJoystickThread(JoystickThreadBase, QThread):
         QThread.__init__(self, parent)
         JoystickThreadBase.__init__(self, microscope=self.ac.microscope)
         self.ac.microscope.joystick = self.joystick
+        self.enabled = False
 
     def log(self, msg=""):
         self.log_msg.emit(msg)
 
+    def enable(self):
+        self.enabled = True
+
+    def disable(self):
+        self.enabled = False
+
     def run(self):
+        tlast = time.time()
         while self.running:
             try:
-                time.sleep(self.joystick.config.scan_secs())
+                waited = time.time() - tlast
+                time.sleep(max(0, self.joystick.config.scan_secs() - waited))
                 # It is important to check that the button is both enabled and
                 # active before performing actions. This allows us to preserve
                 # state by disabling and enabling the button only during scans.
-                if self.ac.mw.mainTab.motion_widget.joystick_listener.joystick_executing:
+                if self.enabled:
                     #self.joystick.debug_dump()
                     self.joystick.execute()
+                else:
+                    self.joystick.jog_controller.pause()
+                tlast = time.time()
             except Exception as e:
                 self.log('WARNING: joystick thread crashed: %s' % str(e))
                 traceback.print_exc()

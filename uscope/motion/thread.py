@@ -136,6 +136,9 @@ class JogController:
 
         self.tlast = tthis
 
+    def pause(self):
+        self.tlast = None
+
 
 class MotionThreadBase:
     def __init__(self, usc):
@@ -156,6 +159,7 @@ class MotionThreadBase:
         self._estop = False
         # XXX: add config directive
         self.allow_motion_reboot = False
+        self._jog_enabled = True
 
         # Seed state / refuse to start without motion
         self.init_motion()
@@ -214,6 +218,14 @@ class MotionThreadBase:
 
     def mdi(self, cmd):
         self.command("mdi", cmd)
+
+    # Set at beginning / end of scan
+    # Silently drops all jog commands while set
+    # Lazy way of being sure nothing gets through
+    # XXX: there might be race conditions with stop()
+    # need to rethink this a bit
+    def jog_enable(self, val):
+        self._jog_enabled = val
 
     def jog_fractioned(self, axes, period=1.0):
         """
@@ -291,6 +303,18 @@ class MotionThreadBase:
 
     def shutdown(self):
         self.running.clear()
+
+    def _jog_abs(self, *args, **kwargs):
+        if self._jog_enabled:
+            self.motion.jog_abs(*args, **kwargs)
+        else:
+            self.log("WARNING: jog disabled, dropping jog")
+
+    def _jog_fractioned(self, *args, **kwargs):
+        if self._jog_enabled:
+            self.motion.jog_fractioned(*args, **kwargs)
+        else:
+            self.log("WARNING: jog disabled, dropping jog")
 
     def run(self):
         self.verbose and print("Motion thread started: %s" %
@@ -382,8 +406,8 @@ class MotionThreadBase:
                     'update_pos_cache': update_pos_cache,
                     'move_absolute': move_absolute,
                     'move_relative': move_relative,
-                    'jog_abs': self.motion.jog_abs,
-                    'jog_fractioned': self.motion.jog_fractioned,
+                    'jog_abs': self._jog_abs,
+                    'jog_fractioned': self._jog_fractioned,
                     'jog_cancel': self.motion.jog_cancel,
                     'pos': self.motion.pos,
                     'home': self.motion.home,

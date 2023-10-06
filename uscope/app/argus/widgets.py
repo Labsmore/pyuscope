@@ -246,7 +246,9 @@ class SnapshotWidget(AWidget):
     def take_snapshot(self):
         # joystick can stack up events
         if not self.snapshot_pb.isEnabled():
-            self.ac.log("Snapshot already requested. Please wait before requesting another")
+            self.ac.log(
+                "Snapshot already requested. Please wait before requesting another"
+            )
             return
 
         self.ac.log('Requesting snapshot')
@@ -1100,7 +1102,8 @@ class ScanWidget(AWidget):
 
     def run_next_scan_config(self):
         try:
-            self.ac.joystick_disable(asneeded=True)
+            self.ac.motion_thread.jog_enable(False)
+            # self.ac.joystick_disable()
             self.current_scan_config = self.scan_configs[0]
             assert self.current_scan_config
             del self.scan_configs[0]
@@ -1950,7 +1953,9 @@ class StitchingTab(ArgusTab):
             self.stitch_add(scan_config["out_dir"])
 
         # Enable joystick control if appropriate
-        self.ac.joystick_enable(asneeded=True)
+        # just let user re-enable it if they want it
+        # self.ac.joystick_enable(asneeded=True)
+        self.ac.motion_thread.jog_enable(True)
 
     def stitch_add(self, directory):
         self.ac.log(f"CloudStitch: requested {directory}")
@@ -2046,47 +2051,20 @@ class JoystickListener(QPushButton):
         super().__init__(label, parent=parent)
         self.parent = parent
         self.setCheckable(True)
-        self.setEnabled(False)
         self.setIcon(QIcon(config.GUI.icon_files["gamepad"]))
-        self.joystick_executing = False
-        self.enable()
-        self.activate()
+        # should be enabled by default?
+        # if in bad position could crash system
+        # probably better to make enabling explicit
+        self.setChecked(False)
+        # pressed captures our toggle => creates loop
+        self.clicked.connect(self.was_pressed)
 
-    """
-    def hitButton(self, pos):
-        self.toggle()
-        return True
-    """
-
-    def enable(self):
-        # This enables activation of joystick
-        # actions by the user.
-        # self.setEnabled(True)
-        self.setEnabled(True)
-        self.joystick_executing = self.isEnabled() and self.isChecked()
-
-    def disable(self):
-        # This deactivates and disables joystick
-        # actions, and user cannot re-enable.
-        # self.setEnabled(False)
-        self.setDisabled(True)
-        self.joystick_executing = self.isEnabled() and self.isChecked()
-
-    def activate(self):
-        # This activates joystick actions, and
-        # user can deactivate.
-        if not self.isChecked():
-            # self.toggle()
-            self.setChecked(True)
-        self.joystick_executing = self.isEnabled() and self.isChecked()
-
-    def deactivate(self):
-        # This deactivates joystick actions but
-        # user can re-activate.
+    def was_pressed(self):
+        # It's already toggled when we get here
         if self.isChecked():
-            # self.toggle()
-            self.setChecked(False)
-        self.joystick_executing = self.isEnabled() and self.isChecked()
+            self.parent.ac.joystick_thread.enable()
+        else:
+            self.parent.ac.joystick_thread.disable()
 
 
 class JogListener(QPushButton):

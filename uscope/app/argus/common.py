@@ -328,14 +328,12 @@ class ArgusCommon(QObject):
         if not self.vidpip.ok:
             raise ArgusShutdown("Video pipeline crashed")
 
-    def joystick_disable(self, asneeded=False):
-        assert asneeded
+    def joystick_disable(self):
         jl = self.mainTab.motion_widget.joystick_listener
         if jl:
             jl.disable()
 
-    def joystick_enable(self, asneeded=False):
-        assert asneeded
+    def joystick_enable(self):
         jl = self.mainTab.motion_widget.joystick_listener
         if jl:
             jl.enable()

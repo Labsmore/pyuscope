@@ -58,14 +58,17 @@ class JoystickConfig:
         self._device_number = self.jbc.get("device_number", 0)
         self._volatile_scalars = None
         self._function_map = None
+        self.model = None
+        self.guid = None
 
     # Late configuration after model is selected
-    def configure(self, model):
+    def configure(self, model, guid):
         with open(os.path.join(config.get_configs_dir(), "joystick.j5")) as f:
             jdb = json5.load(f, object_pairs_hook=OrderedDict)
 
         self.model = model
-        self._function_map = self.make_function_map(model, jdb)
+        self.guid = guid
+        self._function_map = self.make_function_map(model, guid, jdb)
         self._volatile_scalars = {}
         """
         # Things that can take a calibration constant
@@ -121,33 +124,39 @@ class JoystickConfig:
             if abs(value) < threshold:
                 return 0.0
         return value * config.get("scalar", 1.0) * config.get(
-            "user_scalar", 1.0) * self._volatile_scalars.get(axis)
+            "user_scalar", 1.0) * self._volatile_scalars.get(axis, 1.0)
 
-    def process_hat(self, axis, value):
-        config = self._function_map[axis]
+    def process_hat(self, function, axis, value):
+        config = self._function_map[function]
         # Hat values are either -1 or 1, so we can just multiply for sign
         return value * config.get("scalar", 1.0) * config.get(
-            "user_scalar", 1.0)
+            "user_scalar", 1.0) * self._volatile_scalars.get(axis, 1.0)
 
-    def make_function_map(self, model, jdb):
+    def make_function_map(self, model, guid, jdb):
         # If user manually specifies just take that
         ret = self.jbc.get("function_map", None)
         if ret:
             return ret
         # Auto detection requires model
-        if model is None:
-            raise Exception("Required (need model)")
+        if guid is None:
+            raise Exception("guid required for auto detection")
 
-        joystick_config = jdb.get(model)
+        model = model.upper()
+        joystick_config = jdb.get(guid)
         if joystick_config is None:
-            raise ValueError(f"Unsupported joystick model {model}")
+            raise ValueError(
+                f"Unsupported joystick GUID {guid} ({model}). Consider filing a bug and/or submitting a PR to joystick.j5"
+            )
 
         # Some models have multiple names
         # should ideally only be one level of indirection here
         while True:
             alias = joystick_config.get("alias")
             if alias:
-                joystick_config = jdb.get(alias)
+                try:
+                    joystick_config = jdb[alias]
+                except KeyError:
+                    raise Exception(f"bad alias {alias}")
             break
 
         return joystick_config["function_map"]
@@ -173,7 +182,18 @@ class Joystick:
         pygame.joystick.init()
         self.joystick.init()
         model = self.joystick.get_name()
-        self.config.configure(model)
+        try:
+            guid = self.joystick.get_guid()
+        except AttributeError:
+            raise ImportError(
+                "require pygame 2.0.0dev11 or later. try: sudo pip3 install pygame --upgrade"
+            )
+        print(
+            f"pygame version {pygame.version.ver} detected GUID {guid} ({model})"
+        )
+        self.config.configure(model, guid)
+        # version 2.5.2
+        # joystick Logitech Extreme 3D
 
     def configure(self):
         # 0.2 default

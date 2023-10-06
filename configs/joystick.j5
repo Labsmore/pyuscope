@@ -1,5 +1,7 @@
+//2023-10-05: move from name to guid
+//names are really unstable across pygame versions
 {
-    "Logitech Extreme 3D pro": {
+    "Logitech Extreme 3D": {
         "function_map": {
             "axis_set_jog_slider_value": {
                 "args": {
@@ -25,19 +27,36 @@
                     "id": 1,
                 },
                 "threshold": 0.02,
-                "scalar": 1.0,
+                "scalar": -1.0,
             },
             "hat_move_z": {
                 "args": {
                     "id": 0,
                     "idx": 1,
                 },
-                "threshold": 0.02,
                 "scalar": 1.0,
             }
         },
     },
-    "CH Products CH Products IP Desktop Controller": {
+    /*
+    McMaster: old joystick
+    pygame 2.5.2 (SDL 2.28.2, Python 3.8.10)
+    joystick Logitech Extreme 3D 0300eb976d04000015c2000010010000
+    */
+    "0300eb976d04000015c2000010010000": {
+        "alias": "Logitech Extreme 3D",
+    },
+    /*
+    Andrew joystick
+    pygame 2.5.2 (SDL 2.28.2, Python 3.9.2)
+    joystick Logitech Extreme 3D pro 0300ea9f6d04000015c2000011010000
+    */
+    "0300ea9f6d04000015c2000011010000":
+        "alias": "Logitech Extreme 3D",
+    },
+
+
+    "CH Products IP Desktop": {
         "function_map": {
             "btn_capture_image": {
                 "args": {
@@ -67,13 +86,36 @@
             }
         },
     },
-    "CH Products CH Products IPD Launch": {
-        "alias": "CH Products CH Products IP Desktop Controller",
+    /*
+    McMaster: black w/ black keypad
+    pygame 2.5.2 (SDL 2.28.2, Python 3.8.10)
+    joystick CH Products IPD Launch 0300481a8e0600006100000011010000
+    */
+    "0300481a8e0600006100000011010000": {
+        "alias": "CH Products IP Desktop",
     },
-    "CH PRODUCTS AXIS 295 VIDEO SURVEILLANCE JOYSTICK": {
-        "alias": "CH Products CH Products IP Desktop Controller",
+    /*
+    McMaster: black w/ gray keypad
+    pygame 2.5.2 (SDL 2.28.2, Python 3.8.10)
+    joystick CH Products IP Desktop Controller 030032a18e060000ca00000011010000
+    */
+    "030032a18e060000ca00000011010000": {
+        "alias": "CH Products IP Desktop",
     },
-    "CH PRODUCTS CH PRODUCTS IP DESKTOP CONTROLLER": {
-        "alias": "CH Products CH Products IP Desktop Controller",
+    /*
+    McMaster: black w/ labsmore sticker
+    pygame 2.5.2 (SDL 2.28.2, Python 3.8.10)
+    joystick CH PRODUCTS IP DESKTOP CONTROLLER 0300c0fa8e060000ca00000000010000
+    */
+    "0300c0fa8e060000ca00000000010000": {
+        "alias": "CH Products IP Desktop",
+    },
+    /*
+    McMaster: gray w/ Labsmore sticker
+    pygame 2.5.2 (SDL 2.28.2, Python 3.8.10)
+    joystick CH PRODUCTS AXIS 295 VIDEO SURVEILLANCE JOYSTICK 030043d18e0600001c00000000010000
+    */
+    "030043d18e0600001c00000000010000": {
+        "alias": "CH Products IP Desktop",
     },
 }

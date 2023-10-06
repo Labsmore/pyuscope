@@ -377,6 +377,7 @@ class SoftLimitMM(MotionModifier):
         -We are close to end. Reduce jog to a safe value
         -We have already exceed axis and are trying to make it worse. Zero jog
         """
+        pos_orig = dict(pos)
         if options.get("trim", True):
             assert len(pos)
             # print("")
@@ -416,7 +417,9 @@ class SoftLimitMM(MotionModifier):
                         continue
             # print("final jog vals", scalars)
             if len(pos) == 0:
-                raise AxisExceeded("Jog dropped: all moves would exceed axis")
+                axes = ", ".join(list(pos_orig.keys()))
+                raise AxisExceeded(
+                    f"Jog dropped: all moves ({axes}) would exceed axis")
         else:
             self.move_absolute_pre(pos)
 

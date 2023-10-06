@@ -19,8 +19,9 @@ A minimal configuration to do basic testing
         "xyz_format6": true,
 
         "use_wcs_offsets": true,
+        "max_home_time": 180,
         "grbl": {
-            "rc": [
+            "rc_pre_home": [
                 //$100, $101 and $102 – [X,Y,Z] steps/mm
                 //Z is actually 5x this but we'll loose precision if here
                 //so instead apply that reduction host side
@@ -65,8 +66,6 @@ A minimal configuration to do basic testing
                 //gearbox + 0.9 motor
                 "G10 L2 P1 X-475.200 Y-315.200 Z-48.000",
                 "G10 L2 P2 X0 Y0 Z0",
-                //Select WCS2
-                "G55",
 
                 //Homing adjustments to account for gearbox etc
                 //"$24=25.0","$25=500.000",
@@ -76,9 +75,17 @@ A minimal configuration to do basic testing
                 //$25: Homing seek, mm/min
                 "$24=40.0","$25=800.000",
                 //$26: Homing debounce, milliseconds
+                "$26=400",
                 //$27: Homing pull-off, mm
-                "$26=400","$27=24.000",
+                //x/y: 24 * 5/8 => 15 mm
+                //z: 24 / (8/5 * 10) => 1.5 mm
+                //z:  48 => 3.0 mm
+                "$27=96.000",
             ],
+            "rc_post_home": [
+                //Select WCS2
+                "G55",
+            ]
         },
         "scalars": {
             "x": 1.6,
@@ -91,17 +98,17 @@ A minimal configuration to do basic testing
         Y: 0.0 to 200.0, homed at -197 (12)
         Z: -60.0 to 0.0, homed at -2.4
         */
-        "soft_limits": {
+        "!soft_limits": {
             //machine: 0.0 to 300.0
             "xmin": 10.0,
             "xmax": 290.0,
             //machine: 0.0 to 200.0
             "ymin": 10.0,
             "ymax": 190.0,
-            //machine: -60.0 to 0.0
+            //machine: -67.5 to +3.0
             //LIA-TT-1 is well within this range
-            "zmin": -50.0,
-            "zmax": -10.0,
+            "zmin": -65.0,
+            "zmax": 0.0,
         },
     },
 

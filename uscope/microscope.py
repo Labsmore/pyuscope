@@ -72,12 +72,16 @@ class Microscope:
             imager = gst.get_cli_imager_by_config(usc=self.usc,
                                                   microscope=self)
         self.imager = imager
+        if self.imager is not None:
+            self.imager.microscope = self
 
         if motion is None and make_motion:
             motion = get_motion_hal(usc=self.usc,
                                     microscope=self,
                                     log=self.log)
         self.motion = motion
+        if self.motion is not None:
+            self.motion.microscope = self
 
         if kinematics is None and make_kinematics:
             kinematics = Kinematics(

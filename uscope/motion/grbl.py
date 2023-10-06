@@ -958,7 +958,10 @@ class GRBL:
         return self.qstatus()["MPos"]
 
     def limit_switch_triggered(self):
-        return self.qstatus().get("Pn", "N") == "Y"
+        # https://github.com/Labsmore/pyuscope/issues/297
+        # Some X1s report Y some report Z but we don't know why
+        # TODO: look into GRBL code to see if more info
+        return self.qstatus().get("Pn", "N") in ("Y", "Z")
 
     def wcs_offsets(self):
         """
@@ -1229,9 +1232,27 @@ class GrblHal(MotionHAL):
         if microscope_name:
             self.validate_microscope_model(microscope_name)
 
-        # hack: qstatus will fail before home
-        self.home(force=False)
         self.grbl.set_qstatus_updated_cb(self.qstatus_updated)
+
+    def configure(self, options):
+        # Can't issue rc commands if spamming limit switch messages
+        self.assert_not_limit_switch()
+
+        # RC must be issues before homing and configuration
+        # Otherwise system won't be in expected state
+        rc = options.get("rc_pre_home")
+        if rc is not None:
+            self.rc_commands(rc)
+
+        # Now get the system in a good state so that we can query settings
+        self.home(force=False)
+
+        # Some commands cannot be issued (ex: WCS switch) if machine is in wonky state
+        rc = options.get("rc_post_home")
+        if rc is not None:
+            self.rc_commands(rc)
+
+        super().configure(options)
 
     def _configured(self):
         self.calc_steps_per_mm()
@@ -1281,6 +1302,14 @@ class GrblHal(MotionHAL):
     def _get_max_accelerations(self):
         return self._max_acelerations
 
+    def assert_not_limit_switch(self):
+        # X1 doesn't spam limit switch trip estop
+        # Need to manually check for it
+        if self.grbl.limit_switch_triggered():
+            raise LimitSwitchActive(
+                "Limit switch tripped. Manually move away from limit switches and then re-home"
+            )
+
     def home(self, force=False):
         """
         Depending on machine configuration homing may or may not be required
@@ -1295,26 +1324,9 @@ class GrblHal(MotionHAL):
         if not force:
             if self.is_homed():
                 return
-            # X1 doesn't spam limit switch trip estop
-            # Need to manually check for it
-            if self.grbl.limit_switch_triggered():
-                raise LimitSwitchActive(
-                    "Limit switch tripped. Manually move away from limit switches and then re-home"
-                )
+            self.assert_not_limit_switch()
 
-            while True:
-                print("")
-                print("System is not homed. Enter Y to home or N to abort")
-                print(
-                    "Ensure system is clear of fingers, cables, etc before proceeding"
-                )
-                got = input().upper()
-                if got == "Y":
-                    break
-                elif got == "N":
-                    raise Exception("Homing aborted")
-                print("Invalid response")
-                print("")
+            self.ask_home()
 
         tstart = time.time()
         # TLDR: gearbox means we need ot home several times
@@ -1325,6 +1337,10 @@ class GrblHal(MotionHAL):
         for homing_try in range(2):
             print("Sending home command %u" % (homing_try + 1, ))
             try:
+                # FIXME: do something better than an initial estimate
+                self.home_progress(
+                    "start", 0.0,
+                    self.microscope.usc.motion.j.get("max_home_time", 0))
                 self.grbl.gs.h()
                 break
             except HomingFailed:

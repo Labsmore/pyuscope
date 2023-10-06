@@ -7,6 +7,8 @@ from uscope.app.argus.threads import QMotionThread, QImageProcessingThread, QJoy
 from uscope.joystick import JoystickNotFound
 from uscope.microscope import Microscope
 from uscope.kinematics import Kinematics
+from uscope.motion.hal import HomingAborted
+from uscope.motion.grbl import LimitSwitchActive
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -34,6 +36,15 @@ def error(msg, code=1):
 
 class ArgusShutdown(Exception):
     pass
+
+
+def gui_ask_home():
+    ret = QMessageBox.warning(
+        None, "Home?",
+        "System is not homed. Ensure system is clear of fingers, cables, etc before proceeding",
+        QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Cancel)
+    if ret != QMessageBox.Ok:
+        raise HomingAborted("Homing aborted")
 
 
 class USCArgus:
@@ -191,6 +202,7 @@ class ArgusCommon(QObject):
         self.motion_thread = QMotionThread(usc=self.usc)
         self.motion_thread.log_msg.connect(self.log)
         self.motion = self.motion_thread.motion
+        self.motion.set_ask_home(gui_ask_home)
 
         # TODO: init things in Microscope and then push references here
         self.microscope = Microscope(
@@ -214,6 +226,8 @@ class ArgusCommon(QObject):
         self.vidpip.setupWidgets()
 
     def post_ui_init(self):
+        # Try to do critical initialization first in case something fails
+
         # hack...used by joystick...
         # self.microscope.jog_abs_lazy = self.motion_thread.jog_abs_lazy
         self.microscope.jog_fractioned_lazy = self.motion_thread.jog_fractioned_lazy
@@ -247,7 +261,14 @@ class ArgusCommon(QObject):
 
         # TODO: init things in Microscope and then push references here
         self.microscope.imager = self.imager
-        self.microscope.configure()
+        try:
+            self.microscope.configure()
+        except LimitSwitchActive:
+            QMessageBox.critical(
+                None, "Error",
+                "Limit switch tripped. Manually move away from limit switches and then re-home",
+                QMessageBox.Ok, QMessageBox.Ok)
+            raise
 
         self.motion_thread.start()
         if self.joystick_thread:

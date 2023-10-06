@@ -106,6 +106,7 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
             "zmax": -5.0,
         },
 
+        "max_home_time": 90,
         /*
         FIXME: were values saved before overwriting?
         maybe take from the other genmitsu which should be similar

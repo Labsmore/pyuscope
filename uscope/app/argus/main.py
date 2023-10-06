@@ -44,6 +44,9 @@ class FullscreenVideo(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self, microscope=None, verbose=False):
         QMainWindow.__init__(self)
+        # Homing may need attention in CLI
+        # Make sure user sees that before UI
+        self.hide()
         self.verbose = verbose
         self.shutting_down = False
         self.ac = None
@@ -53,8 +56,12 @@ class MainWindow(QMainWindow):
         self.init_objects()
         self.ac.logs.append(self.mainTab.log)
         self.initUI()
+        # something caues this to pop back up
+        # keep it hidden until we are homed since homing is still on CLI...
+        self.hide()
         self.post_ui_init()
         self.cachej = None
+        self.show()
 
     def __del__(self):
         self.shutdown()
@@ -234,7 +241,6 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.central_widget)
         self.createMenuBar()
         self.showMaximized()
-        self.show()
 
     def poll_misc(self):
         self.polli += 1

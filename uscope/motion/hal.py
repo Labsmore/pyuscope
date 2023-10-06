@@ -2,6 +2,7 @@ import time
 from uscope.imager.imager import Imager
 import os
 from collections import OrderedDict
+from uscope.util import time_str
 
 
 class AxisExceeded(ValueError):
@@ -16,6 +17,10 @@ def format_t(dt):
 
 
 class NotSupported(Exception):
+    pass
+
+
+class HomingAborted(Exception):
     pass
 
 
@@ -575,9 +580,37 @@ class MotionHAL:
         # ex: if we start jogging when not idle
         self.jog_estimated_end = None
         self.last_jog_time = None
+        self.ask_home = self.default_ask_home
+        self.home_progress = self.default_home_progress
 
     def __del__(self):
         self.close()
+
+    def default_ask_home(self):
+        while True:
+            print("")
+            print("System is not homed. Enter Y to home or N to abort")
+            print(
+                "Ensure system is clear of fingers, cables, etc before proceeding"
+            )
+            got = input().upper()
+            if got == "Y":
+                break
+            elif got == "N":
+                raise HomingAborted("Homing aborted")
+            print("Invalid response")
+            print("")
+
+    # FIXME: not ready yet
+    def default_home_progress(self, state, percent, remaining):
+        print("Homing: %0.1f%% done, %s remaining" %
+              (percent, time_str(remaining)))
+
+    def set_ask_home(self, func):
+        self.ask_home = func
+
+    def set_home_progress(self, func):
+        self.home_progress = func
 
     def epsilon(self):
         """
@@ -836,6 +869,9 @@ class MotionHAL:
         return time.time() - self.mv_lastt
 
     def update_status(self, status):
+        # Ignore updates before configured
+        if self.modifiers is None:
+            return
         # print("update_status begin: %s" % (status,))
         for modifier in self.iter_active_modifiers():
             modifier.update_status(status)
@@ -1229,10 +1265,6 @@ class MotionHAL:
         Some machines only support binary => may be not supported
         """
         raise NotSupported("")
-
-    def rc_commands(self, commands):
-        for command in commands:
-            self.command(command)
 
 
 '''

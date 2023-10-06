@@ -292,3 +292,15 @@ def drange_tol(start, stop, step, delta=None):
         if r > stop:
             break
         r += step
+
+
+def time_str(delta):
+    fraction = delta % 1
+    delta -= fraction
+    delta = int(delta)
+    seconds = delta % 60
+    delta /= 60
+    minutes = delta % 60
+    delta /= 60
+    hours = delta
+    return '%02d:%02d:%02d.%04d' % (hours, minutes, seconds, fraction * 10000)

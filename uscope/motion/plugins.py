@@ -58,11 +58,6 @@ def register_plugins():
         grblc = usc_motion.j.get("grbl", {})
         port = grblc.get("port")
         ret = GrblHal(port=port, **kwargs)
-        # Escape hatch for system initialization
-        # Move to dedicated file?
-        commands = grblc.get("rc")
-        if commands:
-            ret.rc_commands(commands)
         return ret
 
     register_plugin("grbl-ser", grbl_ser)
@@ -92,6 +87,7 @@ def get_motion_hal(usc=None, usc_motion=None, log=None, microscope=None):
 def configure_motion_hal(microscope):
     usc = microscope.usc
     usc_motion = usc.motion
+
     options = {
         "scalars": usc.get_motion_scalars(microscope),
         "backlash": usc_motion.backlash(),
@@ -99,4 +95,10 @@ def configure_motion_hal(microscope):
         "soft_limits": usc_motion.soft_limits(),
         "use_wcs_offsets": usc_motion.use_wcs_offsets(),
     }
+
+    # Escape hatch for system initialization
+    commands = usc_motion.j.get("grbl", {}).get("rc")
+    if commands:
+        options["rc"] = commands
+
     microscope.motion.configure(options=options)

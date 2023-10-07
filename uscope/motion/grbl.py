@@ -963,21 +963,6 @@ class GRBL:
         # TODO: look into GRBL code to see if more info
         return self.qstatus().get("Pn", "N") in ("Y", "Z")
 
-    def wcs_offsets(self):
-        """
-        https://github.com/Labsmore/pyuscope/issues/135
-        Take offsets from WCS1 but operate on WCS2
-        Consider making this configurable / explicit
-        """
-        for l in self.gs.hash():
-            if "G54" not in l:
-                continue
-            # [G54:0.000,0.000,0.000]
-            l = l.split(":")[1].replace("]", "")
-            parts = [float(x) for x in l.split(",")]
-            return dict(zip("xyz", parts))
-        assert 0, "Failed to parse WCS offset"
-
     def move_absolute(self, pos, f, blocking=True):
         tries = 3
         for i in range(tries):
@@ -1206,19 +1191,23 @@ class GRBL:
         return self.get_dollar_xyz_float("$120", "$121", "$122")
 
 
+"""
+Coordinate system convention
+GRBL has WCS offsets to make the coordinate seem more "friendly"
+These are used for G90 style commands
+However the pos command needs to be scaled to reflect that
+"""
+
+
 class GrblHal(MotionHAL):
     def __init__(self, verbose=None, port=None, grbl=None, **kwargs):
         self.grbl = None
         self.feedrate = None
-        self._steps_per_mm = None
-        self._epsilon = None
-        self._machine_mins = None
-        self._machine_maxs = None
         self._soft_mins = None
         self._soft_maxs = None
-        self._max_velocities = None
         self._max_acelerations = None
         self._axes = get_usc().motion.axes()
+        self._wcs_offsets_cache = None
 
         MotionHAL.__init__(self, verbose=verbose, **kwargs)
         if grbl:
@@ -1232,7 +1221,20 @@ class GrblHal(MotionHAL):
         if microscope_name:
             self.validate_microscope_model(microscope_name)
 
-        self.grbl.set_qstatus_updated_cb(self.qstatus_updated)
+    def _wcs_offsets(self):
+        """
+        https://github.com/Labsmore/pyuscope/issues/135
+        Take offsets from WCS1 but operate on WCS2
+        Consider making this configurable / explicit
+        """
+        for l in self.grbl.gs.hash():
+            if "G54" not in l:
+                continue
+            # [G54:0.000,0.000,0.000]
+            l = l.split(":")[1].replace("]", "")
+            parts = [float(x) for x in l.split(",")]
+            return dict(zip("xyz", parts))
+        assert 0, "Failed to parse WCS offset"
 
     def configure(self, options):
         # Can't issue rc commands if spamming limit switch messages
@@ -1252,17 +1254,58 @@ class GrblHal(MotionHAL):
         if rc is not None:
             self.rc_commands(rc)
 
+        # Used to be in ScalarMM but moved here
+        # Too much nuance / tied ot GRBL specific things
+        self._wcs_offsets_cache = {}
+        if bool(options.get("use_wcs_offsets", False)):
+            self._wcs_offsets_cache = self._wcs_offsets()
+
         super().configure(options)
 
-    def _configured(self):
-        self.calc_steps_per_mm()
-        self.calc_min_max()
-        # xxx: just have these returned from the query functions
-        self._max_velocities = self.only_used_axes(self.grbl.axes_max_rate())
-        self._max_acelerations = self.only_used_axes(
-            self.grbl.axes_max_acceleration())
+        # Now that coordinat esystem is enabled we can start recording updates
+        self.grbl.set_qstatus_updated_cb(self.qstatus_updated)
 
-    def calc_steps_per_mm(self):
+        if os.getenv("GRBL_PRINT_CONFIGURE_CACHE"):
+            print("")
+            print("GRBL constants")
+            print(
+                "  steps_per_mm       ",
+                self.microscope.usc.motion.format_positions(
+                    self._steps_per_mm))
+            print("  epsilon            ",
+                  self.microscope.usc.motion.format_positions(self._epsilon))
+            print(
+                "  max_velocities     ",
+                self.microscope.usc.motion.format_positions(
+                    self._hal_max_velocities))
+            print(
+                "  max_accelerations  ",
+                self.microscope.usc.motion.format_positions(
+                    self._hal_max_accelerations))
+            print("  pyuscope limits")
+            print(
+                "    Min:             ",
+                self.microscope.usc.motion.format_positions(
+                    self._pyuscope_soft_limits["mins"]))
+            print(
+                "    Max:             ",
+                self.microscope.usc.motion.format_positions(
+                    self._pyuscope_soft_limits["maxs"]))
+            print("  machine limits")
+            print(
+                "    Min:             ",
+                self.microscope.usc.motion.format_positions(
+                    self._hal_machine_limits["mins"]))
+            print(
+                "    Max:             ",
+                self.microscope.usc.motion.format_positions(
+                    self._hal_machine_limits["maxs"]))
+            print(
+                "  Machine WCS        ",
+                self.microscope.usc.motion.format_positions(
+                    self._wcs_offsets_cache))
+
+    def _get_steps_per_mm(self):
         """
         Figure out the smallest possible machine delta
         Find the native machine epsilons and then multiply by config scalars
@@ -1272,24 +1315,21 @@ class GrblHal(MotionHAL):
             scalars = self.modifiers["scalar"].scalars
             for axis in self.axes():
                 steps_per_mm[axis] *= scalars[axis]
-        self._steps_per_mm = steps_per_mm
-
-        self._epsilon = {}
-        for axis in self.axes():
-            self._epsilon[axis] = 1 / self._steps_per_mm[axis]
-
-    def epsilon(self):
-        return self._epsilon
-
-    def calc_min_max(self):
-        ranges = self.grbl.axes_max_travel()
-        # Believe machine is a simple 0 to N range
-        # However WCS can adjust these
-        self._machine_mins = dict([(axis, 0.0) for axis in self.axes()])
-        self._machine_maxs = dict([(axis, ranges[axis])
-                                   for axis in self.axes()])
+        return steps_per_mm
 
     def _get_machine_limits(self):
+        ranges = self.grbl.axes_max_travel()
+        # Machine homes at max axis => coordinate system is generally negative
+        # Believe machine is a simple 0 to N range
+        # However WCS can adjust these
+        self._machine_mins = dict([
+            (axis, -ranges[axis] - self._wcs_offsets_cache.get(axis, 0.0))
+            for axis in self.axes()
+        ])
+        self._machine_maxs = dict([(axis,
+                                    -self._wcs_offsets_cache.get(axis, 0.0))
+                                   for axis in self.axes()])
+
         # TODO: should check if machine limits are enabled?
         return {
             "mins": self._machine_mins,
@@ -1297,10 +1337,10 @@ class GrblHal(MotionHAL):
         }
 
     def _get_max_velocities(self):
-        return self._max_velocities
+        return self.only_used_axes(self.grbl.axes_max_rate())
 
     def _get_max_accelerations(self):
-        return self._max_acelerations
+        return self.only_used_axes(self.grbl.axes_max_acceleration())
 
     def assert_not_limit_switch(self):
         # X1 doesn't spam limit switch trip estop
@@ -1353,12 +1393,14 @@ class GrblHal(MotionHAL):
 
     def qstatus_updated(self, status):
         # careful this will get modified up the stack
-        self.update_status({"pos": dict(status["MPos"])})
+        pos = dict(status["MPos"])
+        self._mpos_adjust_wcs(pos)
+        self.update_status({"pos": pos})
 
     def axes(self):
         return self._axes
 
-    def _wcs_offsets(self):
+    def _machine_wcs_offsets(self):
         return self.grbl.wcs_offsets()
 
     def command(self, cmd):
@@ -1370,8 +1412,16 @@ class GrblHal(MotionHAL):
             if "error" in rx:
                 raise Exception("cmd failed: %s => %s" % (cmd, rx))
 
+    def _mpos_adjust_wcs(self, pos):
+        for k in pos.keys():
+            # WCS are added to G90 commands to reach machine positon
+            # so subtract out here to go in reverse
+            pos[k] -= self._wcs_offsets_cache.get(k, 0.0)
+
     def _pos(self):
-        return self.grbl.qstatus()["MPos"]
+        pos = self.grbl.qstatus()["MPos"]
+        self._mpos_adjust_wcs(pos)
+        return pos
 
     def _move_absolute(self, pos, tries=3):
         # print("grbl mv_abs", pos)

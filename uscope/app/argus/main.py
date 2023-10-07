@@ -244,7 +244,10 @@ class MainWindow(QMainWindow):
 
     def poll_misc(self):
         self.polli += 1
-        self.ac.motion_thread.update_pos_cache()
+        motion_thread = self.ac.motion_thread
+        # deleted during shutdown => can lead to crash during shutdown
+        if motion_thread:
+            motion_thread.update_pos_cache()
 
         # FIXME: maybe better to do this with events
         # Loose the log window on shutdown...should log to file?

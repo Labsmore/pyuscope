@@ -468,8 +468,9 @@ class PointGenerator2P(PlannerPlugin):
     def scan_end(self, state):
         # Will be at the end of a stack
         # Put it back where it started
-        self.log("XY2P: returning XY at scan end")
-        self.motion.move_absolute(self.calc_pos(0, 0))
+        pos = self.calc_pos(0, 0)
+        self.log(f"XY2P: returning XY at scan end {pos}")
+        self.motion.move_absolute(pos)
 
     def log_scan_end(self):
         self.log('XY2P: generated points: %u / %u' %
@@ -755,8 +756,11 @@ class PointGenerator3P(PlannerPlugin):
 
     def scan_end(self, state):
         # Return to start position
-        self.log("XY3P: returning XY at scan end")
-        self.move_absolute(self.calc_pos(0, 0))
+        pos = self.calc_pos(0, 0)
+        if not self.tracking_z and "z" in pos:
+            del pos["z"]
+        self.log(f"XY3P: returning XYZ at scan end {pos}")
+        self.move_absolute(pos)
 
     def log_scan_begin(self):
         self.log("XY3P")

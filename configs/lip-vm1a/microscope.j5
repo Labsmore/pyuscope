@@ -89,18 +89,17 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
                 //$120, $121, $122 – [X,Y,Z] Acceleration, mm/sec^2
                 //was: 50 / 50 / 50
                 "$120=24.000", "$121=24.000", "$122=24.000",
-
+ 
                 //max travel
                 //was: 300 / 200 / 80
                 "$130=480.000", "$131=320.000", "$132=128.000",
 
                 //More proper homed scheme
                 /*
-                "G10 L2 P1 X-475.200 Y-315.200 Z-4.800",
-                "G10 L2 P2 X0 Y0 Z0",
-                //Select WCS2
-                "G55",
+                //machine coordinate => 80 on z adjusted by 8/5
                 */
+                "G10 L2 P1 X0 Y0 Z+0.000",
+                "G10 L2 P2 X0 Y0 Z0",
 
                 //Homing adjustments to account for gearbox etc
                 /*
@@ -113,6 +112,10 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
                 "$24=80.0","$25=400.000",
                 "$26=250","$27=3.2",
             ],
+            "rc_post_home": [
+                //Select WCS2
+                "G55",
+            ]
         },
         "scalars": {
             "x": 1.6,

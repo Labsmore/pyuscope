@@ -87,13 +87,22 @@ class MotionModifier:
         """
         pass
 
-    def unmunge_axes_rel(self, axes):
+    """
+    absolute versions are too hard to track
+    some coordinates have WCS rel some don't
+    use specialized conversions for those
+    """
+
+    def munge_axes_user2machine_rel(self, axes):
         pass
 
-    def munge_axes_rel(self, axes):
+    def munge_axes_user2machine_abs(self, axes):
         pass
 
-    def munge_axes_abs(self, axes):
+    def munge_axes_machine2user_rel(self, axes):
+        pass
+
+    def munge_axes_machine2user_abs(self, axes):
         pass
 
 
@@ -435,17 +444,22 @@ Scale axes such as for a gearbox or to reverse direction
 
 
 class ScalarMM(MotionModifier):
-    def __init__(self, motion, scalars=None, wcs_offsets=None):
+    def __init__(self, motion, scalars=None):
+        """
+        scalar: dict of each axis scalar to convert from user to machine coordinate system
+            ex: "x": 2.0 => if user commands 1.2 mm move machine 2.4 mm
+        machine_wcs_offsets: dict of machine offsets that should be subtracted to get absolute machine position
+            ex: "x": 120.0 => a move to absolute position 200.0 will be at machine coordinate 80.0
+            Be very careful as GRBL MPos is always in machine position
+            However moves are in WCS positions
+        """
+
         super().__init__(motion)
         if not scalars:
             scalars = {}
         self.scalars = scalars
-        if not wcs_offsets:
-            wcs_offsets = {}
-        self.wcs_offsets = wcs_offsets
-        # print(f"tmp offsets {self.wcs_offsets}")
 
-    def scale_e2i_rel(self, pos):
+    def scale_user2machine_rel(self, pos):
         """
         Scale an external coordinate system to an internal coordinate system
         External: what user sees
@@ -455,7 +469,7 @@ class ScalarMM(MotionModifier):
         for k, v in dict(pos).items():
             pos[k] = v * self.scalars.get(k, 1.0)
 
-    def scale_e2i_abs(self, pos):
+    def scale_user2machine_abs(self, pos):
         """
         Scale an external coordinate system to an internal coordinate system
         External: what user sees
@@ -464,45 +478,46 @@ class ScalarMM(MotionModifier):
         """
         # pos_in = dict(pos)
         for k, v in dict(pos).items():
-            pos[k] = v * self.scalars.get(k, 1.0) + self.wcs_offsets.get(
-                k, 0.0)
-        # print(f"tmp scale_e2i_abs {pos_in} => {pos}")
+            pos[k] = v * self.scalars.get(
+                k, 1.0) + self._machine_wcs_offsets.get(k, 0.0)
+        # print(f"tmp scale_user2machine_abs {pos_in} => {pos}")
 
-    def scale_i2e_rel(self, pos):
+    def scale_machine2user_rel(self, pos):
         """
         Opposite of scale_e2i
         """
         for k, v in dict(pos).items():
             pos[k] = v / self.scalars.get(k, 1.0)
 
-    def scale_i2e_abs(self, pos):
+    def scale_machine2user_abs(self, pos):
         """
         Opposite of scale_e2i
         """
         for k, v in dict(pos).items():
-            pos[k] = (v - self.wcs_offsets.get(k, 0.0)) / self.scalars.get(
-                k, 1.0)
+            pos[k] = v / self.scalars.get(k, 1.0)
 
     def pos(self, pos):
-        # print('pos scaling1 %s' % pos)
-        self.scale_i2e_abs(pos)
-        # print('pos scaling2 %s' % pos)
+        # Pos is reported in MPos
+        for k, v in dict(pos).items():
+            pos[k] = v / self.scalars.get(k, 1.0)
 
     def move_absolute_pre(self, pos, options={}):
-        self.scale_e2i_abs(pos)
+        for k, v in dict(pos).items():
+            pos[k] = v * self.scalars.get(k, 1.0)
 
     def move_relative_pre(self, pos, options={}):
-        self.scale_e2i_rel(pos)
+        for k, v in dict(pos).items():
+            pos[k] = v * self.scalars.get(k, 1.0)
 
     def update_status(self, status):
         if "pos" in status:
             # print('status scaling1 %s' % status["pos"])
-            self.scale_i2e_abs(status["pos"])
+            self.scale_machine2user_abs(status["pos"])
             # print('status scaling2 %s' % status["pos"])
 
     def jog_abs(self, pos, rate_ref, options={}):
         # print("jog scale in", scalars)
-        self.scale_e2i_abs(pos)
+        self.scale_user2machine_abs(pos)
         """
         Rate is tricky since it applies to all axes but they may not be at the same scalar
         In practice jogged axes should be similar but who knows
@@ -510,7 +525,7 @@ class ScalarMM(MotionModifier):
         """
         # assert rate_ref[0] > 0, rate_ref[0]
         rate_candidates = dict([(axis, rate_ref[0]) for axis in pos.keys()])
-        self.scale_e2i_rel(rate_candidates)
+        self.scale_user2machine_rel(rate_candidates)
         rate_ref[0] = min([abs(x) for x in rate_candidates.values()])
         # assert rate_ref[0] > 0, rate_ref[0]
         # print("jog scale out", scalars)
@@ -518,7 +533,7 @@ class ScalarMM(MotionModifier):
     def jog_rel(self, pos, rate_ref, options={}):
         # print("jog scale in", scalars)
         # print("jog rel in", pos)
-        self.scale_e2i_rel(pos)
+        self.scale_user2machine_rel(pos)
         # print("jog rel out", pos)
         """
         Rate is tricky since it applies to all axes but they may not be at the same scalar
@@ -527,19 +542,22 @@ class ScalarMM(MotionModifier):
         """
         # assert rate_ref[0] > 0, rate_ref[0]
         rate_candidates = dict([(axis, rate_ref[0]) for axis in pos.keys()])
-        self.scale_e2i_rel(rate_candidates)
+        self.scale_user2machine_rel(rate_candidates)
         rate_ref[0] = min([abs(x) for x in rate_candidates.values()])
         # assert rate_ref[0] > 0, rate_ref[0]
         # print("jog scale out", scalars)
 
-    def unmunge_axes_rel(self, axes):
-        self.scale_e2i_rel(axes)
+    def munge_axes_user2machine_rel(self, axes):
+        self.scale_user2machine_rel(axes)
 
-    def munge_axes_rel(self, axes):
-        self.scale_i2e_rel(axes)
+    def munge_axes_user2machine_abs(self, axes):
+        self.scale_user2machine_abs(axes)
 
-    def munge_axes_abs(self, axes):
-        self.scale_i2e_abs(axes)
+    def munge_axes_machine2user_rel(self, axes):
+        self.scale_machine2user_rel(axes)
+
+    def munge_axes_machine2user_abs(self, axes):
+        self.scale_machine2user_abs(axes)
 
 
 class MotionHAL:
@@ -555,6 +573,8 @@ class MotionHAL:
         self._hal_max_velocities = None
         self._hal_max_accelerations = None
         self._hal_machine_limits = None
+        self._steps_per_mm = None
+        self._epsilon = None
 
         # Used to cache position while computing motion modifiers
         self._cur_pos_cache = None
@@ -617,30 +637,37 @@ class MotionHAL:
         The most precise system is currently 125 nm
         Set a 10 nm default epsilon for now
         """
-        return {
-            "x": 0.000010,
-            "y": 0.000010,
-            "z": 0.000010,
-        }
+        return self._epsilon
 
-    def unmunge_axes_rel(self, axes):
+    def munge_axes_user2machine_rel(self, axes):
         for modifier in self.iter_active_modifiers():
-            modifier.unmunge_axes_rel(axes)
+            modifier.munge_axes_user2machine_rel(axes)
         return axes
 
-    def munge_axes_rel(self, axes):
+    def munge_axes_user2machine_abs(self, axes):
         for modifier in self.iter_active_modifiers():
-            modifier.munge_axes_rel(axes)
+            modifier.munge_axes_user2machine_abs(axes)
         return axes
 
-    def munge_axes_abs(self, axes):
+    def munge_axes_machine2user_rel(self, axes):
         for modifier in self.iter_active_modifiers():
-            modifier.munge_axes_abs(axes)
-        for k, v in axes.items():
-            axes[k] = abs(v)
+            modifier.munge_axes_machine2user_rel(axes)
+        return axes
+
+    def munge_axes_machine2user_abs(self, axes):
+        for modifier in self.iter_active_modifiers():
+            modifier.munge_axes_machine2user_abs(axes)
+        return axes
 
     def _get_machine_limits(self):
         return {"mins": {}, "maxs": {}}
+
+    def _get_steps_per_mm(self):
+        return {
+            "x": int(1 / 0.000010),
+            "y": int(1 / 0.000010),
+            "z": int(1 / 0.000010),
+        }
 
     def get_machine_limits(self):
         """
@@ -676,7 +703,7 @@ class MotionHAL:
         but transform to be like above function
         """
         assert self.options is not None, "Not configured"
-        return self._hal_soft_limits
+        return self._pyuscope_soft_limits
 
     def _get_max_velocities(self):
         """
@@ -719,12 +746,22 @@ class MotionHAL:
                 axis, axis_max, value)
 
     def cache_constants(self):
+        def calc_epsilon():
+            # More precise but harder to use in most contexts
+            self._steps_per_mm = self._get_steps_per_mm()
+
+            self._epsilon = {}
+            for axis in self.axes():
+                self._epsilon[axis] = 1 / self._steps_per_mm[axis]
+
+        calc_epsilon()
+
         def calc_max_velocities():
             self._hal_max_velocities = self._get_max_velocities()
             # print("calc max velocities", self._hal_max_velocities)
             for v in self._hal_max_velocities.values():
                 assert v > 0, self._hal_max_velocities
-            self.munge_axes_rel(self._hal_max_velocities)
+            self.munge_axes_machine2user_rel(self._hal_max_velocities)
             # print("calc max velocities", self._hal_max_velocities)
             for v in self._hal_max_velocities.values():
                 assert v > 0, self._hal_max_velocities
@@ -735,7 +772,7 @@ class MotionHAL:
 
         def calc_max_accelerations():
             self._hal_max_accelerations = self._get_max_accelerations()
-            self.munge_axes_rel(self._hal_max_accelerations)
+            self.munge_axes_machine2user_rel(self._hal_max_accelerations)
             # 2023-09-18: not currently used
             # Could drop this requirement if good reason
             self.assert_all_axes(self._hal_max_accelerations)
@@ -750,9 +787,11 @@ class MotionHAL:
             # unclear if this is accurate on all machines though
             self._hal_machine_limits = dict(self._get_machine_limits())
             if "mins" in self._hal_machine_limits:
-                self.munge_axes_abs(self._hal_machine_limits["mins"])
+                self.munge_axes_machine2user_abs(
+                    self._hal_machine_limits["mins"])
             if "maxs" in self._hal_machine_limits:
-                self.munge_axes_abs(self._hal_machine_limits["maxs"])
+                self.munge_axes_machine2user_abs(
+                    self._hal_machine_limits["maxs"])
 
         calc_machine_limits()
 
@@ -767,7 +806,7 @@ class MotionHAL:
                 if this is not None:
                     mins[axis] = this[0]
                     maxs[axis] = this[1]
-            self._hal_soft_limits = {
+            self._pyuscope_soft_limits = {
                 "mins": mins,
                 "maxs": maxs,
             }
@@ -775,7 +814,6 @@ class MotionHAL:
         calc_soft_limits()
 
     def configure(self, options):
-        self.use_wcs_offsets = bool(options.get("use_wcs_offsets", False))
         # MotionModifier's
         self.modifiers = OrderedDict()
         self.disabled_modifiers = set()
@@ -796,13 +834,9 @@ class MotionHAL:
             self.modifiers["soft-limit"] = SoftLimitMM(self,
                                                        soft_limits=soft_limits)
         scalars = self.options.get("scalars")
-        wcs_offsets = self.wcs_offsets()
-        if scalars or wcs_offsets:
-            self.modifiers["scalar"] = ScalarMM(self,
-                                                scalars=scalars,
-                                                wcs_offsets=wcs_offsets)
+        if scalars:
+            self.modifiers["scalar"] = ScalarMM(self, scalars=scalars)
 
-        self._configured()
         # need to let GRBL fetch values
         self.cache_constants()
 
@@ -928,28 +962,6 @@ class MotionHAL:
         self.process_pos(pos)
         return pos
 
-    def wcs_offsets(self):
-        """
-        Cancel out WCS (ie G54) style offsets
-        At a low level always operate in machine coordinates
-        Add supplied offset to coordinates to be sent to low level
-
-        Ex: after homing you get:
-        G54:-297.000,-197.000,-3.000'
-        Idle|MPos:-297.000,-197.000,-3.000|Bf:35,254|FS:0,0
-        '$130=300.000', '$131=200.000', '$132=60.000'
-        Subtract current x position -297 from offset -297
-        -297 - -297 = 0.0
-        """
-        # or maybe return None to entirely cancel out?
-        if self.use_wcs_offsets:
-            return self._wcs_offsets()
-        else:
-            return None
-
-    def _wcs_offsets(self):
-        return None
-
     def _pos(self):
         '''Return current position for all axes'''
         raise NotSupported("Required for planner")
@@ -1059,7 +1071,7 @@ class MotionHAL:
             # Convert it back in lieu of the original value
             # print("jog_rel finishing, estimated end", self.jog_estimated_end)
             # print("jog_rel finishing, pre-munge", axes)
-            self.munge_axes_rel(axes)
+            self.munge_axes_machine2user_rel(axes)
             # print("jog_rel finishing, post-munge", axes)
 
             # Jog was accepted. Update estimate
@@ -1110,7 +1122,7 @@ class MotionHAL:
 
             # May have been trimmed
             # Convert it back in lieu of the original value
-            self.munge_axes_abs(axes)
+            self.munge_axes_machine2user_abs(axes)
 
             # Jog was accepted. Update estimate
             if self.jog_estimated_end is None:

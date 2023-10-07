@@ -244,7 +244,9 @@ class MainWindow(QMainWindow):
 
     def poll_misc(self):
         self.polli += 1
-        motion_thread = self.ac.motion_thread
+        ac = self.ac
+
+        motion_thread = ac.motion_thread
         # deleted during shutdown => can lead to crash during shutdown
         if motion_thread:
             motion_thread.update_pos_cache()
@@ -252,10 +254,10 @@ class MainWindow(QMainWindow):
         # FIXME: maybe better to do this with events
         # Loose the log window on shutdown...should log to file?
         try:
-            self.ac.poll_misc()
+            ac.poll_misc()
         except ArgusShutdown:
             print(traceback.format_exc())
-            self.ac.shutdown()
+            ac.shutdown()
             QCoreApplication.exit(1)
             return
 

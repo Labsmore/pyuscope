@@ -32,13 +32,11 @@
                 //was: 300 / 200 / 80
                 "$130=480.000", "$131=320.000", "$132=128.000",
 
-                //More proper homed scheme
                 /*
-                "G10 L2 P1 X-475.200 Y-315.200 Z-4.800",
-                "G10 L2 P2 X0 Y0 Z0",
-                //Select WCS2
-                "G55",
+                //machine coordinate => 80 on z adjusted by 8/5
                 */
+                "G10 L2 P1 X0 Y0 Z+0.000",
+                "G10 L2 P2 X0 Y0 Z0",
 
                 //Homing adjustments to account for gearbox etc
                 /*
@@ -51,6 +49,10 @@
                 "$24=80.0","$25=400.000",
                 "$26=250","$27=3.2",
             ],
+            "rc_post_home": [
+                //Select WCS2
+                "G55",
+            ]
         },
         "scalars": {
             "x": 1.6,

@@ -19,7 +19,15 @@ A minimal configuration to do basic testing
         "xyz_format6": true,
 
         "use_wcs_offsets": true,
-        "max_home_time": 180,
+        /*
+        2023-09-06
+        X289 Y189 Z-65
+        1:20 to first hit z limit switch
+        2:35 to complete z homing
+        3:15: x axis hit (after y)
+        4:40: done
+        */
+        "max_home_time": 300,
         "grbl": {
             "rc_pre_home": [
                 //$100, $101 and $102 – [X,Y,Z] steps/mm

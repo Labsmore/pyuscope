@@ -509,7 +509,7 @@ class GRBLSer:
         """
         return self.txrx("$G")
 
-    def h(self):
+    def h(self, timeout=None):
         """
         2023-09-04
         timeout was 120, but now that it homes in one pass needs to be longer
@@ -531,8 +531,10 @@ class GRBLSer:
             Grbl 1.1h ['$' for help]
             [MSG:'$H'|'$X' to unlock]
         """
+        if timeout is None:
+            timeout = 240
 
-        lines = self.txrxs("$H", trim_data=False, timeout=180)
+        lines = self.txrxs("$H", trim_data=False, timeout=timeout)
         for line in lines:
             if line.find("ALARM") >= 0:
                 raise HomingFailed()
@@ -1377,11 +1379,11 @@ class GrblHal(MotionHAL):
         for homing_try in range(2):
             print("Sending home command %u" % (homing_try + 1, ))
             try:
+                max_home_time = self.microscope.usc.motion.j.get(
+                    "max_home_time", 180)
                 # FIXME: do something better than an initial estimate
-                self.home_progress(
-                    "start", 0.0,
-                    self.microscope.usc.motion.j.get("max_home_time", 0))
-                self.grbl.gs.h()
+                self.home_progress("start", 0.0, max_home_time)
+                self.grbl.gs.h(timeout=max_home_time)
                 break
             except HomingFailed:
                 print("Homing timed out, nudging again")

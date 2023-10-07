@@ -114,7 +114,7 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         //"use_wcs_offsets": true,
         "grbl": {
             //"port": "mock",
-            "rc": [
+            "rc_pre_home": [
                 //$100, $101 and $102 – [X,Y,Z] steps/mm
                 //was: 800 / 800 / 800
                 "$100=500.000", "$101=500.000", "$102=500.000",

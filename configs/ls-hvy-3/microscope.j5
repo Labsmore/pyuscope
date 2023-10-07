@@ -18,7 +18,7 @@ UT100 NEMA23 stages
         "axes": "xy",
 
         "grbl": {
-            "rc": [
+            "rc_pre_home": [
                 //$0 – Step pulse, microseconds
                 //"$0=10",
                 //$1 - Step idle delay, milliseconds
@@ -50,9 +50,11 @@ UT100 NEMA23 stages
                 //G54: zero out offsets
                 //Could use P0 but better to make state canonical
                 "G10 L2 P1 X0 Y0 Z0",
+            ],
+            "rc_post_home": [
                 //Select G54 coordinate system
                 "G54",
-            ],
+            ]
         },
         //XXX: actual value?
         "backlash": 0.05,

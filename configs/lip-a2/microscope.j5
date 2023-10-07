@@ -14,7 +14,7 @@
 
         "use_wcs_offsets": true,
         "grbl": {
-            "rc": [
+            "rc_pre_home": [
                 //$100, $101 and $102 – [X,Y,Z] steps/mm
                 //Z is actually 5x this but we'll loose precision if here
                 //so instead apply that reduction host side
@@ -43,12 +43,14 @@
                 //More proper homed scheme
                 "G10 L2 P1 X-297.000 Y-197.000 Z-3.000",
                 "G10 L2 P2 X0 Y0 Z0",
-                //Select WCS2
-                "G55",
 
                 //Homing adjustments to account for gearbox
                 "$26=250", "$27=15.000",
             ],
+            "rc_post_home": [
+                //Select WCS2
+                "G55",
+            ]
         },
         "scalars": {
             "x": 1.0,

@@ -368,7 +368,7 @@ class GRBLSer:
         tstart = time.time()
         while True:
             if time.time() - tstart > timeout:
-                raise Timeout()
+                raise Timeout(f"Timed out after {timeout} sec")
             l = self.readline().strip()
             self.verbose and print("rx '%s'" % (l, ))
             if not l:
@@ -1419,15 +1419,26 @@ class GrblHal(MotionHAL):
 
     def rc_commands(self, cmds):
         for cmd in cmds:
-            rx = self.grbl.gs.txrxs(cmd)
-            if "error" in rx:
-                raise Exception("cmd failed: %s => %s" % (cmd, rx))
+            try:
+                rx = self.grbl.gs.txrxs(cmd)
+                if "error" in rx:
+                    raise Exception("cmd failed: %s => %s" % (cmd, rx))
+            except:
+                print("command failed", cmd)
+                raise
 
     def _mpos_adjust_wcs(self, pos):
         for k in pos.keys():
             # WCS are added to G90 commands to reach machine positon
             # so subtract out here to go in reverse
             pos[k] -= self._wcs_offsets_cache.get(k, 0.0)
+        return pos
+
+    def _move_absolute_adjust_wcs(self, pos):
+        # Apply the effect WCS offset
+        for k in pos.keys():
+            pos[k] += self._wcs_offsets_cache.get(k, 0.0)
+        return pos
 
     def _pos(self):
         pos = self.grbl.qstatus()["MPos"]
@@ -1436,7 +1447,7 @@ class GrblHal(MotionHAL):
 
     def _move_absolute(self, pos, tries=3):
         # print("grbl mv_abs", pos)
-        self.grbl.move_absolute(pos, f=1000)
+        self.grbl.move_absolute(self._move_absolute_adjust_wcs(pos), f=1000)
 
     def _move_relative(self, pos):
         # print("grbl mv_rel", pos)

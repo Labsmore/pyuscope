@@ -24,8 +24,10 @@ Camera: see VM1B config ifle
             "ymin": 10.0,
             //the machine is set to 200, but seems to crash at 180
             "ymax": 170.0,
-            //FIXME: why is this so different than VM1?
-            "zmin": -22.5,
+            //hmm coordinate system mismatches
+            //had to disable machine vs soft limit check for now
+            //trip around -37.8
+            "zmin": -32.5,
             "zmax": -1.0,
         },
 
@@ -73,6 +75,10 @@ Camera: see VM1B config ifle
             "rc_post_home": [
                 //Select WCS2
                 "G55",
+                //Hack2: changing coordinate system resets tool (homing hack)
+                //https://github.com/Labsmore/pyuscope/issues/310
+                //If we get this far assume we are homed and persist this
+                "T1",
             ]
         },
         "scalars": {

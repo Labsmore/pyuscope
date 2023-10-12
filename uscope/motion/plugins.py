@@ -97,8 +97,11 @@ def configure_motion_hal(microscope):
     }
 
     # Escape hatch for system initialization
-    commands = usc_motion.j.get("grbl", {}).get("rc")
+    commands = usc_motion.j.get("grbl", {}).get("rc_pre_home")
     if commands:
-        options["rc"] = commands
+        options["rc_pre_home"] = commands
+    commands = usc_motion.j.get("grbl", {}).get("rc_post_home")
+    if commands:
+        options["rc_post_home"] = commands
 
     microscope.motion.configure(options=options)

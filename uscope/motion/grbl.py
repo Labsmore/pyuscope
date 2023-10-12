@@ -1242,6 +1242,10 @@ class GrblHal(MotionHAL):
         # Can't issue rc commands if spamming limit switch messages
         self.assert_not_limit_switch()
 
+        # Workaround for tool number getting cleared in configuration RC
+        # https://github.com/Labsmore/pyuscope/issues/310
+        homing_cache = self.is_homed()
+
         # RC must be issues before homing and configuration
         # Otherwise system won't be in expected state
         rc = options.get("rc_pre_home")
@@ -1249,7 +1253,7 @@ class GrblHal(MotionHAL):
             self.rc_commands(rc)
 
         # Now get the system in a good state so that we can query settings
-        self.home(force=False)
+        self.home(force=False, homing_cache=homing_cache)
 
         # Some commands cannot be issued (ex: WCS switch) if machine is in wonky state
         rc = options.get("rc_post_home")
@@ -1352,7 +1356,7 @@ class GrblHal(MotionHAL):
                 "Limit switch tripped. Manually move away from limit switches and then re-home"
             )
 
-    def home(self, force=False):
+    def home(self, force=False, homing_cache=None):
         """
         Depending on machine configuration homing may or may not be required
         """
@@ -1364,7 +1368,12 @@ class GrblHal(MotionHAL):
             return
 
         if not force:
-            if self.is_homed():
+            # Workaround for tool number getting cleared in configuration RC
+            # https://github.com/Labsmore/pyuscope/issues/310
+            if homing_cache is not None:
+                if homing_cache:
+                    return
+            elif self.is_homed():
                 return
             self.assert_not_limit_switch()
 

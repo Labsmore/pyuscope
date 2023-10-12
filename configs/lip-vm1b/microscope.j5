@@ -103,7 +103,7 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
             //had to disable machine vs soft limit check for now
             //trip around -37.8
             "zmin": -32.5,
-            "zmax": -5.0,
+            "zmax": -1.0,
         },
 
         "max_home_time": 90,
@@ -150,6 +150,10 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
             "rc_post_home": [
                 //Select WCS2
                 "G55",
+                //Hack2: changing coordinate system resets tool (homing hack)
+                //https://github.com/Labsmore/pyuscope/issues/310
+                //If we get this far assume we are homed and persist this
+                "T1",
             ]
         },
         "scalars": {

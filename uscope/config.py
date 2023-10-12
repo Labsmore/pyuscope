@@ -310,6 +310,9 @@ class USCImager:
     def has_ff_cal(self):
         return os.path.exists(self.ff_cal_fn())
 
+    def videoflip_method(self):
+        return self.j.get("videoflip_method", None)
+
 
 class USCMotion:
     def __init__(self, j=None):

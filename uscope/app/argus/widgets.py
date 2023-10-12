@@ -293,6 +293,8 @@ class SnapshotWidget(AWidget):
             options["save_quality"] = self.ac.usc.imager.save_quality()
         options["scale_factor"] = self.ac.usc.imager.scalar()
         options["scale_expected_wh"] = self.ac.usc.imager.final_wh()
+        if self.ac.usc.imager.videoflip_method():
+            options["videoflip_method"] = self.ac.usc.imager.videoflip_method()
 
         def callback(command, ret_e):
             if type(ret_e) is Exception:

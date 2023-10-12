@@ -114,6 +114,11 @@ class ImageProcessingThreadBase:
                     1], "Unexpected image size: expected %s, got %s" % (
                         expected_wh, image.size)
 
+        videoflip_method = options.get("videoflip_method")
+        if videoflip_method:
+            assert videoflip_method == "rotate-180"
+            image = image.rotate(180)
+
         image = process_snapshots([image])
 
         if "save_filename" in options:

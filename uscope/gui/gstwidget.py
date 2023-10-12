@@ -151,6 +151,7 @@ class SinkxZoomableWidget(SinkxWidget):
         self.zoom = 1.0
         # The value to restore zoom to when toggling high zoom off
         self.zoom_out = None
+        self.videoflip = None
 
     def is_fixed(self):
         return False
@@ -324,6 +325,16 @@ class SinkxZoomableWidget(SinkxWidget):
         assert self.videoscale
         player.add(self.videoscale)
 
+        # Use hardware acceleration if present
+        # Otherwise can soft flip feeds when / if needed
+        # videoflip_method = self.parent.usc.imager.videoflip_method()
+        videoflip_method = config.get_usc().imager.videoflip_method()
+        if videoflip_method:
+            self.videoflip = Gst.ElementFactory.make("videoflip")
+            assert self.videoflip
+            self.videoflip.set_property("method", videoflip_method)
+            player.add(self.videoflip)
+
         self.capsfilter = Gst.ElementFactory.make("capsfilter")
         self.update_crop_scale()
         player.add(self.capsfilter)
@@ -339,8 +350,11 @@ class SinkxZoomableWidget(SinkxWidget):
         # self.update_crop_scale()
 
     def gst_link(self):
-        # Used in roi but not full
-        assert self.videocrop.link(self.videoscale)
+        if self.videoflip:
+            assert self.videocrop.link(self.videoflip)
+            assert self.videoflip.link(self.videoscale)
+        else:
+            assert self.videocrop.link(self.videoscale)
         assert self.videoscale.link(self.capsfilter)
         assert self.capsfilter.link(self.sinkx)
 

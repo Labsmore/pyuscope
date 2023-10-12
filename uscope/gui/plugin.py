@@ -44,6 +44,8 @@ class GstGUIImager(Imager):
         self.image_id = None
         self.emitter = GstGUIImager.Emitter()
         self.width, self.height = self.usc.imager.final_wh()
+        self.factor = self.usc.imager.scalar()
+        self.videoflip_method = self.usc.imager.videoflip_method()
 
     def get_sn(self):
         if self.ac.vidpip.source_name == "gst-toupcamsrc":
@@ -71,8 +73,10 @@ class GstGUIImager(Imager):
 
     def get(self):
         image = self.next_image()
-        factor = self.usc.imager.scalar()
-        scaled = get_scaled(image, factor, Image.ANTIALIAS)
+        scaled = get_scaled(image, self.factor, Image.ANTIALIAS)
+        if self.videoflip_method:
+            assert self.videoflip_method == "rotate-180"
+            scaled = scaled.rotate(180)
         return {"0": scaled}
 
     def log_planner_header(self, log):

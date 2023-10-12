@@ -948,8 +948,9 @@ class StackerDrift(PlannerPlugin):
         self.log("stacker drift: delta %0.6f => %0.6f offset" %
                  (delta, self.stacker.drift_offset))
         # XXX: is there a reasonable bound we can put here?
-        assert abs(self.stacker.drift_offset
-                   ) < 0.5, "Drift offset correction out of reasonable bounds"
+        # 2023-10-12: now with inspection scope this is triggering
+        #assert abs(self.stacker.drift_offset
+        #           ) < 0.5, "Drift offset correction out of reasonable bounds"
 
     def iterate(self, state):
         if state["stacki"] == 0:

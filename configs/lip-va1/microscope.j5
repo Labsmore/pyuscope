@@ -114,7 +114,7 @@ Camera: see VM1B config ifle
         //232 pix => 1 mm
         //1000 / 232 = 4.31
         //"um_per_pixel_raw_1x": 4.31,
-        "um_per_pixel_raw_1x": 3.017,
+        "um_per_pixel_raw_1x": 4.4,
         "videoflip_method": "rotate-180",
 
     },

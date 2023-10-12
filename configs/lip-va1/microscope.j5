@@ -55,12 +55,6 @@ Camera: see VM1B config ifle
                 //was: 300 / 200 / 80
                 "$130=480.000", "$131=320.000", "$132=128.000",
 
-                /*
-                //machine coordinate => 80 on z adjusted by 8/5
-                */
-                "G10 L2 P1 X0 Y0 Z+0.000",
-                "G10 L2 P2 X0 Y0 Z0",
-
                 //Homing adjustments to account for gearbox etc
                 /*
                 was
@@ -73,6 +67,12 @@ Camera: see VM1B config ifle
                 "$26=250","$27=3.2",
             ],
             "rc_post_home": [
+                /*
+                //machine coordinate => 80 on z adjusted by 8/5
+                */
+                "G10 L2 P1 X0 Y0 Z+0.000",
+                "G10 L2 P2 X0 Y0 Z0",
+
                 //Select WCS2
                 "G55",
                 //Hack2: changing coordinate system resets tool (homing hack)

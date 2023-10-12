@@ -267,7 +267,7 @@ class DirCSIP:
         Now apply custom correction plugins
         TODO: let the user actually determine order for these...ff1 before stack, etc
         """
-        ipp = config.get_usc().imager.ipp_last()
+        ipp = config.get_usc().ipp.pipeline_last()
         if len(ipp) == 0:
             self.log("Post corrections: skip")
         else:
@@ -368,7 +368,7 @@ class SnapshotCSIP:
         assert len(current_images) == 1
         current_image = current_images[0]
 
-        ipp = config.get_usc().imager.ipp_last()
+        ipp = config.get_usc().ipp.pipeline_last()
         if len(ipp) == 0:
             self.log("Post corrections: skip")
         else:

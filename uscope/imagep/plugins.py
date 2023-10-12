@@ -120,7 +120,10 @@ class StackEnfusePlugin(IPPlugin):
         super().__init__(log=log,
                          default_options=default_options,
                          need_tmp_dir=True)
-        self.skip_align = True
+        # X1 has "perfect" axes
+        # Other systems have a lot of jitter
+        self.align = self.usc.ipp.get_plugin("stack-enfuse").get(
+            "align", False)
 
     def _run(self, data_in, data_out, options={}):
         best_effort = options.get("best_effort", False)
@@ -154,15 +157,17 @@ class StackEnfusePlugin(IPPlugin):
         """
 
         prefix = "aligned_"
-        if self.skip_align:
-            for imi, image_in in enumerate(data_in["images"]):
-                fn_aligned = os.path.join(self.get_tmp_dir(),
-                                          prefix + "%04u.tif" % imi)
-                image_in.to_filename_tif(fn_aligned)
-        else:
+        if self.align:
             # Always output as .tif
             args = [
-                "align_image_stack", "-l", "-i", "-v", "--use-given-order",
+                # is there a reason to use -i vs -x -y?
+                # -x -y is more explicit, let's do that for now
+                "align_image_stack",
+                "-l",
+                "-x",
+                "-y",
+                "-v",
+                "--use-given-order",
                 "-a",
                 os.path.join(self.get_tmp_dir(), prefix)
             ]
@@ -170,6 +175,11 @@ class StackEnfusePlugin(IPPlugin):
                 args.append(image_in.get_filename())
             # self.log(" ".join(args))
             check_call(args)
+        else:
+            for imi, image_in in enumerate(data_in["images"]):
+                fn_aligned = os.path.join(self.get_tmp_dir(),
+                                          prefix + "%04u.tif" % imi)
+                image_in.to_filename_tif(fn_aligned)
 
         args = [
             "enfuse", "--exposure-weight=0", "--saturation-weight=0",

@@ -297,16 +297,6 @@ class USCImager:
     def ff_cal_fn(self):
         return get_microscope_data_dir() + "/imager_calibration_ff.tif"
 
-    def ipp_last(self):
-        """
-        Get image processing pipeline configuration
-        "ipp": [
-            {"plugin": "correct-sharp1"},
-            {"plugin": "correct-vm1v1", "config": {"kernel_width": 3}},
-        ],
-        """
-        return self.j.get("ipp_last", [])
-
     def has_ff_cal(self):
         return os.path.exists(self.ff_cal_fn())
 
@@ -605,6 +595,25 @@ class USCKinematics:
         return float(self.j.get("tsettle_hdr", 0.2))
 
 
+class USCImageProcessingPipeline:
+    def __init__(self, j={}):
+        self.j = j
+
+    def pipeline_last(self):
+        """
+        Get image processing pipeline configuration
+        "ipp": [
+            {"plugin": "correct-sharp1"},
+            {"plugin": "correct-vm1v1", "config": {"kernel_width": 3}},
+        ],
+        """
+        return self.j.get("pipeline_last", [])
+
+    # plugin specific options
+    def get_plugin(self, name):
+        return self.j.get("plugins", {}).get(name, {})
+
+
 class ObjectiveDB:
     def __init__(self, fn=None, strict=None):
         if fn is None:
@@ -692,6 +701,7 @@ class USC:
         self.motion = USCMotion(self.usj.get("motion"))
         self.planner = USCPlanner(self.usj.get("planner", {}))
         self.kinematics = USCKinematics(self.usj.get("kinematics", {}))
+        self.ipp = USCImageProcessingPipeline(self.usj.get("ipp", {}))
         self.apps = {}
         self.bc = get_bc()
 

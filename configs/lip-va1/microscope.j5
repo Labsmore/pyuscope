@@ -117,13 +117,19 @@ Camera: see VM1B config ifle
         "um_per_pixel_raw_1x": 3.017,
         "videoflip_method": "rotate-180",
 
+    },
+    "ipp": {
         /*
         "ipp_last": [
             {"plugin": "correct-vm1v1", "dir": "vm1v1"},
         ],
         */
+        "plugins": {
+            "stack-enfuse": {
+                "align": true,
+            },
+        },
     },
-
 
     "systems": [
         //Default configuration

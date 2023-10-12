@@ -59,16 +59,16 @@ class GstGUIImager(Imager):
     def next_image(self):
         #self.ac.emit_log('gstreamer imager: taking image to %s' % file_name_out)
         def got_image(image_id):
-            self.ac.emit_log('Image captured reported: %s' % image_id)
+            # self.ac.emit_log('Image captured reported: %s' % image_id)
             self.image_id = image_id
             self.image_ready.set()
 
         self.image_id = None
         self.image_ready.clear()
         self.ac.capture_sink.request_image(got_image)
-        self.ac.emit_log('Waiting for next image...')
+        # self.ac.emit_log('Waiting for next image...')
         self.image_ready.wait()
-        self.ac.emit_log('Got image %s' % self.image_id)
+        # self.ac.emit_log('Got image %s' % self.image_id)
         return self.ac.capture_sink.pop_image(self.image_id)
 
     def get(self):

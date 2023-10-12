@@ -1,6 +1,7 @@
 from uscope.imager.autofocus import choose_best_image
 from uscope.imager.imager_util import get_scaled
 from uscope.imagep.pipeline import process_snapshots
+from uscope.imager.autofocus import Autofocus
 
 import threading
 import queue
@@ -41,59 +42,27 @@ class ImageProcessingThreadBase:
                 raise Exception("oopsie: %s" % (ret, ))
             return ret
 
-    def auto_focus(self, block=False, callback=None):
+    def auto_focus(self, objective_config, block=False, callback=None):
         j = {
             "type": "auto_focus",
+            "objective_config": objective_config,
         }
         self.command(j, block=block, callback=callback)
 
-    def move_absolute(self, pos):
-        self.microscope.motion_thread.move_absolute(pos, block=True)
+    def move_absolute(self, pos, block=True):
+        self.microscope.motion_thread.move_absolute(pos, block=block)
         self.microscope.kinematics.wait_imaging_ok()
 
     def pos(self):
         return self.microscope.motion_thread.pos()
 
-    def auto_focus_pass(self, step_size, step_pm):
-        """
-        for outer_i in range(3):
-            self.log("autofocus: try %u / 3" % (outer_i + 1,))
-            # If we are reasonably confident we found the local minima stop
-            # TODO: if repeats should bias further since otherwise we are repeating steps
-            if abs(step_pm - fni) <= 2:
-                self.log("autofocus: converged")
-                return
-        self.log("autofocus: timed out")
-        """
-
-        # Very basic short range
-        start_pos = self.pos()["z"]
-        steps = step_pm * 2 + 1
-
-        # Doing generator allows easier to process images as movement is done / settling
-        def gen_images():
-            for focusi in range(steps):
-                # FIXME: use backlash compensation direction here
-                target_pos = start_pos + -(focusi - step_pm) * step_size
-                self.log("autofocus round %u / %u: try %0.6f" %
-                         (focusi + 1, steps, target_pos))
-                self.move_absolute({"z": target_pos})
-                im_pil = self.microscope.imager.get()["0"]
-                yield target_pos, im_pil
-
-        target_pos, fni = choose_best_image(gen_images())
-        self.log("autofocus: set %0.6f at %u / %u" %
-                 (target_pos, fni + 1, steps))
-        self.move_absolute({"z": target_pos})
-
-    def _do_auto_focus(self):
-        # MVP intended for 20x
-        # 2 um is standard focus step size
-        self.log("autofocus: coarse")
-        self.auto_focus_pass(step_size=0.006, step_pm=3)
-        self.log("autofocus: medium")
-        self.auto_focus_pass(step_size=0.002, step_pm=3)
-        self.log("autofocus: done")
+    def _do_auto_focus(self, objective_config):
+        af = Autofocus(move_absolute=self.move_absolute,
+                       pos=self.pos,
+                       imager=self.microscope.imager,
+                       kinematics=self.microscope.kinematics,
+                       log=self.log)
+        af.coarse(objective_config)
 
     def process_snapshot(self, options, block=False, callback=None):
         j = {
@@ -135,7 +104,7 @@ class ImageProcessingThreadBase:
                 continue
             try:
                 if j["type"] == "auto_focus":
-                    ret = self._do_auto_focus()
+                    ret = self._do_auto_focus(j["objective_config"])
                 elif j["type"] == "process_snapshot":
                     ret = self._do_process_snapshot(j["options"])
                 else:

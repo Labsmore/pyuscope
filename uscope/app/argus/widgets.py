@@ -4,11 +4,11 @@ from uscope.app.argus.threads import QPlannerThread, StitcherThread
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import config
 from uscope.motion import motion_util
-from uscope.imagep.util import RC_CONST
 import json
 import json5
 from collections import OrderedDict
 from uscope.cloud_stitch import CSInfo
+from uscope.imager.autofocus import AutoStacker
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -32,7 +32,7 @@ class EventSequener:
         # XXX: some sort of timeout?
 
     def run(self, *_args, **_kwargs):
-        print("EventSequener: %u remaining" % len(self.args))
+        # print("EventSequener: %u remaining" % len(self.args))
         if len(self.args) == 0:
             return
         func, kwargs = self.args[0]
@@ -942,21 +942,27 @@ class XYPlanner3PWidget(PlannerWidget):
             (self.emit_go_corner, {
                 "corner_name": "ul"
             }),
-            (self.ac.image_processing_thread.auto_focus, {}),
+            (self.ac.image_processing_thread.auto_focus, {
+                "objective_config": self.ac.objective_config()
+            }),
             (self.emit_click_corner, {
                 "corner_name": "ul"
             }),
             (self.emit_go_corner, {
                 "corner_name": "ll"
             }),
-            (self.ac.image_processing_thread.auto_focus, {}),
+            (self.ac.image_processing_thread.auto_focus, {
+                "objective_config": self.ac.objective_config()
+            }),
             (self.emit_click_corner, {
                 "corner_name": "ll"
             }),
             (self.emit_go_corner, {
                 "corner_name": "lr"
             }),
-            (self.ac.image_processing_thread.auto_focus, {}),
+            (self.ac.image_processing_thread.auto_focus, {
+                "objective_config": self.ac.objective_config()
+            }),
             (self.emit_click_corner, {
                 "corner_name": "lr"
             }),
@@ -1661,9 +1667,9 @@ class AdvancedTab(ArgusTab):
             layout.addWidget(self.stack_cb, row, 1)
             self.stack_cb.addItem("A: None")
             self.stack_cb.addItem("B: Manual")
-            self.stack_cb.addItem("C: normal")
-            self.stack_cb.addItem("D: double distance")
-            self.stack_cb.addItem("E: double steps")
+            self.stack_cb.addItem("C: die normal")
+            self.stack_cb.addItem("D: die double distance")
+            self.stack_cb.addItem("E: die double steps")
             row += 1
 
             layout.addWidget(QLabel("Stack drift correction?"), row, 0)
@@ -1795,44 +1801,21 @@ class AdvancedTab(ArgusTab):
         else:
             self.stacker_distance_le.setEnabled(False)
             self.stacker_number_le.setEnabled(False)
-        """
-        I've found roughly a 3 to 4x multiplier on resolution is a good rule of thumb
-        Results in a decent chip image without excessive pictures
-        Example: 20x objective is 0.42 NA and I use a 2 um step size
-        Resolution @ 400 nm: 1.22 * 400 / (2 * 0.42) = 581 nm
-        2000 / 581 = 3.44
-        Let's target a ballpark and then round based on machine step size
-        Better to round down or to nearest step?
-        """
-        def calc_normal_step():
-            objective_config = self.ac.objective_config()
-            na = objective_config["na"]
-            # convert nm to mm
-            resolution400 = RC_CONST * 400 / (2 * na) / 1e6
-            machine_epsilon = self.ac.motion.epsilon()["z"]
-            ideal_move = resolution400 * 3.5
-            # Now round to nearest machine step
-            # Don't go below machine min step size
-            steps = max(1, round(ideal_move / machine_epsilon))
-            rounded_move = steps * machine_epsilon
-            return rounded_move
 
-        def setup_step(distance_mult, step_mult):
-            normal_step = calc_normal_step()
-            normal_steps = 3
-            # We calculated per step, but GUI displays a range
-            # Normalize the baseline to total distance
-            pm_distance = normal_steps * normal_step * distance_mult
-            pm_steps = normal_steps * step_mult
-            self.stacker_distance_le.setText("%0.6f" % pm_distance)
-            self.stacker_number_le.setText("%u" % pm_steps)
+        def setup_die_step(distance_mult, step_mult):
+            stacker = AutoStacker(microscope=self.ac.microscope)
+            objective_config = self.ac.objective_config()
+            params = stacker.calc_die_parameters(objective_config,
+                                                 distance_mult, step_mult)
+            self.stacker_distance_le.setText("%0.6f" % params["pm_distance"])
+            self.stacker_number_le.setText("%u" % params["pm_steps"])
 
         """
         self.stack_cb.addItem("A: None")
         self.stack_cb.addItem("B: Manual")
-        self.stack_cb.addItem("C: normal")
-        self.stack_cb.addItem("D: double distance")
-        self.stack_cb.addItem("E: double steps")
+        self.stack_cb.addItem("C: die normal")
+        self.stack_cb.addItem("D: die double distance")
+        self.stack_cb.addItem("E: die double steps")
         """
         # Disabled
         if mode == 0:
@@ -1843,14 +1826,14 @@ class AdvancedTab(ArgusTab):
             pass
         # Normal
         elif mode == 2:
-            setup_step(1, 1)
+            setup_die_step(1, 1)
         # Double distance
         elif mode == 3:
             # Keep step size constant => add more steps
-            setup_step(2, 2)
+            setup_die_step(2, 2)
         # Double step
         elif mode == 4:
-            setup_step(1, 2)
+            setup_die_step(1, 2)
         else:
             assert 0, "unknown mode"
 
@@ -2490,7 +2473,7 @@ class MotionWidget(AWidget):
         self.update_jogging()
 
     def autofocus_pushed(self):
-        self.ac.image_processing_thread.auto_focus()
+        self.ac.image_processing_thread.auto_focus(self.ac.objective_config())
 
     def cache_save(self, cachej):
         j = {}

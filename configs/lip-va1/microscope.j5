@@ -3,19 +3,19 @@ Camera: see VM1B config ifle
 */
 {
     "kinematics": {
-        //1.0 / sec
-        //seems ok no matter settings
         //Maybe it always has to flush a frame => gives sync time?
-        "tsettle_motion_na1": 0.10,
-        //0.25 ocassionally misses
-        "tsettle_motion_base": 0.4,
+        //2023-10-12: think 0.4 base isn't enough to fully settle vibration => increase slightly
+        "tsettle_motion_na1": 0.5,
+        //0.25 ocassionally misses frame sync
+        "tsettle_motion_base": 0.6,
         "tsettle_hdr": 0.4,
     },
 
     "motion": {
         "hal": "grbl-ser",
-        //FIXME: what is the actual value?
-        "backlash": 0.05,
+        //2023-10-12: there appear to be some settling effects that favor a large value for best regularity
+        //Might be order of magnitude 0.1 to 1.0 mm, at least on z
+        "backlash": 0.1,
 
         "soft_limits": {
             "xmin": 10.0,

@@ -294,7 +294,8 @@ class DirCSIP:
             self.log("")
             self.log("Converting to jpg")
             next_dir = os.path.join(working_iindex["dir"], "jpg")
-            self.tif2jpg_dir(working_iindex, next_dir, lazy=self.lazy)
+            # runs inline, not parallelized
+            self.csip.tif2jpg_dir(working_iindex, next_dir, lazy=self.lazy)
             working_iindex = index_scan_images(next_dir)
 
         self.log("")

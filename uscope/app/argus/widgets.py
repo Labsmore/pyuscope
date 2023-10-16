@@ -22,6 +22,9 @@ import os.path
 from PIL import Image
 from io import StringIO
 import math
+
+from enum import Enum
+
 """
 Argus Widget
 """
@@ -284,6 +287,9 @@ class SnapshotWidget(AWidget):
                                quality=self.ac.usc.imager.save_quality())
                 else:
                     image.save(fn_full)
+
+                # Emit when snapshot processed
+                self.ac.snapshotProcessed.emit({'image': image, 'obj_config': self.ac.objective_config()})
             # FIXME: refine
             except Exception as e:
                 print(e)
@@ -2504,3 +2510,269 @@ class SiPr0nScanNameWidget(AWidget):
         return {
             "user_basename": ret,
         }
+
+class AnnotateImage(QLabel):
+    """
+    A custom class which overrides the painting method to allow annotations
+    on the base image
+    """
+
+    Modes = Enum('Modes', ['SELECT', 'RULER'])
+
+    def __init__(self, filename=None):
+        super().__init__()
+        self.filename = filename
+        self.mode = self.Modes.SELECT
+        self.measurements = []
+        self.point_a = None
+        self.point_b = False
+        self.selected_index = -1
+        self._pixel_conversion = 1.0
+
+    @property
+    def pixel_conversion(self):
+        return self._pixel_conversion
+    @pixel_conversion.setter
+    def pixel_conversion(self, value):
+        self._pixel_conversion = value
+        self.update() # Repaint when conversion updated
+    def add_measurement(self, value):
+        print("Add measurement", value)
+        self.measurements.append(value)
+
+    # Check if the current pos selects a target
+    def select(self, pos):
+        pos = (pos.x(), pos.y())
+        self.selected_index = -1
+        for n, m in enumerate(self.measurements):
+            # TODO: maybe cache points for faster and more accurate selection?
+            if m[0] == "Line":
+                start = (m[1].x(), m[1].y())
+                end = (m[2].x(), m[2].y())
+                start_x = min(start[0], end[0])
+                end_x = max(start[0], end[0])
+                start_y = min(start[1], end[1])
+                end_y = max(start[1], end[1])
+                if pos[0] in range(start_x, end_x) and pos[1] in range(start_y, end_y):
+                    self.selected_index = n
+                    break
+            elif m[0] == "Circle": # e.g. logic for detecting circle/other shape selection...
+                pass
+            elif m[0] == "Square":
+                pass
+
+        self.update()
+
+    def delete_selected(self):
+        if self.selected_index == -1:
+            return
+        if self.mode != self.Modes.SELECT:
+            return
+        try:
+            del self.measurements[self.selected_index]
+            self.selected_index = -1
+            self.update()
+        except Exception as e:
+            pass
+
+    def set_mode(self, value: int):
+        self.mode = value
+        # Reset vars when mode change
+        self.point_a = None
+        self.point_b = None
+
+    def paintEvent(self, e):
+        # Make sure to paint the image first
+        super().paintEvent(e)
+
+        # Now draw the measurements
+        qp = QPainter()
+        qp.begin(self)
+        pen = QPen(Qt.blue)
+
+        def draw_point(point):
+            circ_radius = 4
+            pen.setWidth(4)
+            qp.setPen(pen)
+            qp.drawEllipse(point.x() - int(circ_radius/2), point.y() - int(circ_radius/2),
+                           circ_radius, circ_radius)
+
+        def draw_labelled_line(start, end):
+            pen.setWidth(8)
+            qp.setPen(pen)
+            draw_point(start)
+            draw_point(end)
+            qp.drawLine(start.x(), start.y(), end.x(), end.y())
+            font = QFont()
+            font.setFamily('Times')
+            font.setBold(True)
+            font.setPointSize(12)
+            qp.setFont(font)
+            qp.drawText(start.x(), start.y(), "0")
+            distance = ((start.x() - end.x()) ** 2 + (start.y() - end.y()) ** 2) ** 0.5
+            distance = round(distance, 2)
+            qp.drawText(end.x(), end.y(), f"{distance}*{self.pixel_conversion}={self.pixel_conversion * distance}")
+
+        selected_color = QColor(43,250,43,200)
+        default_color = QColor(43,43,43,200)
+        for n, m in enumerate(self.measurements):
+            pen.setColor(default_color)
+            if n == self.selected_index:
+                pen.setColor(selected_color)
+            if m[0] == "Line":
+                draw_labelled_line(m[1], m[2])
+
+        if self.point_a:
+            point_color = QColor(43,43,250,200)
+            pen.setColor(point_color)
+            draw_point(self.point_a)
+
+        qp.end()
+
+    def mouseReleaseEvent(self, event):
+        # Try to find a selectable
+        if self.mode == self.Modes.SELECT:
+            self.select(event.pos())
+            return
+
+        if self.mode == self.Modes.RULER:
+            if not self.point_a:
+                self.point_a = event.pos()
+                self.update()
+                return
+            if self.point_a:
+                self.add_measurement(["Line", self.point_a, event.pos()])
+                self.point_a = None
+                self.point_b = None
+
+        self.update()
+
+    def undo(self):
+        try:
+            self.measurements.pop()
+            self.update()
+        except:
+            print("No more actions to undo")
+
+    def clear_all(self):
+        self.measurements = []
+        self.update()
+
+class MeasureTab(ArgusTab):
+    def __init__(self, ac, parent=None):
+        super().__init__(ac=ac, parent=parent)
+
+        layout = QGridLayout()
+        row = 0
+        def stack_gb():
+            layout = QGridLayout()
+            row = 0
+
+            hbox = QHBoxLayout()
+            self.open_image_pb = QPushButton("Open")
+            self.open_image_pb.clicked.connect(self.open)
+            hbox.addWidget(self.open_image_pb)
+            hbox.addWidget(QLabel("Pixel-Conversion Value: "))
+            self.conversion_lb = QLabel(f"1.0")
+            hbox.addWidget(self.conversion_lb)
+            hbox.addStretch()
+            layout.addLayout(hbox, row, 0)
+            row += 1
+            self.annotate_image = AnnotateImage()
+            self.annotate_image.setBackgroundRole(QPalette.Base)
+            self.annotate_image.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+            self.annotate_image.setScaledContents(True)
+            self.sa_image = QScrollArea()
+            self.sa_image.setBackgroundRole(QPalette.Dark)
+            self.sa_image.setWidget(self.annotate_image)
+            self.sa_image.setVisible(False)
+            layout.addWidget(self.sa_image, row, 0)
+            self.pb_grid = QVBoxLayout()
+            self.ruler_pb = QPushButton("Ruler")
+            self.ruler_pb.setCheckable(True)
+            self.ruler_pb.clicked.connect(self.on_ruler)
+            self.pb_grid.addWidget(self.ruler_pb)
+            self.pb_grid.addStretch()
+            self.clear_all_pb = QPushButton("Clear All")
+            self.clear_all_pb.clicked.connect(self.annotate_image.clear_all)
+            self.pb_grid.addWidget(self.clear_all_pb)
+            layout.addLayout(self.pb_grid, row, 1)
+
+            gb = QGroupBox("")
+            gb.setLayout(layout)
+            return gb
+
+        layout.addWidget(stack_gb(), row, 0)
+        self.setLayout(layout)
+
+        # Add hotkeys
+        self.shortcut = QShortcut(QKeySequence("Ctrl+Z"), self)
+        self.shortcut.activated.connect(self.on_undo)
+        self.shortcut = QShortcut(QKeySequence("Del"), self)
+        self.shortcut.activated.connect(self.annotate_image.delete_selected)
+
+        self.ac.snapshotProcessed.connect(self.snapshot_processed)
+
+
+    @pyqtSlot()
+    def on_undo(self):
+        self.annotate_image.undo()
+
+    def on_ruler(self, event):
+        """
+        Toggle ruler mode
+        """
+        if self.ruler_pb.isChecked():
+            self.annotate_image.set_mode(self.annotate_image.Modes.RULER)
+            self.ruler_pb.setStyleSheet(f"color: white; background-color: green;")
+        else:
+            self.annotate_image.set_mode(self.annotate_image.Modes.SELECT)
+            self.ruler_pb.setStyleSheet(f"color: black; background-color: lightgrey;")
+
+    def fitToWindow(self):
+        self.scrollArea.setWidgetResizable(True)
+
+    def open(self):
+        """
+        Open image file
+        """
+        options = QFileDialog.Options()
+        fileName, _ = QFileDialog.getOpenFileName(self, 'QFileDialog.getOpenFileName()', '',
+                                                  'Images (*.png *.jpeg *.jpg *.bmp)', options=options)
+        if fileName:
+            qim = QImage(fileName)
+            if qim.isNull():
+                QMessageBox.information(self, "Load Image", "Cannot load %s." % fileName)
+                return
+            self.annotate_image.clear_all()
+            self.annotate_image.setPixmap(QPixmap.fromImage(qim))
+            self.sa_image.setVisible(True)
+            self.annotate_image.adjustSize()
+            # Open the accompanying .json file if it exists
+            try:
+                dir_name = os.path.dirname(fileName)
+                base_name = os.path.splitext(os.path.basename(fileName))[0]
+                f = open(os.path.join(dir_name, base_name + ".json"))
+                data = json.load(f)
+                self.annotate_image.pixel_conversion = data.get("pixelConversion", 1.0)
+                self.conversion_lb.setText(f"{self.annotate_image.pixel_conversion}")
+            except Exception as e:
+                print("Failed to load .json")
+
+    def snapshot_processed(self, data):
+        """
+        Receive a new snapshot image
+        """
+        print(data)
+        image = data.get('image', None)
+        if image is None:
+            return
+        print("Image Size: {image.size}")
+        # Convert PIL image to QT image
+        image = image.convert("RGBA")
+        data = image.tobytes("raw", "RGBA")
+        qim = QImage(data, image.size[0], image.size[1], QImage.Format_RGBA8888)
+        self.annotate_image.clear_all()
+        self.annotate_image.setPixmap(QPixmap.fromImage(qim))
+        self.sa_image.setVisible(True)
+        self.annotate_image.adjustSize()

@@ -127,6 +127,9 @@ class ArgusCommon(QObject):
     """
     objectiveChanged = pyqtSignal(dict)
 
+    # Receive the processed snapshot image
+    snapshotProcessed = pyqtSignal(dict)
+
     # pos = pyqtSignal(int)
 
     def __init__(self, microscope_name=None, mw=None):

@@ -18,8 +18,7 @@ import traceback
 import threading
 
 from uscope.app.argus.common import ArgusCommon, ArgusShutdown, error
-
-from uscope.app.argus.widgets import MainTab, ImagerTab, BatchImageTab, AdvancedTab, StitchingTab
+from uscope.app.argus.widgets import MainTab, ImagerTab, BatchImageTab, AdvancedTab, StitchingTab, MeasureTab
 from uscope.app.argus.scripting import ScriptingTab
 
 
@@ -113,6 +112,8 @@ class MainWindow(QMainWindow):
         self.awidgets["Batch"] = self.batchTab
         self.scriptingTab = ScriptingTab(ac=self.ac, parent=self)
         self.awidgets["Scripting"] = self.scriptingTab
+        self.measureTab = MeasureTab(ac=self.ac, parent=self)
+        self.awidgets["Measure"] = self.measureTab
         self.advancedTab = AdvancedTab(ac=self.ac, parent=self)
         self.awidgets["Advanced"] = self.advancedTab
         self.stitchingTab = StitchingTab(ac=self.ac, parent=self)

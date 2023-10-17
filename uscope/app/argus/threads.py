@@ -215,9 +215,19 @@ class QImageProcessingThread(ImageProcessingThreadBase, QThread):
     def __init__(self, ac, parent=None):
         QThread.__init__(self, parent)
         ImageProcessingThreadBase.__init__(self, microscope=ac.microscope)
+        self.snapshotCaptured = ac.snapshotCaptured
+        self.objective_config = ac.objective_config
 
     def log(self, msg=""):
         self.log_msg.emit(msg)
+
+    def _do_process_snapshot(self, options):
+        image = super()._do_process_snapshot(options)
+        data = {
+            "image": image,
+            "objective_config": self.objective_config()
+        }
+        self.snapshotCaptured.emit(data)
 
 
 class QJoystickThread(JoystickThreadBase, QThread):

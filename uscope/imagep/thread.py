@@ -96,6 +96,8 @@ class ImageProcessingThreadBase:
                 kwargs["quality"] = options["save_quality"]
             image.save(options["save_filename"], **kwargs)
 
+        return image
+
     def run(self):
         while self.running:
             try:

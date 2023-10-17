@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import *
 import time
 import datetime
 import os.path
-from PIL import Image
+from PIL import Image, ImageQt
 from io import StringIO
 import math
 from enum import Enum
@@ -2906,11 +2906,8 @@ class MeasureTab(ArgusTab):
         image = data.get('image', None)
         if image is None:
             return
-        print("Image Size: {image.size}")
-        # Convert PIL image to QT image
-        image = image.convert("RGBA")
-        data = image.tobytes("raw", "RGBA")
-        qim = QImage(data, image.size[0], image.size[1], QImage.Format_RGBA8888)
+        qim = ImageQt.ImageQt(image)
+        print(f"Image Size: {image.size}")
         self.annotate_image.clear_all()
         self.annotate_image.setPixmap(QPixmap.fromImage(qim))
         self.sa_image.setVisible(True)

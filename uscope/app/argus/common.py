@@ -135,6 +135,7 @@ class ArgusCommon(QObject):
     log_msg = pyqtSignal(str)
     takeSnapshot = pyqtSignal()
     setJogSlider = pyqtSignal(float)
+    snapshotCaptured = pyqtSignal(dict)
     """
     Dictionary w/ objective config
     The low level format supported by config file

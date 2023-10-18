@@ -19,7 +19,7 @@ import threading
 
 from uscope.app.argus.common import ArgusCommon, ArgusShutdown, error
 
-from uscope.app.argus.widgets import MainTab, ImagerTab, BatchImageTab, AdvancedTab, StitchingTab
+from uscope.app.argus.widgets import MainTab, ImagerTab, BatchImageTab, AdvancedTab, StitchingTab, MeasureTab
 from uscope.app.argus.scripting import ScriptingTab
 
 
@@ -124,6 +124,8 @@ class MainWindow(QMainWindow):
         self.awidgets["Advanced"] = self.advancedTab
         self.stitchingTab = StitchingTab(ac=self.ac, parent=self)
         self.awidgets["CloudStitch"] = self.stitchingTab
+        self.measureTab = MeasureTab(ac=self.ac, parent=self)
+        self.awidgets["Measure"] = self.measureTab
         self.ac.mainTab = self.mainTab
         self.ac.scriptingTab = self.scriptingTab
         self.ac.stitchingTab = self.stitchingTab

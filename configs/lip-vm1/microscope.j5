@@ -121,7 +121,8 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
 
                 //X - Max Rate (mm/min)
                 //was: 2000 / 2000 / 2000
-                "$110=960.000", "$111=960.000", "$112=1920.000",
+                //202-10-19: slow down z for easier / more stable control
+                "$110=960.000", "$111=960.000", "$112=480.000",
                 //$120, $121, $122 – [X,Y,Z] Acceleration, mm/sec^2
                 //was: 50 / 50 / 50
                 "$120=24.000", "$121=24.000", "$122=24.000",

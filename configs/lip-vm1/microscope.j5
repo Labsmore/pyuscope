@@ -82,7 +82,8 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         //Maybe it always has to flush a frame => gives sync time?
         "tsettle_motion_na1": 0.5,
         "tsettle_motion_base": 0.6,
-        "tsettle_hdr": 0.4,
+        //2023-10-18: missed at 0.5
+        "tsettle_hdr": 0.6,
     },
 
     "motion": {
@@ -200,7 +201,7 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
     },
     "ipp": {
         /*
-        "ipp_last": [
+        "pipeline_last": [
             {"plugin": "correct-vm1v1", "dir": "vm1v1"},
         ],
         */

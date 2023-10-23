@@ -223,10 +223,7 @@ class QImageProcessingThread(ImageProcessingThreadBase, QThread):
 
     def _do_process_snapshot(self, options):
         image = super()._do_process_snapshot(options)
-        data = {
-            "image": image,
-            "objective_config": self.objective_config()
-        }
+        data = {"image": image, "objective_config": self.objective_config()}
         self.snapshotCaptured.emit(data)
 
 

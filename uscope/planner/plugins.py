@@ -1019,6 +1019,44 @@ class PlannerHDR(PlannerPlugin):
         }
 
 
+class PlannerImageStabilization(PlannerPlugin):
+    def __init__(self, planner):
+        super().__init__(planner=planner)
+        # Most users will want to stack on z
+        config = self.planner.pc.j["image-stabilization"]
+        self.n = config["n"]
+        # n == 1 is legal although somewhat useless
+        # Post processing requires self.n % 2 == 0
+        # but this isn't a strict requirement
+        assert self.n >= 1
+
+    def log_scan_begin(self):
+        self.log(f"Image stablization factor: {self.n}")
+
+    def images_expected(self):
+        return self.n
+
+    def filename_part(self, image_number):
+        return "is%02d" % image_number
+
+    def iterate(self, state):
+        for pointi in range(self.n):
+            self.planner.log(f"image stabilization: {pointi + 1} / {self.n}")
+
+            modifiers = {
+                "filename_part": self.filename_part(pointi),
+            }
+            replace_keys = {
+                "image_stabilization_i": pointi,
+            }
+            yield modifiers, replace_keys
+
+    def gen_meta(self, meta):
+        meta["image-stabilization"] = {
+            "n": self.n,
+        }
+
+
 # FIXME: move kinematics to dedicated object
 # Argus would like to use this without planner overhead
 class PlannerKinematics(PlannerPlugin):
@@ -1201,6 +1239,7 @@ def register_plugins():
     register_plugin("image-save", PlannerSaveImage)
     # register_plugin("image-gcode", PlannerGcodeImage)
     # register_plugin("scraper", PlannerScraper)
+    register_plugin("image-stabilization", PlannerImageStabilization)
 
 
 register_plugins()

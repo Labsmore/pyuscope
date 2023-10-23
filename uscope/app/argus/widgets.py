@@ -1694,6 +1694,21 @@ class AdvancedTab(ArgusTab):
             gb.setLayout(layout)
             return gb
 
+        layout.addWidget(QLabel("Image stabilization"), row, 0)
+        self.image_stabilization_cb = QComboBox()
+        self.image_stabilization_cb_map = {
+            0: 1,
+            1: 3,
+            2: 9,
+            3: 27,
+        }
+        self.image_stabilization_cb.addItem("1 (off)")
+        self.image_stabilization_cb.addItem("3 (VM1 20x)")
+        self.image_stabilization_cb.addItem("9 (VM1 50x)")
+        self.image_stabilization_cb.addItem("27 (VM1 100x)")
+        layout.addWidget(self.image_stabilization_cb, row, 1)
+        row += 1
+
         if self.ac.microscope.has_z():
             layout.addWidget(stack_gb(), row, 0)
             row += 1
@@ -1759,7 +1774,17 @@ class AdvancedTab(ArgusTab):
         if self.stack_drift_cb.isChecked():
             pconfig["stacker-drift"] = {}
 
+    def get_image_stablization(self):
+        return self.image_stabilization_cb_map[
+            self.image_stabilization_cb.currentIndex()]
+
     def update_pconfig(self, pconfig):
+        image_stabilization = self.get_image_stablization()
+        if image_stabilization > 1:
+            pconfig["image-stabilization"] = {
+                "n": image_stabilization,
+            }
+
         if self.ac.microscope.has_z():
             self.update_pconfig_stack(pconfig)
 
@@ -1770,7 +1795,9 @@ class AdvancedTab(ArgusTab):
             self.update_stack_mode()
 
     def cache_save(self, cachej):
-        j = {}
+        j = {
+            "image_stabilization": self.image_stabilization_cb.currentIndex(),
+        }
         if self.ac.microscope.has_z():
             j["stacking"] = {
                 "images_pm": self.stacker_number_le.text(),
@@ -1782,6 +1809,8 @@ class AdvancedTab(ArgusTab):
 
     def cache_load(self, cachej):
         j = cachej.get("advanced", {})
+        self.image_stabilization_cb.setCurrentIndex(
+            j.get("image_stabilization", 0))
         if self.ac.microscope.has_z():
             stacking = j.get("stacking", {})
             self.stacker_number_le.setText(stacking.get("images_pm", "0"))
@@ -2670,10 +2699,12 @@ class AnnotateImage(QLabel):
     @property
     def pixel_conversion(self):
         return self._pixel_conversion
+
     @pixel_conversion.setter
     def pixel_conversion(self, value):
         self._pixel_conversion = value
-        self.update() # Repaint when conversion updated
+        self.update()  # Repaint when conversion updated
+
     def add_measurement(self, value):
         print("Add measurement", value)
         self.measurements.append(value)
@@ -2691,10 +2722,11 @@ class AnnotateImage(QLabel):
                 end_x = max(start[0], end[0])
                 start_y = min(start[1], end[1])
                 end_y = max(start[1], end[1])
-                if pos[0] in range(start_x, end_x) and pos[1] in range(start_y, end_y):
+                if pos[0] in range(start_x, end_x) and pos[1] in range(
+                        start_y, end_y):
                     self.selected_index = n
                     break
-            elif m[0] == "Circle": # e.g. logic for detecting circle/other shape selection...
+            elif m[0] == "Circle":  # e.g. logic for detecting circle/other shape selection...
                 pass
             elif m[0] == "Square":
                 pass
@@ -2732,8 +2764,9 @@ class AnnotateImage(QLabel):
             circ_radius = 4
             pen.setWidth(4)
             qp.setPen(pen)
-            qp.drawEllipse(point.x() - int(circ_radius/2), point.y() - int(circ_radius/2),
-                           circ_radius, circ_radius)
+            qp.drawEllipse(point.x() - int(circ_radius / 2),
+                           point.y() - int(circ_radius / 2), circ_radius,
+                           circ_radius)
 
         def draw_labelled_line(start, end):
             pen.setWidth(8)
@@ -2747,12 +2780,16 @@ class AnnotateImage(QLabel):
             font.setPointSize(12)
             qp.setFont(font)
             qp.drawText(start.x(), start.y(), "0")
-            distance = ((start.x() - end.x()) ** 2 + (start.y() - end.y()) ** 2) ** 0.5
+            distance = ((start.x() - end.x())**2 +
+                        (start.y() - end.y())**2)**0.5
             distance = round(distance, 2)
-            qp.drawText(end.x(), end.y(), f"{distance}*{self.pixel_conversion}={self.pixel_conversion * distance}")
+            qp.drawText(
+                end.x(), end.y(),
+                f"{distance}*{self.pixel_conversion}={self.pixel_conversion * distance}"
+            )
 
-        selected_color = QColor(43,250,43,200)
-        default_color = QColor(43,43,43,200)
+        selected_color = QColor(43, 250, 43, 200)
+        default_color = QColor(43, 43, 43, 200)
         for n, m in enumerate(self.measurements):
             pen.setColor(default_color)
             if n == self.selected_index:
@@ -2761,7 +2798,7 @@ class AnnotateImage(QLabel):
                 draw_labelled_line(m[1], m[2])
 
         if self.point_a:
-            point_color = QColor(43,43,250,200)
+            point_color = QColor(43, 43, 250, 200)
             pen.setColor(point_color)
             draw_point(self.point_a)
 
@@ -2803,6 +2840,7 @@ class MeasureTab(ArgusTab):
 
         layout = QGridLayout()
         row = 0
+
         def stack_gb():
             layout = QGridLayout()
             row = 0
@@ -2819,7 +2857,8 @@ class MeasureTab(ArgusTab):
             row += 1
             self.annotate_image = AnnotateImage()
             self.annotate_image.setBackgroundRole(QPalette.Base)
-            self.annotate_image.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+            self.annotate_image.setSizePolicy(QSizePolicy.Ignored,
+                                              QSizePolicy.Ignored)
             self.annotate_image.setScaledContents(True)
             self.sa_image = QScrollArea()
             self.sa_image.setBackgroundRole(QPalette.Dark)
@@ -2852,7 +2891,6 @@ class MeasureTab(ArgusTab):
 
         self.ac.snapshotCaptured.connect(self.snapshot_processed)
 
-
     @pyqtSlot()
     def on_undo(self):
         self.annotate_image.undo()
@@ -2863,10 +2901,12 @@ class MeasureTab(ArgusTab):
         """
         if self.ruler_pb.isChecked():
             self.annotate_image.set_mode(self.annotate_image.Modes.RULER)
-            self.ruler_pb.setStyleSheet(f"color: white; background-color: green;")
+            self.ruler_pb.setStyleSheet(
+                f"color: white; background-color: green;")
         else:
             self.annotate_image.set_mode(self.annotate_image.Modes.SELECT)
-            self.ruler_pb.setStyleSheet(f"color: black; background-color: lightgrey;")
+            self.ruler_pb.setStyleSheet(
+                f"color: black; background-color: lightgrey;")
 
     def fitToWindow(self):
         self.scrollArea.setWidgetResizable(True)
@@ -2876,12 +2916,17 @@ class MeasureTab(ArgusTab):
         Open image file
         """
         options = QFileDialog.Options()
-        fileName, _ = QFileDialog.getOpenFileName(self, 'QFileDialog.getOpenFileName()', '',
-                                                  'Images (*.png *.jpeg *.jpg *.bmp)', options=options)
+        fileName, _ = QFileDialog.getOpenFileName(
+            self,
+            'QFileDialog.getOpenFileName()',
+            '',
+            'Images (*.png *.jpeg *.jpg *.bmp)',
+            options=options)
         if fileName:
             qim = QImage(fileName)
             if qim.isNull():
-                QMessageBox.information(self, "Load Image", "Cannot load %s." % fileName)
+                QMessageBox.information(self, "Load Image",
+                                        "Cannot load %s." % fileName)
                 return
             self.annotate_image.clear_all()
             self.annotate_image.setPixmap(QPixmap.fromImage(qim))
@@ -2893,8 +2938,10 @@ class MeasureTab(ArgusTab):
                 base_name = os.path.splitext(os.path.basename(fileName))[0]
                 f = open(os.path.join(dir_name, base_name + ".json"))
                 data = json.load(f)
-                self.annotate_image.pixel_conversion = data.get("pixelConversion", 1.0)
-                self.conversion_lb.setText(f"{self.annotate_image.pixel_conversion}")
+                self.annotate_image.pixel_conversion = data.get(
+                    "pixelConversion", 1.0)
+                self.conversion_lb.setText(
+                    f"{self.annotate_image.pixel_conversion}")
             except Exception as e:
                 print("Failed to load .json")
 
@@ -2910,7 +2957,8 @@ class MeasureTab(ArgusTab):
         # Convert PIL image to QT image
         image = image.convert("RGBA")
         data = image.tobytes("raw", "RGBA")
-        qim = QImage(data, image.size[0], image.size[1], QImage.Format_RGBA8888)
+        qim = QImage(data, image.size[0], image.size[1],
+                     QImage.Format_RGBA8888)
         self.annotate_image.clear_all()
         self.annotate_image.setPixmap(QPixmap.fromImage(qim))
         self.sa_image.setVisible(True)

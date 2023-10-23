@@ -623,6 +623,26 @@ def flatten_groups(vidpip, groups_gst, usc, flatten_hack):
     return groups
 
 
+class MockControlScroll(ImagerControlScroll):
+    def __init__(self, vidpip, usc, parent=None):
+        self.vidpip = vidpip
+        groups = {}
+        ImagerControlScroll.__init__(self,
+                                     groups=groups,
+                                     usc=usc,
+                                     parent=parent)
+
+    def _raw_prop_write(self, name, value):
+        pass
+
+    def _raw_prop_read(self, name):
+        # sure why not
+        return 0
+
+    def auto_exposure_enabled(self):
+        return False
+
+
 class GstControlScroll(ImagerControlScroll):
     """
     Display a number of gst-toupcamsrc based controls and supply knobs to tweak them

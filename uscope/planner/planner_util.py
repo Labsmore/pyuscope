@@ -139,6 +139,8 @@ def get_planner(pconfig,
     # FIXME: needs review / testing
     if "hdr" in pconfig["imager"]:
         pipeline_names.append("hdr")
+    if "image-stabilization" in pconfig:
+        pipeline_names.append("image-stabilization")
     # FIXME: might eventually want to support this, but frame sync needs fixing
     if not imager.remote():
         pipeline_names.append("kinematics")

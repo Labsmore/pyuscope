@@ -225,7 +225,8 @@ class Planner:
         for plugin in self.pipeline.values():
             self.check_yield()
             plugin.scan_end(state)
-        assert state["images_to_capture"] == state["images_captured"]
+        assert state["images_to_capture"] == state[
+            "images_captured"], f'expected {state["images_to_capture"]}, got {state["images_captured"]}'
         self.log()
         self.log()
         self.log()

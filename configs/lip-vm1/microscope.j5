@@ -201,11 +201,9 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         //"um_per_pixel_raw_1x": 2.291666667,
     },
     "ipp": {
-        /*
         "pipeline_last": [
             {"plugin": "correct-vm1v1", "dir": "vm1v1"},
         ],
-        */
         "plugins": {
             "stack-enfuse": {
                 "align": true,

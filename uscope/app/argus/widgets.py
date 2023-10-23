@@ -186,7 +186,7 @@ class ObjectiveWidget(AWidget):
         try:
             self.default_objective_index = int(index)
         except Exception:
-            print(f"WARNING: invalid objective index: {index}")
+            self.ac.log(f"WARNING: invalid objective index: {index}")
 
 
 """
@@ -2724,7 +2724,6 @@ class AnnotateImage(QLabel):
         self.update()  # Repaint when conversion updated
 
     def add_measurement(self, value):
-        print("Add measurement", value)
         self.measurements.append(value)
 
     # Check if the current pos selects a target
@@ -2797,14 +2796,22 @@ class AnnotateImage(QLabel):
             font.setBold(True)
             font.setPointSize(12)
             qp.setFont(font)
-            qp.drawText(start.x(), start.y(), "0")
             distance = ((start.x() - end.x())**2 +
                         (start.y() - end.y())**2)**0.5
             distance = round(distance, 2)
-            qp.drawText(
-                end.x(), end.y(),
-                f"{distance}*{self.pixel_conversion}={self.pixel_conversion * distance}"
-            )
+            # Center on line but offset so we aren't on it
+            dx = 0
+            dy = 0
+            # More left/right than up/down?
+            if abs(start.x() - end.x()) > abs(start.y() - end.y()):
+                # Move up
+                dy -= 10
+            else:
+                # Move right
+                dx += 10
+            qp.drawText((start.x() + end.x()) // 2 + dx,
+                        (start.y() + end.y()) // 2 + dy,
+                        "%0.1f µm" % (self.pixel_conversion * distance, ))
 
         selected_color = QColor(43, 250, 43, 200)
         default_color = QColor(43, 43, 43, 200)
@@ -2845,7 +2852,8 @@ class AnnotateImage(QLabel):
             self.measurements.pop()
             self.update()
         except:
-            print("No more actions to undo")
+            pass
+            # print("No more actions to undo")
 
     def clear_all(self):
         self.measurements = []
@@ -2863,15 +2871,15 @@ class MeasureTab(ArgusTab):
             layout = QGridLayout()
             row = 0
 
-            hbox = QHBoxLayout()
-            self.open_image_pb = QPushButton("Open")
-            self.open_image_pb.clicked.connect(self.open)
-            hbox.addWidget(self.open_image_pb)
-            hbox.addWidget(QLabel("Pixel-Conversion Value: "))
-            self.conversion_lb = QLabel(f"1.0")
-            hbox.addWidget(self.conversion_lb)
-            hbox.addStretch()
-            layout.addLayout(hbox, row, 0)
+            # Opening images is not supported at this time
+            # Need metadata (EXIF, etc) support
+            if 0:
+                hbox = QHBoxLayout()
+                self.open_image_pb = QPushButton("Open")
+                self.open_image_pb.clicked.connect(self.open)
+                hbox.addWidget(self.open_image_pb)
+                hbox.addStretch()
+                layout.addLayout(hbox, row, 0)
             row += 1
             self.annotate_image = AnnotateImage()
             self.annotate_image.setBackgroundRole(QPalette.Base)
@@ -2929,6 +2937,7 @@ class MeasureTab(ArgusTab):
     def fitToWindow(self):
         self.scrollArea.setWidgetResizable(True)
 
+    '''
     def open(self):
         """
         Open image file
@@ -2958,20 +2967,19 @@ class MeasureTab(ArgusTab):
                 data = json.load(f)
                 self.annotate_image.pixel_conversion = data.get(
                     "pixelConversion", 1.0)
-                self.conversion_lb.setText(
-                    f"{self.annotate_image.pixel_conversion}")
             except Exception as e:
                 print("Failed to load .json")
+    '''
 
     def snapshot_processed(self, data):
         """
         Receive a new snapshot image
         """
-        print(data)
         image = data.get('image', None)
         if image is None:
             return
-        print("Image Size: {image.size}")
+        self.annotate_image.pixel_conversion = data["objective_config"][
+            "um_per_pixel"]
         # Convert PIL image to QT image
         image = image.convert("RGBA")
         data = image.tobytes("raw", "RGBA")
@@ -2981,3 +2989,6 @@ class MeasureTab(ArgusTab):
         self.annotate_image.setPixmap(QPixmap.fromImage(qim))
         self.sa_image.setVisible(True)
         self.annotate_image.adjustSize()
+        # Need ruler before select mode is useful
+        self.ruler_pb.setChecked(True)
+        self.on_ruler(None)

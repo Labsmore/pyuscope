@@ -280,6 +280,7 @@ class MainWindow(QMainWindow):
         self.ac.log("For enquiries contact support@labsmore.com")
         self.ac.log("")
 
+        self.ac.update_pconfigs.append(self.mainTab.update_pconfig)
         self.ac.update_pconfigs.append(self.advancedTab.update_pconfig)
         self.ac.update_pconfigs.append(self.imagerTab.update_pconfig)
         # Start services

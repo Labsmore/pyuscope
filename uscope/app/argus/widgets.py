@@ -227,15 +227,19 @@ class SnapshotWidget(AWidget):
         layout.addWidget(self.snapshot_pb, 0, 0)
 
         self.snapshot_fn_le = QLineEdit('snapshot')
-        self.snapshot_suffix_le = QLineEdit(
-            self.ac.usc.imager.save_extension())
-        # XXX: since we already have jpegenc this is questionable
-        self.snapshot_suffix_le.setEnabled(False)
-        self.snapshot_suffix_le.setSizePolicy(
+        self.snapshot_suffix_cb = QComboBox()
+        self.snapshot_suffix_cb_map = {
+            0: ".jpg",
+            1: ".tif",
+        }
+        self.snapshot_suffix_cb.addItem(".jpg")
+        self.snapshot_suffix_cb.addItem(".tif")
+
+        self.snapshot_suffix_cb.setSizePolicy(
             QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
         hl = QHBoxLayout()
         hl.addWidget(self.snapshot_fn_le)
-        hl.addWidget(self.snapshot_suffix_le)
+        hl.addWidget(self.snapshot_suffix_cb)
         layout.addLayout(hl, 0, 1)
 
         gb.setLayout(layout)
@@ -262,9 +266,13 @@ class SnapshotWidget(AWidget):
 
         self.ac.capture_sink.request_image(emitSnapshotCaptured)
 
+    def save_extension(self):
+        return self.snapshot_suffix_cb_map[
+            self.snapshot_suffix_cb.currentIndex()]
+
     def snapshot_fn(self):
         return snapshot_fn(user=str(self.snapshot_fn_le.text()),
-                           extension=str(self.snapshot_suffix_le.text()),
+                           extension=self.save_extension(),
                            parent=self.ac.usc.app("argus").snapshot_dir())
 
     def captureSnapshot(self, image_id):
@@ -289,7 +297,7 @@ class SnapshotWidget(AWidget):
         options = {}
         options["image"] = image
         options["save_filename"] = self.snapshot_fn()
-        extension = str(self.snapshot_suffix_le.text())
+        extension = self.save_extension()
         if extension == ".jpg":
             options["save_quality"] = self.ac.usc.imager.save_quality()
         options["scale_factor"] = self.ac.usc.imager.scalar()
@@ -311,14 +319,21 @@ class SnapshotWidget(AWidget):
     def post_ui_init(self):
         pass
 
+    def update_pconfig(self, pconfig):
+        imagerj = pconfig.setdefault("imager", {})
+        imagerj["save_extension"] = self.save_extension()
+        imagerj["save_quality"] = self.ac.usc.imager.save_quality()
+
     def cache_save(self, cachej):
         cachej["snapshot"] = {
             "file_name": str(self.snapshot_fn_le.text()),
+            "extension": self.snapshot_suffix_cb.currentIndex(),
         }
 
     def cache_load(self, cachej):
         j = cachej.get("snapshot", {})
         self.snapshot_fn_le.setText(j.get("file_name", "snapshot"))
+        self.snapshot_suffix_cb.setCurrentIndex(j.get("extension", 0))
 
 
 """
@@ -1387,6 +1402,9 @@ class MainTab(ArgusTab):
 
     def active_planner_widget(self):
         return self.planner_widget_tabs.currentWidget()
+
+    def update_pconfig(self, pconfig):
+        self.snapshot_widget.update_pconfig(pconfig)
 
     def cache_save(self, cachej):
         cachej["main"] = {

@@ -276,9 +276,6 @@ class USCImager:
         -Planner output
         -Argus snapshot
         """
-        ret = os.getenv("PYUSCOPE_SAVE_EXTENSION")
-        if ret:
-            return ret
         return self.j.get("save_extension", ".jpg")
 
     def save_quality(self):

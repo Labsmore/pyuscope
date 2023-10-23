@@ -1154,7 +1154,6 @@ class PlannerSaveImage(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
         self.images_saved = 0
-        # FIXME: this should come from config, not imager
         self.extension = self.pc.imager.save_extension()
         self.quality = self.pc.imager.save_quality()
         assert not self.planner.imager.remote()

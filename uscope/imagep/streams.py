@@ -143,7 +143,7 @@ class DirCSIP:
             if lazy and os.path.exists(fn_out):
                 self.log(f"lazy: skip {fn_out}")
             else:
-                self.csip.queue_correct_plugin(plugin,
+                self.csip._queue_1_to_1_plugin(plugin=plugin,
                                                fn_in=os.path.join(
                                                    iindex_in["dir"], fn_in),
                                                fn_out=fn_out,
@@ -160,7 +160,7 @@ class DirCSIP:
             if lazy and os.path.exists(fn_out):
                 self.log(f"lazy: skip {fn_out}")
             else:
-                self.csip._queue_1_to_1_plugin(task_name=task_name,
+                self.csip._queue_1_to_1_plugin(plugin=task_name,
                                                fn_in=os.path.join(
                                                    iindex_in["dir"], fn_in),
                                                fn_out=fn_out,

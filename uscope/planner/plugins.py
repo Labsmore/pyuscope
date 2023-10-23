@@ -1042,6 +1042,10 @@ class PlannerImageStabilization(PlannerPlugin):
     def iterate(self, state):
         for pointi in range(self.n):
             self.planner.log(f"image stabilization: {pointi + 1} / {self.n}")
+            # TODO: figure out a reasonable time here
+            # Needs to be > 0 to have some time for vibration to move
+            if pointi:
+                time.sleep(0.1)
 
             modifiers = {
                 "filename_part": self.filename_part(pointi),

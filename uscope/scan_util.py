@@ -50,63 +50,46 @@ def iindex_parse_fn(basename):
     2023-10-23: collapsing under its own weight
     Rewrite this to be more proper
     """
-    m = re.match(r"c([0-9]+)_r([0-9]+)_z([0-9]+)_h([0-9]+)(\.[a-z]+)",
-                 basename)
-    if m:
-        return {
-            "col": int(m.group(1)),
-            "col_str": "c" + m.group(1),
-            "row": int(m.group(2)),
-            "row_str": "r" + m.group(2),
-            "stack": int(m.group(3)),
-            "stack_str": "z" + m.group(3),
-            "hdr": int(m.group(4)),
-            "hdr_str": "h" + m.group(4),
-            "extension": m.group(5),
-        }
-    m = re.match(r"c([0-9]+)_r([0-9]+)_z([0-9]+)(\.[a-z]+)", basename)
-    if m:
-        return {
-            "col": int(m.group(1)),
-            "col_str": "c" + m.group(1),
-            "row": int(m.group(2)),
-            "row_str": "r" + m.group(2),
-            "stack": int(m.group(3)),
-            "stack_str": "z" + m.group(3),
-            "extension": m.group(4),
-        }
-    m = re.match(r"c([0-9]+)_r([0-9]+)_h([0-9]+)(\.[a-z]+)", basename)
-    if m:
-        return {
-            "col": int(m.group(1)),
-            "col_str": "c" + m.group(1),
-            "row": int(m.group(2)),
-            "row_str": "r" + m.group(2),
-            "hdr": int(m.group(3)),
-            "hdr_str": "h" + m.group(3),
-            "extension": m.group(4),
-        }
-    m = re.match(r"c([0-9]+)_r([0-9]+)_is([0-9]+)(\.[a-z]+)", basename)
-    if m:
-        return {
-            "col": int(m.group(1)),
-            "col_str": "c" + m.group(1),
-            "row": int(m.group(2)),
-            "row_str": "r" + m.group(2),
-            "stabilization": int(m.group(3)),
-            "stabilization_str": "is" + m.group(3),
-            "extension": m.group(4),
-        }
-    m = re.match(r"c([0-9]+)_r([0-9]+)(\.[a-z]+)", basename)
-    if m:
-        return {
-            "col": int(m.group(1)),
-            "col_str": "c" + m.group(1),
-            "row": int(m.group(2)),
-            "row_str": "r" + m.group(2),
-            "extension": m.group(3),
-        }
-    return None
+    ret = {}
+    parts, extension = basename.split(".")
+    ret["extension"] = "." + extension
+    for part in parts.split("_"):
+        m = re.match(r"c([0-9]+)", part)
+        if m:
+            ret["col"] = int(m.group(1))
+            ret["col_str"] = part
+            continue
+
+        m = re.match(r"r([0-9]+)", part)
+        if m:
+            ret["row"] = int(m.group(1))
+            ret["row_str"] = part
+            continue
+
+        m = re.match(r"h([0-9]+)", part)
+        if m:
+            ret["hdr"] = int(m.group(1))
+            ret["hdr_str"] = part
+            continue
+
+        m = re.match(r"z([0-9]+)", part)
+        if m:
+            ret["stack"] = int(m.group(1))
+            ret["stack_str"] = part
+            continue
+
+        m = re.match(r"is([0-9]+)", part)
+        if m:
+            ret["stabilization"] = int(m.group(1))
+            ret["stabilization_str"] = part
+            continue
+
+        assert 0, f"Unrecognized part {part} in basename {basename}"
+
+    assert "row" in ret, basename
+    assert "col" in ret, basename
+
+    return ret
 
 
 def index_scan_images(dir_in):

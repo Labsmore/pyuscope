@@ -222,18 +222,18 @@ class CSImageProcessor(threading.Thread):
             ip_params.tb.allocate_callback()
         self.queue_in.put(ip_params)
 
-    def _queue_n_to_1_plugin(self,
-                             task_name=None,
-                             fns_in=None,
-                             fn_out=None,
-                             ims_in=None,
-                             want_im_out=False,
-                             data_in=None,
-                             data_out=None,
-                             options={},
-                             callback=None,
-                             tb=None,
-                             block=None):
+    def queue_n_to_1_plugin(self,
+                            task_name=None,
+                            fns_in=None,
+                            fn_out=None,
+                            ims_in=None,
+                            want_im_out=False,
+                            data_in=None,
+                            data_out=None,
+                            options={},
+                            callback=None,
+                            tb=None,
+                            block=None):
         """
         Use enfuse to HDR process a sequence of images of varying exposures
         """
@@ -259,18 +259,18 @@ class CSImageProcessor(threading.Thread):
                                tb=tb)
         self.queue_task(ip_params=ip_params, block=block)
 
-    def _queue_1_to_1_plugin(self,
-                             plugin,
-                             fn_in=None,
-                             fn_out=None,
-                             im_in=None,
-                             want_im_out=False,
-                             data_in=None,
-                             data_out=None,
-                             options={},
-                             callback=None,
-                             tb=None,
-                             block=None):
+    def queue_1_to_1_plugin(self,
+                            plugin,
+                            fn_in=None,
+                            fn_out=None,
+                            im_in=None,
+                            want_im_out=False,
+                            data_in=None,
+                            data_out=None,
+                            options={},
+                            callback=None,
+                            tb=None,
+                            block=None):
         if plugin not in get_plugin_ctors():
             print("Valid plugins:", get_plugin_ctors().keys())
             assert 0, f"Bad plugin {plugin}"

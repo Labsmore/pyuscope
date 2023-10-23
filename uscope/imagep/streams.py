@@ -350,10 +350,10 @@ class SnapshotCSIP:
                 plugin = pipeline_this["plugin"]
                 self.log(f"{plugin}: start")
                 tb = TaskBarrier()
-                data_out = self.csip.queue_correct_plugin(plugin,
-                                                          im_in=current_image,
-                                                          want_im_out=True,
-                                                          tb=tb)
+                data_out = self.csip.queue_1_to_1_plugin(plugin=plugin,
+                                                         im_in=current_image,
+                                                         want_im_out=True,
+                                                         tb=tb)
                 tb.wait()
                 current_image = data_out["image"].get_im()
 

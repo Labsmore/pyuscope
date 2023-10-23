@@ -222,17 +222,18 @@ class CSImageProcessor(threading.Thread):
             ip_params.tb.allocate_callback()
         self.queue_in.put(ip_params)
 
-    def queue_hdr_enfuse(self,
-                         fns_in=None,
-                         fn_out=None,
-                         ims_in=None,
-                         want_im_out=False,
-                         data_in=None,
-                         data_out=None,
-                         options={},
-                         callback=None,
-                         tb=None,
-                         block=None):
+    def _queue_n_to_1_plugin(self,
+                             task_name=None,
+                             fns_in=None,
+                             fn_out=None,
+                             ims_in=None,
+                             want_im_out=False,
+                             data_in=None,
+                             data_out=None,
+                             options={},
+                             callback=None,
+                             tb=None,
+                             block=None):
         """
         Use enfuse to HDR process a sequence of images of varying exposures
         """
@@ -250,7 +251,7 @@ class CSImageProcessor(threading.Thread):
             data_out = {
                 "image": EtherealImageW(want_im=True, temp_dir=self.temp_dir)
             }
-        ip_params = CSIPParams(task_name="hdr-enfuse",
+        ip_params = CSIPParams(task_name=task_name,
                                data_in=data_in,
                                data_out=data_out,
                                options=options,
@@ -258,49 +259,7 @@ class CSImageProcessor(threading.Thread):
                                tb=tb)
         self.queue_task(ip_params=ip_params, block=block)
 
-    def queue_stack_enfuse(self,
-                           fns_in=None,
-                           fn_out=None,
-                           ims_in=None,
-                           want_im_out=False,
-                           data_in=None,
-                           data_out=None,
-                           options={},
-                           callback=None,
-                           tb=None,
-                           block=None):
-        """
-        Use enfuse to stack images of varying Z height
-        """
-        if fns_in is not None:
-            data_in = {
-                "images": [EtherealImageR(fn=fn_in) for fn_in in fns_in]
-            }
-        if fn_out is not None:
-            data_out = {"image": EtherealImageW(want_fn=fn_out)}
-        if ims_in is not None:
-            data_in = {
-                "images": [EtherealImageR(im=im_in) for im_in in ims_in]
-            }
-        if want_im_out:
-            data_out = {
-                "image": EtherealImageW(want_im=True, temp_dir=self.temp_dir)
-            }
-        ip_params = CSIPParams(task_name="stack-enfuse",
-                               data_in=data_in,
-                               data_out=data_out,
-                               options=options,
-                               callback=callback,
-                               tb=tb)
-        self.queue_task(ip_params=ip_params, block=block)
-
-    def queue_correct_ff1(self, **kwargs):
-        return self.queue_correct_plugin(plugin="correct-ff1", **kwargs)
-
-    def queue_correct_sharp1(self, **kwargs):
-        return self.queue_correct_plugin(plugin="correct-sharp1", **kwargs)
-
-    def queue_correct_plugin(self,
+    def _queue_1_to_1_plugin(self,
                              plugin,
                              fn_in=None,
                              fn_out=None,
@@ -333,6 +292,21 @@ class CSImageProcessor(threading.Thread):
                                tb=tb)
         self.queue_task(ip_params=ip_params, block=block)
         return data_out
+
+    def queue_hdr_enfuse(self, **kwargs):
+        self.queue_n_to_1_plugin(task_name="hdr-enfuse", **kwargs)
+
+    def queue_stack_enfuse(self, **kwargs):
+        self.queue_n_to_1_plugin(task_name="stack-enfuse", **kwargs)
+
+    def queue_stabilization(self, **kwargs):
+        self.queue_n_to_1_plugin(task_name="stabilization", **kwargs)
+
+    def queue_correct_ff1(self, **kwargs):
+        return self.queue_1_to_1_plugin(plugin="correct-ff1", **kwargs)
+
+    def queue_correct_sharp1(self, **kwargs):
+        return self.queue_1_to_1_plugin(plugin="correct-sharp1", **kwargs)
 
     def fix_dir(self, this_iindex, dir_out):
         """

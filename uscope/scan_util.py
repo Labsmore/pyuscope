@@ -27,6 +27,8 @@ def unkey_fn_prefix(filev, remove_key):
         ret += f"_{filev['stack_str']}"
     if "hdr" in filev and remove_key != "hdr":
         ret += f"_{filev['hdr_str']}"
+    if "stabilization" in filev and remove_key != "stabilization":
+        ret += f"_{filev['stabilization_str']}"
     return ret
 
 
@@ -44,7 +46,9 @@ def bucket_group(iindex_in, bucket_key):
 def iindex_parse_fn(basename):
     """
     Nobody is going to be impressed with my regular expression skills
-    but this should work
+    but this should work...for now
+    2023-10-23: collapsing under its own weight
+    Rewrite this to be more proper
     """
     m = re.match(r"c([0-9]+)_r([0-9]+)_z([0-9]+)_h([0-9]+)(\.[a-z]+)",
                  basename)
@@ -80,6 +84,17 @@ def iindex_parse_fn(basename):
             "row_str": "r" + m.group(2),
             "hdr": int(m.group(3)),
             "hdr_str": "h" + m.group(3),
+            "extension": m.group(4),
+        }
+    m = re.match(r"c([0-9]+)_r([0-9]+)_is([0-9]+)(\.[a-z]+)", basename)
+    if m:
+        return {
+            "col": int(m.group(1)),
+            "col_str": "c" + m.group(1),
+            "row": int(m.group(2)),
+            "row_str": "r" + m.group(2),
+            "stabilization": int(m.group(3)),
+            "stabilization_str": "is" + m.group(3),
             "extension": m.group(4),
         }
     m = re.match(r"c([0-9]+)_r([0-9]+)(\.[a-z]+)", basename)
@@ -125,6 +140,7 @@ def index_scan_images(dir_in):
     rows = 0
     hdrs = 0
     stacks = 0
+    stabilization = 0
     for fn_full in sorted(
             list(glob.glob(dir_in + "/*.jpg")) +
             list(glob.glob(dir_in + "/*.tif"))):
@@ -134,6 +150,7 @@ def index_scan_images(dir_in):
         if not v:
             continue
         images[basename] = v
+        stabilization = max(stabilization, v.get("stabilization", -1) + 1)
         hdrs = max(hdrs, v.get("hdr", -1) + 1)
         stacks = max(stacks, v.get("stack", -1) + 1)
         rows = max(rows, v.get("row") + 1)
@@ -147,6 +164,7 @@ def index_scan_images(dir_in):
 
     ret["dir"] = working_dir
     ret["images"] = images
+    ret["stabilization"] = stabilization
     ret["hdrs"] = hdrs
     ret["stacks"] = stacks
     ret["cols"] = cols

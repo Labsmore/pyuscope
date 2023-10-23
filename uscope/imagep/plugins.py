@@ -199,6 +199,29 @@ class StackEnfusePlugin(IPPlugin):
                 os.unlink(fn)
 
 
+class StabilizationPlugin(IPPlugin):
+    def __init__(self, log, default_options={}):
+        super().__init__(log=log,
+                         default_options=default_options,
+                         need_tmp_dir=True)
+
+    def _run(self, data_in, data_out, options={}):
+        # https://stackoverflow.com/questions/34865765/finding-the-median-of-a-set-of-pictures-using-pil-and-numpy-gives-a-black-and-wh
+
+        images_np = []
+        for image_in in data_in["images"]:
+            fn = image_in.get_filename()
+            image_matrix = np.array(Image.open(fn))
+            images_np.append(image_matrix)
+
+        image_stack = np.concatenate([im[..., None] for im in images_np],
+                                     axis=3)
+        median_array = np.median(image_stack, axis=3)
+        median_array = median_array.astype(np.uint8)
+        median_image = Image.fromarray(median_array)
+        median_image.save(data_out["image"].get_filename(), quality=90)
+
+
 """
 Correct uneven illumination using a flat field mask
 """
@@ -466,6 +489,7 @@ def get_plugin_ctors():
     return {
         "stack-enfuse": StackEnfusePlugin,
         "hdr-enfuse": HDREnfusePlugin,
+        "stabilization": StabilizationPlugin,
         "correct-ff1": CorrectFF1Plugin,
         "correct-sharp1": CorrectSharp1Plugin,
         "correct-vm1v1": CorrectVM1V1Plugin,

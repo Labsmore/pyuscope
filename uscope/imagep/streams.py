@@ -100,16 +100,16 @@ class DirCSIP:
         self.best_effort = best_effort
         self.verbose = verbose
 
-    def hdr_run(self,
-                iindex_in,
-                dir_out,
-                ewf=None,
-                lazy=True,
-                best_effort=True):
+    def run_n_to_1(self,
+                   task_name,
+                   bucket_name,
+                   iindex_in,
+                   dir_out,
+                   lazy=True):
         if not os.path.exists(dir_out):
             os.mkdir(dir_out)
         image_suffix = get_image_suffix(iindex_in["dir"])
-        buckets = bucket_group(iindex_in, "hdr")
+        buckets = bucket_group(iindex_in, bucket_name)
 
         tb = TaskBarrier()
         # Must be in exposure order?
@@ -125,82 +125,13 @@ class DirCSIP:
                 self.log("%s %s" % (fn_prefix, fn_out))
                 self.log("  %s" % (hdrs.items(), ))
                 self.log("Queing task")
-                self.csip.queue_hdr_enfuse(fns_in=fns, fn_out=fn_out, tb=tb)
-        tb.wait()
-
-    def stack_run(self, iindex_in, dir_out, lazy=True, best_effort=True):
-        if not os.path.exists(dir_out):
-            os.mkdir(dir_out)
-        image_suffix = get_image_suffix(iindex_in["dir"])
-        buckets = bucket_group(iindex_in, "stack")
-        tb = TaskBarrier()
-        """
-        def clean_tmp_files():
-            if self.delete_tmp:
-                # Remove old files
-                for fn in glob.glob(os.path.join(iindex_in["dir"],
-                                                 "aligned_*")):
-                    os.unlink(fn)
-
-        clean_tmp_files()
-        """
-
-        try:
-            # Must be in stack order?
-            for fn_prefix, stacks in sorted(buckets.items()):
-                self.log(stacks.items())
-                fns = [
-                    os.path.join(iindex_in["dir"], fn)
-                    for _i, fn in sorted(stacks.items())
-                ]
-                fn_out = os.path.join(dir_out, fn_prefix + image_suffix)
-                if lazy and os.path.exists(fn_out):
-                    self.log(f"lazy: skip {fn_out}")
-                else:
-                    self.log("Queing task")
-                    self.csip.queue_stack_enfuse(  # dir_in=iindex_in["dir"],
-                        fns_in=fns,
-                        fn_out=fn_out,
-                        # best_effort=best_effort,
-                        tb=tb)
-            tb.wait()
-
-        finally:
-            # clean_tmp_files()
-            pass
-
-    def correct_sharp1_run(self, iindex_in, dir_out, lazy=True):
-        if not os.path.exists(dir_out):
-            os.mkdir(dir_out)
-        tb = TaskBarrier()
-        for fn_in in iindex_in["images"].keys():
-            fn_out = os.path.join(dir_out, os.path.basename(fn_in))
-            if lazy and os.path.exists(fn_out):
-                self.log(f"lazy: skip {fn_out}")
-            else:
-                self.csip.queue_correct_sharp1(fn_in=os.path.join(
-                    iindex_in["dir"], fn_in),
+                self.csip._queue_n_to_1_plugin(task_name=task_name,
+                                               fns_in=fns,
                                                fn_out=fn_out,
                                                tb=tb)
-        # print("TB: wait w/ alloc %s vs completed %s" % (tb.ntasks_allocated, tb.ntasks_completed))
         tb.wait()
 
-    def correct_ff1_run(self, iindex_in, dir_out, lazy=True):
-        if not os.path.exists(dir_out):
-            os.mkdir(dir_out)
-        tb = TaskBarrier()
-        for fn_in in iindex_in["images"].keys():
-            fn_out = os.path.join(dir_out, os.path.basename(fn_in))
-            if lazy and os.path.exists(fn_out):
-                self.log(f"lazy: skip {fn_out}")
-            else:
-                self.csip.queue_correct_ff1(fn_in=os.path.join(
-                    iindex_in["dir"], fn_in),
-                                            fn_out=fn_out,
-                                            tb=tb)
-        # print("TB: wait w/ alloc %s vs completed %s" % (tb.ntasks_allocated, tb.ntasks_completed))
-        tb.wait()
-
+    # FIXME: unify this + run_1_to_1
     def correct_plugin_run(self, plugin_config, iindex_in, dir_out, lazy=True):
         # TODO: some options as well?
         plugin = plugin_config["plugin"]
@@ -220,6 +151,42 @@ class DirCSIP:
         # print("TB: wait w/ alloc %s vs completed %s" % (tb.ntasks_allocated, tb.ntasks_completed))
         tb.wait()
 
+    def run_1_to_1(self, task_name, iindex_in, dir_out, lazy=True):
+        if not os.path.exists(dir_out):
+            os.mkdir(dir_out)
+        tb = TaskBarrier()
+        for fn_in in iindex_in["images"].keys():
+            fn_out = os.path.join(dir_out, os.path.basename(fn_in))
+            if lazy and os.path.exists(fn_out):
+                self.log(f"lazy: skip {fn_out}")
+            else:
+                self.csip._queue_1_to_1_plugin(task_name=task_name,
+                                               fn_in=os.path.join(
+                                                   iindex_in["dir"], fn_in),
+                                               fn_out=fn_out,
+                                               tb=tb)
+        # print("TB: wait w/ alloc %s vs completed %s" % (tb.ntasks_allocated, tb.ntasks_completed))
+        tb.wait()
+
+    def hdr_run(self, **kwargs):
+        self.run_n_to_1(task_name="hdr-enfuse", bucket_name="hdr", **kwargs)
+
+    def stack_run(self, **kwargs):
+        self.run_n_to_1(task_name="stack-enfuse",
+                        bucket_name="stack",
+                        **kwargs)
+
+    def stabilization_run(self, **kwargs):
+        self.run_n_to_1(task_name="stabilization",
+                        bucket_name="stabilization",
+                        **kwargs)
+
+    def correct_sharp1_run(self, **kwargs):
+        self.run_1_to_1(task_name="correct-sharp1", **kwargs)
+
+    def correct_ff1_run(self, **kwargs):
+        self.run_1_to_1(task_name="correct-ff1", **kwargs)
+
     def run(self):
         """
         Process a completed scan into processed images
@@ -237,31 +204,34 @@ class DirCSIP:
 
         self.log("")
 
-        if not working_iindex["hdrs"]:
-            self.log("HDR: no. Straight pass through")
-        else:
+        if working_iindex["stabilization"]:
+            self.log("Stabilization: yes. Processing")
+            # dir name needs to be reasonable for CloudStitch to name it well
+            next_dir = os.path.join(working_iindex["dir"], "stabilization")
+            self.stabilization_run(iindex_in=working_iindex,
+                                   dir_out=next_dir,
+                                   lazy=self.lazy)
+            working_iindex = index_scan_images(next_dir)
+
+        if working_iindex["hdrs"]:
             self.log("HDR: yes. Processing")
             # dir name needs to be reasonable for CloudStitch to name it well
             next_dir = os.path.join(working_iindex["dir"], "hdr")
-            self.hdr_run(working_iindex,
-                         next_dir,
-                         lazy=self.lazy,
-                         best_effort=self.best_effort)
+            self.hdr_run(iindex_in=working_iindex,
+                         dir_out=next_dir,
+                         lazy=self.lazy)
             working_iindex = index_scan_images(next_dir)
 
         self.log("")
 
-        if not working_iindex["stacks"]:
-            self.log("Stacker: no. Straight pass through")
-        else:
+        if working_iindex["stacks"]:
             self.log("Stacker: yes. Processing")
             # dir name needs to be reasonable for CloudStitch to name it well
             next_dir = os.path.join(working_iindex["dir"], "stack")
             # maybe? helps some use cases
-            self.stack_run(working_iindex,
-                           next_dir,
-                           lazy=self.lazy,
-                           best_effort=self.best_effort)
+            self.stack_run(iindex_in=working_iindex,
+                           dir_out=next_dir,
+                           lazy=self.lazy)
             working_iindex = index_scan_images(next_dir)
         """
         Now apply custom correction plugins
@@ -276,8 +246,9 @@ class DirCSIP:
                 this_dir = pipeline_this["dir"]
                 self.log(f"{plugin}: start")
                 next_dir = os.path.join(working_iindex["dir"], this_dir)
-                self.correct_plugin_run(pipeline_this, working_iindex,
-                                        next_dir)
+                self.correct_plugin_run(pipeline_this,
+                                        iindex_in=working_iindex,
+                                        dir_out=next_dir)
                 working_iindex = index_scan_images(next_dir)
                 print("Finishing")
 
@@ -286,7 +257,7 @@ class DirCSIP:
         else:
             self.log("FF correction: start")
             next_dir = os.path.join(working_iindex["dir"], "ff1")
-            self.correct_ff1_run(working_iindex, next_dir)
+            self.correct_ff1_run(iindex_in=working_iindex, dir_out=next_dir)
             working_iindex = index_scan_images(next_dir)
 
         # CloudStitch currently only supports .jpg
@@ -295,7 +266,9 @@ class DirCSIP:
             self.log("Converting to jpg")
             next_dir = os.path.join(working_iindex["dir"], "jpg")
             # runs inline, not parallelized
-            self.csip.tif2jpg_dir(working_iindex, next_dir, lazy=self.lazy)
+            self.csip.tif2jpg_dir(iindex_in=working_iindex,
+                                  dir_out=next_dir,
+                                  lazy=self.lazy)
             working_iindex = index_scan_images(next_dir)
 
         self.log("")

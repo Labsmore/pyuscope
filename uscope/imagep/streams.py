@@ -125,7 +125,7 @@ class DirCSIP:
                 self.log("%s %s" % (fn_prefix, fn_out))
                 self.log("  %s" % (hdrs.items(), ))
                 self.log("Queing task")
-                self.csip._queue_n_to_1_plugin(task_name=task_name,
+                self.csip.queue_n_to_1_plugin(task_name=task_name,
                                                fns_in=fns,
                                                fn_out=fn_out,
                                                tb=tb)
@@ -143,7 +143,7 @@ class DirCSIP:
             if lazy and os.path.exists(fn_out):
                 self.log(f"lazy: skip {fn_out}")
             else:
-                self.csip._queue_1_to_1_plugin(plugin=plugin,
+                self.csip.queue_1_to_1_plugin(plugin=plugin,
                                                fn_in=os.path.join(
                                                    iindex_in["dir"], fn_in),
                                                fn_out=fn_out,
@@ -160,7 +160,7 @@ class DirCSIP:
             if lazy and os.path.exists(fn_out):
                 self.log(f"lazy: skip {fn_out}")
             else:
-                self.csip._queue_1_to_1_plugin(plugin=task_name,
+                self.csip.queue_1_to_1_plugin(plugin=task_name,
                                                fn_in=os.path.join(
                                                    iindex_in["dir"], fn_in),
                                                fn_out=fn_out,

@@ -1044,7 +1044,7 @@ class PlannerImageStabilization(PlannerPlugin):
             self.planner.log(f"image stabilization: {pointi + 1} / {self.n}")
             # TODO: figure out a reasonable time here
             # Needs to be > 0 to have some time for vibration to move
-            if pointi:
+            if pointi and not self.dry:
                 time.sleep(0.1)
 
             modifiers = {

@@ -2468,7 +2468,7 @@ class MotionWidget(AWidget):
         if self.fine_move:
             label = "Jog (fine)"
         else:
-            label = "Jog"
+            label = "Jog (coarse)"
         self.listener.setText(label)
 
     def update_slider_cache(self):

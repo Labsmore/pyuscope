@@ -126,9 +126,9 @@ class DirCSIP:
                 self.log("  %s" % (hdrs.items(), ))
                 self.log("Queing task")
                 self.csip.queue_n_to_1_plugin(task_name=task_name,
-                                               fns_in=fns,
-                                               fn_out=fn_out,
-                                               tb=tb)
+                                              fns_in=fns,
+                                              fn_out=fn_out,
+                                              tb=tb)
         tb.wait()
 
     # FIXME: unify this + run_1_to_1
@@ -144,10 +144,10 @@ class DirCSIP:
                 self.log(f"lazy: skip {fn_out}")
             else:
                 self.csip.queue_1_to_1_plugin(plugin=plugin,
-                                               fn_in=os.path.join(
-                                                   iindex_in["dir"], fn_in),
-                                               fn_out=fn_out,
-                                               tb=tb)
+                                              fn_in=os.path.join(
+                                                  iindex_in["dir"], fn_in),
+                                              fn_out=fn_out,
+                                              tb=tb)
         # print("TB: wait w/ alloc %s vs completed %s" % (tb.ntasks_allocated, tb.ntasks_completed))
         tb.wait()
 
@@ -161,10 +161,10 @@ class DirCSIP:
                 self.log(f"lazy: skip {fn_out}")
             else:
                 self.csip.queue_1_to_1_plugin(plugin=task_name,
-                                               fn_in=os.path.join(
-                                                   iindex_in["dir"], fn_in),
-                                               fn_out=fn_out,
-                                               tb=tb)
+                                              fn_in=os.path.join(
+                                                  iindex_in["dir"], fn_in),
+                                              fn_out=fn_out,
+                                              tb=tb)
         # print("TB: wait w/ alloc %s vs completed %s" % (tb.ntasks_allocated, tb.ntasks_completed))
         tb.wait()
 

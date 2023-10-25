@@ -639,24 +639,36 @@ class MotionHAL:
         """
         return self._epsilon
 
-    def munge_axes_user2machine_rel(self, axes):
+    def axes_abs(self, axes):
+        for k, v in axes.items():
+            axes[k] = abs(v)
+
+    def munge_axes_user2machine_rel(self, axes, abs_=False):
         for modifier in self.iter_active_modifiers():
             modifier.munge_axes_user2machine_rel(axes)
+        if abs_:
+            self.axes_abs(axes)
         return axes
 
-    def munge_axes_user2machine_abs(self, axes):
+    def munge_axes_user2machine_abs(self, axes, abs_=False):
         for modifier in self.iter_active_modifiers():
             modifier.munge_axes_user2machine_abs(axes)
+        if abs_:
+            self.axes_abs(axes)
         return axes
 
-    def munge_axes_machine2user_rel(self, axes):
+    def munge_axes_machine2user_rel(self, axes, abs_=False):
         for modifier in self.iter_active_modifiers():
             modifier.munge_axes_machine2user_rel(axes)
+        if abs_:
+            self.axes_abs(axes)
         return axes
 
-    def munge_axes_machine2user_abs(self, axes):
+    def munge_axes_machine2user_abs(self, axes, abs_=False):
         for modifier in self.iter_active_modifiers():
             modifier.munge_axes_machine2user_abs(axes)
+        if abs_:
+            self.axes_abs(axes)
         return axes
 
     def _get_machine_limits(self):
@@ -761,7 +773,8 @@ class MotionHAL:
             # print("calc max velocities", self._hal_max_velocities)
             for v in self._hal_max_velocities.values():
                 assert v > 0, self._hal_max_velocities
-            self.munge_axes_machine2user_rel(self._hal_max_velocities)
+            self.munge_axes_machine2user_rel(self._hal_max_velocities,
+                                             abs_=True)
             # print("calc max velocities", self._hal_max_velocities)
             for v in self._hal_max_velocities.values():
                 assert v > 0, self._hal_max_velocities
@@ -772,7 +785,8 @@ class MotionHAL:
 
         def calc_max_accelerations():
             self._hal_max_accelerations = self._get_max_accelerations()
-            self.munge_axes_machine2user_rel(self._hal_max_accelerations)
+            self.munge_axes_machine2user_rel(self._hal_max_accelerations,
+                                             abs_=True)
             # 2023-09-18: not currently used
             # Could drop this requirement if good reason
             self.assert_all_axes(self._hal_max_accelerations)

@@ -408,6 +408,8 @@ class MotionThreadBase:
                 self.verbose and print("")
                 self.verbose and print(
                     "process @ %s" % datetime.datetime.utcnow().isoformat())
+                if 0 and command not in ("update_pos_cache", "pos"):
+                    print("running", command, args)
                 #print 'cnc thread: dispatch %s' % command
                 # Maybe I should just always emit the pos
                 f = {

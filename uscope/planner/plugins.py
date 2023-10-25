@@ -440,7 +440,8 @@ class PointGenerator2P(PlannerPlugin):
 
     def log_scan_begin(self):
         self.log("XY2P")
-        self.log("  Origin: %s" % self.origin)
+        # 2023-10-25: only ll origin is in use now
+        # self.log("  Origin: %s" % self.origin)
         log_scan_xy_begin(self)
         # Try actually generating the points and see if it matches how many we thought we were going to get
         if self.pc.exclude():
@@ -451,8 +452,10 @@ class PointGenerator2P(PlannerPlugin):
         for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul_serp():
             self.itered_xy_points += 1
             self.log('')
-            self.log('XY2P: generated point: %u / %u' %
-                     (self.itered_xy_points, self.points_expected()))
+            self.log(
+                "XY2P: %u / %u @ c=%u, r=%u, %s" %
+                (self.itered_xy_points, self.images_expected(), ul_col, ul_row,
+                 self.microscope.usc.motion.format_positions(pos)))
 
             self.motion.move_absolute(pos)
 
@@ -469,7 +472,8 @@ class PointGenerator2P(PlannerPlugin):
         # Will be at the end of a stack
         # Put it back where it started
         pos = self.calc_pos(0, 0)
-        self.log(f"XY2P: returning XY at scan end {pos}")
+        self.log(f"XY2P: returning XY at scan end: %s" %
+                 self.microscope.usc.motion.format_positions(pos))
         self.motion.move_absolute(pos)
 
     def log_scan_end(self):
@@ -740,15 +744,12 @@ class PointGenerator3P(PlannerPlugin):
         for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul_serp():
             self.log('')
             self.itered_xy_points += 1
-            if not self.tracking_z:
-                self.log("XY3P: %u / %u @ c=%u, r=%u, x=%0.3f, y=%0.3f" %
-                         (self.itered_xy_points, self.images_expected(),
-                          ul_col, ul_row, pos["x"], pos["y"]))
-            else:
-                self.log(
-                    "XY3P: %u / %u @ c=%u, r=%u, x=%0.3f, y=%0.3f, z=%0.3f" %
-                    (self.itered_xy_points, self.images_expected(), ul_col,
-                     ul_row, pos["x"], pos["y"], pos["z"]))
+            if "z" in pos and not self.tracking_z:
+                del pos["z"]
+            self.log(
+                "XY3P: %u / %u @ c=%u, r=%u, %s" %
+                (self.itered_xy_points, self.images_expected(), ul_col, ul_row,
+                 self.microscope.usc.motion.format_positions(pos)))
             self.move_absolute(pos)
 
             modifiers = {
@@ -765,8 +766,9 @@ class PointGenerator3P(PlannerPlugin):
         pos = self.calc_pos(0, 0)
         if not self.tracking_z and "z" in pos:
             del pos["z"]
-        self.log(f"XY3P: returning XYZ at scan end {pos}")
-        self.move_absolute(pos)
+        self.log("XY3P: returning XYZ at scan end to %s" %
+                 (self.microscope.usc.motion.format_positions(pos)))
+        self.motion.move_absolute(pos)
 
     def log_scan_begin(self):
         self.log("XY3P")
@@ -895,9 +897,22 @@ class PlannerStacker(PlannerPlugin):
             yield modifiers, replace_keys
 
     def scan_end(self, state):
-        self.log("Stacker: restoring %s = %0.3f" %
-                 (self.axis, self.first_reference))
-        self.motion.move_absolute({self.axis: self.first_reference})
+        """
+        Only restore if something of greater authority isn't present
+        don't restore:
+            XY3P w/ Z control (common case)
+        restore when:
+            XY2P
+            XY3P w/o Z control
+        """
+        restore = True
+        xy3p = self.planner.pipeline.get("points-xy3p")
+        if xy3p and xy3p.tracking_z:
+            restore = False
+        if restore:
+            self.log("Stacker: restoring %s = %0.3f" %
+                     (self.axis, self.first_reference))
+            self.motion.move_absolute({self.axis: self.first_reference})
 
     def gen_meta(self, meta):
         meta["points-stacker"] = {

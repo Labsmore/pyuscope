@@ -78,6 +78,9 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
 */
 {
     "kinematics": {
+        //2023-10-25: experimental
+        //Actual value might be higher but good enough for AF right now
+        "tsettle_autofocus": 0.3,
         //2023-10-12: think 0.4 base isn't enough to fully settle vibration => increase slightly
         //Maybe it always has to flush a frame => gives sync time?
         "tsettle_motion_na1": 0.5,

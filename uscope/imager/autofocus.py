@@ -55,9 +55,13 @@ class Autofocus:
 
     def move_absolute_wait(self, pos):
         self.move_absolute(pos, block=True)
-        self.kinematics.wait_imaging_ok()
+        self.kinematics.wait_autofocus()
 
-    def auto_focus_pass(self, step_size, step_pm):
+    def auto_focus_pass(self,
+                        step_size,
+                        step_pm,
+                        move_target=True,
+                        start_pos=None):
         """
         for outer_i in range(3):
             self.log("autofocus: try %u / 3" % (outer_i + 1,))
@@ -70,7 +74,8 @@ class Autofocus:
         """
 
         # Very basic short range
-        start_pos = self.pos()["z"]
+        if start_pos is None:
+            start_pos = self.pos()["z"]
         steps = step_pm * 2 + 1
 
         # Doing generator allows easier to process images as movement is done / settling
@@ -93,7 +98,9 @@ class Autofocus:
                  (target_pos, fni + 1, steps))
         if self.poll:
             self.poll()
-        self.move_absolute_wait({"z": target_pos})
+        if move_target:
+            self.move_absolute_wait({"z": target_pos})
+        return target_pos
 
     def calc_die_normal_step(self, objective_config):
         na = objective_config["na"]
@@ -126,12 +133,14 @@ class Autofocus:
         # 2 um is standard focus step size
         self.log("autofocus: coarse")
         parameters = self.coarse_parameters(objective_config)
-        self.auto_focus_pass(step_size=parameters["step_size"],
-                             step_pm=parameters["step_pm"])
+        coarse_z = self.auto_focus_pass(step_size=parameters["step_size"],
+                                        step_pm=parameters["step_pm"],
+                                        move_target=False)
         self.log("autofocus: medium")
         parameters = self.fine_parameters(objective_config)
         self.auto_focus_pass(step_size=parameters["step_size"],
-                             step_pm=parameters["step_pm"])
+                             step_pm=parameters["step_pm"],
+                             start_pos=coarse_z)
         self.log("autofocus: done")
 
 

@@ -20,7 +20,10 @@ class Kinematics:
         self.verbose and self.log(
             "Kinematics(): tsettle_hdr: %0.3f" % self.tsettle_hdr)
 
-    def configure(self, tsettle_motion=None, tsettle_hdr=None):
+    def configure(self,
+                  tsettle_motion=None,
+                  tsettle_hdr=None,
+                  tsettle_autofocus=None):
         # some CLI apps don't require these
         # assert self.microscope.imager
         # assert self.microscope.motion
@@ -29,9 +32,15 @@ class Kinematics:
             tsettle_motion = self.microscope.usc.kinematics.tsettle_motion_max(
             )
         self.tsettle_motion = tsettle_motion
+
         if tsettle_hdr is None:
             tsettle_hdr = self.microscope.usc.kinematics.tsettle_hdr()
         self.tsettle_hdr = tsettle_hdr
+
+        if tsettle_autofocus is None:
+            tsettle_autofocus = self.microscope.usc.kinematics.tsettle_autofocus(
+            )
+        self.tsettle_autofocus = tsettle_autofocus
 
     # May be updated as objective is changed
     def set_tsettle_motion(self, tsettle_motion):
@@ -39,6 +48,9 @@ class Kinematics:
 
     def set_tsettle_hdr(self, tsettle_hdr):
         self.tsettle_hdr = tsettle_hdr
+
+    def set_tsettle_autofocus(self, tsettle_autofocus):
+        self.tsettle_autofocus = tsettle_autofocus
 
     def wait_motion(self):
         if self.microscope.motion is None or self.tsettle_motion <= 0:
@@ -57,6 +69,18 @@ class Kinematics:
         )
         self.verbose and self.log(
             "FIXME TMP: this tsettle_hdr: %0.3f" % tsettle)
+        if tsettle > 0.0:
+            time.sleep(tsettle)
+
+    def wait_autofocus(self):
+        """
+        Much more aggressive than other methods
+        Let's try to keep this responsive
+        """
+        if self.microscope.imager is None or self.tsettle_autofocus <= 0:
+            return
+        tsettle = self.tsettle_autofocus - self.microscope.motion.since_last_motion(
+        )
         if tsettle > 0.0:
             time.sleep(tsettle)
 

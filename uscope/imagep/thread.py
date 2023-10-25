@@ -49,19 +49,16 @@ class ImageProcessingThreadBase:
         }
         self.command(j, block=block, callback=callback)
 
-    def move_absolute(self, pos, block=True):
-        self.microscope.motion_thread.move_absolute(pos, block=block)
-        self.microscope.kinematics.wait_imaging_ok()
-
     def pos(self):
         return self.microscope.motion_thread.pos()
 
     def _do_auto_focus(self, objective_config):
-        af = Autofocus(move_absolute=self.move_absolute,
-                       pos=self.pos,
-                       imager=self.microscope.imager,
-                       kinematics=self.microscope.kinematics,
-                       log=self.log)
+        af = Autofocus(
+            move_absolute=self.microscope.motion_thread.move_absolute,
+            pos=self.pos,
+            imager=self.microscope.imager,
+            kinematics=self.microscope.kinematics,
+            log=self.log)
         af.coarse(objective_config)
 
     def process_snapshot(self, options, block=False, callback=None):

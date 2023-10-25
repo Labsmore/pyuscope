@@ -562,6 +562,9 @@ class USCKinematics:
     min delay: 0.50 / 0.8 + 0.1 = 0.725 sec
     """
 
+    def tsettle_autofocus(self):
+        return float(self.j.get("tsettle_autofocus", 0.1))
+
     def tsettle_motion_base(self):
         """
         How much *minimum* time to wait after moving to take an image

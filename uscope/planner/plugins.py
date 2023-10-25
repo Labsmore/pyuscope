@@ -740,9 +740,15 @@ class PointGenerator3P(PlannerPlugin):
         for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul_serp():
             self.log('')
             self.itered_xy_points += 1
-            self.log("XY3P: %u / %u @ c=%u, r=%u, x=%0.3f, y=%0.3f, z=%0.3f" %
-                     (self.itered_xy_points, self.images_expected(), ul_col,
-                      ul_row, pos["x"], pos["y"], pos["z"]))
+            if not self.tracking_z:
+                self.log("XY3P: %u / %u @ c=%u, r=%u, x=%0.3f, y=%0.3f" %
+                         (self.itered_xy_points, self.images_expected(),
+                          ul_col, ul_row, pos["x"], pos["y"]))
+            else:
+                self.log(
+                    "XY3P: %u / %u @ c=%u, r=%u, x=%0.3f, y=%0.3f, z=%0.3f" %
+                    (self.itered_xy_points, self.images_expected(), ul_col,
+                     ul_row, pos["x"], pos["y"], pos["z"]))
             self.move_absolute(pos)
 
             modifiers = {
@@ -1109,7 +1115,7 @@ class PlannerCaptureImage(PlannerPlugin):
     def iterate(self, state):
         im = None
         assert state.get("image") is None, "Pipeline already took an image"
-        self.log("Capturing at %s" % pos_str(self.motion.pos()))
+        # self.log("Capturing at %s" % pos_str(self.motion.pos()))
         if not self.planner.dry:
             if self.planner.imager.remote():
                 self.planner.imager.take()

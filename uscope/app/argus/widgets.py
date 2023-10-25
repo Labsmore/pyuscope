@@ -2167,10 +2167,20 @@ class JogSlider(QWidget):
 
         def labels():
             layout = QHBoxLayout()
-            layout.addWidget(QLabel("0.1"))
-            layout.addWidget(QLabel("1"))
-            layout.addWidget(QLabel("10"))
-            layout.addWidget(QLabel("100"))
+            labels = ("0.1", "1", "10", "100")
+            for _labeli, s in enumerate(labels):
+                label = QLabel(s)
+                """
+                2023-10-25: centered on all looks best
+                if labeli == 0:
+                    label.setAlignment(Qt.AlignLeft)
+                elif labeli == len(labels) - 1:
+                    label.setAlignment(Qt.AlignRight)
+                else:
+                    label.setAlignment(Qt.AlignCenter)
+                """
+                label.setAlignment(Qt.AlignCenter)
+                layout.addWidget(label)
             return layout
 
         self.layout.addLayout(labels())

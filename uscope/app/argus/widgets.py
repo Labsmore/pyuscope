@@ -2811,7 +2811,7 @@ class AnnotateImage(QLabel):
                 dx += 10
             qp.drawText((start.x() + end.x()) // 2 + dx,
                         (start.y() + end.y()) // 2 + dy,
-                        "%0.1f µm" % (self.pixel_conversion * distance, ))
+                        "%0.2f µm" % (self.pixel_conversion * distance, ))
 
         selected_color = QColor(43, 250, 43, 200)
         default_color = QColor(43, 43, 43, 200)

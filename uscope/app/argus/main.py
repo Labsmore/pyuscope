@@ -116,6 +116,8 @@ class MainWindow(QMainWindow):
         self.awidgets["Main"] = self.mainTab
         self.imagerTab = ImagerTab(ac=self.ac, parent=self)
         self.awidgets["Imager"] = self.imagerTab
+        self.measureTab = MeasureTab(ac=self.ac, parent=self)
+        self.awidgets["Measure"] = self.measureTab
         self.batchTab = BatchImageTab(ac=self.ac, parent=self)
         self.awidgets["Batch"] = self.batchTab
         self.scriptingTab = ScriptingTab(ac=self.ac, parent=self)
@@ -124,8 +126,6 @@ class MainWindow(QMainWindow):
         self.awidgets["Advanced"] = self.advancedTab
         self.stitchingTab = StitchingTab(ac=self.ac, parent=self)
         self.awidgets["CloudStitch"] = self.stitchingTab
-        self.measureTab = MeasureTab(ac=self.ac, parent=self)
-        self.awidgets["Measure"] = self.measureTab
         self.ac.mainTab = self.mainTab
         self.ac.scriptingTab = self.scriptingTab
         self.ac.stitchingTab = self.stitchingTab

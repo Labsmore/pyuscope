@@ -85,8 +85,8 @@ class Autofocus:
                     self.poll()
                 # FIXME: use backlash compensation direction here
                 target_pos = start_pos + -(focusi - step_pm) * step_size
-                self.log("autofocus round %u / %u: try %0.6f" %
-                         (focusi + 1, steps, target_pos))
+                0 and self.log("autofocus round %u / %u: try %0.6f" %
+                               (focusi + 1, steps, target_pos))
                 self.move_absolute_wait({"z": target_pos})
                 im_pil = self.imager.get()["0"]
                 yield target_pos, im_pil
@@ -136,7 +136,7 @@ class Autofocus:
         coarse_z = self.auto_focus_pass(step_size=parameters["step_size"],
                                         step_pm=parameters["step_pm"],
                                         move_target=False)
-        self.log("autofocus: medium")
+        self.log("autofocus: fine")
         parameters = self.fine_parameters(objective_config)
         self.auto_focus_pass(step_size=parameters["step_size"],
                              step_pm=parameters["step_pm"],

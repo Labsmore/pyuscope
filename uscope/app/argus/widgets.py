@@ -2166,22 +2166,9 @@ class JogSlider(QWidget):
         self.layout = QVBoxLayout()
 
         def labels():
-            layout = QHBoxLayout()
-            labels = ("0.1", "1", "10", "100")
-            for _labeli, s in enumerate(labels):
-                label = QLabel(s)
-                """
-                2023-10-25: centered on all looks best
-                if labeli == 0:
-                    label.setAlignment(Qt.AlignLeft)
-                elif labeli == len(labels) - 1:
-                    label.setAlignment(Qt.AlignRight)
-                else:
-                    label.setAlignment(Qt.AlignCenter)
-                """
-                label.setAlignment(Qt.AlignCenter)
-                layout.addWidget(label)
-            return layout
+            self.label_layout = QHBoxLayout()
+            self.update_label_layout(False)
+            return self.label_layout
 
         self.layout.addLayout(labels())
 
@@ -2196,6 +2183,29 @@ class JogSlider(QWidget):
         self.layout.addWidget(self.slider)
 
         self.setLayout(self.layout)
+
+    def update_label_layout(self, fine):
+        # Clear layout
+        for i in reversed(range(self.label_layout.count())):
+            self.label_layout.itemAt(i).widget().setParent(None)
+
+        if fine:
+            labels = ("0.1", "1", "10")
+        else:
+            labels = ("0.1", "1", "10", "100")
+        for _labeli, s in enumerate(labels):
+            label = QLabel(s)
+            """
+            2023-10-25: centered on all looks best
+            if labeli == 0:
+                label.setAlignment(Qt.AlignLeft)
+            elif labeli == len(labels) - 1:
+                label.setAlignment(Qt.AlignRight)
+            else:
+                label.setAlignment(Qt.AlignCenter)
+            """
+            label.setAlignment(Qt.AlignCenter)
+            self.label_layout.addWidget(label)
 
     def get_jog_percentage(self):
         verbose = 0
@@ -2237,6 +2247,12 @@ class JogSlider(QWidget):
             self.slider_max * self.slider_adjust_factor)
         self.slider.setValue(slider_val)
 
+    def jog_slider_raw(self):
+        return float(self.slider.value())
+
+    def set_jog_slider_raw(self, v):
+        self.slider.setValue(v)
+
     def set_jog_slider(self, val):
         # val is expected to be between 0.0 to 1.0
         val_min = 0
@@ -2259,6 +2275,9 @@ class MotionWidget(AWidget):
         self.log = log
         self.motion_thread = motion_thread
         self.fine_move = False
+        # Used to switch back and forth + save
+        self.slider_last_coarse = None
+        self.slider_last_fine = None
 
         self.axis_map = {
             # Upper left origin
@@ -2452,6 +2471,25 @@ class MotionWidget(AWidget):
             label = "Jog"
         self.listener.setText(label)
 
+    def update_slider_cache(self):
+        if self.fine_move:
+            self.slider_last_fine = self.slider.jog_slider_raw()
+        else:
+            self.slider_last_coarse = self.slider.jog_slider_raw()
+
+    def update_slider_from_last(self):
+        if not self.fine_move and self.slider_last_coarse is not None:
+            self.slider.set_jog_slider_raw(self.slider_last_coarse)
+        if self.fine_move and self.slider_last_fine is not None:
+            self.slider.set_jog_slider_raw(self.slider_last_fine)
+
+    def toggle_fine(self):
+        self.update_slider_cache()
+        self.fine_move = not self.fine_move
+        self.slider.update_label_layout(self.fine_move)
+        self.update_jog_text()
+        self.update_slider_from_last()
+
     def keyPressEventCaptured(self, event):
         k = event.key()
         # Ignore duplicates, want only real presses
@@ -2461,8 +2499,7 @@ class MotionWidget(AWidget):
         self.keys_up[k] = True
         self.jog_last_presses[k] = True
         if k == Qt.Key_F:
-            self.fine_move = not self.fine_move
-            self.update_jog_text()
+            self.toggle_fine()
             return
         elif k == Qt.Key_Z:
             self.slider.decrease_key()
@@ -2515,10 +2552,7 @@ class MotionWidget(AWidget):
             fine_scalar = 1.0
             # FIXME: now that using real machine units need to revisit this
             if self.fine_move:
-                if axis == "z":
-                    fine_scalar = 0.01
-                else:
-                    fine_scalar = 0.01
+                fine_scalar = 0.1
             jog_val = keyboard_sign * self.kj_xy_scalar * fine_scalar * self.slider.get_jog_fraction(
             )
             jogs[axis] = jog_val
@@ -2536,11 +2570,20 @@ class MotionWidget(AWidget):
     def cache_save(self, cachej):
         j = {}
         j["reference"] = str(self.reference_le.text())
+        j["self.fine_move"] = self.fine_move
+        j["slider_last_fine"] = self.slider_last_fine
+        j["slider_last_coarse"] = self.slider_last_coarse
         cachej["motion"] = j
 
     def cache_load(self, cachej):
         j = cachej.get("motion", {})
         self.reference_le.setText(j.get("reference", ""))
+
+        self.fine_move = j.get("fine_move", False)
+        self.slider_last_fine = j.get(self.slider_last_fine)
+        self.slider_last_coarse = j.get(self.slider_last_coarse)
+        self.update_jog_text()
+        self.update_slider_from_last()
 
 
 class SimpleScanNameWidget(AWidget):

@@ -202,6 +202,8 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         //4.5x
         //"scalar": 0.5,
         //"um_per_pixel_raw_1x": 2.291666667,
+
+        "videoflip_method": "rotate-180",
     },
     "ipp": {
         "pipeline_last": [

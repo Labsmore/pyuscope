@@ -95,6 +95,10 @@ Camera: see VM1B config ifle
     "imager": {
         "source":"gst-v4l2src-hy800b",
         //Find first device matching this name
+        //0ac8:3420 Z-Star Microelectronics Corp. Venus USB2.0 Camera
+        //Eakins, Hayer, etc all match this
+        //implies Eakins in a Hayer rebrand
+        //Label on some looks touptek like?
         "v4l2_name": "Hayear Camera: HY-800B",
         "source_properties": {
             //"device": "/dev/video4"

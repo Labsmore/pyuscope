@@ -10,7 +10,7 @@ Camera: see VM1B config ifle
         //2023-10-12: think 0.4 base isn't enough to fully settle vibration => increase slightly
         "tsettle_motion_na1": 0.5,
         //0.25 ocassionally misses frame sync
-        "tsettle_motion_base": 0.6,
+        "tsettle_motion_base": 0.4,
         //2023-10-18: missed at 0.5
         "tsettle_hdr": 0.6,
     },

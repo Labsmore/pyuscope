@@ -215,6 +215,7 @@
  * Joystick tweaks / fixes
  * Microscope support
    * LIP-VA1: beta support
+   * LIP-VM1: rotate image 180
    * Re-enable soft limits after jogging fixes
  * Misc fixes / improvements
    * Planner: focus stacking Z return fixes

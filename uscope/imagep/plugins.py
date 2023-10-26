@@ -91,10 +91,14 @@ class HDREnfusePlugin(IPPlugin):
     def _run(self, data_in, data_out, options={}):
         ewf = options.get("ewf", "gaussian")
         best_effort = options.get("best_effort", False)
+        out_fn = data_out["image"].get_filename()
         args = [
-            "enfuse", "--output", data_out["image"].get_filename(),
-            "--exposure-weight-function", ewf
+            "enfuse", "--output", out_fn, "--exposure-weight-function", ewf
         ]
+        # 2023-10-25, quick experiment, didn't seem to work
+        if 0 and ".tif" in out_fn:
+            args.append("-d")
+            args.append("16")
         for image_in in data_in["images"]:
             fn = image_in.get_filename()
             args.append(fn)
@@ -181,11 +185,15 @@ class StackEnfusePlugin(IPPlugin):
                                           prefix + "%04u.tif" % imi)
                 image_in.to_filename_tif(fn_aligned)
 
+        out_fn = data_out["image"].get_filename()
         args = [
             "enfuse", "--exposure-weight=0", "--saturation-weight=0",
-            "--contrast-weight=1", "--hard-mask",
-            "--output=" + data_out["image"].get_filename()
+            "--contrast-weight=1", "--hard-mask", "--output=" + out_fn
         ]
+        # 2023-10-25, quick experiment, didn't seem to work
+        if 0 and ".tif" in out_fn:
+            args.append("-d")
+            args.append("16")
         for fn in glob.glob(os.path.join(self.get_tmp_dir(), prefix + "*")):
             args.append(fn)
         # self.log(" ".join(args))

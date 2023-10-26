@@ -353,7 +353,10 @@ class CSImageProcessor(threading.Thread):
             if lazy and os.path.exists(fn_out):
                 self.log(f"lazy: skip {fn_out}")
             else:
-                args = ["convert", "-quality", "90", fn_in, fn_out]
+                args = [
+                    "convert", "-quality",
+                    str(config.get_usc().imager.save_quality()), fn_in, fn_out
+                ]
                 self.log(" ".join(args))
                 subprocess.check_call(args)
 

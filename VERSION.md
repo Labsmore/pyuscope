@@ -198,3 +198,24 @@
 ## 4.3.1
   * Add second scripting path for pyuscope-rhodium
 
+## 4.4.0
+ * Compatible with
+   * gst-plugin-toupcam: v0.5.0
+   * Motion HAL: GRBL
+ * Argus
+   * Jog slider tweaks
+   * Measurement tab
+   * Snapshot basic image processing (ex: VM1 correction)
+   * Jogging confirmation message box
+   * Focus stacking: calculate based on NA
+   * Save .tif or .jpg easily
+ * Image stablization support
+ * Autofocus much faster
+ * Jogging engine rewrite
+ * Joystick tweaks / fixes
+ * Microscope support
+   * LIP-VA1: beta support
+   * Re-enable soft limits after jogging fixes
+ * Misc fixes / improvements
+   * Planner: focus stacking Z return fixes
+   * Soft limits should be more reliable

@@ -61,6 +61,18 @@ class InputWidget(QWidget):
             self.widgets[label] = widget
             row += 1
 
+    def update_defaults(self, vals):
+        for label, val in vals.items():
+            widget = self.widgets[label]
+            lconfig = self.config[label]
+            if lconfig["widget"] == "QLineEdit":
+                widget.setText(str(val))
+            elif lconfig["widget"] == "QComboBox":
+                widget.setCurrentText(val)
+            else:
+                raise ValueError(
+                    f"bad config: unknown widget type {lconfig['widget']}")
+
     def getValue(self):
         ret = {}
         for label, lconfig in self.config.items():

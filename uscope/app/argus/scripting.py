@@ -41,6 +41,7 @@ class ArgusScriptingPlugin(QThread):
     def reset(self):
         self._succeeded = None
         self.result_message = None
+        self.new_defaults = {}
         self._running.set()
 
     def log(self, s):
@@ -61,6 +62,12 @@ class ArgusScriptingPlugin(QThread):
         Return a dictionary containing applicable fields
         """
         return self._input
+
+    def set_input_default(self, label, value):
+        """
+        Allows a script to have modes that setup various parameters
+        """
+        self.new_defaults[label] = value
 
     def fail(self, message):
         """
@@ -370,6 +377,12 @@ class ScriptingTab(ArgusTab):
     def plugin_done(self):
         if self.plugin.succeeded():
             status = "Status: finished ok"
+            try:
+                self.input.update_defaults(self.plugin.new_defaults)
+            except KeyError as e:
+                self.log_local(f"Failed to update defaults: bad label: {e}")
+            except Exception as e:
+                self.log_local(f"Failed to update defaults: {type(e)}: {e}")
         else:
             status = "Status: failed :("
         self.status_le.setText(status)

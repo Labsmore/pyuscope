@@ -3,7 +3,7 @@ from uscope.gui.control_scrolls import get_control_scroll
 from uscope.config import get_usj, USC, get_bc, get_data_dir
 from uscope.gui import plugin
 from uscope.gst_util import Gst, CaptureSink
-from uscope.app.argus.threads import QMotionThread, QImageProcessingThread, QJoystickThread
+from uscope.app.argus.threads import QMotionThread, QImageProcessingThread, QJoystickThread, QTaskThread
 from uscope.joystick import JoystickNotFound
 from uscope.microscope import Microscope
 from uscope.kinematics import Kinematics
@@ -155,6 +155,7 @@ class ArgusCommon(QObject):
         self.planner_thread = None
         self.joystick_thread = None
         self.image_processing_thread = None
+        self.task_thread = None
 
         self.microscope = None
         self.microscope_name = microscope_name
@@ -163,6 +164,12 @@ class ArgusCommon(QObject):
         self.usc.app_register("argus", USCArgus)
         self.aconfig = self.usc.app("argus")
         self.bc = get_bc()
+
+        # TODO: init things in Microscope and then push references here
+        self.microscope = Microscope(bc=self.bc,
+                                     usc=self.usc,
+                                     auto=False,
+                                     configure=False)
 
         self.scan_configs = None
         self.imager = None
@@ -200,19 +207,12 @@ class ArgusCommon(QObject):
 
         self.planner_thread = None
         # motion.progress = self.hal_progress
-        self.motion_thread = QMotionThread(usc=self.usc)
+        self.motion_thread = QMotionThread(ac=self)
         self.motion_thread.log_msg.connect(self.log)
         self.motion = self.motion_thread.motion
+        self.microscope.set_motion(self.motion)
         self.motion.set_ask_home(gui_ask_home)
 
-        # TODO: init things in Microscope and then push references here
-        self.microscope = Microscope(
-            bc=self.bc,
-            usc=self.usc,
-            motion=self.motion,
-            # should all be initialized
-            auto=False,
-            configure=False)
         self.microscope.motion_thread = self.motion_thread
 
         # TODO: we should try to make this allow connecting and disconnecting joystick
@@ -222,6 +222,8 @@ class ArgusCommon(QObject):
         except JoystickNotFound:
             self.log("Joystick not found")
         self.microscope.joystick_thread = self.joystick_thread
+
+        self.task_thread = QTaskThread(ac=self)
 
     def initUI(self):
         self.vidpip.setupWidgets()
@@ -278,6 +280,8 @@ class ArgusCommon(QObject):
         # Needs imager which isn't initialized until gst GUI objects are made
         self.image_processing_thread = QImageProcessingThread(ac=self)
 
+        self.task_thread.start()
+
         self.kinematics = Kinematics(
             microscope=self.microscope,
             log=self.log,
@@ -301,6 +305,9 @@ class ArgusCommon(QObject):
         if self.joystick_thread:
             self.joystick_thread.shutdown()
             self.joystick_thread = None
+        if self.task_thread:
+            self.task_thread.shutdown()
+            self.task_thread = None
 
     def init_imager(self):
         source = self.vidpip.source_name

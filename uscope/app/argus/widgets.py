@@ -22,25 +22,10 @@ from PIL import Image
 from io import StringIO
 import math
 from enum import Enum
+import threading
 """
 Argus Widget
 """
-
-
-class EventSequener:
-    def __init__(self, args):
-        self.args = args
-        # XXX: some sort of timeout?
-
-    def run(self, *_args, **_kwargs):
-        # print("EventSequener: %u remaining" % len(self.args))
-        if len(self.args) == 0:
-            return
-        func, kwargs = self.args[0]
-        del self.args[0]
-        # Require a callback only when more events to trigger?
-        # maybe better to have a final timeout close out
-        func(**kwargs, callback=self.run)
 
 
 # TODO: register events in lieu of callbacks
@@ -917,24 +902,24 @@ class XYPlanner3PWidget(PlannerWidget):
         return pos
 
     # Thread safety to bring back to GUI thread for GUI operations
-    def emit_click_corner(self, corner_name, callback=None):
-        self.click_corner.emit((corner_name, callback))
+    def emit_click_corner(self, corner_name, done=None):
+        self.click_corner.emit((corner_name, done))
 
     def click_corner_slot(self, args):
-        corner_name, callback = args
+        corner_name, done = args
         self.corner_clicked(corner_name)
-        if callback:
-            callback()
+        if done:
+            done.set()
 
-    def emit_go_corner(self, corner_name, callback=None):
-        self.go_corner.emit((corner_name, callback))
+    def emit_go_corner(self, corner_name, done=None):
+        self.go_corner.emit((corner_name, done))
 
     def go_corner_slot(self, args):
-        corner_name, callback = args
+        corner_name, done = args
         pos = self.get_corner_move_pos(corner_name)
         if pos is None:
             raise Exception("Failed to get corner")
-        self.ac.motion_thread.move_absolute(pos, callback=callback)
+        self.ac.motion_thread.move_absolute(pos, done=done)
 
     def afgo(self):
         """
@@ -949,46 +934,26 @@ class XYPlanner3PWidget(PlannerWidget):
         if ret != QMessageBox.Yes:
             return
 
-        # XXX: should settle in between XY moves?
-        # autofocus moves anyway so probably fine
-        # End at LL corner
-        # Could either autofocus at end or sweep back
-        # Sweeping back is preferred b/c you can see if die shifted
-        self.sequencer = EventSequener([
-            (self.emit_go_corner, {
-                "corner_name": "ul"
-            }),
-            (self.ac.image_processing_thread.auto_focus, {
-                "objective_config": self.ac.objective_config()
-            }),
-            (self.emit_click_corner, {
-                "corner_name": "ul"
-            }),
-            (self.emit_go_corner, {
-                "corner_name": "ll"
-            }),
-            (self.ac.image_processing_thread.auto_focus, {
-                "objective_config": self.ac.objective_config()
-            }),
-            (self.emit_click_corner, {
-                "corner_name": "ll"
-            }),
-            (self.emit_go_corner, {
-                "corner_name": "lr"
-            }),
-            (self.ac.image_processing_thread.auto_focus, {
-                "objective_config": self.ac.objective_config()
-            }),
-            (self.emit_click_corner, {
-                "corner_name": "lr"
-            }),
-            # Ensure even dry scan goes back
-            (self.emit_go_corner, {
-                "corner_name": "ll"
-            }),
-            (self.ac.mainTab.emit_go_current_pconfig, {})
-        ])
-        self.sequencer.run()
+        def offload(ac):
+            done = threading.Event()
+
+            for corner in ("ul", "ll", "lr"):
+                done.clear()
+                self.emit_go_corner(corner_name=corner, done=done)
+                done.wait()
+
+                done.clear()
+                self.ac.image_processing_thread.auto_focus(
+                    objective_config=self.ac.objective_config(), done=done)
+                done.wait()
+
+                done.clear()
+                self.emit_click_corner(corner_name=corner, done=done)
+                done.wait()
+
+            self.ac.mainTab.emit_go_current_pconfig()
+
+        self.ac.task_thread.offload(offload)
 
 
 """
@@ -1960,7 +1925,7 @@ class StitchingTab(ArgusTab):
         self.setLayout(layout)
 
     def post_ui_init(self):
-        self.stitcher_thread = StitcherThread(parent=self)
+        self.stitcher_thread = StitcherThread(ac=self.ac, parent=self)
         self.stitcher_thread.log_msg.connect(self.ac.log)
         self.stitcher_thread.start()
 

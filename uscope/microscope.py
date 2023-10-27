@@ -115,6 +115,15 @@ class Microscope:
     def has_z(self):
         return "z" in self.motion.axes()
 
+    def set_motion(self, motion):
+        self.motion = motion
+
+    def set_imager(self, imager):
+        self.imager = imager
+
+    def set_kinematics(self, kinematics):
+        self.kinematics = kinematics
+
 
 def get_cli_microscope(name=None):
     usc = get_usc(name=name)

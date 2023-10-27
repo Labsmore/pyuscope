@@ -1,5 +1,6 @@
 from uscope.motion.plugins import get_motion_hal
 from uscope.motion.hal import AxisExceeded, MotionHAL, MotionCritical
+from uscope.threads import CommandThreadBase
 
 import threading
 import queue
@@ -142,9 +143,9 @@ class JogController:
         self.tlast = None
 
 
-class MotionThreadBase:
-    def __init__(self, usc):
-        self.usc = usc
+class MotionThreadBase(CommandThreadBase):
+    def __init__(self, microscope):
+        super().__init__(microscope)
         self.verbose = False
         self.queue = queue.Queue()
         self.motion = None
@@ -170,7 +171,7 @@ class MotionThreadBase:
         print(msg)
 
     def init_motion(self):
-        self.motion = get_motion_hal(usc=self.usc, log=self.log)
+        self.motion = get_motion_hal(usc=self.ac.microscope.usc, log=self.log)
 
     def log_info(self):
         self.command("log_info")
@@ -186,26 +187,6 @@ class MotionThreadBase:
             time.sleep(0.15)
             if self.idle.is_set():
                 break
-
-    def command(self, command, *args, block=False, callback=None):
-        command_done = None
-        if block or callback:
-            ready = threading.Event()
-            ret = []
-
-            def command_done(command, args, ret_e):
-                ret.append(ret_e)
-                ready.set()
-                if callback:
-                    callback()
-
-        self.queue.put((command, args, command_done))
-        if block:
-            ready.wait()
-            ret = ret[0]
-            if type(ret) is Exception:
-                raise Exception("oopsie: %s" % (ret, ))
-            return ret
 
     def pos(self):
         # XXX: this caused crashes but I'm not sure why
@@ -281,8 +262,12 @@ class MotionThreadBase:
     def backlash_enable(self, block=False):
         self.command("backlash_enable", block=block)
 
-    def move_absolute(self, pos, block=False, callback=None):
-        self.command("move_absolute", pos, block=block, callback=callback)
+    def move_absolute(self, pos, block=False, callback=None, done=None):
+        self.command("move_absolute",
+                     pos,
+                     block=block,
+                     callback=callback,
+                     done=done)
 
     def move_relative(self, pos, block=False, callback=None):
         self.command("move_relative", pos, block=block, callback=callback)

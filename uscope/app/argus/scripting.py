@@ -228,6 +228,7 @@ class ScriptingTab(ArgusTab):
         super().__init__(ac=ac, parent=parent)
         self.stitcher_thread = None
         self.last_cs_upload = None
+        self.filename = None
 
         fn = os.path.join(get_data_dir(), "script_log.txt")
         existed = os.path.exists(fn)
@@ -261,6 +262,11 @@ class ScriptingTab(ArgusTab):
             row += 1
 
         # self.test_name_cb = QComboBox()
+
+        self.reload_pb = QPushButton("Reload")
+        self.reload_pb.clicked.connect(self.reload_pb_clicked)
+        layout.addWidget(self.reload_pb, row, 0)
+        row += 1
 
         self.run_pb = QPushButton("Run")
         self.run_pb.setEnabled(False)
@@ -317,6 +323,13 @@ class ScriptingTab(ArgusTab):
         self.select_script(filename)
 
     def select_script(self, filename):
+        if not filename:
+            self.log_local("No file selected")
+            return
+        if not os.path.exists(filename):
+            self.log_local("File does not exist")
+            return
+
         spec = importlib.util.spec_from_file_location("pyuscope_plugin",
                                                       filename)
         plugin_module = importlib.util.module_from_spec(spec)
@@ -338,7 +351,11 @@ class ScriptingTab(ArgusTab):
         # for now just support one function
         # self.test_name_cb.addItem("run")
         # self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
+        self.filename = filename
         self.log_local(f"Script selected: {filename}")
+
+    def reload_pb_clicked(self):
+        self.select_script(self.filename)
 
     def run_pb_clicked(self):
         if self.running:

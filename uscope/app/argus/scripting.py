@@ -1,6 +1,7 @@
 from uscope.app.argus.widgets import ArgusTab
 from uscope.app.argus.input_widget import InputWidget
 from uscope.config import get_data_dir, get_bc
+from uscope.motion import motion_util
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -122,7 +123,7 @@ class ArgusScriptingPlugin(QThread):
         """
         Autofocus at the current location
         """
-        self.ac.image_processing_thread.auto_focus(
+        self._ac.image_processing_thread.auto_focus(
             objective_config=self._ac.objective_config(), block=True)
 
     def pos(self):
@@ -150,18 +151,55 @@ class ArgusScriptingPlugin(QThread):
         self._ac.motion_thread.move_relative(pos, block=block)
         self.check_running()
 
+    def position_format(self, axes):
+        """
+        Convert a dictionary of axis positions to a string
+        Ex: {"x" 1, "y": 2} => "X1 Y2"
+        """
+        return self._ac.usc.motion.format_positions(axes)
+
+    def position_parse(self, s):
+        """
+        Convert a axis position string to a dictionary of positions
+        Ex: "X1 Y2" => {"x" 1, "y": 2}
+        """
+        return motion_util.parse_move(s)
+
     def sleep(self, t):
         self.check_running()
         # TODO: break this into smaller sleeps to check running
         time.sleep(t)
         self.check_running()
 
-    def image(self):
+    def image(self, wait_imaging_ok=True):
         """
         Request and return a snapshot as PIL image
         """
+        if wait_imaging_ok:
+            self.wait_imaging_ok()
         imager = self.imager()
         return imager.get()["0"]
+
+    def wait_imaging_ok(self):
+        """
+        Wait for camera / stage to settle
+        After this a picture can be snapped with acceptable quality
+        """
+
+        # FIXME: this is really hacky
+        # we should actually do wait_imaging_ok() w/ frame sync
+        # need to document thread safety better, flush_image might be thread safe
+        self._ac.microscope.kinematics.wait_imaging_ok(flush_image=False)
+        # Frame sync the last image, which might be bad
+        self.imager().get()
+
+    def message_box_yes_cancel(self, title, message):
+        # quick hack: run as subprocess?
+        assert 0, "FIXME: not thread safe"
+        ret = QMessageBox.question(None, title, message,
+                                   QMessageBox.Yes | QMessageBox.Cancel,
+                                   QMessageBox.Cancel)
+        return ret == QMessageBox.Yes
 
     """
     Advanced API

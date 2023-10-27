@@ -2,6 +2,7 @@ from uscope.app.argus.widgets import ArgusTab
 from uscope.app.argus.input_widget import InputWidget
 from uscope.config import get_data_dir, get_bc
 from uscope.motion import motion_util
+from uscope.microscope import StopEvent, MicroscopeStop
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -25,6 +26,10 @@ class TestAborted(Exception):
     pass
 
 
+class TestKilled(SystemExit):
+    pass
+
+
 # class ArgusScriptingPlugin(threading.Thread):
 # needed to do signals
 class ArgusScriptingPlugin(QThread):
@@ -35,6 +40,7 @@ class ArgusScriptingPlugin(QThread):
         super().__init__()
         self._ac = ac
         self._input = None
+        self.se = None
         # Graceful shutdown request
         self._running = threading.Event()
         self.reset()
@@ -83,6 +89,7 @@ class ArgusScriptingPlugin(QThread):
         """
         This thread should periodically check for graceful shutdown
         """
+        self.se.poll()
         if not self._running.is_set():
             raise TestAborted()
 
@@ -90,15 +97,23 @@ class ArgusScriptingPlugin(QThread):
         return bool(self._succeeded)
 
     def run(self):
+        self.ident = threading.current_thread().ident
         try:
-            self.run_test()
+            with StopEvent(self._ac.microscope) as self.se:
+                self.run_test()
             self._succeeded = True
         except TestAborted:
+            self._succeeded = False
+            self.result_message = "Aborted"
+        except MicroscopeStop:
             self._succeeded = False
             self.result_message = "Aborted"
         except TestFailed:
             self._succeeded = False
             self.result_message = "Failed"
+        except TestKilled:
+            self._succeeded = False
+            self.result_message = "killed"
         except Exception as e:
             self._succeeded = False
             self.result_message = f"Exception: {e}"
@@ -166,9 +181,19 @@ class ArgusScriptingPlugin(QThread):
         return motion_util.parse_move(s)
 
     def sleep(self, t):
-        self.check_running()
-        # TODO: break this into smaller sleeps to check running
-        time.sleep(t)
+        """
+        Sleep for given number of seconds, watching for abort requests
+        """
+
+        delta = 0.1
+        tstart = time.time()
+        while True:
+            dt = time.time() - tstart
+            remain = t - dt
+            if remain < 0:
+                break
+            self.check_running()
+            time.sleep(min(delta, remain))
         self.check_running()
 
     def image(self, wait_imaging_ok=True):
@@ -418,15 +443,17 @@ class ScriptingTab(ArgusTab):
         self.plugin.shutdown()
 
     def kill_pb_clicked(self):
-        if not self.running:
+        thread_id = self.plugin.ident
+        if not self.running or not thread_id:
             self.log_local("Plugin isn't running")
             return
 
-        thread_id = self.plugin.ident
+        self.log_local(f"Killing thread {thread_id}")
         res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
-            thread_id, ctypes.py_object(SystemExit))
+            ctypes.c_long(thread_id), ctypes.py_object(TestKilled))
         if res > 1:
-            ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                ctypes.c_long(thread_id), 0)
             self.log_local("Exception raise failure")
 
     def plugin_done(self):

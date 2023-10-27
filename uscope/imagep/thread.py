@@ -8,6 +8,7 @@ import threading
 import queue
 import traceback
 from PIL import Image
+from uscope.microscope import MicroscopeStop
 
 
 class ImageProcessingThreadBase(CommandThreadBase):
@@ -26,13 +27,18 @@ class ImageProcessingThreadBase(CommandThreadBase):
         self.command("auto_focus", j, block=block, done=done)
 
     def _do_auto_focus(self, j):
-        af = Autofocus(
-            move_absolute=self.microscope.motion_thread.move_absolute,
-            pos=self.microscope.motion_thread.pos,
-            imager=self.microscope.imager,
-            kinematics=self.microscope.kinematics,
-            log=self.log)
-        af.coarse(j["objective_config"])
+        try:
+            af = Autofocus(
+                self.microscope,
+                move_absolute=self.microscope.motion_thread.move_absolute,
+                pos=self.microscope.motion_thread.pos,
+                imager=self.microscope.imager,
+                kinematics=self.microscope.kinematics,
+                log=self.log)
+            af.coarse(j["objective_config"])
+        except MicroscopeStop:
+            self.log("Autofocus cancelled")
+            raise
 
     def process_snapshot(self, options, block=False, callback=None):
         j = {

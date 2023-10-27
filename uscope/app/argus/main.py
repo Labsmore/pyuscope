@@ -370,6 +370,7 @@ class MainWindow(QMainWindow):
             bool(self.displayAdvancedMovement.isChecked()))
 
     def stop_pushed(self):
+        self.ac.log("System stop requested")
         self.ac.microscope.stop()
 
 

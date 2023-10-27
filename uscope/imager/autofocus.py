@@ -1,6 +1,7 @@
 import cv2 as cv
 import numpy as np
 from uscope.imagep.util import RC_CONST
+from uscope.microscope import StopEvent
 
 
 def choose_best_image(images_iter, log=None, verbose=False):
@@ -44,8 +45,16 @@ def choose_best_image(images_iter, log=None, verbose=False):
 
 
 class Autofocus:
-    # FIXME: pass in a Microscope object
-    def __init__(self, move_absolute, pos, imager, kinematics, log, poll=None):
+    # FIXME: pass in a Microscope object w/ correct / thread safe objects
+    def __init__(self,
+                 microscope,
+                 move_absolute,
+                 pos,
+                 imager,
+                 kinematics,
+                 log,
+                 poll=None):
+        self.microscope = microscope
         self.log = log
         self.move_absolute = move_absolute
         self.pos = pos
@@ -58,6 +67,7 @@ class Autofocus:
         self.kinematics.wait_autofocus()
 
     def auto_focus_pass(self,
+                        se,
                         step_size,
                         step_pm,
                         move_target=True,
@@ -81,6 +91,7 @@ class Autofocus:
         # Doing generator allows easier to process images as movement is done / settling
         def gen_images():
             for focusi in range(steps):
+                se.poll()
                 if self.poll:
                     self.poll()
                 # FIXME: use backlash compensation direction here
@@ -91,11 +102,13 @@ class Autofocus:
                 im_pil = self.imager.get()["0"]
                 yield target_pos, im_pil
 
+        se.poll()
         if self.poll:
             self.poll()
         target_pos, fni = choose_best_image(gen_images())
         self.log("autofocus: set %0.6f at %u / %u" %
                  (target_pos, fni + 1, steps))
+        se.poll()
         if self.poll:
             self.poll()
         if move_target:
@@ -129,19 +142,22 @@ class Autofocus:
         }
 
     def coarse(self, objective_config):
-        # MVP intended for 20x
-        # 2 um is standard focus step size
-        self.log("autofocus: coarse")
-        parameters = self.coarse_parameters(objective_config)
-        coarse_z = self.auto_focus_pass(step_size=parameters["step_size"],
-                                        step_pm=parameters["step_pm"],
-                                        move_target=False)
-        self.log("autofocus: fine")
-        parameters = self.fine_parameters(objective_config)
-        self.auto_focus_pass(step_size=parameters["step_size"],
-                             step_pm=parameters["step_pm"],
-                             start_pos=coarse_z)
-        self.log("autofocus: done")
+        with StopEvent(self.microscope) as se:
+            # MVP intended for 20x
+            # 2 um is standard focus step size
+            self.log("autofocus: coarse")
+            parameters = self.coarse_parameters(objective_config)
+            coarse_z = self.auto_focus_pass(se,
+                                            step_size=parameters["step_size"],
+                                            step_pm=parameters["step_pm"],
+                                            move_target=False)
+            self.log("autofocus: fine")
+            parameters = self.fine_parameters(objective_config)
+            self.auto_focus_pass(se,
+                                 step_size=parameters["step_size"],
+                                 step_pm=parameters["step_pm"],
+                                 start_pos=coarse_z)
+            self.log("autofocus: done")
 
 
 class AutoStacker:

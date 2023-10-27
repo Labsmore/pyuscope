@@ -7,11 +7,10 @@ from uscope.planner.thread import PlannerThreadBase
 from uscope.motion.thread import MotionThreadBase
 from uscope.joystick_thread import JoystickThreadBase
 from uscope.threads import CommandThreadBase
+from uscope.microscope import MicroscopeStop
 from PyQt5.QtCore import QThread, pyqtSignal
 import traceback
-import threading
 import time
-import queue
 import subprocess
 import psutil
 import sys
@@ -181,6 +180,8 @@ class QPlannerThread(PlannerThreadBase, QThread):
             ret["result"] = "ok"
             b.stop()
             self.log('Planner done!  Took : %s' % str(b))
+        except MicroscopeStop:
+            ret["result"] = "stopped"
         except PlannerStop as e:
             ret["result"] = "stopped"
         except Exception as e:

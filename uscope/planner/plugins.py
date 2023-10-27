@@ -544,7 +544,8 @@ class PointGenerator3P(PlannerPlugin):
         Refocus corners before starting scan
         Intended for large batch jobs that may drift before the scan starts
         """
-        af = Autofocus(move_absolute=self.motion.move_absolute,
+        af = Autofocus(self.microscope,
+                       move_absolute=self.motion.move_absolute,
                        pos=self.planner.motion.pos,
                        imager=self.imager,
                        kinematics=self.kinematics,

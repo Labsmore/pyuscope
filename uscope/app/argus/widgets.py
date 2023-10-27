@@ -927,10 +927,8 @@ class XYPlanner3PWidget(PlannerWidget):
         Autofocus corners and kick off
         """
         ret = QMessageBox.question(
-            self, "Start?",
-            "Autofocus corners and start? Note: Dry: %s, AE: %s" %
-            (self.ac.mainTab.scan_widget.dry(),
-             self.ac.auto_exposure_enabled()),
+            self, "Start?", "Autofocus corners and start? Note: AE: %s" %
+            (self.ac.auto_exposure_enabled()),
             QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel)
         if ret != QMessageBox.Yes:
             return
@@ -958,7 +956,7 @@ class XYPlanner3PWidget(PlannerWidget):
                     se.poll()
                     self.ac.mainTab.emit_go_current_pconfig()
             except MicroscopeStop:
-                self.ac.log("Autofocus cancelled")
+                self.ac.log("Autofocus + Go cancelled")
 
         self.ac.task_thread.offload(offload)
 
@@ -994,16 +992,6 @@ class ScanWidget(AWidget):
             self.go_pause_pb.setIcon(QIcon(config.GUI.icon_files['go']))
             layout.addWidget(self.go_pause_pb)
 
-            self.stop_pb = QPushButton("Stop")
-            self.stop_pb.clicked.connect(self.stop_clicked)
-            self.stop_pb.setIcon(QIcon(config.GUI.icon_files['stop']))
-            layout.addWidget(self.stop_pb)
-
-            layout.addWidget(QLabel("Dry?"))
-            self.dry_cb = QCheckBox()
-            self.dry_cb.setChecked(self.ac.usc.app("argus").dry_default())
-            layout.addWidget(self.dry_cb)
-
             # Used as generic "should stitch", although is labeled CloudStitch
             layout.addWidget(QLabel("CloudStitch?"))
             self.stitch_cb = QCheckBox()
@@ -1037,7 +1025,7 @@ class ScanWidget(AWidget):
         self.setLayout(layout)
 
     def dry(self):
-        return self.dry_cb.isChecked()
+        return False
 
     def processCncProgress(self, state):
         """
@@ -1094,7 +1082,6 @@ class ScanWidget(AWidget):
             self.setControlsEnabled(True)
             self.ac.motion_thread.jog_enable(True)
             # Prevent accidental start after done
-            self.dry_cb.setChecked(True)
             self.ac.control_scroll.enable_user_controls(True)
 
     def run_next_scan_config(self):
@@ -1221,12 +1208,14 @@ class ScanWidget(AWidget):
                 self.ac.planner_thread.pause()
         # Go go go!
         else:
-            self.go_current_pconfig()
+            ret = QMessageBox.question(
+                self, "Start?",
+                "Start? Note: AE: %s" % (self.ac.auto_exposure_enabled()),
+                QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel)
+            if ret != QMessageBox.Yes:
+                return
 
-    def stop_clicked(self):
-        if self.ac.planner_thread:
-            self.ac.log('Stop requested')
-            self.ac.planner_thread.shutdown()
+            self.go_current_pconfig()
 
 
 def awidgets_initUI(awidgets):

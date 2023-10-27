@@ -1,3 +1,4 @@
+from uscope.microscope import MicroscopeStop
 import threading
 import queue
 import traceback
@@ -66,6 +67,11 @@ class CommandThreadBase:
             f = self.command_map.get(command, default)
             try:
                 ret = f(*args)
+            # Graceful abort
+            except MicroscopeStop as e:
+                if command_done:
+                    command_done(command, args, e)
+            # :( abort
             except Exception as e:
                 self.log(f"WARNING: {self.__class__} thread crashed: {e}")
                 print("")

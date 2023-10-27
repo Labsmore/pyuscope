@@ -24,6 +24,7 @@ from uscope.motion.hal import DryHal
 # at least to stand alone function
 from uscope.config import PC
 from uscope.planner.plugin import get_planner_plugin
+from uscope.microscope import StopEvent, MicroscopeStop
 
 
 class PlannerStop(Exception):
@@ -97,6 +98,7 @@ class Planner:
             self.log("WARNING: no imager")
 
         self.microscope = microscope
+        self.se = None
 
         if not meta_base:
             self.meta_base = {}
@@ -253,6 +255,9 @@ class Planner:
         return ret
 
     def check_yield(self):
+        # TODO: move check_running() fully over to StopEvent
+        # might already be good enough, but do more conservative rollout
+        self.se.poll()
         self.check_running()
         self.wait_unpaused()
 
@@ -287,22 +292,23 @@ class Planner:
                 yield state3
 
     def run(self):
-        self.check_yield()
-        self.full_start_time = time.time()
-        self.scan_begin()
-        self.scan_start_time = time.time()
-        for state in self.run_pipeline():
+        with StopEvent(self.microscope) as self.se:
+            self.check_yield()
+            self.full_start_time = time.time()
+            self.scan_begin()
+            self.scan_start_time = time.time()
+            for state in self.run_pipeline():
+                self.emit_progress(state)
+            self.scan_end_time = time.time()
+            self.check_yield()
+            self.scan_end()
+            meta = self.write_meta()
+            state = {
+                "type": "meta",
+                "meta": meta,
+            }
             self.emit_progress(state)
-        self.scan_end_time = time.time()
-        self.check_yield()
-        self.scan_end()
-        meta = self.write_meta()
-        state = {
-            "type": "meta",
-            "meta": meta,
-        }
-        self.emit_progress(state)
-        return meta
+            return meta
 
     def emit_progress(self, state):
         # self.pipeline["scraper"].emit_progress(state)

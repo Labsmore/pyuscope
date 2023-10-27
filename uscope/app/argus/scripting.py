@@ -114,7 +114,8 @@ class ArgusScriptingPlugin(QThread):
         """
         Autofocus at the current location
         """
-        assert 0, "fixme"
+        self.ac.image_processing_thread.auto_focus(
+            objective_config=self._ac.objective_config(), block=True)
 
     def pos(self):
         """

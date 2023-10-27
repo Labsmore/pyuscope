@@ -942,10 +942,8 @@ class XYPlanner3PWidget(PlannerWidget):
                 self.emit_go_corner(corner_name=corner, done=done)
                 done.wait()
 
-                done.clear()
                 self.ac.image_processing_thread.auto_focus(
-                    objective_config=self.ac.objective_config(), done=done)
-                done.wait()
+                    objective_config=self.ac.objective_config(), block=True)
 
                 done.clear()
                 self.emit_click_corner(corner_name=corner, done=done)

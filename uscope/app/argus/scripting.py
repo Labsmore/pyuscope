@@ -1,4 +1,5 @@
 from uscope.app.argus.widgets import ArgusTab
+from uscope.app.argus.input_widget import InputWidget
 from uscope.config import get_data_dir, get_bc
 
 from PyQt5 import Qt
@@ -57,7 +58,7 @@ class ArgusScriptingPlugin(QThread):
 
     def get_input(self):
         """
-        Return the simple text input field value
+        Return a dictionary containing applicable fields
         """
         return self._input
 
@@ -208,11 +209,11 @@ class ArgusScriptingPlugin(QThread):
         """
         pass
 
-    def show_input(self):
+    def input_config(self):
         """
-        Return a string label to get a simple text input field
+        Return a dictionary to configure InputWidget
         """
-        return None
+        return {}
 
 
 class ScriptingTab(ArgusTab):
@@ -272,13 +273,8 @@ class ScriptingTab(ArgusTab):
         layout.addWidget(self.kill_pb, row, 0)
         row += 1
 
-        self.input_label = QLabel("Input")
-        self.input_label.setVisible(False)
-        layout.addWidget(self.input_label, row, 0)
-        row += 1
-        self.input_le = QLineEdit("")
-        self.input_le.setVisible(False)
-        layout.addWidget(self.input_le, row, 0)
+        self.input = InputWidget()
+        layout.addWidget(self.input, row, 0)
         row += 1
 
         self.status_le = QLineEdit("Status: idle")
@@ -322,9 +318,7 @@ class ScriptingTab(ArgusTab):
         # Entry point: construct the ArgusScriptingPlugin class named Plugin
         self.plugin = plugin_module.Plugin(ac=self.ac)
 
-        self.input_label.setText(self.plugin.show_input())
-        self.input_label.setVisible(bool(self.plugin.show_input()))
-        self.input_le.setVisible(bool(self.plugin.show_input()))
+        self.input.configure(self.plugin.input_config())
 
         self.plugin.log_msg.connect(self.log_local)
         self.plugin.done.connect(self.plugin_done)
@@ -344,8 +338,7 @@ class ScriptingTab(ArgusTab):
             self.log_local("Can't run while already running")
             return
 
-        if self.plugin.show_input():
-            self.plugin._input = str(self.input_le.text())
+        self.plugin._input = self.input.getValue()
         self.stop_pb.setEnabled(True)
         self.kill_pb.setEnabled(True)
         self.log_local("Plugin loading")

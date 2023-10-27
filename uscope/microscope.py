@@ -2,8 +2,7 @@ from uscope.config import get_bc, get_usc
 from uscope.motion.plugins import get_motion_hal, configure_motion_hal
 from uscope.kinematics import Kinematics
 from uscope.imager import gst
-from uscope.gui import plugin
-from uscope.imager.imager_util import auto_detect_source
+import threading
 """
 CLI capable
 Do not use any Qt concepts?
@@ -17,6 +16,37 @@ Initialization passes:
 Two phases are required as some parameters depend on others
 Ex: timing parameters are generated based on misc factors
 """
+
+
+# Graceful stop requested
+class MicroscopeStop(Exception):
+    pass
+
+
+"""
+Sample usage:
+with StopEvent(microscope) as se:
+    do_stuff()
+    se.poll()
+    do_stuff()
+"""
+
+
+class StopEvent:
+    def __init__(self, microscope):
+        self.event = threading.Event()
+        self.microscope = microscope
+
+    def poll(self):
+        if self.event.is_set():
+            raise MicroscopeStop()
+
+    def __enter__(self):
+        self.microscope.stop_register_event(self.event)
+        return self
+
+    def __exit__(self, *args):
+        self.microscope.stop_unregister(self.event)
 
 
 class Microscope:
@@ -34,6 +64,7 @@ class Microscope:
         self.init(**kwargs)
         if configure:
             self.configure()
+        self.stops = {}
 
     def log(self, msg):
         self._log(msg)
@@ -123,6 +154,36 @@ class Microscope:
 
     def set_kinematics(self, kinematics):
         self.kinematics = kinematics
+
+    def stop(self):
+        """
+        Stop all operations on the system:
+        -Cancel planner
+        -Stop running script
+        -Stop movement
+        """
+        for stop in self.stops.values():
+            stop()
+
+    def stop_register(self, hashable, function):
+        """
+        Stop functions must be thread safe: they can be called from any context
+        """
+        assert hashable not in self.stops
+        self.stops[hashable] = function
+
+    def stop_register_event(self, event):
+        """
+        Register a threading.Event() that will be set when requested
+        Once the other side handles the stop it should unset the event
+        """
+        def stop():
+            event.set()
+
+        self.stop_register(event, stop)
+
+    def stop_unregister(self, hashable):
+        del self.stops[hashable]
 
 
 def get_cli_microscope(name=None):

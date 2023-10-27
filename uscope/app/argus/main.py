@@ -254,13 +254,23 @@ class MainWindow(QMainWindow):
         policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.video_widget.setSizePolicy(policy)
 
-        self.tab_widget = QTabWidget()
-        for tab_name, tab in self.awidgets.items():
-            tab.initUI()
-            self.tab_widget.addTab(tab, tab_name)
-        self.batchTab.add_pconfig_source(self.mainTab, "Main tab")
+        def left():
+            layout = QVBoxLayout()
 
-        layout.addWidget(self.tab_widget)
+            self.tab_widget = QTabWidget()
+            for tab_name, tab in self.awidgets.items():
+                tab.initUI()
+                self.tab_widget.addTab(tab, tab_name)
+            self.batchTab.add_pconfig_source(self.mainTab, "Main tab")
+            layout.addWidget(self.tab_widget)
+
+            self.stop_pb = QPushButton("STOP")
+            self.stop_pb.clicked.connect(self.stop_pushed)
+            layout.addWidget(self.stop_pb)
+
+            return layout
+
+        layout.addLayout(left())
         layout.addWidget(self.video_widget)
 
         self.central_widget = QWidget()
@@ -358,6 +368,9 @@ class MainWindow(QMainWindow):
     def displayAdvancedMovementTriggered(self):
         self.ac.mainTab.motion_widget.show_advanced_movement(
             bool(self.displayAdvancedMovement.isChecked()))
+
+    def stop_pushed(self):
+        self.ac.microscope.stop()
 
 
 def parse_args():

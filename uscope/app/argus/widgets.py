@@ -9,6 +9,7 @@ import json5
 from collections import OrderedDict
 from uscope.cloud_stitch import CSInfo
 from uscope.imager.autofocus import AutoStacker
+from uscope.microscope import StopEvent, MicroscopeStop
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -936,20 +937,28 @@ class XYPlanner3PWidget(PlannerWidget):
 
         def offload(ac):
             done = threading.Event()
+            try:
+                with StopEvent(self.ac.microscope) as se:
+                    for corner in ("ul", "ll", "lr"):
+                        se.poll()
+                        done.clear()
+                        self.emit_go_corner(corner_name=corner, done=done)
+                        done.wait()
 
-            for corner in ("ul", "ll", "lr"):
-                done.clear()
-                self.emit_go_corner(corner_name=corner, done=done)
-                done.wait()
+                        se.poll()
+                        self.ac.image_processing_thread.auto_focus(
+                            objective_config=self.ac.objective_config(),
+                            block=True)
 
-                self.ac.image_processing_thread.auto_focus(
-                    objective_config=self.ac.objective_config(), block=True)
+                        se.poll()
+                        done.clear()
+                        self.emit_click_corner(corner_name=corner, done=done)
+                        done.wait()
 
-                done.clear()
-                self.emit_click_corner(corner_name=corner, done=done)
-                done.wait()
-
-            self.ac.mainTab.emit_go_current_pconfig()
+                    se.poll()
+                    self.ac.mainTab.emit_go_current_pconfig()
+            except MicroscopeStop:
+                self.ac.log("Autofocus cancelled")
 
         self.ac.task_thread.offload(offload)
 

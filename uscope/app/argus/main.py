@@ -66,19 +66,36 @@ class MainWindow(QMainWindow):
     def __del__(self):
         self.shutdown()
 
+    def our_cache_load(self, j):
+        j = j.get("main_window", {})
+        self.displayLimits.setChecked(
+            j.get("display_limits", config.bc.dev_mode()))
+        self.displayLimitsTriggered()
+        self.displayAdvancedMovement.setChecked(
+            j.get("display_advanced_movement", config.bc.dev_mode()))
+        self.displayAdvancedMovementTriggered()
+
     def cache_load(self):
         fn = self.ac.aconfig.cache_fn()
         self.cachej = {}
         if os.path.exists(fn):
             with open(fn, "r") as f:
                 self.cachej = json5.load(f)
+        self.our_cache_load(self.cachej)
         for tab in self.awidgets.values():
             tab.cache_load(self.cachej)
+
+    def our_cache_save(self, j):
+        j = j.setdefault("main_window", {})
+        j["display_limits"] = self.displayLimits.isChecked()
+        j["display_advanced_movement"] = self.displayAdvancedMovement.isChecked(
+        )
 
     def cache_save(self):
         if not self.ac:
             return
         cachej = {}
+        self.our_cache_save(cachej)
         for tab in self.awidgets.values():
             tab.cache_save(cachej)
         fn = self.ac.aconfig.cache_fn()
@@ -159,6 +176,7 @@ class MainWindow(QMainWindow):
                                   checkable=True)
         motionMenu.addAction(self.invertKJXY)
         self.invertKJXY.triggered.connect(self.invertKJXYTriggered)
+
         # Adds a lot of clutter
         # off by default
         self.displayLimits = QAction("Limit display",
@@ -167,6 +185,14 @@ class MainWindow(QMainWindow):
         motionMenu.addAction(self.displayLimits)
         self.displayLimits.setChecked(config.bc.dev_mode())
         self.displayLimits.triggered.connect(self.displayLimitsTriggered)
+        # Advanced movement
+        self.displayAdvancedMovement = QAction("Advanced movement",
+                                               motionMenu,
+                                               checkable=True)
+        motionMenu.addAction(self.displayAdvancedMovement)
+        self.displayAdvancedMovement.setChecked(config.bc.dev_mode())
+        self.displayAdvancedMovement.triggered.connect(
+            self.displayAdvancedMovementTriggered)
 
         # Help menu
         helpMenu = menuBar.addMenu("Help")
@@ -232,7 +258,6 @@ class MainWindow(QMainWindow):
         for tab_name, tab in self.awidgets.items():
             tab.initUI()
             self.tab_widget.addTab(tab, tab_name)
-        self.cache_load()
         self.batchTab.add_pconfig_source(self.mainTab, "Main tab")
 
         layout.addWidget(self.tab_widget)
@@ -243,6 +268,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.central_widget)
         self.createMenuBar()
         self.showMaximized()
+
+        # Load last GUI state
+        self.cache_load()
 
     def poll_misc(self):
         self.polli += 1
@@ -326,6 +354,10 @@ class MainWindow(QMainWindow):
 
     def displayLimitsTriggered(self):
         self.ac.mainTab.show_minmax(bool(self.displayLimits.isChecked()))
+
+    def displayAdvancedMovementTriggered(self):
+        self.ac.mainTab.motion_widget.show_advanced_movement(
+            bool(self.displayAdvancedMovement.isChecked()))
 
 
 def parse_args():

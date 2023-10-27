@@ -1,6 +1,5 @@
 from uscope.app.argus.scripting import ArgusScriptingPlugin
 import os
-from PyQt5.QtWidgets import QMessageBox
 
 
 class Plugin(ArgusScriptingPlugin):

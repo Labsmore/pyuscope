@@ -347,6 +347,7 @@ class PlannerWidget(AWidget):
         return self.objective_widget.obj_config
 
     def show_minmax(self, visible):
+        self.showing_minmax = visible
         for label in self.axis_machine_min_label.values():
             label.setVisible(visible)
         for label in self.axis_soft_min_label.values():
@@ -446,7 +447,6 @@ class PlannerWidget(AWidget):
         # Give a drop down option for now
         # but show if you want "programmer GUI"
         self.show_minmax(config.bc.dev_mode())
-        # self.show_minmax(True)
 
         return row
 
@@ -742,7 +742,7 @@ class XYPlanner3PWidget(PlannerWidget):
         self.track_z_cb_changed(None)
         gl.addWidget(self.track_z_cb, row, 1)
         self.track_z_cb.setEnabled(self.ac.microscope.has_z())
-        self.pb_afgo = QPushButton("AF + Scan")
+        self.pb_afgo = QPushButton("Autofocus + Scan")
         self.pb_afgo.clicked.connect(self.afgo)
         self.pb_afgo.setIcon(QIcon(config.GUI.icon_files['go']))
         gl.addWidget(self.pb_afgo, row, 2)
@@ -2284,27 +2284,34 @@ class MotionWidget(AWidget):
         self.slider = JogSlider(usc=self.usc)
         layout.addWidget(self.slider)
 
+        self.advanced_movement_widgets = []
+
+        def advanced_movement_widget(widget):
+            self.advanced_movement_widgets.append(widget)
+            return widget
+
         def move_abs():
             layout = QHBoxLayout()
 
-            layout.addWidget(QLabel("Absolute move"))
-            self.move_abs_le = QLineEdit()
+            layout.addWidget(advanced_movement_widget(QLabel("Absolute move")))
+            self.move_abs_le = advanced_movement_widget(QLineEdit())
             self.move_abs_le.returnPressed.connect(self.move_abs_le_process)
             layout.addWidget(self.move_abs_le)
 
-            layout.addWidget(QLabel("Relative move"))
-            self.move_rel_le = QLineEdit()
+            layout.addWidget(advanced_movement_widget(QLabel("Relative move")))
+            self.move_rel_le = advanced_movement_widget(QLineEdit())
             self.move_rel_le.returnPressed.connect(self.move_rel_le_process)
             layout.addWidget(self.move_rel_le)
 
-            layout.addWidget(QLabel("Backlash compensate?"))
-            self.move_abs_backlash_cb = QCheckBox()
+            layout.addWidget(
+                advanced_movement_widget(QLabel("Backlash compensate?")))
+            self.move_abs_backlash_cb = advanced_movement_widget(QCheckBox())
             self.move_abs_backlash_cb.setChecked(True)
             # FIXME: always enabled right now
             self.move_abs_backlash_cb.setEnabled(False)
             layout.addWidget(self.move_abs_backlash_cb)
 
-            self.autofocus_pb = QPushButton("AF")
+            self.autofocus_pb = QPushButton("Autofocus")
             self.autofocus_pb.clicked.connect(self.autofocus_pushed)
             layout.addWidget(self.autofocus_pb)
 
@@ -2313,22 +2320,25 @@ class MotionWidget(AWidget):
         def measure():
             layout = QHBoxLayout()
 
-            self.set_difference_pb = QPushButton("Set reference")
+            self.set_difference_pb = advanced_movement_widget(
+                QPushButton("Set reference"))
+
             self.set_difference_pb.clicked.connect(
                 self.set_difference_pb_pushed)
             layout.addWidget(self.set_difference_pb)
 
-            layout.addWidget(QLabel("Reference"))
-            self.reference_le = QLineEdit()
+            layout.addWidget(advanced_movement_widget(QLabel("Reference")))
+            self.reference_le = advanced_movement_widget(QLineEdit())
             layout.addWidget(self.reference_le)
 
-            self.reference_moveto_pb = QPushButton("MoveTo")
+            self.reference_moveto_pb = advanced_movement_widget(
+                QPushButton("MoveTo"))
             self.reference_moveto_pb.clicked.connect(
                 self.reference_moveto_pb_pushed)
             layout.addWidget(self.reference_moveto_pb)
 
-            layout.addWidget(QLabel("Difference"))
-            self.difference_le = QLineEdit()
+            layout.addWidget(advanced_movement_widget(QLabel("Difference")))
+            self.difference_le = advanced_movement_widget(QLineEdit())
             layout.addWidget(self.difference_le)
 
             return layout
@@ -2349,7 +2359,14 @@ class MotionWidget(AWidget):
 
         layout.addLayout(measure())
 
+        self.show_advanced_movement(config.bc.dev_mode())
+
         self.setLayout(layout)
+
+    def show_advanced_movement(self, visible):
+        self.showing_advanced_movement = visible
+        for widget in self.advanced_movement_widgets:
+            widget.setVisible(visible)
 
     def post_ui_init(self):
         # self.max_velocities = self.ac.motion_thread.motion.get_max_velocities()
@@ -2531,9 +2548,11 @@ class MotionWidget(AWidget):
         self.ac.image_processing_thread.auto_focus(self.ac.objective_config())
 
     def cache_save(self, cachej):
+        # not listening to slide events...
+        self.update_slider_cache()
         j = {}
         j["reference"] = str(self.reference_le.text())
-        j["self.fine_move"] = self.fine_move
+        j["fine_move"] = self.fine_move
         j["slider_last_fine"] = self.slider_last_fine
         j["slider_last_coarse"] = self.slider_last_coarse
         cachej["motion"] = j
@@ -2543,8 +2562,8 @@ class MotionWidget(AWidget):
         self.reference_le.setText(j.get("reference", ""))
 
         self.fine_move = j.get("fine_move", False)
-        self.slider_last_fine = j.get(self.slider_last_fine)
-        self.slider_last_coarse = j.get(self.slider_last_coarse)
+        self.slider_last_fine = j.get("slider_last_fine")
+        self.slider_last_coarse = j.get("slider_last_coarse")
         self.update_jog_text()
         self.update_slider_from_last()
 

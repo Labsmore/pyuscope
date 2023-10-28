@@ -98,50 +98,85 @@ class ObjectiveWidget(AWidget):
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
         self.objective_name_le = None
+        # MicroscopeObjectives class
+        self.objectives = None
+        # JSON like data structure
         self.obj_config = None
-        self.obj_configi = None
+        # For config load / save
+        self.selected_objective_name = None
         self.default_objective_index = 0
+        self.global_scalar = None
+        self.updating_objectives = False
 
     def initUI(self):
-        cl = QGridLayout()
+        self.advanced_widgets = []
+
+        def advanced_widget(widget):
+            self.advanced_widgets.append(widget)
+            return widget
+
+        layout = QGridLayout()
 
         row = 0
         l = QLabel("Objective")
-        cl.addWidget(l, row, 0)
+        layout.addWidget(l, row, 0)
 
         self.obj_cb = QComboBox()
-        cl.addWidget(self.obj_cb, row, 1)
+        layout.addWidget(self.obj_cb, row, 1)
         self.obj_view = QLabel("")
-        cl.addWidget(self.obj_view, row, 2)
+        layout.addWidget(self.obj_view, row, 2)
+
         row += 1
 
-        self.setLayout(cl)
+        layout.addWidget(advanced_widget(
+            QLabel("Global magnification scalar")))
+        self.global_scalar_le = advanced_widget(QLineEdit())
+        layout.addWidget(self.global_scalar_le)
+        self.global_scalar_le.returnPressed.connect(
+            self.global_scalar_le_return)
+
+        self.modify_objectives_pb = advanced_widget(
+            QPushButton("Modify objectives"))
+        self.modify_objectives_pb.clicked.connect(
+            self.modify_objectives_clicked)
+        layout.addWidget(self.modify_objectives_pb)
+
+        row += 1
+
+        self.setLayout(layout)
+
+    def show_advanced(self, visible):
+        for widget in self.advanced_widgets:
+            widget.setVisible(visible)
 
     def post_ui_init(self):
         self.reload_obj_cb()
+        self.obj_cb.currentIndexChanged.connect(self.update_obj_config)
 
     def reload_obj_cb(self):
         '''Re-populate the objective combo box'''
+        self.updating_objectives = True
         self.obj_cb.clear()
-        for objective in self.ac.usc.get_scaled_objectives(self.ac.microscope):
-            self.obj_cb.addItem(objective['name'])
+        self.objectives = self.ac.microscope.get_objectives()
+        if self.global_scalar:
+            self.objectives.set_global_scalar(self.global_scalar)
+        for name in self.objectives.names():
+            self.obj_cb.addItem(name)
 
-        if self.default_objective_index >= len(
-                self.ac.usc.get_scaled_objectives(self.ac.microscope)):
-            self.ac.log(
-                "Warning: Argus cache loaded invalid selected objective: wanted index %s but have %s"
-                % (self.obj_configi, self.obj_cb.count()))
-            self.default_objective_index = 0
-
-        self.obj_cb.currentIndexChanged.connect(self.update_obj_config)
-        self.obj_cb.setCurrentIndex(self.default_objective_index)
+        if self.default_objective_name:
+            self.obj_cb.setCurrentText(self.default_objective_name)
+        self.updating_objectives = False
         self.update_obj_config()
 
     def update_obj_config(self):
         '''Make resolution display reflect current objective'''
-        self.obj_configi = self.obj_cb.currentIndex()
-        self.obj_config = self.ac.usc.get_scaled_objective(
-            self.ac.microscope, self.obj_configi)
+        if self.updating_objectives:
+            return
+        self.selected_objective_name = str(self.obj_cb.currentText())
+        if not self.selected_objective_name:
+            self.selected_objective_name = self.objectives.default_name()
+        self.obj_config = self.objectives.get_config(
+            self.selected_objective_name)
         self.ac.log('Selected objective %s' % self.obj_config['name'])
 
         im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
@@ -155,6 +190,20 @@ class ObjectiveWidget(AWidget):
             self.objective_name_le.setText(suffix)
         self.ac.objectiveChanged.emit(self.obj_config)
 
+    def reset_objectives_clicked(self):
+        self.reload_obj_cb()
+
+    def modify_objectives_clicked(self):
+        self.ac.log("FIXME: not supported")
+
+    def global_scalar_le_return(self):
+        try:
+            self.global_scalar = float(self.global_scalar_le.text())
+        except ValueError:
+            self.ac.log("Failed to parse scalar")
+            return
+        self.reload_obj_cb()
+
     """
     FIXME: these are microscpoe specific
     Probably need a per microscope cache for this
@@ -163,16 +212,15 @@ class ObjectiveWidget(AWidget):
 
     def cache_save(self, cachej):
         cachej["objective"] = {
-            "index": self.obj_configi,
+            "name": self.selected_objective_name,
+            "global_scalar": self.global_scalar_le.text(),
         }
 
     def cache_load(self, cachej):
         j = cachej.get("objective", {})
-        index = j.get("index", 0)
-        try:
-            self.default_objective_index = int(index)
-        except Exception:
-            self.ac.log(f"WARNING: invalid objective index: {index}")
+        self.default_objective_name = j.get("name", None)
+        self.global_scalar_le.setText(j.get("global_scalar", ""))
+        self.global_scalar_le_return()
 
 
 """
@@ -2362,7 +2410,6 @@ class MotionWidget(AWidget):
         self.setLayout(layout)
 
     def show_advanced_movement(self, visible):
-        self.showing_advanced_movement = visible
         for widget in self.advanced_movement_widgets:
             widget.setVisible(visible)
 

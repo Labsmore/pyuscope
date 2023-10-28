@@ -74,6 +74,9 @@ class MainWindow(QMainWindow):
         self.displayAdvancedMovement.setChecked(
             j.get("display_advanced_movement", config.bc.dev_mode()))
         self.displayAdvancedMovementTriggered()
+        self.displayAdvancedObjective.setChecked(
+            j.get("display_advanced_objective", config.bc.dev_mode()))
+        self.displayAdvancedObjectiveTriggered()
 
     def cache_load(self):
         fn = self.ac.aconfig.cache_fn()
@@ -89,6 +92,8 @@ class MainWindow(QMainWindow):
         j = j.setdefault("main_window", {})
         j["display_limits"] = self.displayLimits.isChecked()
         j["display_advanced_movement"] = self.displayAdvancedMovement.isChecked(
+        )
+        j["display_advanced_objective"] = self.displayAdvancedObjective.isChecked(
         )
 
     def cache_save(self):
@@ -150,9 +155,6 @@ class MainWindow(QMainWindow):
 
     def createMenuBar(self):
         self.exitAction = QAction("Exit", self)
-        self.zoomPlus = QAction("ROI zoom +", self)
-        self.zoomMinus = QAction("ROI zoom -", self)
-        self.fullShow = QAction("Full show", self)
         self.helpContentAction = QAction("Help Content", self)
         self.aboutAction = QAction("About", self)
 
@@ -165,9 +167,25 @@ class MainWindow(QMainWindow):
 
         # Video menu
         videoMenu = menuBar.addMenu("Video")
+        # action
+        self.zoomPlus = QAction("ROI zoom +", self)
         videoMenu.addAction(self.zoomPlus)
+        self.zoomPlus.triggered.connect(self.zoom_plus)
+        # action
+        self.zoomMinus = QAction("ROI zoom -", self)
         videoMenu.addAction(self.zoomMinus)
+        self.zoomMinus.triggered.connect(self.zoom_minus)
+        # action
+        self.fullShow = QAction("Full show", self)
         videoMenu.addAction(self.fullShow)
+        self.fullShow.triggered.connect(self.full_show)
+        # action
+        self.displayAdvancedObjective = QAction("Advanced objective",
+                                                self,
+                                                checkable=True)
+        videoMenu.addAction(self.displayAdvancedObjective)
+        self.displayAdvancedObjective.triggered.connect(
+            self.displayAdvancedObjectiveTriggered)
 
         motionMenu = menuBar.addMenu("Motion")
         # Some people prefer perspective of moving camera, some prefer moving stage
@@ -200,9 +218,6 @@ class MainWindow(QMainWindow):
         helpMenu.addAction(self.aboutAction)
 
         self.exitAction.triggered.connect(self.close)
-        self.zoomPlus.triggered.connect(self.zoom_plus)
-        self.zoomMinus.triggered.connect(self.zoom_minus)
-        self.fullShow.triggered.connect(self.full_show)
         self.helpContentAction.triggered.connect(self.helpContent)
         self.aboutAction.triggered.connect(self.about)
 
@@ -226,6 +241,10 @@ class MainWindow(QMainWindow):
         self.fullscreen_widget.show()
         self.ac.vidpip.full_restart_pipeline()
         self.fullscreen_widget.closing.connect(self.shutdown)
+
+    def displayAdvancedObjectiveTriggered(self):
+        self.ac.mainTab.objective_widget.show_advanced(
+            bool(self.displayAdvancedObjective.isChecked()))
 
     """
     def full_hide(self):

@@ -171,7 +171,7 @@ class MotionThreadBase(CommandThreadBase):
         print(msg)
 
     def init_motion(self):
-        self.motion = get_motion_hal(usc=self.ac.microscope.usc, log=self.log)
+        self.motion = get_motion_hal(usc=self.ac.microscope.usc, log=self.log, microscope=self.microscope)
 
     def log_info(self):
         self.command("log_info")

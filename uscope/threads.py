@@ -6,6 +6,7 @@ import traceback
 
 class CommandThreadBase:
     def __init__(self, microscope):
+        assert microscope
         self.microscope = microscope
         self.verbose = False
         self.queue = queue.Queue()

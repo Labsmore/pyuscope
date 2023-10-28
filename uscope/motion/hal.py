@@ -563,6 +563,7 @@ class ScalarMM(MotionModifier):
 class MotionHAL:
     def __init__(self, log=None, verbose=None, microscope=None):
         # Per axis? Currently is global
+        assert microscope
         self.microscope = microscope
         self.stop_on_del = True
         self.modifiers = None

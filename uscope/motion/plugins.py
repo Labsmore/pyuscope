@@ -69,6 +69,7 @@ register_plugins()
 
 
 def get_motion_hal(usc=None, usc_motion=None, log=None, microscope=None):
+    assert microscope
     if usc is None:
         usc = get_usc(name=microscope)
     if usc_motion is None:
@@ -81,7 +82,7 @@ def get_motion_hal(usc=None, usc_motion=None, log=None, microscope=None):
     if ctor is None:
         raise Exception("Unknown motion HAL %s" % name)
 
-    return ctor(usc_motion, {"log": log})
+    return ctor(usc_motion, {"log": log, "microscope": microscope})
 
 
 def configure_motion_hal(microscope):

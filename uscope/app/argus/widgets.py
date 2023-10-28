@@ -2257,10 +2257,10 @@ class JogSlider(QWidget):
         self.slider.setValue(slider_val)
 
     def jog_slider_raw(self):
-        return float(self.slider.value())
+        return int(self.slider.value())
 
     def set_jog_slider_raw(self, v):
-        self.slider.setValue(v)
+        self.slider.setValue(int(v))
 
     def set_jog_slider(self, val):
         # val is expected to be between 0.0 to 1.0

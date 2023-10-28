@@ -291,11 +291,11 @@ class SnapshotWidget(AWidget):
         if self.ac.usc.imager.videoflip_method():
             options["videoflip_method"] = self.ac.usc.imager.videoflip_method()
 
-        def callback(command, ret_e):
+        def callback(command, args, ret_e):
             if type(ret_e) is Exception:
                 self.ac.log(f"Snapshot: save failed")
             else:
-                filename = command["options"]["save_filename"]
+                filename = args[0]["options"]["save_filename"]
                 self.ac.log(f"Snapshot: saved to {filename}")
 
         self.ac.image_processing_thread.process_snapshot(options=options,

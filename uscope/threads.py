@@ -35,7 +35,7 @@ class CommandThreadBase:
                 ret.append(ret_e)
                 ready.set()
                 if callback:
-                    callback()
+                    callback(command, args, ret_e)
                 if done:
                     done.set()
 

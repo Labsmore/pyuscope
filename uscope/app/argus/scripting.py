@@ -226,6 +226,12 @@ class ArgusScriptingPlugin(QThread):
                                    QMessageBox.Cancel)
         return ret == QMessageBox.Yes
 
+    def get_objectives_config(self):
+        """
+        Returns the entire objective DB structure
+        """
+        return self._ac.microscope.objectives.get_full_config()
+
     def get_active_objective(self):
         """
         Returns the name of the active objective
@@ -407,29 +413,43 @@ class ScriptingTab(ArgusTab):
             self.log_local("File does not exist")
             return
 
-        spec = importlib.util.spec_from_file_location("pyuscope_plugin",
-                                                      filename)
-        plugin_module = importlib.util.module_from_spec(spec)
-        sys.modules["pyuscope_plugin"] = plugin_module
-        spec.loader.exec_module(plugin_module)
-        # Entry point: construct the ArgusScriptingPlugin class named Plugin
-        self.plugin = plugin_module.Plugin(ac=self.ac)
+        self.unload_script()
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "pyuscope_plugin", filename)
+            plugin_module = importlib.util.module_from_spec(spec)
+            sys.modules["pyuscope_plugin"] = plugin_module
+            spec.loader.exec_module(plugin_module)
+            # Entry point: construct the ArgusScriptingPlugin class named Plugin
+            self.plugin = plugin_module.Plugin(ac=self.ac)
 
-        self.input.configure(self.plugin.input_config())
+            self.input.configure(self.plugin.input_config())
 
-        self.plugin.log_msg.connect(self.log_local)
-        self.plugin.done.connect(self.plugin_done)
+            self.plugin.log_msg.connect(self.log_local)
+            self.plugin.done.connect(self.plugin_done)
 
-        self.log_widget.clear()
+            self.status_le.setText("Status: idle")
+            self.run_pb.setEnabled(True)
+
+            # self.test_name_cb.clear()
+            # for now just support one function
+            # self.test_name_cb.addItem("run")
+            # self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
+            self.filename = filename
+            self.log_local(f"Script selected: {filename}")
+        except Exception as e:
+            self.unload_script()
+            self.log_local(f"Plugin failed to load: {e}")
+            print("")
+            print("Script generated unhandled exception")
+            traceback.print_exc()
+            return
+
+    def unload_script(self):
+        self.plugin = None
         self.status_le.setText("Status: idle")
-        self.run_pb.setEnabled(True)
-
-        # self.test_name_cb.clear()
-        # for now just support one function
-        # self.test_name_cb.addItem("run")
-        # self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
-        self.filename = filename
-        self.log_local(f"Script selected: {filename}")
+        self.input.configure({})
+        self.log_widget.clear()
 
     def reload_pb_clicked(self):
         self.select_script(self.filename)

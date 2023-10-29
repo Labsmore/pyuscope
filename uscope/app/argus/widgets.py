@@ -97,6 +97,7 @@ Select objective and show FoV
 class ObjectiveWidget(AWidget):
 
     setObjective = pyqtSignal(str)
+
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
         self.objective_name_le = None
@@ -232,6 +233,7 @@ class ObjectiveWidget(AWidget):
         if index == -1:
             return
         self.obj_cb.setCurrentIndex(index)
+
 
 """
 Save a snapshot to a file

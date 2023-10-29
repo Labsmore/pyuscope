@@ -173,6 +173,13 @@
             "magnification": 20,
             "na": 0.40,
         },
+        {
+            "vendor": "Mock",
+            //needed an objective w/ space for HTTP server testing
+            "model": "100X Oil",
+            "magnification": 100,
+            "na": 1.40,
+        },
 
         /******************************************************************
         Olympus

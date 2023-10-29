@@ -20,11 +20,25 @@ A minimal configuration to do basic testing
         //In the ballpark of a typical value
         "um_per_pixel_raw_1x": 5.0,
     },
-    "objectives": [
+    "systems": [
+        //Default configuration
         {
-            "name":"Objective",
-            "suffix":"suffix",
-            "x_view": 100.0
-        }
-    ]
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: Mock, model: 5X",
+                "vendor: Mock, model: 10X",
+                "vendor: Mock, model: 20X",
+            ],
+            "objectives": [
+                {
+                    "vendor": "Mock",
+                    //needed an objective w/ space for HTTP server testing
+                    "model": "100X Oil",
+                    "magnification": 100,
+                    "na": 1.40,
+                    "name": "100X Oil",
+                },
+            ],
+        },
+    ],
 }

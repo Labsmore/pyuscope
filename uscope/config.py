@@ -752,17 +752,20 @@ class USC:
         system = self.find_system(microscope)
         # Shorthand notation?
 
-        if "objectives" in system:
-            return system["objectives"]
-        # shorthand
+        ret = []
+        # XXX: order between these?
+        # Generally if you have both the DB are the normal and objectives is the custom
+        # So put the custom at the end
         if "objectives_db" in system:
-            ret = []
             for entry in system["objectives_db"]:
                 ret.append({"db_find": entry})
-            return ret
+        if "objectives" in system:
+            for objective in system["objectives"]:
+                ret.append(objective)
         else:
             raise ValueError(
                 "Found system but missing objective configuration")
+        return ret
 
     def get_motion_scalars(self, microscope):
         """

@@ -56,10 +56,7 @@ def active_objective_set(objective):
     plugin = current_app.plugin
     try:
         # Validate objective name before sending request
-        for name in plugin.objectives.names():
-            if objective == name:
-                break
-        else:
+        if objective not in plugin.objectives.names():
             raise ValueError  # No objective name found
         plugin.set_active_objective(objective)
         return json.dumps({'status': HTTPStatus.OK})

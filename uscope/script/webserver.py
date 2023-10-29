@@ -1,32 +1,35 @@
 """
+Ubuntu 20.04 setup:
+sudo apt-get install -y python3-werkzeug
+sudo pip3 install Flask>=2.2.2
+
+Fixes:
 <class 'ImportError'>: cannot import name 'escape' from 'jinja2' (/usr/local/lib/python3.8/dist-packages/jinja2/__init__.py)
 https://stackoverflow.com/questions/71718167/importerror-cannot-import-name-escape-from-jinja2
 
-apt-cache show python3-flask
-Version: 1.1.1-2
-
-requires
-Flask>=2.2.2
-sudo pip3 install Flask>=2.2.2
-$ pip3 freeze |grep flask
-    flask==3.0.0
 
 
+Sample commands
+
+# Get this microscope's objective database
 $ curl 'http://localhost:8080/get/objectives'; echo
 
-$ curl 'http://localhost:8080/get/active_objective'
+# Get the current objective
+$ curl 'http://localhost:8080/get/active_objective'; echo
 {"data": {"objective": "5X"}, "status": 200}
 
-$ curl -X POST 'http://localhost:8080/set/active_objective/10X'
-
-$ curl -X POST 'http://localhost:8080/set/active_objective/100X%20Oil'; echo
+# Change to a new objective
+$ curl 'http://localhost:8080/set/active_objective/5X'; echo
 {"status": 200}
+# POST requests also work
+$ curl -X POST 'http://localhost:8080/set/active_objective/10X'; echo
+# With spaces
+$ curl 'http://localhost:8080/set/active_objective/100X%20Oil'; echo
 $ curl 'http://localhost:8080/get/active_objective'; echo
 {"data": {"objective": "100X Oil"}, "status": 200}
-
-
-curl 'http://localhost:8080/get/objectives'; echo
-
+# An invalid value
+$ curl 'http://localhost:8080/set/active_objective/1000X'; echo
+{"status": 400}
 """
 
 from uscope.app.argus.scripting import ArgusScriptingPlugin

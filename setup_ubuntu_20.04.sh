@@ -26,8 +26,13 @@ sudo apt-get update
 sudo apt-get install -y python3-pip
 
 install_pyuscope() {
-    sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb python3-opencv python3-serial python3-numpy python3-scipy python3-flask python3-werkzeug imagemagick
+    sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb python3-opencv python3-serial python3-numpy python3-scipy imagemagick
     sudo pip3 install json5 boto3 pygame psutil
+
+    # For webserver
+    sudo apt-get install -y python3-werkzeug
+    sudo pip3 install Flask>=2.2.2
+
     sudo python3 setup.py develop
 }
 

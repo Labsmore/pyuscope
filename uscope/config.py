@@ -4,7 +4,7 @@ import os
 from collections import OrderedDict
 from uscope.util import writej, readj
 from pathlib import Path
-import copy
+from uscope import jsond
 '''
 There is a config directory with two primary config files:
 -microscope.j5: inherent config that doesn't really change
@@ -38,7 +38,6 @@ defaults = {
     }
 }
 """
-defaults = {}
 
 # microscope.j5
 usj = None
@@ -903,22 +902,33 @@ def get_usj(config_dir=None, name=None):
         config_dir = get_config_dir(name=name)
     globals()["config_dir"] = config_dir
 
+    # XXX: it would be possible to do an out of tree microscope config now using dconfig
+    # might be useful for testing?
+
+    # Check if user has patches
+    dconfig = None
+    bc_system = get_bc().get_system(microscope_name=name)
+    if bc_system:
+        dconfig = bc_system.get("dconfig", None)
+
     fn = os.path.join(config_dir, "microscope.j5")
     if not os.path.exists(fn):
         fn = os.path.join(config_dir, "microscope.json")
-        if not os.path.exists(fn):
+    if not os.path.exists(fn):
+        if dconfig is not None:
+            print(
+                f"WARNING: failed to find microscope {name} but found dconfig. Out of tree configuration?"
+            )
+            j = {}
+        else:
             raise Exception("couldn't find microscope.j5 in %s" % config_dir)
-    with open(fn) as f:
-        j = json5.load(f, object_pairs_hook=OrderedDict)
+    else:
+        with open(fn) as f:
+            j = json5.load(f, object_pairs_hook=OrderedDict)
 
-    def default(rootj, rootd):
-        for k, v in rootd.items():
-            if not k in rootj:
-                rootj[k] = v
-            elif type(v) is dict:
-                default(rootj[k], v)
+    if dconfig is not None:
+        jsond.apply_update(j, dconfig)
 
-    default(j, defaults)
     usj = j
 
     if name:
@@ -1123,6 +1133,13 @@ class BaseConfig:
         Allows quick access to pyuscope-rhodium
         """
         return self.j.get("script_rhodium_dir", None)
+
+    def get_system(self, microscope_name):
+        systems = self.j.get("systems", [])
+        for system in systems:
+            if system["microscope"] == microscope_name:
+                return system
+        return None
 
 
 def get_bcj():

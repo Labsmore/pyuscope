@@ -762,7 +762,7 @@ class USC:
         if "objectives" in system:
             for objective in system["objectives"]:
                 ret.append(objective)
-        else:
+        if len(ret) == 0:
             raise ValueError(
                 "Found system but missing objective configuration")
         return ret

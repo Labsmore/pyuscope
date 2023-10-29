@@ -19,7 +19,10 @@ TODO: should block?
 class MotionThreadMotion(MotionHAL):
     def __init__(self, mt):
         self.mt = mt
-        MotionHAL.__init__(self, log=mt.motion.log, verbose=mt.motion.verbose, microscope=self.mt.ac.microscope)
+        MotionHAL.__init__(self,
+                           log=mt.motion.log,
+                           verbose=mt.motion.verbose,
+                           microscope=self.mt.ac.microscope)
 
         # Don't re-apply pipeline (scaling, etc)
         self.configure({})
@@ -171,7 +174,9 @@ class MotionThreadBase(CommandThreadBase):
         print(msg)
 
     def init_motion(self):
-        self.motion = get_motion_hal(usc=self.ac.microscope.usc, log=self.log, microscope=self.microscope)
+        self.motion = get_motion_hal(usc=self.ac.microscope.usc,
+                                     log=self.log,
+                                     microscope=self.microscope)
 
     def log_info(self):
         self.command("log_info")

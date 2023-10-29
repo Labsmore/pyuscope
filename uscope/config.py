@@ -1141,6 +1141,13 @@ class BaseConfig:
                 return system
         return None
 
+    def get_joystick(self, guid):
+        systems = self.j.get("joysticks", [])
+        for system in systems:
+            if system["guid"] == guid:
+                return system
+        return None
+
 
 def get_bcj():
     try:

@@ -4,6 +4,8 @@ from uscope import config
 import json5
 from collections import OrderedDict
 import os
+from uscope.config import get_bc
+from uscope import jsond
 
 
 class JoystickNotFound(Exception):
@@ -68,7 +70,9 @@ class JoystickConfig:
 
         self.model = model
         self.guid = guid
-        self._function_map = self.make_function_map(model, guid, jdb)
+        function_map = self.make_function_map(model, guid, jdb)
+        self._apply_dconfig(function_map)
+        self._function_map = function_map
         self._volatile_scalars = {}
         """
         # Things that can take a calibration constant
@@ -82,6 +86,18 @@ class JoystickConfig:
             if "axis_set_jog_slider_value" == function:
                 self._function_unsigned_axes.add(function)
         """
+
+    def _apply_dconfig(self, function_map):
+        # Check if user has patches
+        bc_system = get_bc().get_joystick(guid=self.guid)
+        if not bc_system:
+            return
+        # We have a joystick config, check if dconfig style tweaks
+        dconfig = bc_system.get("dconfig", None)
+        if not dconfig:
+            return
+        print("Applying dconfig for joystick")
+        jsond.apply_update(function_map, dconfig)
 
     # User scalars: user supplied calibration
     # Non-volatile / can be saved

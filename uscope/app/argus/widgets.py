@@ -95,6 +95,8 @@ Select objective and show FoV
 
 
 class ObjectiveWidget(AWidget):
+
+    setObjective = pyqtSignal(str)
     def __init__(self, ac, parent=None):
         super().__init__(ac=ac, parent=parent)
         self.objective_name_le = None
@@ -107,6 +109,8 @@ class ObjectiveWidget(AWidget):
         self.default_objective_index = 0
         self.global_scalar = None
         self.updating_objectives = False
+
+        self.setObjective.connect(self.set_objective)
 
     def initUI(self):
         self.advanced_widgets = []
@@ -222,6 +226,12 @@ class ObjectiveWidget(AWidget):
         self.global_scalar_le.setText(j.get("global_scalar", ""))
         self.global_scalar_le_return()
 
+    def set_objective(self, objective):
+        index = self.obj_cb.findText(objective)
+        # Do not change selection if objective not in options
+        if index == -1:
+            return
+        self.obj_cb.setCurrentIndex(index)
 
 """
 Save a snapshot to a file

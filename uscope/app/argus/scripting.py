@@ -226,6 +226,18 @@ class ArgusScriptingPlugin(QThread):
                                    QMessageBox.Cancel)
         return ret == QMessageBox.Yes
 
+    def get_active_objective(self):
+        """
+        Returns the name of the active objective
+        """
+        return self._ac.scriptingTab.active_objective["name"]
+
+    def set_active_objective(self, objective):
+        """
+        Check if name is in cache
+        """
+        self._ac.mainTab.objective_widget.setObjective.emit(objective)
+
     """
     Advanced API
     Try to use the higher level functions first if possible
@@ -302,6 +314,8 @@ class ScriptingTab(ArgusTab):
 
         self.plugin = None
         self.running = False
+        self.active_objective = None
+        self.ac.objectiveChanged.connect(self.active_objective_updated)
 
     def initUI(self):
         layout = QGridLayout()
@@ -504,3 +518,9 @@ class ScriptingTab(ArgusTab):
             self.log_plugin_fd.write(s)
             self.log_plugin_fd.flush()
         """
+
+    def active_objective_updated(self, data):
+        """
+        Cache the active objective
+        """
+        self.active_objective = data

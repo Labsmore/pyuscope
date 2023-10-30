@@ -30,6 +30,20 @@ class TestKilled(SystemExit):
     pass
 
 
+class QHLine(QFrame):
+    def __init__(self):
+        super(QHLine, self).__init__()
+        self.setFrameShape(QFrame.HLine)
+        self.setFrameShadow(QFrame.Sunken)
+
+
+class QVLine(QFrame):
+    def __init__(self):
+        super(QVLine, self).__init__()
+        self.setFrameShape(QFrame.VLine)
+        self.setFrameShadow(QFrame.Sunken)
+
+
 # class ArgusScriptingPlugin(threading.Thread):
 # needed to do signals
 class ArgusScriptingPlugin(QThread):
@@ -327,35 +341,54 @@ class ScriptingTab(ArgusTab):
         layout = QGridLayout()
         row = 0
 
-        self.select_pb_rhodium_path = get_bc().script_rhodium_dir()
+        # Make easy to press at the top
+        self.run_pb = QPushButton("Run")
+        self.run_pb.setEnabled(False)
+        self.run_pb.clicked.connect(self.run_pb_clicked)
+        layout.addWidget(self.run_pb, row, 0)
+        row += 1
 
-        if self.select_pb_rhodium_path:
+        layout.addWidget(QHLine(), row, 0)
+        row += 1
+
+        self.script_dirs = {'uscope': './uscope/script'}
+        for name, directory in get_bc().script_dirs().items():
+            self.script_dirs[name] = directory
+
+        if len(self.script_dirs) > 1:
             self.select_pb1 = QPushButton("Select script (uscope)")
         else:
             self.select_pb1 = QPushButton("Select script")
-        self.select_pb1.clicked.connect(self.select_pb1_clicked)
-        layout.addWidget(self.select_pb1, row, 0)
-        row += 1
 
-        if self.select_pb_rhodium_path:
-            self.select_pb_rhodium = QPushButton("Select script (rhodium)")
-            self.select_pb_rhodium.clicked.connect(
-                self.select_pb_rhodium_clicked)
-            layout.addWidget(self.select_pb_rhodium, row, 0)
+        self.select_pbs = {}
+        for name in self.script_dirs.keys():
+            pb = QPushButton(f"Select script ({name})")
+            self.select_pbs[name] = pb
+
+            def connect(name):
+                def select_script_clicked():
+                    self.browse_for_script(name)
+
+                pb.clicked.connect(select_script_clicked)
+
+            connect(name)
+            layout.addWidget(pb, row, 0)
             row += 1
 
         # self.test_name_cb = QComboBox()
+
+        layout.addWidget(QHLine(), row, 0)
+        row += 1
+
+        # Less commonly used functions below
 
         self.reload_pb = QPushButton("Reload")
         self.reload_pb.clicked.connect(self.reload_pb_clicked)
         layout.addWidget(self.reload_pb, row, 0)
         row += 1
 
-        self.run_pb = QPushButton("Run")
-        self.run_pb.setEnabled(False)
-        self.run_pb.clicked.connect(self.run_pb_clicked)
-        layout.addWidget(self.run_pb, row, 0)
-        row += 1
+        # Could we combine these into one button?
+        # Require the user to attempt a graceful stop first
 
         self.stop_pb = QPushButton("Stop gracefully")
         self.stop_pb.setEnabled(False)
@@ -387,19 +420,10 @@ class ScriptingTab(ArgusTab):
 
         self.setLayout(layout)
 
-    def select_pb1_clicked(self):
+    def browse_for_script(self, name):
+        directory = self.script_dirs[name]
         filename = QFileDialog.getOpenFileName(None, "Select script",
-                                               './uscope/script',
-                                               "Script (*.py)")
-        if not filename:
-            return
-        filename = str(filename[0])
-        self.select_script(filename)
-
-    def select_pb_rhodium_clicked(self):
-        filename = QFileDialog.getOpenFileName(None, "Select script",
-                                               self.select_pb_rhodium_path,
-                                               "Script (*.py)")
+                                               directory, "Script (*.py)")
         if not filename:
             return
         filename = str(filename[0])
@@ -460,6 +484,8 @@ class ScriptingTab(ArgusTab):
             return
 
         self.plugin._input = self.input.getValue()
+        for pb in self.select_pbs.values():
+            pb.setEnabled(False)
         self.stop_pb.setEnabled(True)
         self.kill_pb.setEnabled(True)
         self.log_local("Plugin loading")
@@ -509,6 +535,8 @@ class ScriptingTab(ArgusTab):
         else:
             self.log_local("Plugin completed w/ issue")
             self.log_local(self.plugin.result_message)
+        for pb in self.select_pbs.values():
+            pb.setEnabled(True)
         self.running = False
 
     def post_ui_init(self):

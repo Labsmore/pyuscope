@@ -1127,12 +1127,12 @@ class BaseConfig:
         """
         return self.j.get("dev_mode", False)
 
-    def script_rhodium_dir(self):
+    def script_dirs(self):
         """
         The path to the secondary script dir
-        Allows quick access to pyuscope-rhodium
+        Allows quick access to pyuscope-kitchen, pyuscope-rhodium, your plugins
         """
-        return self.j.get("script_rhodium_dir", None)
+        return self.j.get("script_dirs", None)
 
     def get_system(self, microscope_name):
         systems = self.j.get("systems", [])

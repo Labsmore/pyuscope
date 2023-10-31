@@ -43,6 +43,11 @@ class Plugin(ArgusScriptingPlugin):
                 "values": ["Yes", "No"],
                 "default": "No"
             },
+            "Overwrite": {
+                "widget": "QComboBox",
+                "values": ["Yes", "No"],
+                "default": "No"
+            },
         }
 
     def mode_run(self,
@@ -51,12 +56,16 @@ class Plugin(ArgusScriptingPlugin):
                  y_sites,
                  lower_left,
                  upper_right,
-                 autofocus=False):
+                 autofocus=False,
+                 overwrite=False):
 
         self.log(f"Saving to {output_directory}")
         if os.path.exists(output_directory):
             # if not self.message_box_yes_cancel("Start?", "Output directory already exists. Are you sure you want to continue"):
             #     return
+            if not overwrite:
+                self.log("Aborted: refusing to overwrite existing directory")
+                return
             self.log("WARNING: output directory already exists")
         else:
             os.mkdir(output_directory)
@@ -110,4 +119,5 @@ class Plugin(ArgusScriptingPlugin):
                 lower_left=self.position_parse(vals["Lower left"]),
                 upper_right=self.position_parse(vals["Upper right"]),
                 autofocus=vals["Autofocus"] == "Yes",
+                overwrite=vals["Overwrite"] == "Yes",
             )

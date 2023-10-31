@@ -402,7 +402,7 @@ class ScriptingTab(ArgusTab):
         layout.addWidget(self.kill_pb, row, 0)
         row += 1
 
-        self.input = InputWidget()
+        self.input = InputWidget(clicked=self.inputWidgetClicked)
         layout.addWidget(self.input, row, 0)
         row += 1
 
@@ -478,12 +478,14 @@ class ScriptingTab(ArgusTab):
     def reload_pb_clicked(self):
         self.select_script(self.filename)
 
-    def run_pb_clicked(self):
+    def run_pb_clicked(self, _checked=None, input_val=None):
         if self.running:
             self.log_local("Can't run while already running")
             return
 
-        self.plugin._input = self.input.getValue()
+        if input_val is None:
+            input_val = self.input.getValue()
+        self.plugin._input = input_val
         for pb in self.select_pbs.values():
             pb.setEnabled(False)
         self.stop_pb.setEnabled(True)
@@ -495,6 +497,12 @@ class ScriptingTab(ArgusTab):
         # pool.start(self.plugin)
         self.status_le.setText("Status: running")
         self.running = True
+
+    # An alternate way to launch using custom buttons
+    def inputWidgetClicked(self, j):
+        input_val = self.input.getValue()
+        input_val["button"] = j
+        self.run_pb_clicked(input_val=input_val)
 
     def stop_pb_clicked(self):
         if not self.running:

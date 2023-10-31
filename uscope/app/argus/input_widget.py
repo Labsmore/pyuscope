@@ -12,20 +12,41 @@ Sample:
     },
     "Distance": {
         "widget": "QLineEdit",
+        "key": "distance",
         "type": float,
         "default": "1.0"
     }
+    # A row of buttons
+    "Buttons1": {
+        "widget": "QPushButtons",
+        "buttons": {
+            "West": "west",
+            "East": {"more": "3"},
+        }
+    }
 }
+
+
+Button callback structure with button specific value:
+{
+    "group": "Buttons1",
+    "label": "West",
+    "value": "west,
+}
+
+This can then be embedded into a larger input structure if desired:
+input["button"] = {...}
 """
 
 
 class InputWidget(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, clicked=None):
         super().__init__(parent=parent)
         self.config = None
         self.layout = QGridLayout()
         self.setLayout(self.layout)
         self.widgets = None
+        self.clicked = clicked
 
     def clear(self):
         self.config = None
@@ -47,6 +68,7 @@ class InputWidget(QWidget):
                 self.layout.addWidget(QLabel(label), row, 0)
                 widget = QLineEdit(default)
                 self.layout.addWidget(widget, row, 1)
+                self.widgets[label] = widget
             elif lconfig["widget"] == "QComboBox":
                 self.layout.addWidget(QLabel(label), row, 0)
                 widget = QComboBox()
@@ -55,10 +77,33 @@ class InputWidget(QWidget):
                     widget.addItem(val)
                 if default:
                     widget.setCurrentText(default)
+                    self.widgets[label] = widget
+            elif lconfig["widget"] == "QPushButtons":
+                """
+                These will fit weird with the other labels
+                Solve this to make more even by adding to custom nested layout
+                """
+                layout = QHBoxLayout()
+                for button_label, data in lconfig["buttons"].items():
+                    widget = QPushButton(button_label)
+
+                    def clicked(group_label, button_label, data):
+                        def inner():
+                            j = {
+                                "group": group_label,
+                                "label": button_label,
+                                "value": data,
+                            }
+                            self.clicked(j)
+
+                        return inner
+
+                    widget.clicked.connect(clicked(label, button_label, data))
+                    layout.addWidget(widget)
+                self.layout.addLayout(layout, row, 0, 1, 2)
             else:
                 raise ValueError(
                     f"bad config: unknown widget type {lconfig['widget']}")
-            self.widgets[label] = widget
             row += 1
 
     def update_defaults(self, vals):
@@ -76,7 +121,7 @@ class InputWidget(QWidget):
     def getValue(self):
         ret = {}
         for label, lconfig in self.config.items():
-            widget = self.widgets[label]
+            widget = self.widgets.get(label)
             if lconfig["widget"] == "QLineEdit":
                 val = str(widget.text())
                 if "type" in lconfig:
@@ -86,10 +131,12 @@ class InputWidget(QWidget):
                         raise ValueError(
                             f"bad input on {label} for type {lconfig['type']}: {val}"
                         )
-                ret[label] = val
             elif lconfig["widget"] == "QComboBox":
-                ret[label] = str(widget.currentText())
+                val = str(widget.currentText())
+            elif lconfig["widget"] == "QPushButtons":
+                pass
             else:
                 raise ValueError(
                     f"bad config: unknown widget type {lconfig['widget']}")
+            ret[lconfig.get("key", label)] = val
         return ret

@@ -317,6 +317,12 @@ class ArgusScriptingPlugin(QThread):
         """
         return {}
 
+    def show_run_button(self):
+        """
+        Instrument might want to disable if they have alternate buttons
+        """
+        return True
+
 
 class ScriptingTab(ArgusTab):
     def __init__(self, ac, parent=None):
@@ -388,6 +394,7 @@ class ScriptingTab(ArgusTab):
 
         self.reload_pb = QPushButton("Reload")
         self.reload_pb.clicked.connect(self.reload_pb_clicked)
+        self.reload_pb.setEnabled(False)
         layout.addWidget(self.reload_pb, row, 0)
         row += 1
 
@@ -460,6 +467,7 @@ class ScriptingTab(ArgusTab):
 
             self.status_le.setText("Status: idle")
             self.run_pb.setEnabled(True)
+            self.run_pb.setVisible(self.plugin.show_run_button())
 
             # self.test_name_cb.clear()
             # for now just support one function
@@ -495,6 +503,7 @@ class ScriptingTab(ArgusTab):
         self.plugin._input = input_val
         for pb in self.select_pbs.values():
             pb.setEnabled(False)
+        self.reload_pb.setEnabled(False)
         self.stop_pb.setEnabled(True)
         self.kill_pb.setEnabled(True)
         self.log_local("Plugin loading")
@@ -545,6 +554,7 @@ class ScriptingTab(ArgusTab):
         self.status_le.setText(status)
         self.stop_pb.setEnabled(False)
         self.kill_pb.setEnabled(False)
+        self.reload_pb.setEnabled(True)
         if self.plugin.succeeded():
             self.log_local("Plugin completed ok")
         else:

@@ -76,6 +76,7 @@ class Microscope:
         make_joystick=True,
         imager_cli=False,
         auto=True,
+        virtual=False,
     ):
         if bc is None:
             bc = get_bc()
@@ -87,7 +88,7 @@ class Microscope:
 
         self.objectives = None
 
-        if not auto:
+        if not auto or virtual:
             make_motion = False
             make_imager = False
             make_kinematics = False

@@ -3,6 +3,7 @@
 from uscope.util import add_bool_arg
 from uscope import config
 from uscope.imagep.util import RC_CONST
+from uscope.microscope import Microscope
 import os
 
 
@@ -11,6 +12,8 @@ def run(microscope_name=None, verbose=True):
     usc = config.get_usc(name=microscope_name)
     microscope_data_dir = os.path.join("data", "microscopes",
                                        config.default_microscope_name())
+    microscope = Microscope(usc=usc, virtual=True)
+    objectives = microscope.get_objectives()
 
     print("Image size:")
     raw_wh = usc.imager.raw_wh()
@@ -25,7 +28,7 @@ def run(microscope_name=None, verbose=True):
           (final_wh[0], final_wh[1], final_wh[0] * final_wh[1]))
 
     print("Objectives")
-    for objective in usc.get_scaled_objectives():
+    for objective in objectives.get_full_config().values():
         print(f"  {objective['name']}")
         print("    x_view (post-crop): %0.3f mm" % objective['x_view'])
         x_view = objective['x_view']

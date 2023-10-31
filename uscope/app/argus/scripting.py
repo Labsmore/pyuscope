@@ -341,16 +341,6 @@ class ScriptingTab(ArgusTab):
         layout = QGridLayout()
         row = 0
 
-        # Make easy to press at the top
-        self.run_pb = QPushButton("Run")
-        self.run_pb.setEnabled(False)
-        self.run_pb.clicked.connect(self.run_pb_clicked)
-        layout.addWidget(self.run_pb, row, 0)
-        row += 1
-
-        layout.addWidget(QHLine(), row, 0)
-        row += 1
-
         self.script_dirs = {'uscope': './uscope/script'}
         for name, directory in get_bc().script_dirs().items():
             self.script_dirs[name] = directory
@@ -376,6 +366,20 @@ class ScriptingTab(ArgusTab):
             row += 1
 
         # self.test_name_cb = QComboBox()
+
+        layout.addWidget(QHLine(), row, 0)
+        row += 1
+
+        self.fn_le = QLineEdit("")
+        layout.addWidget(self.fn_le, row, 0)
+        row += 1
+        self.fn_le.setReadOnly(True)
+
+        self.run_pb = QPushButton("Run")
+        self.run_pb.setEnabled(False)
+        self.run_pb.clicked.connect(self.run_pb_clicked)
+        layout.addWidget(self.run_pb, row, 0)
+        row += 1
 
         layout.addWidget(QHLine(), row, 0)
         row += 1
@@ -439,6 +443,8 @@ class ScriptingTab(ArgusTab):
 
         self.unload_script()
         try:
+            self.fn_le.setText(filename)
+
             spec = importlib.util.spec_from_file_location(
                 "pyuscope_plugin", filename)
             plugin_module = importlib.util.module_from_spec(spec)
@@ -471,6 +477,7 @@ class ScriptingTab(ArgusTab):
 
     def unload_script(self):
         self.plugin = None
+        self.fn_le.setText("")
         self.status_le.setText("Status: idle")
         self.input.configure({})
         self.log_widget.clear()

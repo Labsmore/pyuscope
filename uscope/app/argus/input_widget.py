@@ -53,7 +53,9 @@ class InputWidget(QWidget):
         self.widgets = None
         # Remove all widgets
         for i in reversed(range(self.layout.count())):
-            self.layout.itemAt(i).widget().setParent(None)
+            w = self.layout.itemAt(i).widget()
+            if w is not None:
+                w.setParent(None)
 
     def configure(self, config):
         self.clear()
@@ -122,6 +124,7 @@ class InputWidget(QWidget):
         ret = {}
         for label, lconfig in self.config.items():
             widget = self.widgets.get(label)
+            val = None
             if lconfig["widget"] == "QLineEdit":
                 val = str(widget.text())
                 if "type" in lconfig:
@@ -138,5 +141,6 @@ class InputWidget(QWidget):
             else:
                 raise ValueError(
                     f"bad config: unknown widget type {lconfig['widget']}")
-            ret[lconfig.get("key", label)] = val
+            if val is not None:
+                ret[lconfig.get("key", label)] = val
         return ret

@@ -5,10 +5,13 @@ import os
 class Plugin(ArgusScriptingPlugin):
     def input_config(self):
         return {
-            "Mode": {
-                "widget": "QComboBox",
-                "values": ["Setup: lower left", "Setup: upper right", "Run"],
-                "default": "Setup: lower left"
+            "Buttons": {
+                "widget": "QPushButtons",
+                "buttons": {
+                    # Set the widget name to update
+                    "Set lower left": "Lower left",
+                    "Set upper right": "Upper right",
+                },
             },
             "Output directory": {
                 "widget": "QLineEdit",
@@ -90,16 +93,13 @@ class Plugin(ArgusScriptingPlugin):
         self.log("Done")
 
     def run_test(self):
-        self.log("Hello, world!")
         vals = self.get_input()
-        mode = vals["Mode"]
-        if mode == "Setup: lower left":
-            self.set_input_default("Lower left",
+        button = vals.get("button")
+        if button:
+            self.set_input_default(button["value"],
                                    self.position_format(self.pos()))
-        elif mode == "Setup: upper right":
-            self.set_input_default("Upper right",
-                                   self.position_format(self.pos()))
-        elif mode == "Run":
+        else:
+            self.log("Checking parameters...")
             if not vals["Output directory"]:
                 self.log("Output directory required")
                 return
@@ -111,5 +111,3 @@ class Plugin(ArgusScriptingPlugin):
                 upper_right=self.position_parse(vals["Upper right"]),
                 autofocus=vals["Autofocus"] == "Yes",
             )
-        else:
-            assert 0, f"bad mode {mode}"

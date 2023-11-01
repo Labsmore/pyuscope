@@ -105,7 +105,6 @@ Camera: see VM1B config ifle
         },
         "width": 1280,
         "height": 960,
-        //1.5x
         "crop_pixels": {
             "top": 0,
             "bottom": 0,

@@ -47,13 +47,13 @@ class Microscope:
         self.usc = None
         self.imager = None
         # Thread safe version
-        self.imager_ts = None
+        self._imager_ts = None
         self.motion = None
         # Thread safe version
-        self.motion_ts = None
+        self._motion_ts = None
         self.kinematics = None
         # Thread safe version
-        self.kinematics_ts = None
+        self._kinematics_ts = None
 
         if log is None:
             log = print
@@ -157,25 +157,25 @@ class Microscope:
         self.kinematics = kinematics
 
     def set_imager_ts(self, imager):
-        self.imager_ts = imager
+        self._imager_ts = imager
 
     def imager_ts(self):
-        assert self.imager_ts
-        return self.imager_ts
+        assert self._imager_ts
+        return self._imager_ts
 
     def set_motion_ts(self, motion):
-        self.motion_ts = motion
+        self._motion_ts = motion
 
     def motion_ts(self):
-        assert self.motion_ts
-        return self.motion_ts
+        assert self._motion_ts
+        return self._motion_ts
 
     def set_kinematics_ts(self, kinematics):
-        self.kinematics_ts = kinematics
+        self._kinematics_ts = kinematics
 
     def kinematics_ts(self):
-        assert self.kinematics_ts
-        return self.kinematics_ts
+        assert self._kinematics_ts
+        return self._kinematics_ts
 
     def stop(self):
         """

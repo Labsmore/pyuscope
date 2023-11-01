@@ -274,7 +274,7 @@ class ArgusScriptingPlugin(QThread):
         Get a (thread safe) motion object
         Access to the more powerful but less stable stage API
         """
-        self._ac.microscope.motion_ts()
+        return self._ac.microscope.motion_ts()
 
     def imager(self):
         """
@@ -282,14 +282,14 @@ class ArgusScriptingPlugin(QThread):
         Access to the more powerful but less stable camera API
         """
         # Planner uses this directly / is already thread safe
-        return self._ac.imager
+        return self._ac.microscope.imager_ts()
 
     def kinematics(self):
         """
         Get a (thread safe) kinematics object
         Access to the more powerful but less stable system synchronization API
         """
-        assert 0, "fixme"
+        return self._ac.microscope.kinematics_ts()
 
     def backlash_disable(self, block=True):
         """

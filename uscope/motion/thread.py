@@ -62,6 +62,12 @@ class MotionThreadMotion(MotionHAL):
     def _get_max_accelerations(self):
         return self.mt.motion.get_max_accelerations()
 
+    def jog_rel(self, pos, rate):
+        return self.mt.jog_rel(pos, rate)
+
+    def jog_cancel(self):
+        return self.mt.jog_cancel()
+
 
 """
 Several sources need to periodically send jog commands based on stimulus
@@ -234,8 +240,11 @@ class MotionThreadBase(CommandThreadBase):
         else:
             print("WARNING: drop jog on backing up queue")
 
+    def jog_rel(self, pos, rate):
+        self.command("jog_rel", pos, rate)
+
     def jog_abs(self, pos, rate):
-        self.command("jog", pos, rate)
+        self.command("jog_abs", pos, rate)
 
     def jog_abs_lazy(self, pos, rate):
         """
@@ -295,6 +304,12 @@ class MotionThreadBase(CommandThreadBase):
 
     def shutdown(self):
         self.running.clear()
+
+    def _jog_rel(self, *args, **kwargs):
+        if self._jog_enabled:
+            self.motion.jog_rel(*args, **kwargs)
+        else:
+            self.log("WARNING: jog disabled, dropping jog")
 
     def _jog_abs(self, *args, **kwargs):
         if self._jog_enabled:
@@ -406,6 +421,7 @@ class MotionThreadBase(CommandThreadBase):
                     'update_pos_cache': update_pos_cache,
                     'move_absolute': move_absolute,
                     'move_relative': move_relative,
+                    'jog_rel': self._jog_rel,
                     'jog_abs': self._jog_abs,
                     'jog_fractioned': self._jog_fractioned,
                     'jog_cancel': self._jog_cancel,

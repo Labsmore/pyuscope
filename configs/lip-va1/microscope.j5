@@ -106,14 +106,12 @@ Camera: see VM1B config ifle
         "width": 1280,
         "height": 960,
         //1.5x
-        /*
         "crop_pixels": {
             "top": 0,
             "bottom": 0,
             "left": 160,
             "right": 160,
         },
-        */
 
         //spec sheet says
         //Pixel size: 2um(H) x 2um(V)

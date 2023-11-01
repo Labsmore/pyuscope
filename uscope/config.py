@@ -1132,7 +1132,7 @@ class BaseConfig:
         The path to the secondary script dir
         Allows quick access to pyuscope-kitchen, pyuscope-rhodium, your plugins
         """
-        return self.j.get("script_dirs", None)
+        return self.j.get("script_dirs", {})
 
     def get_system(self, microscope_name):
         systems = self.j.get("systems", [])

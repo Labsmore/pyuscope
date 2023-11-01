@@ -213,11 +213,14 @@ class ArgusScriptingPlugin(QThread):
     def image(self, wait_imaging_ok=True):
         """
         Request and return a snapshot as PIL image
+
+        FIXME: this is an unprocessed image
+        Should be returning like snapshot
         """
         if wait_imaging_ok:
             self.wait_imaging_ok()
         imager = self.imager()
-        return imager.get()["0"]
+        return imager.get_processed()
 
     def wait_imaging_ok(self):
         """
@@ -271,7 +274,7 @@ class ArgusScriptingPlugin(QThread):
         Get a (thread safe) motion object
         Access to the more powerful but less stable stage API
         """
-        self._ac.motion_thread.get_planner_motion()
+        self._ac.microscope.motion_ts()
 
     def imager(self):
         """

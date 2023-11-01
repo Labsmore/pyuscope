@@ -292,6 +292,11 @@ class ArgusCommon(QObject):
         self.image_processing_thread.log_msg.connect(self.log)
         self.image_processing_thread.start()
 
+        # Must be made thread safe
+        self.microscope.set_motion_ts(self.motion_thread.get_planner_motion())
+        # emits events + uses queue => already thread safe
+        self.microscope.set_imager_ts(self.microscope.imager)
+
     def shutdown(self):
         if self.motion_thread:
             self.motion_thread.shutdown()

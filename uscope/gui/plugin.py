@@ -79,6 +79,38 @@ class GstGUIImager(Imager):
             scaled = scaled.rotate(180)
         return {"0": scaled}
 
+    # FIXME: clean this up
+    # maybe start by getting all parties to call this
+    # then can move things into main get function?
+    def get_processed(self, timeout=3.0):
+        # Get relatively unprocessed snapshot
+        image = self.get()["0"]
+
+        processed = {}
+        ready = threading.Event()
+
+        def callback(command, args, ret_e):
+            if type(ret_e) is Exception:
+                processed["exception"] = ret_e
+            else:
+                processed["image"] = ret_e
+            ready.set()
+
+        options = {}
+        options["image"] = image
+        options["scale_factor"] = self.ac.usc.imager.scalar()
+        options["scale_expected_wh"] = self.ac.usc.imager.final_wh()
+        if self.ac.usc.imager.videoflip_method():
+            options["videoflip_method"] = self.ac.usc.imager.videoflip_method()
+
+        self.ac.image_processing_thread.process_image(options=options,
+                                                      callback=callback)
+        ready.wait(timeout)
+        if "exception" in processed:
+            raise Exception(
+                f"failed to process image: {processed['exception']}")
+        return processed["image"]
+
     def log_planner_header(self, log):
         log("Imager config")
         log("  Image size")

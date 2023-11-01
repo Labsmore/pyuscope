@@ -16,7 +16,7 @@ class ImageProcessingThreadBase(CommandThreadBase):
         super().__init__(microscope)
         self.command_map = {
             "auto_focus": self._do_auto_focus,
-            "process_snapshot": self._do_process_snapshot,
+            "process_image": self._do_process_image,
         }
 
     def auto_focus(self, objective_config, block=False, done=None):
@@ -40,14 +40,16 @@ class ImageProcessingThreadBase(CommandThreadBase):
             self.log("Autofocus cancelled")
             raise
 
-    def process_snapshot(self, options, block=False, callback=None):
+    def process_image(self, options, block=False, callback=None):
         j = {
             #"type": "process_snapshot",
             "options": options,
         }
-        self.command("process_snapshot", j, block=block, callback=callback)
+        self.command("process_image", j, block=block, callback=callback)
 
-    def _do_process_snapshot(self, j):
+    # TODO: move more of this to the image processing thread
+    # rotate, scaling
+    def _do_process_image(self, j):
         options = j["options"]
         image = get_scaled(options["image"],
                            options["scale_factor"],

@@ -206,10 +206,13 @@ class QImageProcessingThread(ImageProcessingThreadBase, QThread):
     def log(self, msg=""):
         self.log_msg.emit(msg)
 
-    def _do_process_snapshot(self, options):
-        image = super()._do_process_snapshot(options)
+    def _do_process_image(self, j):
+        image = super()._do_process_image(j)
         data = {"image": image, "objective_config": self.objective_config()}
-        self.snapshotCaptured.emit(data)
+        # Don't emit when scripting collects a snapshot
+        if j["options"].get("is_snapshot", False):
+            self.snapshotCaptured.emit(data)
+        return image
 
 
 class QJoystickThread(JoystickThreadBase, QThread):

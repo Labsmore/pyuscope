@@ -341,6 +341,7 @@ class SnapshotWidget(AWidget):
         self.ac.log(f"Snapshot: image received, post-processing")
 
         options = {}
+        options["is_snapshot"] = True
         options["image"] = image
         options["save_filename"] = self.snapshot_fn()
         extension = self.save_extension()
@@ -358,8 +359,8 @@ class SnapshotWidget(AWidget):
                 filename = args[0]["options"]["save_filename"]
                 self.ac.log(f"Snapshot: saved to {filename}")
 
-        self.ac.image_processing_thread.process_snapshot(options=options,
-                                                         callback=callback)
+        self.ac.image_processing_thread.process_image(options=options,
+                                                      callback=callback)
         self.snapshot_pb.setEnabled(True)
 
     def post_ui_init(self):

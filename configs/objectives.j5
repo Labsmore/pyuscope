@@ -59,6 +59,15 @@
         ******************************************************************/
         {
             "vendor": "LapSun",
+            "model": "L Plan 5X",
+            "series": "L Plan",
+            "magnification": 5,
+            "na": 0.12,
+            "wd": 23.6,
+            "thread": "RMS",
+        },
+        {
+            "vendor": "LapSun",
             "model": "L Plan 10X",
             "series": "L Plan",
             "magnification": 10,

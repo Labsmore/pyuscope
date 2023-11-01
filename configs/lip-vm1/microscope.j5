@@ -218,8 +218,9 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         {
             "camera_sn": null,
             "objectives_db": [
-                "vendor: LapSun, model: L Plan 20X",
+                "vendor: LapSun, model: L Plan 5X",
                 "vendor: LapSun, model: L Plan 10X",
+                "vendor: LapSun, model: L Plan 20X",
             ],
         },
     ],

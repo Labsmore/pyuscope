@@ -204,6 +204,20 @@ class DirCSIP:
 
         self.log("")
 
+        ipp = config.get_usc().ipp.pipeline_first()
+        if len(ipp) == 0:
+            self.log("Pre corrections: skip")
+        else:
+            for pipeline_this in ipp:
+                plugin = pipeline_this["plugin"]
+                this_dir = pipeline_this["dir"]
+                self.log(f"{plugin}: start")
+                next_dir = os.path.join(working_iindex["dir"], this_dir)
+                self.correct_plugin_run(pipeline_this,
+                                        iindex_in=working_iindex,
+                                        dir_out=next_dir)
+                working_iindex = index_scan_images(next_dir)
+
         if working_iindex["stabilization"]:
             self.log("Stabilization: yes. Processing")
             # dir name needs to be reasonable for CloudStitch to name it well
@@ -250,7 +264,6 @@ class DirCSIP:
                                         iindex_in=working_iindex,
                                         dir_out=next_dir)
                 working_iindex = index_scan_images(next_dir)
-                print("Finishing")
 
         if not config.get_usc().imager.has_ff_cal():
             self.log("FF correction: skip")

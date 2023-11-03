@@ -598,6 +598,9 @@ class USCImageProcessingPipeline:
     def __init__(self, j={}):
         self.j = j
 
+    def pipeline_first(self):
+        return self.j.get("pipeline_first", [])
+
     def pipeline_last(self):
         """
         Get image processing pipeline configuration

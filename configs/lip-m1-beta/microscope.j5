@@ -84,6 +84,8 @@ But not buggy like original intended camera
             "left": 1396,
             "right": 1396,
         },
+    },
+    "optics": {
         "um_per_pixel_raw_1x": 1.321752266,
     },
     "systems": [

@@ -175,9 +175,10 @@ A minimal configuration to do basic testing
                 "max": 1000
             },
         },
+    },
+    "optics": {
         "um_per_pixel_raw_1x": 4.6728972,
     },
-
 
     "systems": [
         //Default configuration

@@ -112,6 +112,9 @@ Camera: see VM1B config ifle
             "right": 160,
         },
 
+        "videoflip_method": "rotate-180",
+    },
+    "optics": {
         //spec sheet says
         //Pixel size: 2um(H) x 2um(V)
 
@@ -123,7 +126,6 @@ Camera: see VM1B config ifle
         //value is between about 8.8 and 10 depending on zoom level
         //TODO: calibrate scale more proper
         "um_per_pixel_raw_1x": 9.4,
-        "videoflip_method": "rotate-180",
     },
     "ipp": {
         /*

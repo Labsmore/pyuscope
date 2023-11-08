@@ -110,6 +110,8 @@
             "left": 1596,
             "right": 1396,
         },
+    },
+    "optics": {
         "um_per_pixel_raw_1x": 1.321752266,
     },
     "systems": [

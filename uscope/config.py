@@ -598,6 +598,16 @@ class USCOptics:
     def um_per_pixel_raw_1x(self):
         return self.j.get("um_per_pixel_raw_1x", None)
 
+    def diffusion(self):
+        """
+        "diffusion": {
+            "red": 2.0,
+            "green": 2.0,
+            "blue": 4.0,
+        }
+        """
+        return self.j.get("optics", None)
+
 
 class USCImageProcessingPipeline:
     def __init__(self, j={}):

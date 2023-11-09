@@ -129,23 +129,32 @@ class QPushButtonsIW(IWType):
         self.iw.layout.addLayout(layout, row, 0, 1, 2)
 
 
+# https://stackoverflow.com/questions/37564728/pyqt-how-to-remove-a-layout-from-a-layout
+def deleteItemsOfLayout(layout):
+    if layout is not None:
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+            else:
+                deleteItemsOfLayout(item.layout())
+
+
 class InputWidget(QWidget):
     def __init__(self, parent=None, clicked=None):
         super().__init__(parent=parent)
         self.config = None
-        self.layout = QGridLayout()
-        self.setLayout(self.layout)
         self.widgets = None
         self.clicked = clicked
+        self.layout = QGridLayout()
+        self.setLayout(self.layout)
+        # self.clear()
 
     def clear(self):
         self.config = None
         self.widgets = None
-        # Remove all widgets
-        for i in reversed(range(self.layout.count())):
-            w = self.layout.itemAt(i).widget()
-            if w is not None:
-                w.setParent(None)
+        deleteItemsOfLayout(self.layout)
 
     def configure(self, config):
         self.clear()

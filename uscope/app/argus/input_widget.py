@@ -39,108 +39,156 @@ input["button"] = {...}
 """
 
 
+class IWType:
+    def __init__(self, iw, label, lconfig):
+        self.iw = iw
+        self.label = label
+        self.lconfig = lconfig
+
+    def configure(self):
+        pass
+
+    def update_defaults(self, val):
+        pass
+
+    def getValue(self):
+        return None
+
+
+class QLineEditIW(IWType):
+    def configure(self, row, default):
+        self.iw.layout.addWidget(QLabel(self.label), row, 0)
+        self.widget = QLineEdit(default)
+        self.iw.layout.addWidget(self.widget, row, 1)
+
+    def update_defaults(self, val):
+        self.widget.setText(str(val))
+
+    def getValue(self):
+        val = str(self.widget.text())
+        if "type" in self.lconfig:
+            try:
+                val = self.lconfig["type"](val)
+            except ValueError:
+                raise ValueError(
+                    f"bad input on {self.label} for type {self.lconfig['type']}: {val}"
+                )
+        return val
+
+
+class QComboBoxIW(IWType):
+    def configure(self, row, default):
+        self.iw.layout.addWidget(QLabel(self.label), row, 0)
+        self.widget = QComboBox()
+        self.iw.layout.addWidget(self.widget, row, 1)
+        for val in self.lconfig["values"]:
+            self.widget.addItem(val)
+        if default:
+            self.widget.setCurrentText(default)
+            self.widgets[self.label] = self.widget
+
+    def update_defaults(self, val):
+        self.widget.setCurrentText(val)
+
+    def getValue(self):
+        return str(self.widget.currentText())
+
+
+def clicked(self, group_label, button_label, value):
+    def inner():
+        j = {
+            "group": group_label,
+            "label": button_label,
+            "value": value,
+        }
+        self.iw.clicked(j)
+
+    return inner
+
+
+class QPushButtonIW(IWType):
+    def configure(self, row, default):
+        self.widget = QPushButton(self.label)
+        self.iw.layout.addWidget(self.widget, row, 0, 1, 2)
+        self.widget.clicked.connect(
+            clicked(self, self.label, self.label, self.lconfig.get("value")))
+
+
+class QPushButtonsIW(IWType):
+    def configure(self, row, default):
+        """
+        These will fit weird with the other labels
+        Solve this to make more even by adding to custom nested layout
+        """
+        layout = QHBoxLayout()
+        for button_label, data in self.lconfig["buttons"].items():
+            widget = QPushButton(button_label)
+            widget.clicked.connect(
+                clicked(self, self.label, button_label, data))
+            layout.addWidget(widget)
+        self.iw.layout.addLayout(layout, row, 0, 1, 2)
+
+
+# https://stackoverflow.com/questions/37564728/pyqt-how-to-remove-a-layout-from-a-layout
+def deleteItemsOfLayout(layout):
+    if layout is not None:
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+            else:
+                deleteItemsOfLayout(item.layout())
+
+
 class InputWidget(QWidget):
     def __init__(self, parent=None, clicked=None):
         super().__init__(parent=parent)
         self.config = None
-        self.layout = QGridLayout()
-        self.setLayout(self.layout)
         self.widgets = None
         self.clicked = clicked
+        self.layout = QGridLayout()
+        self.setLayout(self.layout)
+        # self.clear()
 
     def clear(self):
         self.config = None
         self.widgets = None
-        # Remove all widgets
-        for i in reversed(range(self.layout.count())):
-            w = self.layout.itemAt(i).widget()
-            if w is not None:
-                w.setParent(None)
+        deleteItemsOfLayout(self.layout)
 
     def configure(self, config):
         self.clear()
         self.config = config
         row = 0
-        self.widgets = {}
+        self.iws = {}
 
         for label, lconfig in self.config.items():
-            default = lconfig.get("default")
-            widget = None
             if lconfig["widget"] == "QLineEdit":
-                self.layout.addWidget(QLabel(label), row, 0)
-                widget = QLineEdit(default)
-                self.layout.addWidget(widget, row, 1)
-                self.widgets[label] = widget
+                iw = QLineEditIW(self, label, lconfig)
             elif lconfig["widget"] == "QComboBox":
-                self.layout.addWidget(QLabel(label), row, 0)
-                widget = QComboBox()
-                self.layout.addWidget(widget, row, 1)
-                for val in lconfig["values"]:
-                    widget.addItem(val)
-                if default:
-                    widget.setCurrentText(default)
-                    self.widgets[label] = widget
+                iw = QComboBoxIW(self, label, lconfig)
+            elif lconfig["widget"] == "QPushButton":
+                iw = QPushButtonIW(self, label, lconfig)
             elif lconfig["widget"] == "QPushButtons":
-                """
-                These will fit weird with the other labels
-                Solve this to make more even by adding to custom nested layout
-                """
-                layout = QHBoxLayout()
-                for button_label, data in lconfig["buttons"].items():
-                    widget = QPushButton(button_label)
-
-                    def clicked(group_label, button_label, data):
-                        def inner():
-                            j = {
-                                "group": group_label,
-                                "label": button_label,
-                                "value": data,
-                            }
-                            self.clicked(j)
-
-                        return inner
-
-                    widget.clicked.connect(clicked(label, button_label, data))
-                    layout.addWidget(widget)
-                self.layout.addLayout(layout, row, 0, 1, 2)
+                iw = QPushButtonsIW(self, label, lconfig)
             else:
                 raise ValueError(
                     f"bad config: unknown widget type {lconfig['widget']}")
+            default = lconfig.get("default")
+            iw.configure(row, default)
+            self.iws[label] = iw
             row += 1
 
     def update_defaults(self, vals):
         for label, val in vals.items():
-            widget = self.widgets[label]
-            lconfig = self.config[label]
-            if lconfig["widget"] == "QLineEdit":
-                widget.setText(str(val))
-            elif lconfig["widget"] == "QComboBox":
-                widget.setCurrentText(val)
-            else:
-                raise ValueError(
-                    f"bad config: unknown widget type {lconfig['widget']}")
+            iw = self.iws[label]
+            iw.update_defaults(val)
 
     def getValue(self):
         ret = {}
-        for label, lconfig in self.config.items():
-            widget = self.widgets.get(label)
-            val = None
-            if lconfig["widget"] == "QLineEdit":
-                val = str(widget.text())
-                if "type" in lconfig:
-                    try:
-                        val = lconfig["type"](val)
-                    except ValueError:
-                        raise ValueError(
-                            f"bad input on {label} for type {lconfig['type']}: {val}"
-                        )
-            elif lconfig["widget"] == "QComboBox":
-                val = str(widget.currentText())
-            elif lconfig["widget"] == "QPushButtons":
-                pass
-            else:
-                raise ValueError(
-                    f"bad config: unknown widget type {lconfig['widget']}")
+        for label, iw, in self.iws.items():
+            val = iw.getValue()
             if val is not None:
-                ret[lconfig.get("key", label)] = val
+                ret[iw.lconfig.get("key", label)] = val
+
         return ret

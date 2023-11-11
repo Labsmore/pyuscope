@@ -77,7 +77,7 @@ class MicroscopeObjectives:
         # In raw sensor pixels before scaling
         # That way can adjust scaling w/o adjusting
         # This is the now preferred way to set configuration
-        um_per_pixel_raw_1x = self.microscope.usc.imager.um_per_pixel_raw_1x()
+        um_per_pixel_raw_1x = self.microscope.usc.optics.um_per_pixel_raw_1x()
         if not um_per_pixel_raw_1x:
             return
 

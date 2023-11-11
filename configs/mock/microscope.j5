@@ -17,9 +17,12 @@ A minimal configuration to do basic testing
         "source":"gst-videotestsrc",
         "width": 800,
         "height": 750,
+    },
+    "optics": {
         //In the ballpark of a typical value
         "um_per_pixel_raw_1x": 5.0,
     },
+
     "systems": [
         //Default configuration
         {

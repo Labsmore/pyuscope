@@ -287,9 +287,6 @@ class USCImager:
         """
         return self.j.get("save_quality", 95)
 
-    def um_per_pixel_raw_1x(self):
-        return self.j.get("um_per_pixel_raw_1x", None)
-
     def ff_cal_fn(self):
         return get_microscope_data_dir() + "/imager_calibration_ff.tif"
 
@@ -594,6 +591,24 @@ class USCKinematics:
         return float(self.j.get("tsettle_hdr", 0.2))
 
 
+class USCOptics:
+    def __init__(self, j=None):
+        self.j = j
+
+    def um_per_pixel_raw_1x(self):
+        return self.j.get("um_per_pixel_raw_1x", None)
+
+    def diffusion(self):
+        """
+        "diffusion": {
+            "red": 2.0,
+            "green": 2.0,
+            "blue": 4.0,
+        }
+        """
+        return self.j.get("optics", None)
+
+
 class USCImageProcessingPipeline:
     def __init__(self, j={}):
         self.j = j
@@ -703,6 +718,7 @@ class USC:
         self.motion = USCMotion(self.usj.get("motion"))
         self.planner = USCPlanner(self.usj.get("planner", {}))
         self.kinematics = USCKinematics(self.usj.get("kinematics", {}))
+        self.optics = USCOptics(self.usj.get("optics", {}))
         self.ipp = USCImageProcessingPipeline(self.usj.get("ipp", {}))
         self.apps = {}
         self.bc = get_bc()

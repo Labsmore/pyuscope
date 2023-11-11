@@ -83,6 +83,8 @@ Original "pr0nscope" mk2 BH2 CNC microscope
                 "max": 200000
             },
         },
+    },
+    "optics": {
         "um_per_pixel_raw_1x": 3.011029412,
     },
 

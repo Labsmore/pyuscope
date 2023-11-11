@@ -69,7 +69,6 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
                 "max": 200000
             },
         },
-        "um_per_pixel_raw_1x": 3.262867647,
         /*
         Lower right of plate is high
         For now reduce FoV to compensate
@@ -91,6 +90,10 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
             "right": 1120,
         },
     },
+    "optics": {
+        "um_per_pixel_raw_1x": 3.262867647,
+    },
+
     "systems": [
         //Default configuration
         {

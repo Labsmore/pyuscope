@@ -186,7 +186,9 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         //spec sheet says
         //Pixel size: 2um(H) x 2um(V)
 
-        
+        "videoflip_method": "rotate-180",
+    },
+    "optics" {
         //1.5x
         //"scalar": 0.5
         // 0.33mm / 960px * 1000 = 0.34375
@@ -200,7 +202,12 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         //"scalar": 0.5,
         //"um_per_pixel_raw_1x": 2.291666667,
 
-        "videoflip_method": "rotate-180",
+        //Quick guess, not calibrated
+        "diffusion": {
+            "red": 2.0,
+            "green": 2.0,
+            "blue": 4.0,
+        }
     },
     "ipp": {
         "pipeline_last": [
@@ -212,7 +219,6 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
             },
         },
     },
-
     "systems": [
         //Default configuration
         {

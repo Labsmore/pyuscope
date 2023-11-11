@@ -126,14 +126,26 @@ A minimal configuration to do basic testing
         "source_properties": {
             "esize": 0
         },
-        "scalar": 0.5,
         "source_properties_mod": {
             //In us. Can go up to 15 sec which is impractical for typical usage
             "expotime": {
                 "max": 200000
             },
         },
-        "um_per_pixel_raw_1x": 3.011029412,
+        "scalar": 0.5,
+        //Uncomment to save snapshots and scans 8-bit lossless
+        //Note: raw and 12 bit support is much more involved / experimental
+        //"save_extension": ".tif",
+        //5440 - 1396 * 2 = 2648
+        "crop_pixels": {
+            "top": 500,
+            "bottom": 900,
+            "left": 1596,
+            "right": 1396,
+        },
+    },
+    "optics": {
+        "um_per_pixel_raw_1x": 1.321752266,
     },
 
     "systems": [

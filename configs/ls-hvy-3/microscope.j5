@@ -84,8 +84,11 @@ UT100 NEMA23 stages
                 "max": 200000
             },
         },
+    },
+    "optics": {
         "um_per_pixel_raw_1x": 3.262867647,
     },
+
     "systems": [
         //Default configuration
         {

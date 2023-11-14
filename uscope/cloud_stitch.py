@@ -107,6 +107,9 @@ def upload_dir(directory,
         serverj["task"] = "mosaic_xyf_stitch"
         serverj["container"] = "mosaic_xyf_stitcher"
 
+    if bc.labsmore_stitch_save_cloudshare():
+        serverj["cloudshare"] = "true"
+
     MOSAIC_RUN_CONTENT = json.dumps(serverj)
     print("up", MOSAIC_RUN_CONTENT)
     mosaic_run_json = io.BytesIO(bytes(MOSAIC_RUN_CONTENT, encoding='utf8'))

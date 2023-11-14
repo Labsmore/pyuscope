@@ -1122,6 +1122,13 @@ class BaseConfig:
         """
         return bool(self.j.get("labsmore_stitch", {}).get("use_xyfstitch"))
 
+    def labsmore_stitch_save_cloudshare(self):
+        """
+        If this setting is true, then tell the sticher to copy
+        the generated zoomable files to the served cloudshare bucket.
+        """
+        return bool(self.j.get("labsmore_stitch", {}).get("cloudshare"))
+
     def labsmore_stitch_aws_access_key(self):
         return self.j.get("labsmore_stitch", {}).get("aws_access_key")
 

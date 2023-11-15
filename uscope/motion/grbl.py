@@ -1320,7 +1320,7 @@ class GrblHal(MotionHAL):
         if "scalar" in self.modifiers:
             scalars = self.modifiers["scalar"].scalars
             for axis in self.axes():
-                steps_per_mm[axis] *= scalars[axis]
+                steps_per_mm[axis] *= abs(scalars[axis])
         return steps_per_mm
 
     def _get_machine_limits(self):

@@ -676,6 +676,9 @@ class MotionHAL:
         return {"mins": {}, "maxs": {}}
 
     def _get_steps_per_mm(self):
+        """
+        These values are always positive / relative
+        """
         return {
             "x": int(1 / 0.000010),
             "y": int(1 / 0.000010),
@@ -765,7 +768,8 @@ class MotionHAL:
 
             self._epsilon = {}
             for axis in self.axes():
-                self._epsilon[axis] = 1 / self._steps_per_mm[axis]
+                self._epsilon[axis] = abs(1 / self._steps_per_mm[axis])
+            self.assert_all_axes(self._epsilon)
 
         calc_epsilon()
 
@@ -983,7 +987,7 @@ class MotionHAL:
 
     def move_absolute(self, pos, options={}):
         '''Absolute move to positions specified by pos dict'''
-        assert self.jog_estimated_end is None, "Can't move while jogging"
+        assert self.jog_estimated_end is None, f"Can't move while jogging ({self.jog_estimated_end})"
         if len(pos) == 0:
             return
         self.validate_axes(pos.keys())

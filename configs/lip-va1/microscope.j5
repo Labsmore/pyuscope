@@ -103,6 +103,8 @@ Camera: see VM1B config ifle
         "source_properties": {
             //"device": "/dev/video4"
         },
+        "native_width": 3840,
+        "native_height": 2160,
         "width": 1280,
         "height": 960,
         "crop_pixels": {

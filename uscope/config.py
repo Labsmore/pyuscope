@@ -157,9 +157,18 @@ class USCImager:
     def source(self):
         return self.j.get("source", "auto")
 
+    def native_wh(self):
+        """
+        The largest possible sensor resolution
+        Following are not applied yet: crop, scaling
+        """
+        w = int(self.j['native_width'])
+        h = int(self.j['native_height'])
+        return w, h
+
     def raw_wh(self):
         """
-        The actual sensor size
+        The selected sensor size before any processing
         Following are not applied yet: crop, scaling
         """
         w = int(self.j['width'])
@@ -592,11 +601,35 @@ class USCKinematics:
 
 
 class USCOptics:
-    def __init__(self, j=None):
+    def __init__(self, j=None, usc=None):
         self.j = j
+        self.usc = usc
+
+    def image_wh_1x_mm(self):
+        """
+        1x "objective", not 1x magnification on sensor
+        Relay, barlow, etc lens may significantly alter this from actual sensor size
+        """
+        return self.j.get("image_width_1x_mm"), self.j.get(
+            "image_height_1x_mm")
 
     def um_per_pixel_raw_1x(self):
-        return self.j.get("um_per_pixel_raw_1x", None)
+        """
+        1x "objective", not 1x magnification on sensor
+        Relay, barlow, etc lens may significantly alter this from actual pixel size
+        """
+        # Directly specified?
+        ret = self.j.get("um_per_pixel_raw_1x", None)
+        if ret is not None:
+            return ret
+        # Fallback to calculating based on resolution
+        native_w_pix, _native_h_pix = self.usc.imager.native_wh()
+        this_w_pix, _this_h_pix = self.usc.imager.raw_wh()
+        w_mm, _h_mm = self.image_wh_1x_mm()
+        # Less resolution => larger pixel
+        ratio = native_w_pix / this_w_pix
+        native_um_per_pixel_raw_1x = w_mm / native_w_pix * 1000
+        return native_um_per_pixel_raw_1x * ratio
 
     def diffusion(self):
         """
@@ -718,7 +751,7 @@ class USC:
         self.motion = USCMotion(self.usj.get("motion"))
         self.planner = USCPlanner(self.usj.get("planner", {}))
         self.kinematics = USCKinematics(self.usj.get("kinematics", {}))
-        self.optics = USCOptics(self.usj.get("optics", {}))
+        self.optics = USCOptics(self.usj.get("optics", {}), usc=self)
         self.ipp = USCImageProcessingPipeline(self.usj.get("ipp", {}))
         self.apps = {}
         self.bc = get_bc()

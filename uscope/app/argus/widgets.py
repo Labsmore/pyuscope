@@ -828,7 +828,10 @@ class XYPlanner3PWidget(PlannerWidget):
 
     def cache_load(self, cachej):
         j1 = cachej.get("XY3P", {})
-        self.track_z_cb.setChecked(j1.get("track_z", 1))
+
+        if self.ac.microscope.has_z():
+            self.track_z_cb.setChecked(j1.get("track_z", 1))
+
         for group in ("ll", "ul", "lr"):
             widgets = self.corner_widgets[group]
             j2 = j1.get(group, {})

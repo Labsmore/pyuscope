@@ -85,7 +85,6 @@ class QComboBoxIW(IWType):
             self.widget.addItem(val)
         if default:
             self.widget.setCurrentText(default)
-            self.widgets[self.label] = self.widget
 
     def update_defaults(self, val):
         self.widget.setCurrentText(val)

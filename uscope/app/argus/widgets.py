@@ -4,12 +4,14 @@ from uscope.app.argus.threads import QPlannerThread, StitcherThread
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import config
 from uscope.motion import motion_util
+from uscope.util import readj, writej
 import json
 import json5
 from collections import OrderedDict
 from uscope.cloud_stitch import CSInfo
 from uscope.imager.autofocus import AutoStacker
 from uscope.microscope import StopEvent, MicroscopeStop
+import traceback
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -1646,11 +1648,11 @@ class BatchImageTab(ArgusTab):
         self.layout.addWidget(self.add_pb)
         self.add_pb.clicked.connect(self.add_clicked)
 
-        self.del_pb = QPushButton("Del selected scan")
+        self.del_pb = QPushButton("Delete selected scan")
         self.layout.addWidget(self.del_pb)
         self.del_pb.clicked.connect(self.del_clicked)
 
-        self.del_all_pb = QPushButton("Del all scans")
+        self.del_all_pb = QPushButton("Delete all scans")
         self.layout.addWidget(self.del_all_pb)
         self.del_all_pb.clicked.connect(self.del_all_clicked)
 
@@ -1658,9 +1660,12 @@ class BatchImageTab(ArgusTab):
         self.layout.addWidget(self.run_all_pb)
         self.run_all_pb.clicked.connect(self.run_all_clicked)
 
-        self.layout.addWidget(QLabel("Abort on first failure?"))
+        label = QLabel("Abort on first failure?")
+        self.layout.addWidget(label)
         self.abort_cb = QCheckBox()
         self.layout.addWidget(self.abort_cb)
+        label.setVisible(False)
+        self.abort_cb.setVisible(False)
 
         # FIXME: allow editing scan parameters
         """
@@ -1671,10 +1676,28 @@ class BatchImageTab(ArgusTab):
 
         # Which tab to get config from
         # In advanced setups multiple algorithms are possible
-        self.layout.addWidget(QLabel("Planner config source"))
+        label = QLabel("Planner config source")
+        self.layout.addWidget(label)
         self.pconfig_sources = []
         self.pconfig_source_cb = QComboBox()
         self.layout.addWidget(self.pconfig_source_cb)
+        label.setVisible(False)
+        self.pconfig_source_cb.setVisible(False)
+
+        def load_save_layout():
+            layout = QHBoxLayout()
+
+            self.load_config_pb = QPushButton("Load config")
+            self.load_config_pb.clicked.connect(self.load_pb_clicked)
+            layout.addWidget(self.load_config_pb)
+
+            self.save_config_pb = QPushButton("Save config")
+            self.save_config_pb.clicked.connect(self.save_pb_clicked)
+            layout.addWidget(self.save_config_pb)
+
+            return layout
+
+        self.layout.addLayout(load_save_layout())
 
         self.pconfig_cb = QComboBox()
         self.layout.addWidget(self.pconfig_cb)
@@ -1701,14 +1724,14 @@ class BatchImageTab(ArgusTab):
     def update_state(self):
         if not len(self.scan_configs):
             self.display.setText("None")
-            return
-        index = self.pconfig_cb.currentIndex()
-        scan_config = self.scan_configs[index]
-        s = json.dumps(scan_config,
-                       sort_keys=True,
-                       indent=4,
-                       separators=(",", ": "))
-        self.display.setPlainText(json.dumps(s))
+        else:
+            index = self.pconfig_cb.currentIndex()
+            scan_config = self.scan_configs[index]
+            s = json.dumps(scan_config,
+                           sort_keys=True,
+                           indent=4,
+                           separators=(",", ": "))
+            self.display.setPlainText(json.dumps(s))
         self.batch_cache_save()
 
     def get_scan_config(self):
@@ -1718,7 +1741,7 @@ class BatchImageTab(ArgusTab):
     def add_cb(self, scan_config):
         self.scani += 1
         self.pconfig_cb.addItem(
-            f"Batch {self.scani}: " +
+            f"Job # {self.scani}: " +
             os.path.basename(scan_config["out_dir_config"]["user_basename"]))
 
     def add_clicked(self):
@@ -1728,10 +1751,24 @@ class BatchImageTab(ArgusTab):
         self.update_state()
 
     def del_clicked(self):
+        ret = QMessageBox.question(self, "Delete scan",
+                                   "Delete selected batch job?",
+                                   QMessageBox.Yes | QMessageBox.Cancel,
+                                   QMessageBox.Cancel)
+        if ret != QMessageBox.Yes:
+            return
+
         if len(self.scan_configs):
             index = self.pconfig_cb.currentIndex()
             del self.scan_configs[index]
             self.pconfig_cb.removeItem(index)
+        self.update_state()
+
+    def del_all(self):
+        for _i in range(len(self.scan_configs)):
+            del self.scan_configs[0]
+            self.pconfig_cb.removeItem(0)
+        self.scani = 0
         self.update_state()
 
     def del_all_clicked(self):
@@ -1741,14 +1778,41 @@ class BatchImageTab(ArgusTab):
                                    QMessageBox.Cancel)
         if ret != QMessageBox.Yes:
             return
-
-        for _i in range(len(self.scan_configs)):
-            del self.scan_configs[0]
-            self.pconfig_cb.removeItem(0)
-        self.update_state()
+        self.del_all()
 
     def run_all_clicked(self):
         self.ac.mainTab.imaging_widget.go_scan_configs(self.scan_configs)
+
+    def load_pb_clicked(self):
+        directory = self.ac.bc.batch_data_dir()
+        filename = QFileDialog.getOpenFileName(None,
+                                               "Select input batch config",
+                                               directory,
+                                               "Batch config (*.json *.j5)")
+        if not filename:
+            return
+        filename = str(filename[0])
+        try:
+            j = readj(filename)
+            self.del_all()
+            self.loadj(j)
+        except Exception as e:
+            self.log_local(f"Failed to load script config: {type(e)}: {e}")
+            traceback.print_exc()
+
+    def save_pb_clicked(self):
+        directory = self.ac.bc.batch_data_dir()
+        default_filename = datetime.datetime.utcnow().isoformat().replace(
+            'T', '_').replace(':', '-').split('.')[0] + ".batch.json"
+        directory = os.path.join(directory, default_filename)
+        filename = QFileDialog.getSaveFileName(None,
+                                               "Select output batch config",
+                                               directory,
+                                               "Batch config (*.json *.j5)")
+        if not filename:
+            return
+        filename = str(filename[0])
+        writej(filename, self.scan_configs)
 
     def batch_cache_save(self):
         s = json.dumps(self.scan_configs,
@@ -1758,16 +1822,19 @@ class BatchImageTab(ArgusTab):
         with open(self.ac.aconfig.batch_cache_fn(), "w") as f:
             f.write(s)
 
+    def loadj(self, j):
+        self.scan_configs = list(j)
+        for scan_config in self.scan_configs:
+            self.add_cb(scan_config)
+        self.update_state()
+
     def batch_cache_load(self):
         fn = self.ac.aconfig.batch_cache_fn()
         if not os.path.exists(fn):
             return
         with open(fn, "r") as f:
             j = json5.load(f)
-        self.scan_configs = list(j)
-        for scan_config in self.scan_configs:
-            self.add_cb(scan_config)
-        self.update_state()
+        self.loadj(j)
 
 
 class AdvancedTab(ArgusTab):

@@ -165,6 +165,7 @@ class ArgusCommon(QObject):
         self.aconfig = self.usc.app("argus")
         self.bc = get_bc()
         # force creating directories to make structure more consistent
+        self.bc.batch_data_dir()
         self.bc.script_data_dir()
 
         # TODO: init things in Microscope and then push references here

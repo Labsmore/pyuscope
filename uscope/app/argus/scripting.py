@@ -576,7 +576,8 @@ class ScriptingTab(ArgusTab):
 
     def default_config_file_name(self):
         # /home/mcmaster/script/my_script.py => my_script.json
-        return os.path.basename(str(self.fn_le.text())).split(".")[0] + ".json"
+        return os.path.basename(str(
+            self.fn_le.text())).split(".")[0] + ".script.json"
 
     def load_config_pb_clicked(self):
         directory = self.ac.bc.script_data_dir()

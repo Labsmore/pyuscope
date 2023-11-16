@@ -1166,6 +1166,16 @@ class BaseConfig:
         self.objective_db = ObjectiveDB()
         # self.joystick = JoystickConfig(jbc=self.j.get("joystick", {}))
 
+    def batch_data_dir(self, mkdir=True):
+        """
+        Directory holding saved batch scans
+        Note: this doesn't include the "working" state saved in the GUI
+        """
+        ret = os.path.join(get_data_dir(mkdir=mkdir), "batch")
+        if not os.path.exists(ret) and mkdir:
+            os.mkdir(ret)
+        return ret
+
     def script_data_dir(self, mkdir=True):
         """
         Directory holding saved script parameters

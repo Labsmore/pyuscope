@@ -132,16 +132,17 @@ A minimal configuration to do basic testing
                 "max": 200000
             },
         },
+        //2023-11-16: is this actually needed?
         "scalar": 0.5,
-        //Uncomment to save snapshots and scans 8-bit lossless
-        //Note: raw and 12 bit support is much more involved / experimental
-        //"save_extension": ".tif",
-        //5440 - 1396 * 2 = 2648
+        //Make image square for even artifacts
+        //200: not aggressive enough
+        //300: slight artifacts at edges
+        //400: looks ok. Final: 1424 x 1424
         "crop_pixels": {
-            "top": 500,
-            "bottom": 900,
-            "left": 1596,
-            "right": 1396,
+            "top": 400,
+            "bottom": 400,
+            "left": 1296,
+            "right": 1296,
         },
     },
     "optics": {

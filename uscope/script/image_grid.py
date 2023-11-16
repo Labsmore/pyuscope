@@ -16,7 +16,7 @@ class Plugin(ArgusScriptingPlugin):
             "Output directory": {
                 "widget": "QLineEdit",
                 "type": str,
-                "default": "image_grid"
+                "default": "data/script/image_grid"
             },
             "X sites": {
                 "widget": "QLineEdit",

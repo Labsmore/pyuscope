@@ -52,7 +52,13 @@
     "0300ea9f6d04000015c2000011010000": {
         "alias": "Logitech Extreme 3D",
     },
-
+    /*
+    Yusuf joystick
+    joystick Logitech Extreme 3D pro 030000006d04000015c2000011010000
+    */
+    "030000006d04000015c2000011010000": {
+        "alias": "Logitech Extreme 3D",
+    },
 
     "CH Products IP Desktop": {
         "function_map": {

@@ -156,49 +156,50 @@ A minimal configuration to do basic testing
                 //NOTE: these NA values are not calibrated
                 //TODO: how to extract from f?
                 //how does f relate to relay lenses?
+                //2023-11-15: half values to give better AF range
                 {
                     "magnification": 0.7,
-                    "na": 0.0175,
+                    "na": 0.00875,
                     "name": "0.7X",
                 },
                 {
                     "magnification": 1.0,
-                    "na": 0.025,
+                    "na": 0.0125,
                     "name": "1.0X",
                 },
                 {
                     "magnification": 1.5,
-                    "na": 0.04,
+                    "na": 0.02,
                     "name": "1.5X",
                 },
                 {
                     "magnification": 2.0,
-                    "na": 0.055,
+                    "na": 0.0275,
                     "name": "2.0X",
                 },
                 {
                     "magnification": 2.5,
-                    "na": 0.06875,
+                    "na": 0.034375,
                     "name": "2.5X",
                 },
                 {
                     "magnification": 3.0,
-                    "na": 0.0825,
+                    "na": 0.04125,
                     "name": "3.0X",
                 },
                 {
                     "magnification": 3.5,
-                    "na": 0.09625,
+                    "na": 0.048125,
                     "name": "3.5X",
                 },
                 {
                     "magnification": 4.0,
-                    "na": 0.11,
+                    "na": 0.055,
                     "name": "4.0X",
                 },
                 {
                     "magnification": 4.5,
-                    "na": 0.12375,
+                    "na": 0.061875,
                     "name": "4.5X",
                 },
             ],

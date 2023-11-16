@@ -3,6 +3,7 @@ from uscope.app.argus.input_widget import InputWidget
 from uscope.config import get_data_dir, get_bc
 from uscope.motion import motion_util
 from uscope.microscope import StopEvent, MicroscopeStop
+from uscope.util import readj, writej
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -379,7 +380,7 @@ class ScriptingTab(ArgusTab):
         layout.addWidget(QHLine(), row, 0)
         row += 1
 
-        self.fn_le = QLineEdit("")
+        self.fn_le = QLineEdit("No file selected")
         layout.addWidget(self.fn_le, row, 0)
         row += 1
         self.fn_le.setReadOnly(True)
@@ -416,6 +417,24 @@ class ScriptingTab(ArgusTab):
         layout.addWidget(self.kill_pb, row, 0)
         row += 1
 
+        def load_save_layout():
+            layout = QHBoxLayout()
+
+            self.load_config_pb = QPushButton("Load config")
+            self.load_config_pb.setEnabled(False)
+            self.load_config_pb.clicked.connect(self.load_config_pb_clicked)
+            layout.addWidget(self.load_config_pb)
+
+            self.save_config_pb = QPushButton("Save config")
+            self.save_config_pb.setEnabled(False)
+            self.save_config_pb.clicked.connect(self.save_config_pb_clicked)
+            layout.addWidget(self.save_config_pb)
+
+            return layout
+
+        layout.addLayout(load_save_layout(), row, 0)
+        row += 1
+
         self.input = InputWidget(clicked=self.inputWidgetClicked)
         layout.addWidget(self.input, row, 0)
         row += 1
@@ -433,6 +452,14 @@ class ScriptingTab(ArgusTab):
         row += 1
 
         self.setLayout(layout)
+
+        # Most users don't need this
+        # TODO: make this a menu item
+        self.enable_advanced_scripting(get_bc().dev_mode())
+
+    def enable_advanced_scripting(self, enabled):
+        self.reload_pb.setVisible(enabled)
+        self.kill_pb.setVisible(enabled)
 
     def browse_for_script(self, name):
         directory = self.script_dirs[name]
@@ -470,6 +497,8 @@ class ScriptingTab(ArgusTab):
 
             self.status_le.setText("Status: idle")
             self.run_pb.setEnabled(True)
+            self.save_config_pb.setEnabled(True)
+            self.load_config_pb.setEnabled(True)
             self.run_pb.setVisible(self.plugin.show_run_button())
 
             # self.test_name_cb.clear()
@@ -509,6 +538,8 @@ class ScriptingTab(ArgusTab):
         self.reload_pb.setEnabled(False)
         self.stop_pb.setEnabled(True)
         self.kill_pb.setEnabled(True)
+        self.save_config_pb.setEnabled(False)
+        self.save_config_pb.setEnabled(False)
         self.log_local("Plugin loading")
         self.plugin.reset()
         self.plugin.start()
@@ -543,6 +574,41 @@ class ScriptingTab(ArgusTab):
                 ctypes.c_long(thread_id), 0)
             self.log_local("Exception raise failure")
 
+    def default_config_file_name(self):
+        # /home/mcmaster/script/my_script.py => my_script.json
+        return os.path.basename(str(self.fn_le.text())).split(".")[0] + ".json"
+
+    def load_config_pb_clicked(self):
+        directory = self.ac.bc.script_data_dir()
+        directory = os.path.join(directory, self.default_config_file_name())
+        filename = QFileDialog.getOpenFileName(None,
+                                               "Select input script config",
+                                               directory,
+                                               "Script config (*.json *.j5)")
+        if not filename:
+            return
+        filename = str(filename[0])
+        try:
+            j = readj(filename)
+            self.input.setValue(j)
+        except Exception as e:
+            self.log_local(f"Failed to load script config: {type(e)}: {e}")
+            traceback.print_exc()
+
+    def save_config_pb_clicked(self):
+        directory = self.ac.bc.script_data_dir()
+        directory = os.path.join(directory, self.default_config_file_name())
+        filename = QFileDialog.getSaveFileName(None,
+                                               "Select output script config",
+                                               directory,
+                                               "Script config (*.json *.j5)")
+        if not filename:
+            return
+        filename = str(filename[0])
+
+        j = self.input.getValue()
+        writej(filename, j)
+
     def plugin_done(self):
         if self.plugin.succeeded():
             status = "Status: finished ok"
@@ -558,6 +624,8 @@ class ScriptingTab(ArgusTab):
         self.stop_pb.setEnabled(False)
         self.kill_pb.setEnabled(False)
         self.reload_pb.setEnabled(True)
+        self.save_config_pb.setEnabled(True)
+        self.save_config_pb.setEnabled(True)
         if self.plugin.succeeded():
             self.log_local("Plugin completed ok")
         else:

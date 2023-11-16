@@ -54,6 +54,9 @@ class IWType:
     def getValue(self):
         return None
 
+    def setValue(self, v):
+        raise Exception("Required if getValue() does not return None")
+
 
 class QLineEditIW(IWType):
     def configure(self, row, default):
@@ -75,6 +78,10 @@ class QLineEditIW(IWType):
                 )
         return val
 
+    def setValue(self, v):
+        # some things parse to int, float etc
+        self.widget.setText(str(v))
+
 
 class QComboBoxIW(IWType):
     def configure(self, row, default):
@@ -91,6 +98,9 @@ class QComboBoxIW(IWType):
 
     def getValue(self):
         return str(self.widget.currentText())
+
+    def setValue(self, v):
+        self.widget.setCurrentText(v)
 
 
 def clicked(self, group_label, button_label, value):
@@ -191,3 +201,10 @@ class InputWidget(QWidget):
                 ret[iw.lconfig.get("key", label)] = val
 
         return ret
+
+    def setValue(self, j):
+        for iw in self.iws.values():
+            k = iw.lconfig.get("key", iw.label)
+            v = j.get(k, None)
+            if v is not None:
+                iw.setValue(v)

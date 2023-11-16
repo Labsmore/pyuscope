@@ -1166,6 +1166,15 @@ class BaseConfig:
         self.objective_db = ObjectiveDB()
         # self.joystick = JoystickConfig(jbc=self.j.get("joystick", {}))
 
+    def script_data_dir(self, mkdir=True):
+        """
+        Directory holding saved script parameters
+        """
+        ret = os.path.join(get_data_dir(mkdir=mkdir), "script")
+        if not os.path.exists(ret) and mkdir:
+            os.mkdir(ret)
+        return ret
+
     def labsmore_stitch_use_xyfstitch(self):
         """
         xyfstitch is the newer higher fidelity stitch engine

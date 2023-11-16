@@ -589,6 +589,8 @@ class ScriptingTab(ArgusTab):
         if not filename:
             return
         filename = str(filename[0])
+        if not filename:
+            return
         try:
             j = readj(filename)
             self.input.setValue(j)

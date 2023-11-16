@@ -1644,6 +1644,8 @@ class BatchImageTab(ArgusTab):
     def initUI(self):
         self.layout = QVBoxLayout()
 
+        # TODO: we should also support script runs
+
         self.add_pb = QPushButton("Add current scan")
         self.layout.addWidget(self.add_pb)
         self.add_pb.clicked.connect(self.add_clicked)
@@ -1706,6 +1708,7 @@ class BatchImageTab(ArgusTab):
         self.display = QTextEdit()
         self.display.setReadOnly(True)
         self.layout.addWidget(self.display)
+        self.display.setVisible(self.ac.bc.dev_mode())
 
         self.setLayout(self.layout)
 
@@ -1731,7 +1734,7 @@ class BatchImageTab(ArgusTab):
                            sort_keys=True,
                            indent=4,
                            separators=(",", ": "))
-            self.display.setPlainText(json.dumps(s))
+            self.display.setPlainText(s)
         self.batch_cache_save()
 
     def get_scan_config(self):
@@ -1781,6 +1784,12 @@ class BatchImageTab(ArgusTab):
         self.del_all()
 
     def run_all_clicked(self):
+        ret = QMessageBox.question(self, "Start scans?", "Start scans?",
+                                   QMessageBox.Yes | QMessageBox.Cancel,
+                                   QMessageBox.Cancel)
+        if ret != QMessageBox.Yes:
+            return
+
         self.ac.mainTab.imaging_widget.go_scan_configs(self.scan_configs)
 
     def load_pb_clicked(self):
@@ -1792,12 +1801,14 @@ class BatchImageTab(ArgusTab):
         if not filename:
             return
         filename = str(filename[0])
+        if not filename:
+            return
         try:
             j = readj(filename)
             self.del_all()
             self.loadj(j)
         except Exception as e:
-            self.log_local(f"Failed to load script config: {type(e)}: {e}")
+            self.ac.log(f"Failed to load script config: {type(e)}: {e}")
             traceback.print_exc()
 
     def save_pb_clicked(self):

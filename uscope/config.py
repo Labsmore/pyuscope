@@ -166,7 +166,9 @@ class USCImager:
             w = int(self.j['native_width'])
             h = int(self.j['native_height'])
         except KeyError:
-            raise Exception("can't compute um_per_pixel_raw_1x: not specified and missing native_width/height")
+            raise Exception(
+                "can't compute um_per_pixel_raw_1x: not specified and missing native_width/height"
+            )
         return w, h
 
     def raw_wh(self):

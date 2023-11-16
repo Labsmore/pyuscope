@@ -1137,13 +1137,10 @@ class PlannerCaptureImage(PlannerPlugin):
                 self.planner.imager.take()
             else:
                 tstart = time.time()
-                images = self.planner.imager.get()
+                im = self.planner.imager.get_processed()
                 tend = time.time()
                 self.verbose and self.log(
                     "FIXME TMP: actual capture took %0.3f" % (tend - tstart, ))
-
-                assert len(images) == 1, "Expecting single image"
-                im = list(images.values())[0]
 
         final_wh_hint = self.pc.image_final_wh_hint()
         if im and final_wh_hint is not None:

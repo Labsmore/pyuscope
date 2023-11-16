@@ -72,12 +72,10 @@ class GstGUIImager(Imager):
         return self.ac.capture_sink.pop_image(self.image_id)
 
     def get(self):
-        image = self.next_image()
-        scaled = get_scaled(image, self.factor, Image.ANTIALIAS)
-        if self.videoflip_method:
-            assert self.videoflip_method == "rotate-180"
-            scaled = scaled.rotate(180)
-        return {"0": scaled}
+        # 2023-11-16: we used to do scaling / etc here
+        # Now its done in image processing thread
+        # This also allows getting "raw" image if needed
+        return {"0": self.next_image()}
 
     # FIXME: clean this up
     # maybe start by getting all parties to call this

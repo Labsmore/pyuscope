@@ -473,6 +473,9 @@ class ImagerControlScroll(QScrollArea):
     def auto_exposure_enabled(self):
         raise Exception("Required")
 
+    def auto_color_enabled(self):
+        raise Exception("Required")
+
     def cal_load(self, load_data_dir=True):
         try:
             j = config.cal_load(source=self.vidpip.source_name,
@@ -640,6 +643,9 @@ class MockControlScroll(ImagerControlScroll):
         return 0
 
     def auto_exposure_enabled(self):
+        return False
+
+    def auto_color_enabled(self):
         return False
 
 

@@ -241,11 +241,11 @@ class ArgusCommon(QObject):
         # FIXME: these are not thread safe
         # convert to signals
 
-        # self.microscope.take_snapshot = self.mainTab.snapshot_widget.take_snapshot
+        # self.microscope.take_snapshot = self.mainTab.imaging_widget.take_snapshot
         def take_snapshot_emit():
             self.takeSnapshot.emit()
 
-        self.takeSnapshot.connect(self.mainTab.snapshot_widget.take_snapshot)
+        self.takeSnapshot.connect(self.mainTab.imaging_widget.take_snapshot)
         self.microscope.take_snapshot = take_snapshot_emit
 
         # self.microscope.set_jog_scale = self.mainTab.motion_widget.slider.set_jog_slider
@@ -346,9 +346,12 @@ class ArgusCommon(QObject):
     def get_exposure_disp_property(self):
         return self.control_scroll.get_exposure_disp_property()
 
+    def auto_color_enabled(self):
+        return self.control_scroll.auto_color_enabled()
+
     # FIXME: better abstraction
     def is_idle(self):
-        if not self.mw.mainTab.snapshot_widget.snapshot_pb.isEnabled():
+        if not self.mw.mainTab.imaging_widget.snapshot_pb.isEnabled():
             self.log("Wait for snapshot to complete before CNC'ing")
             return False
         return True

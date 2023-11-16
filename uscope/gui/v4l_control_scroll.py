@@ -151,6 +151,13 @@ class V4L2ControlScroll(ImagerControlScroll):
         return self.disp_prop_read(
             self.get_auto_exposure_disp_property()) == AUTO_EXPOSURE_VAL
 
+    def auto_color_enabled(self):
+        prop = "Auto White Balance Temperature"
+        if prop not in self.all_controls:
+            # maybe?
+            return False
+        return bool(self.disp_prop_read(prop))
+
     def set_exposure(self, n):
         self.disp_prop_write(self.get_exposure_disp_property(), n)
 

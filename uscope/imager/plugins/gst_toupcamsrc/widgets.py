@@ -78,6 +78,9 @@ class TTControlScroll(GstControlScroll):
     def auto_exposure_enabled(self):
         return bool(self.disp_prop_read("auto-exposure"))
 
+    def auto_color_enabled(self):
+        return bool(self.disp_prop_read("awb-rgb"))
+
     def set_exposure(self, n):
         self.prop_write("expotime", n)
 

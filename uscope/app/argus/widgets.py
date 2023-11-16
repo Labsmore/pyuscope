@@ -89,6 +89,83 @@ class ArgusTab(AWidget):
     pass
 
 
+'''
+# TODO: try using this to simplify some UI elements
+# https://stackoverflow.com/questions/52615115/how-to-create-collapsible-box-in-pyqt
+class CollapsibleBox(QWidget):
+    def __init__(self, title="", parent=None):
+        super(CollapsibleBox, self).__init__(parent)
+
+        self.toggle_button = QToolButton(
+            text=title, checkable=True, checked=False
+        )
+        self.toggle_button.setStyleSheet("QToolButton { border: none; }")
+        self.toggle_button.setToolButtonStyle(
+            Qt.ToolButtonTextBesideIcon
+        )
+        self.toggle_button.setArrowType(Qt.RightArrow)
+        self.toggle_button.pressed.connect(self.on_pressed)
+
+        self.toggle_animation = QParallelAnimationGroup(self)
+
+        self.content_area = QScrollArea(
+            maximumHeight=0, minimumHeight=0
+        )
+        self.content_area.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Fixed
+        )
+        self.content_area.setFrameShape(QFrame.NoFrame)
+
+        lay = QVBoxLayout(self)
+        lay.setSpacing(0)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self.toggle_button)
+        lay.addWidget(self.content_area)
+
+        self.toggle_animation.addAnimation(
+            QPropertyAnimation(self, b"minimumHeight")
+        )
+        self.toggle_animation.addAnimation(
+            QPropertyAnimation(self, b"maximumHeight")
+        )
+        self.toggle_animation.addAnimation(
+            QPropertyAnimation(self.content_area, b"maximumHeight")
+        )
+
+    @pyqtSlot()
+    def on_pressed(self):
+        checked = self.toggle_button.isChecked()
+        self.toggle_button.setArrowType(
+            Qt.DownArrow if not checked else Qt.RightArrow
+        )
+        self.toggle_animation.setDirection(
+            QAbstractAnimation.Forward
+            if not checked
+            else QAbstractAnimation.Backward
+        )
+        self.toggle_animation.start()
+
+    def setContentLayout(self, layout):
+        lay = self.content_area.layout()
+        del lay
+        self.content_area.setLayout(layout)
+        collapsed_height = (
+            self.sizeHint().height() - self.content_area.maximumHeight()
+        )
+        content_height = layout.sizeHint().height()
+        for i in range(self.toggle_animation.animationCount()):
+            animation = self.toggle_animation.animationAt(i)
+            animation.setDuration(500)
+            animation.setStartValue(collapsed_height)
+            animation.setEndValue(collapsed_height + content_height)
+
+        content_animation = self.toggle_animation.animationAt(
+            self.toggle_animation.animationCount() - 1
+        )
+        content_animation.setDuration(500)
+        content_animation.setStartValue(0)
+        content_animation.setEndValue(content_height)
+'''
 """
 Select objective and show FoV
 """
@@ -236,168 +313,26 @@ class ObjectiveWidget(AWidget):
 
 
 """
-Save a snapshot to a file
-"""
-
-
-class SnapshotWidget(AWidget):
-    snapshotCaptured = pyqtSignal(int)
-
-    def __init__(self, ac, parent=None):
-        super().__init__(ac=ac, parent=parent)
-
-        # self.pos.connect(self.update_pos)
-        self.snapshotCaptured.connect(self.captureSnapshot)
-
-    def initUI(self):
-        gb = QGroupBox('Snapshot')
-        layout = QGridLayout()
-
-        snapshot_dir = self.ac.usc.app("argus").snapshot_dir()
-        if not os.path.isdir(snapshot_dir):
-            self.ac.log('Snapshot dir %s does not exist' % snapshot_dir)
-            if os.path.exists(snapshot_dir):
-                raise Exception("Snapshot directory is not accessible")
-            os.mkdir(snapshot_dir)
-            self.ac.log('Snapshot dir %s created' % snapshot_dir)
-
-        # nah...just have it in the config
-        # d = QFileDialog.getExistingDirectory(self, 'Select snapshot directory', snapshot_dir)
-
-        self.snapshot_serial = -1
-
-        self.snapshot_pb = QPushButton("Snap")
-        self.snapshot_pb.setIcon(QIcon(config.GUI.icon_files["camera"]))
-
-        self.snapshot_pb.clicked.connect(self.take_snapshot)
-        layout.addWidget(self.snapshot_pb, 0, 0)
-
-        self.snapshot_fn_le = QLineEdit('snapshot')
-        self.snapshot_suffix_cb = QComboBox()
-        self.snapshot_suffix_cb_map = {
-            0: ".jpg",
-            1: ".tif",
-        }
-        self.snapshot_suffix_cb.addItem(".jpg")
-        self.snapshot_suffix_cb.addItem(".tif")
-
-        self.snapshot_suffix_cb.setSizePolicy(
-            QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
-        hl = QHBoxLayout()
-        hl.addWidget(self.snapshot_fn_le)
-        hl.addWidget(self.snapshot_suffix_cb)
-        layout.addLayout(hl, 0, 1)
-
-        gb.setLayout(layout)
-
-        layout = QVBoxLayout()
-        layout.addWidget(gb)
-        self.setLayout(layout)
-
-    def take_snapshot(self):
-        # joystick can stack up events
-        if not self.snapshot_pb.isEnabled():
-            self.ac.log(
-                "Snapshot already requested. Please wait before requesting another"
-            )
-            return
-
-        self.ac.log('Requesting snapshot')
-        # Disable until snapshot is completed
-        self.snapshot_pb.setEnabled(False)
-
-        def emitSnapshotCaptured(image_id):
-            self.ac.log('Image captured: %s' % image_id)
-            self.snapshotCaptured.emit(image_id)
-
-        self.ac.capture_sink.request_image(emitSnapshotCaptured)
-
-    def save_extension(self):
-        return self.snapshot_suffix_cb_map[
-            self.snapshot_suffix_cb.currentIndex()]
-
-    def snapshot_fn(self):
-        return snapshot_fn(user=str(self.snapshot_fn_le.text()),
-                           extension=self.save_extension(),
-                           parent=self.ac.usc.app("argus").snapshot_dir())
-
-    def captureSnapshot(self, image_id):
-        self.ac.log('RX image for saving')
-
-        image = self.ac.capture_sink.pop_image(image_id)
-        """
-        # FIXME: should unify this with Imager better
-        # For now assertion guards help make sure pipeline is correct
-        factor = self.ac.usc.imager.scalar()
-        image = get_scaled(image, factor, filt=Image.NEAREST)
-        expected_wh = self.ac.usc.imager.final_wh()
-        assert expected_wh[0] == image.size[0] and expected_wh[
-            1] == image.size[
-                1], "Unexpected image size: expected %s, got %s" % (
-                    expected_wh, image.size)
-        fn_full = self.snapshot_fn()
-        """
-
-        self.ac.log(f"Snapshot: image received, post-processing")
-
-        options = {}
-        options["is_snapshot"] = True
-        options["image"] = image
-        options["save_filename"] = self.snapshot_fn()
-        extension = self.save_extension()
-        if extension == ".jpg":
-            options["save_quality"] = self.ac.usc.imager.save_quality()
-        options["scale_factor"] = self.ac.usc.imager.scalar()
-        options["scale_expected_wh"] = self.ac.usc.imager.final_wh()
-        if self.ac.usc.imager.videoflip_method():
-            options["videoflip_method"] = self.ac.usc.imager.videoflip_method()
-
-        def callback(command, args, ret_e):
-            if type(ret_e) is Exception:
-                self.ac.log(f"Snapshot: save failed")
-            else:
-                filename = args[0]["options"]["save_filename"]
-                self.ac.log(f"Snapshot: saved to {filename}")
-
-        self.ac.image_processing_thread.process_image(options=options,
-                                                      callback=callback)
-        self.snapshot_pb.setEnabled(True)
-
-    def post_ui_init(self):
-        pass
-
-    def update_pconfig(self, pconfig):
-        imagerj = pconfig.setdefault("imager", {})
-        imagerj["save_extension"] = self.save_extension()
-        imagerj["save_quality"] = self.ac.usc.imager.save_quality()
-
-    def cache_save(self, cachej):
-        cachej["snapshot"] = {
-            "file_name": str(self.snapshot_fn_le.text()),
-            "extension": self.snapshot_suffix_cb.currentIndex(),
-        }
-
-    def cache_load(self, cachej):
-        j = cachej.get("snapshot", {})
-        self.snapshot_fn_le.setText(j.get("file_name", "snapshot"))
-        self.snapshot_suffix_cb.setCurrentIndex(j.get("extension", 0))
-
-
-"""
 Provides camera overview and ROI side by side
 """
 
 
 class PlannerWidget(AWidget):
+    click_corner = pyqtSignal(tuple)
+    go_corner = pyqtSignal(tuple)
+
     def __init__(self, ac, scan_widget, objective_widget, parent=None):
         super().__init__(ac=ac, parent=parent)
-        self.scan_widget = scan_widget
+        self.imaging_widget = scan_widget
         self.objective_widget = objective_widget
+        self.click_corner.connect(self.click_corner_slot)
+        self.go_corner.connect(self.go_corner_slot)
+        self.corner_widgets = OrderedDict()
 
     # FIXME: abstract these better
 
     def get_out_dir_j(self):
-        j = self.scan_widget.jobNameWidget.getNameJ()
+        j = self.imaging_widget.getNameJ()
         out_dir = out_dir_config_to_dir(j, self.ac.usc.app("argus").scan_dir())
         if os.path.exists(out_dir):
             self.ac.log("Refusing to create config: dir already exists: %s" %
@@ -515,6 +450,26 @@ class PlannerWidget(AWidget):
     def post_ui_init(self):
         self.fill_minmax()
 
+    # Thread safety to bring back to GUI thread for GUI operations
+    def emit_click_corner(self, corner_name, done=None):
+        self.click_corner.emit((corner_name, done))
+
+    def click_corner_slot(self, args):
+        corner_name, done = args
+        self.corner_clicked(corner_name)
+        if done:
+            done.set()
+
+    def emit_go_corner(self, corner_name, done=None):
+        self.go_corner.emit((corner_name, done))
+
+    def go_corner_slot(self, args):
+        corner_name, done = args
+        pos = self.get_corner_move_pos(corner_name)
+        if pos is None:
+            raise Exception("Failed to get corner")
+        self.ac.motion_thread.move_absolute(pos, done=done)
+
 
 """
 Integrates both 2D planner controls and current display
@@ -532,10 +487,11 @@ class XYPlanner2PWidget(PlannerWidget):
     def initUI(self):
         gl = QGridLayout()
         row = 0
-        self.pb_gos = {}
 
         row = self.add_axis_rows(gl, row)
 
+        # TODO 2023-10-15: all modern systems are ll
+        # we should consider removing non-ll origin support entirely
         start_label, end_label, start_icon, end_icon = {
             "ll": ("Lower left", "Upper right", config.GUI.icon_files["SW"],
                    config.GUI.icon_files["NE"]),
@@ -551,12 +507,12 @@ class XYPlanner2PWidget(PlannerWidget):
         gl.addWidget(self.plan_x0_le, row, 1)
         self.plan_y0_le = QLineEdit("")
         gl.addWidget(self.plan_y0_le, row, 2)
-        self.pb_gos["0"] = {
+        self.corner_widgets["ll"] = {
             "x_le": self.plan_x0_le,
             "y_le": self.plan_y0_le,
             "pb": QPushButton("MoveTo"),
         }
-        gl.addWidget(self.pb_gos["0"]["pb"], row, 3)
+        gl.addWidget(self.corner_widgets["ll"]["pb"], row, 3)
         row += 1
 
         self.plan_end_pb = QPushButton(end_label)
@@ -567,15 +523,15 @@ class XYPlanner2PWidget(PlannerWidget):
         gl.addWidget(self.plan_x1_le, row, 1)
         self.plan_y1_le = QLineEdit("")
         gl.addWidget(self.plan_y1_le, row, 2)
-        self.pb_gos["1"] = {
+        self.corner_widgets["ur"] = {
             "x_le": self.plan_x1_le,
             "y_le": self.plan_y1_le,
             "pb": QPushButton("MoveTo"),
         }
-        gl.addWidget(self.pb_gos["1"]["pb"], row, 3)
+        gl.addWidget(self.corner_widgets["ur"]["pb"], row, 3)
         row += 1
 
-        for corner_name in ("0", "1"):
+        for corner_name in ("ll", "ur"):
 
             def connect_corner_widget(corner_name, ):
                 def go_clicked():
@@ -583,11 +539,15 @@ class XYPlanner2PWidget(PlannerWidget):
                     if pos is not None:
                         self.ac.motion_thread.move_absolute(pos)
 
-                self.pb_gos[corner_name]["pb"].clicked.connect(go_clicked)
+                self.corner_widgets[corner_name]["pb"].clicked.connect(
+                    go_clicked)
 
             connect_corner_widget(corner_name)
 
         self.setLayout(gl)
+
+    def af_corners(self):
+        return ("ll", "ur")
 
     def cache_save(self, cachej):
         cachej["XY2P"] = {
@@ -620,10 +580,10 @@ class XYPlanner2PWidget(PlannerWidget):
                 self.ac.usc.motion.format_position(axis, axis_pos))
 
     def mk_contour_json(self):
-        pos0 = self.get_corner_planner_pos("0")
+        pos0 = self.get_corner_planner_pos("ll")
         if pos0 is None:
             return
-        pos1 = self.get_corner_planner_pos("1")
+        pos1 = self.get_corner_planner_pos("ur")
         if pos1 is None:
             return
 
@@ -706,8 +666,17 @@ class XYPlanner2PWidget(PlannerWidget):
         self.plan_y1_le.setText(
             self.ac.usc.motion.format_position("y", pos["y"]))
 
+    def corner_clicked(self, corner_name):
+        pos_cur = self.ac.motion_thread.pos_cache
+        widgets = self.corner_widgets[corner_name]
+
+        widgets["x_le"].setText(
+            self.ac.usc.motion.format_position("x", pos_cur["x"]))
+        widgets["y_le"].setText(
+            self.ac.usc.motion.format_position("y", pos_cur["y"]))
+
     def get_corner_widget_pos(self, corner_name):
-        widgets = self.pb_gos[corner_name]
+        widgets = self.corner_widgets[corner_name]
         try:
             x = float(widgets["x_le"].text().replace(" ", ""))
             y = float(widgets["y_le"].text().replace(" ", ""))
@@ -726,11 +695,11 @@ class XYPlanner2PWidget(PlannerWidget):
             return None
         x_view, y_view = self.get_view()
         # ll
-        if corner_name == "0":
+        if corner_name == "ll":
             pos["x"] -= x_view / 2
             pos["y"] -= y_view / 2
         # ur
-        elif corner_name == "1":
+        elif corner_name == "ur":
             pos["x"] += x_view / 2
             pos["y"] += y_view / 2
         else:
@@ -739,25 +708,17 @@ class XYPlanner2PWidget(PlannerWidget):
 
 
 class XYPlanner3PWidget(PlannerWidget):
-    click_corner = pyqtSignal(tuple)
-    go_corner = pyqtSignal(tuple)
-
     def __init__(self, ac, scan_widget, objective_widget, parent=None):
         super().__init__(ac=ac,
                          scan_widget=scan_widget,
                          objective_widget=objective_widget,
                          parent=parent)
 
-        self.click_corner.connect(self.click_corner_slot)
-        self.go_corner.connect(self.go_corner_slot)
-
     def initUI(self):
         gl = QGridLayout()
         row = 0
 
         row = self.add_axis_rows(gl, row)
-
-        self.corner_widgets = OrderedDict()
 
         def make_corner_widget(corner_name, button_text):
             pb_set = QPushButton(button_text)
@@ -798,16 +759,18 @@ class XYPlanner3PWidget(PlannerWidget):
         make_corner_widget("lr", "Lower right")
         row += 1
 
-        gl.addWidget(QLabel("Track Z?"), row, 0)
+        # FIXME: consider removing entirely
+        # this is an advanced feature not needed in most use cases
+        show_track_z = False
+        self.track_z_label = QLabel("Track Z?")
+        gl.addWidget(self.track_z_label, row, 0)
         self.track_z_cb = QCheckBox()
         self.track_z_cb.stateChanged.connect(self.track_z_cb_changed)
         self.track_z_cb_changed(None)
         gl.addWidget(self.track_z_cb, row, 1)
         self.track_z_cb.setEnabled(self.ac.microscope.has_z())
-        self.pb_afgo = QPushButton("Autofocus + Scan")
-        self.pb_afgo.clicked.connect(self.afgo)
-        self.pb_afgo.setIcon(QIcon(config.GUI.icon_files['go']))
-        gl.addWidget(self.pb_afgo, row, 2)
+        self.track_z_label.setVisible(show_track_z)
+        self.track_z_cb.setVisible(show_track_z)
 
         row += 1
 
@@ -838,6 +801,9 @@ class XYPlanner3PWidget(PlannerWidget):
             widgets["x_le"].setText(j2.get("x_le", ""))
             widgets["y_le"].setText(j2.get("y_le", ""))
             widgets["z_le"].setText(j2.get("z_le", ""))
+
+    def af_corners(self):
+        return ("ul", "ll", "lr")
 
     def moving_z(self):
         return self.track_z_cb.isChecked()
@@ -966,64 +932,6 @@ class XYPlanner3PWidget(PlannerWidget):
             assert 0
         return pos
 
-    # Thread safety to bring back to GUI thread for GUI operations
-    def emit_click_corner(self, corner_name, done=None):
-        self.click_corner.emit((corner_name, done))
-
-    def click_corner_slot(self, args):
-        corner_name, done = args
-        self.corner_clicked(corner_name)
-        if done:
-            done.set()
-
-    def emit_go_corner(self, corner_name, done=None):
-        self.go_corner.emit((corner_name, done))
-
-    def go_corner_slot(self, args):
-        corner_name, done = args
-        pos = self.get_corner_move_pos(corner_name)
-        if pos is None:
-            raise Exception("Failed to get corner")
-        self.ac.motion_thread.move_absolute(pos, done=done)
-
-    def afgo(self):
-        """
-        Autofocus corners and kick off
-        """
-        ret = QMessageBox.question(
-            self, "Start?", "Autofocus corners and start? Note: AE: %s" %
-            (self.ac.auto_exposure_enabled()),
-            QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel)
-        if ret != QMessageBox.Yes:
-            return
-
-        def offload(ac):
-            done = threading.Event()
-            try:
-                with StopEvent(self.ac.microscope) as se:
-                    for corner in ("ul", "ll", "lr"):
-                        se.poll()
-                        done.clear()
-                        self.emit_go_corner(corner_name=corner, done=done)
-                        done.wait()
-
-                        se.poll()
-                        self.ac.image_processing_thread.auto_focus(
-                            objective_config=self.ac.objective_config(),
-                            block=True)
-
-                        se.poll()
-                        done.clear()
-                        self.emit_click_corner(corner_name=corner, done=done)
-                        done.wait()
-
-                    se.poll()
-                    self.ac.mainTab.emit_go_current_pconfig()
-            except MicroscopeStop:
-                self.ac.log("Autofocus + Go cancelled")
-
-        self.ac.task_thread.offload(offload)
-
 
 """
 Monitors the current scan
@@ -1031,13 +939,18 @@ Set output job name
 """
 
 
-class ScanWidget(AWidget):
+# 2023-11-15: combined ScanWidget + SnapshotWidget
+class ImagingTaskWidget(AWidget):
+    snapshotCaptured = pyqtSignal(int)
+
     def __init__(self,
                  ac,
                  go_current_pconfig,
                  setControlsEnabled,
                  parent=None):
         super().__init__(ac=ac, parent=parent)
+        # self.pos.connect(self.update_pos)
+        self.snapshotCaptured.connect(self.captureSnapshot)
         self.go_current_pconfig = go_current_pconfig
         self.setControlsEnabled = setControlsEnabled
         self.current_scan_config = None
@@ -1045,9 +958,26 @@ class ScanWidget(AWidget):
         self.log_fd_scan = None
 
     def initUI(self):
-        """
-        Line up Go/Stop w/ "Job name" to make visually appealing
-        """
+        def getNameLayout():
+            hl = QHBoxLayout()
+            hl.addWidget(QLabel("File name"))
+
+            self.job_name_le = QLineEdit("unknown")
+            self.snapshot_suffix_cb = QComboBox()
+            self.snapshot_suffix_cb_map = {
+                0: ".jpg",
+                1: ".tif",
+            }
+            self.snapshot_suffix_cb.addItem(".jpg")
+            self.snapshot_suffix_cb.addItem(".tif")
+
+            self.snapshot_suffix_cb.setSizePolicy(
+                QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
+
+            hl.addWidget(self.job_name_le)
+            hl.addWidget(self.snapshot_suffix_cb)
+            return hl
+
         def getProgressLayout():
             layout = QHBoxLayout()
 
@@ -1062,31 +992,40 @@ class ScanWidget(AWidget):
             self.stitch_cb.setChecked(False)
             layout.addWidget(self.stitch_cb)
 
+            layout.addWidget(QLabel("Autofocus?"))
+            self.autofocus_cb = QCheckBox()
+            self.autofocus_cb.setChecked(self.ac.microscope.has_z())
+            layout.addWidget(self.autofocus_cb)
+
             self.progress_bar = QProgressBar()
             layout.addWidget(self.progress_bar)
 
             return layout
 
-        def getScanNameWidget():
-            name = self.ac.usc.app("argus").scan_name_widget()
-            if name == "simple":
-                return SimpleScanNameWidget(self.ac)
-            elif name == "sipr0n":
-                return SiPr0nScanNameWidget(self.ac)
-            else:
-                raise ValueError(name)
-
         layout = QVBoxLayout()
-        gb = QGroupBox("Scan")
-        self.jobNameWidget = getScanNameWidget()
-        self.awidgets["job_name"] = self.jobNameWidget
-        layout.addWidget(self.jobNameWidget)
+
+        layout.addLayout(getNameLayout())
+
+        self.snapshot_pb = QPushButton("Snap")
+        self.snapshot_pb.setIcon(QIcon(config.GUI.icon_files["camera"]))
+        self.snapshot_pb.clicked.connect(self.take_snapshot)
+        layout.addWidget(self.snapshot_pb)
+
         layout.addLayout(getProgressLayout())
+
+        gb = QGroupBox("Imaging")
         gb.setLayout(layout)
 
-        layout = QVBoxLayout()
-        layout.addWidget(gb)
-        self.setLayout(layout)
+        layoutW = QVBoxLayout()
+        layoutW.addWidget(gb)
+        self.setLayout(layoutW)
+
+    def getNameJ(self):
+        # return scan_dir_fn(user=str(self.le.text()), parent=parent)
+        return {
+            "dt_prefix": True,
+            "user_basename": str(self.job_name_le.text()),
+        }
 
     def dry(self):
         return False
@@ -1260,6 +1199,36 @@ class ScanWidget(AWidget):
         # Kick off first job
         self.run_next_scan_config()
 
+    def afgo(self, planner_widget):
+        def offload(ac):
+            done = threading.Event()
+            try:
+                with StopEvent(self.ac.microscope) as se:
+                    for corner in planner_widget.af_corners():
+                        se.poll()
+                        done.clear()
+                        planner_widget.emit_go_corner(corner_name=corner,
+                                                      done=done)
+                        done.wait()
+
+                        se.poll()
+                        self.ac.image_processing_thread.auto_focus(
+                            objective_config=self.ac.objective_config(),
+                            block=True)
+
+                        se.poll()
+                        done.clear()
+                        planner_widget.emit_click_corner(corner_name=corner,
+                                                         done=done)
+                        done.wait()
+
+                    se.poll()
+                    self.ac.mainTab.emit_go_current_pconfig()
+            except MicroscopeStop:
+                self.ac.log("Autofocus + Go cancelled")
+
+        self.ac.task_thread.offload(offload)
+
     def go_pause_clicked(self):
         # CNC already running? pause/continue
         if self.ac.planner_thread:
@@ -1272,14 +1241,128 @@ class ScanWidget(AWidget):
                 self.ac.planner_thread.pause()
         # Go go go!
         else:
-            ret = QMessageBox.question(
-                self, "Start?",
-                "Start? Note: AE: %s" % (self.ac.auto_exposure_enabled()),
-                QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel)
+            autofocus = self.autofocus_cb.isChecked()
+            auto_exposure = self.ac.auto_exposure_enabled()
+            auto_color = self.ac.auto_color_enabled()
+            auto_color = False
+            mb_type = QMessageBox.question
+
+            warning = ""
+            if auto_exposure or auto_color:
+                warning = f"WARNING: you have automatic exposure ({auto_exposure}) and/or color correction ({auto_color}) enabled. This will lead to an inconsistent capture\n\n"
+                mb_type = QMessageBox.warning
+
+            ret = mb_type(
+                self, "Start scan?",
+                "Start scan?\n\n%sScan settings:\nAutofocus corners: %s" %
+                (warning, autofocus), QMessageBox.Yes | QMessageBox.Cancel,
+                QMessageBox.Cancel)
             if ret != QMessageBox.Yes:
                 return
 
-            self.go_current_pconfig()
+            if autofocus:
+                self.afgo(self.ac.mainTab.active_planner_widget())
+            else:
+                self.go_current_pconfig()
+
+    def take_snapshot(self):
+        # joystick can stack up events
+        if not self.snapshot_pb.isEnabled():
+            self.ac.log(
+                "Snapshot already requested. Please wait before requesting another"
+            )
+            return
+
+        self.ac.log('Requesting snapshot')
+        # Disable until snapshot is completed
+        self.snapshot_pb.setEnabled(False)
+
+        def emitSnapshotCaptured(image_id):
+            self.ac.log('Image captured: %s' % image_id)
+            self.snapshotCaptured.emit(image_id)
+
+        self.ac.capture_sink.request_image(emitSnapshotCaptured)
+
+    def save_extension(self):
+        return self.snapshot_suffix_cb_map[
+            self.snapshot_suffix_cb.currentIndex()]
+
+    def snapshot_fn(self):
+        return snapshot_fn(user=str(self.job_name_le.text()),
+                           extension=self.save_extension(),
+                           parent=self.ac.usc.app("argus").snapshot_dir())
+
+    def captureSnapshot(self, image_id):
+        self.ac.log('RX image for saving')
+
+        image = self.ac.capture_sink.pop_image(image_id)
+        """
+        # FIXME: should unify this with Imager better
+        # For now assertion guards help make sure pipeline is correct
+        factor = self.ac.usc.imager.scalar()
+        image = get_scaled(image, factor, filt=Image.NEAREST)
+        expected_wh = self.ac.usc.imager.final_wh()
+        assert expected_wh[0] == image.size[0] and expected_wh[
+            1] == image.size[
+                1], "Unexpected image size: expected %s, got %s" % (
+                    expected_wh, image.size)
+        fn_full = self.snapshot_fn()
+        """
+
+        self.ac.log(f"Snapshot: image received, post-processing")
+
+        options = {}
+        options["is_snapshot"] = True
+        options["image"] = image
+        options["save_filename"] = self.snapshot_fn()
+        extension = self.save_extension()
+        if extension == ".jpg":
+            options["save_quality"] = self.ac.usc.imager.save_quality()
+        options["scale_factor"] = self.ac.usc.imager.scalar()
+        options["scale_expected_wh"] = self.ac.usc.imager.final_wh()
+        if self.ac.usc.imager.videoflip_method():
+            options["videoflip_method"] = self.ac.usc.imager.videoflip_method()
+
+        def callback(command, args, ret_e):
+            if type(ret_e) is Exception:
+                self.ac.log(f"Snapshot: save failed")
+            else:
+                filename = args[0]["options"]["save_filename"]
+                self.ac.log(f"Snapshot: saved to {filename}")
+
+        self.ac.image_processing_thread.process_image(options=options,
+                                                      callback=callback)
+        self.snapshot_pb.setEnabled(True)
+
+    def post_ui_init(self):
+        snapshot_dir = self.ac.usc.app("argus").snapshot_dir()
+        if not os.path.isdir(snapshot_dir):
+            self.ac.log('Snapshot dir %s does not exist' % snapshot_dir)
+            if os.path.exists(snapshot_dir):
+                raise Exception("Snapshot directory is not accessible")
+            os.mkdir(snapshot_dir)
+            self.ac.log('Snapshot dir %s created' % snapshot_dir)
+
+    def update_pconfig(self, pconfig):
+        imagerj = pconfig.setdefault("imager", {})
+        imagerj["save_extension"] = self.save_extension()
+        imagerj["save_quality"] = self.ac.usc.imager.save_quality()
+
+    def cache_save(self, cachej):
+        cachej["imaging"] = {
+            "file_name": str(self.job_name_le.text()),
+            "extension": self.snapshot_suffix_cb.currentIndex(),
+            "stitch_cb": self.stitch_cb.isChecked(),
+            "autofocus_cb": self.autofocus_cb.isChecked(),
+        }
+
+    def cache_load(self, cachej):
+        j = cachej.get("imaging", {})
+        self.job_name_le.setText(j.get("file_name", "unknown"))
+        self.snapshot_suffix_cb.setCurrentIndex(j.get("extension", 0))
+        self.stitch_cb.setChecked(j.get("stitch_cb", False))
+        self.autofocus_cb.setChecked(
+            j.get("autofocus_cb", self.ac.microscope.has_z()))
 
 
 def awidgets_initUI(awidgets):
@@ -1315,27 +1398,23 @@ class MainTab(ArgusTab):
         # Special case for logging that might occur out of thread
         self.ac.log_msg.connect(self.log)
 
-        self.snapshot_widget = SnapshotWidget(ac=ac)
-        self.add_awidget("snapshot", self.snapshot_widget)
         self.objective_widget = ObjectiveWidget(ac=ac)
         self.add_awidget("objective", self.objective_widget)
-
-        self.planner_widget_tabs = QTabWidget()
-        # First sets up algorithm specific parameters
-        # Second is a more generic monitoring / control widget
-        self.scan_widget = ScanWidget(
+        self.imaging_widget = ImagingTaskWidget(
             ac=ac,
             go_current_pconfig=self.go_current_pconfig,
             setControlsEnabled=self.setControlsEnabled)
-        self.add_awidget("scan", self.scan_widget)
+        self.add_awidget("imaging", self.imaging_widget)
+
+        self.planner_widget_tabs = QTabWidget()
         self.planner_widget_xy2p = XYPlanner2PWidget(
             ac=ac,
-            scan_widget=self.scan_widget,
+            scan_widget=self.imaging_widget,
             objective_widget=self.objective_widget)
         self.add_awidget("XY2P", self.planner_widget_xy2p)
         self.planner_widget_xy3p = XYPlanner3PWidget(
             ac=ac,
-            scan_widget=self.scan_widget,
+            scan_widget=self.imaging_widget,
             objective_widget=self.objective_widget)
         self.add_awidget("XY3P", self.planner_widget_xy3p)
 
@@ -1365,8 +1444,7 @@ class MainTab(ArgusTab):
             layout = QVBoxLayout()
             layout.addWidget(self.objective_widget)
             layout.addWidget(get_axes_gb())
-            layout.addWidget(self.snapshot_widget)
-            layout.addWidget(self.scan_widget)
+            layout.addWidget(self.imaging_widget)
             layout.addWidget(self.log_widget)
 
             # hmm when the window shrinks these widgets just get really small
@@ -1380,7 +1458,7 @@ class MainTab(ArgusTab):
         self.setLayout(layout)
 
         # Offload callback to GUI thread so it can do GUI ops
-        self.ac.cncProgress.connect(self.scan_widget.processCncProgress)
+        self.ac.cncProgress.connect(self.imaging_widget.processCncProgress)
 
     def post_ui_init(self):
         awidgets_post_ui_init(self.awidgets)
@@ -1399,9 +1477,9 @@ class MainTab(ArgusTab):
 
         self.log_fd.write(s)
         self.log_fd.flush()
-        if self.scan_widget.log_fd_scan is not None:
-            self.scan_widget.log_fd_scan.write(s)
-            self.scan_widget.log_fd_scan.flush()
+        if self.imaging_widget.log_fd_scan is not None:
+            self.imaging_widget.log_fd_scan.write(s)
+            self.imaging_widget.log_fd_scan.flush()
 
     def go_current_pconfig(self, callback=None):
         scan_config = self.active_planner_widget().get_current_scan_config()
@@ -1413,7 +1491,7 @@ class MainTab(ArgusTab):
         del scan_config["pconfig"]["imager"]["properties"]
         if callback:
             scan_config["callback"] = callback
-        self.scan_widget.go_scan_configs([scan_config])
+        self.imaging_widget.go_scan_configs([scan_config])
 
     def emit_go_current_pconfig(self, callback=None):
         self.go_current_pconfig_signal.emit((callback, ))
@@ -1423,13 +1501,13 @@ class MainTab(ArgusTab):
         self.go_current_pconfig(callback=callback)
 
     def setControlsEnabled(self, yes):
-        self.snapshot_widget.snapshot_pb.setEnabled(yes)
+        self.imaging_widget.snapshot_pb.setEnabled(yes)
 
     def active_planner_widget(self):
         return self.planner_widget_tabs.currentWidget()
 
     def update_pconfig(self, pconfig):
-        self.snapshot_widget.update_pconfig(pconfig)
+        self.imaging_widget.update_pconfig(pconfig)
 
     def cache_save(self, cachej):
         cachej["main"] = {
@@ -1670,7 +1748,7 @@ class BatchImageTab(ArgusTab):
         self.update_state()
 
     def run_all_clicked(self):
-        self.ac.mainTab.scan_widget.go_scan_configs(self.scan_configs)
+        self.ac.mainTab.imaging_widget.go_scan_configs(self.scan_configs)
 
     def batch_cache_save(self):
         s = json.dumps(self.scan_configs,
@@ -2006,7 +2084,7 @@ class StitchingTab(ArgusTab):
         if scan_config["dry"]:
             return
 
-        if self.ac.mainTab.scan_widget.stitch_cb.isChecked():
+        if self.ac.mainTab.imaging_widget.stitch_cb.isChecked():
             # CLI box is special => take priority
             # CLI may launch CloudStitch under the hood
             self.stitch_add(scan_config["out_dir"])
@@ -2627,38 +2705,6 @@ class MotionWidget(AWidget):
         self.slider_last_coarse = j.get("slider_last_coarse")
         self.update_jog_text()
         self.update_slider_from_last()
-
-
-class SimpleScanNameWidget(AWidget):
-    """
-    Job name is whatever the user wants
-    """
-    def __init__(self, ac, parent=None):
-        super().__init__(ac, parent=parent)
-
-        layout = QHBoxLayout()
-
-        layout.addWidget(QLabel("Job name"))
-        self.le = QLineEdit("unknown")
-        layout.addWidget(self.le)
-
-        self.setLayout(layout)
-
-    def getNameJ(self):
-        # return scan_dir_fn(user=str(self.le.text()), parent=parent)
-        return {
-            "dt_prefix": True,
-            "user_basename": str(self.le.text()),
-        }
-
-    def cache_save(self, cachej):
-        cachej["scan_name"] = {
-            "file_name": str(self.le.text()),
-        }
-
-    def cache_load(self, cachej):
-        j = cachej.get("scan_name", {})
-        self.le.setText(j.get("file_name", "unknown"))
 
 
 class SiPr0nScanNameWidget(AWidget):

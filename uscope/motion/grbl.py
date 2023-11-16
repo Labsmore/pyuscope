@@ -1192,6 +1192,24 @@ class GRBL:
     def axes_max_acceleration(self):
         return self.get_dollar_xyz_float("$120", "$121", "$122")
 
+    def axes_set_max_rate(self, axes):
+        axis2reg = {
+            "x": "110",
+            "y": "111",
+            "z": "112",
+        }
+        for axis, value in axes.items():
+            self.gs.txrxs("$%s=%0.3f" % (axis2reg[axis], value))
+
+    def axes_set_max_acceleration(self, axes):
+        axis2reg = {
+            "x": "120",
+            "y": "121",
+            "z": "122",
+        }
+        for axis, value in axes.items():
+            self.gs.txrxs("$%s=%0.3f" % (axis2reg[axis], value))
+
 
 """
 Coordinate system convention
@@ -1259,6 +1277,10 @@ class GrblHal(MotionHAL):
         rc = options.get("rc_post_home")
         if rc is not None:
             self.rc_commands(rc)
+
+        damper = get_usc().motion.damper()
+        if damper is not None:
+            self.apply_damper(damper)
 
         # Used to be in ScalarMM but moved here
         # Too much nuance / tied ot GRBL specific things
@@ -1477,6 +1499,21 @@ class GrblHal(MotionHAL):
         self.log("  Comment: %s" % (info["comment"], ))
         self.log("  S/N: %s" % (info["sn"], ))
         self.log("  Config: %s" % (info["config"].hex(), ))
+
+    def apply_damper(self, damper):
+        """
+        NOTE: this function is called very early on
+        before configure()
+        We can do it after but would need to maybe call configure again
+        """
+        assert self._hal_max_velocities is None, "must be called before configure()"
+        velocities = self._get_max_velocities()
+        accelerations = self._get_max_accelerations()
+        for axis in self.axes():
+            velocities[axis] = velocities[axis] * damper
+            accelerations[axis] = accelerations[axis] * damper
+        self.grbl.axes_set_max_rate(velocities)
+        self.grbl.axes_set_max_acceleration(accelerations)
 
     def validate_microscope_model(self, name):
         try:

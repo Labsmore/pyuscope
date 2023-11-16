@@ -526,7 +526,26 @@ class USCMotion:
             return bool(v)
 
     def axes(self):
+        """
+        Some systems don't use all axes
+        Ex: system might just be XY with Z N/C
+        """
         return set(self.j.get("axes", "xyz"))
+
+    def damper(self):
+        """
+        Turn down acceleration and velocity
+        Hack to slow down a system that's too aggressive
+        Typically used when samples aren't fixtured down well enough
+        Otherwise you can jog slower but scan G0 will be too aggressive
+
+        WARNING: assumes you are configuring velocity / acceleration at startup
+        Otherwise will "compound" each time you start up
+        """
+        ret = self.j.get("damper", None)
+        if ret is not None:
+            assert 0 < ret <= 1.0
+        return ret
 
 
 class USCPlanner:

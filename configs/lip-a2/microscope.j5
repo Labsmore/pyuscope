@@ -146,7 +146,14 @@ A minimal configuration to do basic testing
         },
     },
     "optics": {
-        "um_per_pixel_raw_1x": 1.321752266,
+        /*
+        2023-11-16
+        12.4 mm at 1x
+        1424 square (cropped) w/ 0.5x shrink
+        actual view: 2848 pixels
+        12400 / 2848 = 
+        */
+        "um_per_pixel_raw_1x": 4.353932584,
     },
 
     "systems": [

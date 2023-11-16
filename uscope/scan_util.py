@@ -51,6 +51,7 @@ def iindex_parse_fn(basename):
     Rewrite this to be more proper
     """
     ret = {}
+    ret["basename"] = basename
     parts, extension = basename.split(".")
     ret["extension"] = "." + extension
     for part in parts.split("_"):
@@ -84,6 +85,8 @@ def iindex_parse_fn(basename):
             ret["stabilization_str"] = part
             continue
 
+        # Should we allow non-confirming files?
+        # return None
         assert 0, f"Unrecognized part {part} in basename {basename}"
 
     assert "row" in ret, basename
@@ -124,6 +127,7 @@ def index_scan_images(dir_in):
     hdrs = 0
     stacks = 0
     stabilization = 0
+    crs = OrderedDict()
     for fn_full in sorted(
             list(glob.glob(dir_in + "/*.jpg")) +
             list(glob.glob(dir_in + "/*.tif"))):
@@ -133,6 +137,7 @@ def index_scan_images(dir_in):
         if not v:
             continue
         images[basename] = v
+        crs[(v.get("col"), v.get("row"))] = v
         stabilization = max(stabilization, v.get("stabilization", -1) + 1)
         hdrs = max(hdrs, v.get("hdr", -1) + 1)
         stacks = max(stacks, v.get("stack", -1) + 1)
@@ -147,9 +152,11 @@ def index_scan_images(dir_in):
 
     ret["dir"] = working_dir
     ret["images"] = images
+    ret["crs"] = crs
     ret["stabilization"] = stabilization
     ret["hdrs"] = hdrs
     ret["stacks"] = stacks
+    ret["flat"] = stacks == 0 and hdrs == 0 and stabilization == 0
     ret["cols"] = cols
     ret["rows"] = rows
     return ret

@@ -162,8 +162,11 @@ class USCImager:
         The largest possible sensor resolution
         Following are not applied yet: crop, scaling
         """
-        w = int(self.j['native_width'])
-        h = int(self.j['native_height'])
+        try:
+            w = int(self.j['native_width'])
+            h = int(self.j['native_height'])
+        except KeyError:
+            raise Exception("can't compute um_per_pixel_raw_1x: not specified and missing native_width/height")
         return w, h
 
     def raw_wh(self):
@@ -1244,6 +1247,23 @@ class BaseConfig:
             if system["guid"] == guid:
                 return system
         return None
+
+    def write_html_viewer(self):
+        """
+        Write a simple .html file at the final image level
+        Its not so much stitched as plastered together
+        """
+        # Very little disk space, easy to distinguish from other image files
+        # Turn on by default
+        return bool(self.j.get("ipp", {}).get("write_html_viewer", True))
+
+    def write_summary_image(self):
+        """
+        Write a simple combined image file at the final image level
+        Its not so much stitched as plastered together
+        """
+        # This takes up disk space => off by default
+        return bool(self.j.get("ipp", {}).get("write_summary_image", False))
 
 
 def get_bcj():

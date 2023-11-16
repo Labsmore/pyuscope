@@ -989,7 +989,7 @@ class ImagingTaskWidget(AWidget):
             layout.addWidget(self.go_pause_pb)
 
             # Used as generic "should stitch", although is labeled CloudStitch
-            layout.addWidget(QLabel("CloudStitch?"))
+            layout.addWidget(QLabel("Process / CloudStitch?"))
             self.stitch_cb = QCheckBox()
             self.stitch_cb.setChecked(False)
             layout.addWidget(self.stitch_cb)

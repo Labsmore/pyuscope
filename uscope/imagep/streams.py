@@ -3,6 +3,7 @@ from uscope.scan_util import index_scan_images, bucket_group, reduce_iindex_file
 import os
 from uscope import config
 from uscope.imagep.util import TaskBarrier, EtherealImageR, EtherealImageW
+from uscope.imagep.summary import write_html_viewer, write_summary_image
 import glob
 import json
 """
@@ -198,6 +199,7 @@ class DirCSIP:
         dst_basename = os.path.basename(os.path.abspath(self.directory))
 
         config.lazy_load_microscope_from_config(self.directory)
+        bc = config.get_bc()
 
         print("Microscope: %s" % (config.default_microscope_name(), ))
         print("  Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
@@ -272,6 +274,12 @@ class DirCSIP:
             next_dir = os.path.join(working_iindex["dir"], "ff1")
             self.correct_ff1_run(iindex_in=working_iindex, dir_out=next_dir)
             working_iindex = index_scan_images(next_dir)
+
+        if bc.write_html_viewer():
+            write_html_viewer(working_iindex)
+
+        if bc.write_summary_image():
+            write_summary_image(working_iindex)
 
         # CloudStitch currently only supports .jpg
         if need_jpg_conversion(working_iindex["dir"]):

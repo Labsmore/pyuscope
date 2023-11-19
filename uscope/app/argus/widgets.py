@@ -2415,17 +2415,19 @@ class JogSlider(QWidget):
         return self.get_jog_percentage() / self.jog_max
 
     def increase_key(self):
-        slider_val = min(
-            self.slider_max,
-            float(self.slider.value()) +
-            self.slider_max * self.slider_adjust_factor)
+        slider_val = int(
+            min(
+                self.slider_max,
+                float(self.slider.value()) +
+                self.slider_max * self.slider_adjust_factor))
         self.slider.setValue(slider_val)
 
     def decrease_key(self):
-        slider_val = max(
-            self.slider_min,
-            float(self.slider.value()) -
-            self.slider_max * self.slider_adjust_factor)
+        slider_val = int(
+            max(
+                self.slider_min,
+                float(self.slider.value()) -
+                self.slider_max * self.slider_adjust_factor))
         self.slider.setValue(slider_val)
 
     def jog_slider_raw(self):

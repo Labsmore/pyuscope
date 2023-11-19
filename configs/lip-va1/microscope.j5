@@ -107,12 +107,16 @@ Camera: see VM1B config ifle
         "native_height": 2160,
         "width": 1280,
         "height": 960,
+        /*
+        2023-11-19: issues are actually the camera filters, not the optics
+        Give the full field of view
         "crop_pixels": {
             "top": 0,
             "bottom": 0,
             "left": 160,
             "right": 160,
         },
+        */
 
         "videoflip_method": "rotate-180",
     },

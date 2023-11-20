@@ -493,6 +493,17 @@ class CorrectVM1V1Plugin(IPPlugin):
                     [int(cv2.IMWRITE_JPEG_QUALITY), 90])
 
 
+class AnnotateScalebarPlugin(IPPlugin):
+    def __init__(self, log, default_options={}):
+        super().__init__(log=log,
+                         default_options=default_options,
+                         need_tmp_dir=True)
+
+    def _run(self, data_in, data_out, options={}):
+        # TODO: Write this part
+        pass
+
+
 def get_plugin_ctors():
     return {
         "stack-enfuse": StackEnfusePlugin,
@@ -501,6 +512,7 @@ def get_plugin_ctors():
         "correct-ff1": CorrectFF1Plugin,
         "correct-sharp1": CorrectSharp1Plugin,
         "correct-vm1v1": CorrectVM1V1Plugin,
+        "annotate-scalebar": AnnotateScalebarPlugin,
     }
 
 

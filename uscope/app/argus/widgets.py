@@ -952,6 +952,7 @@ class ImagingTaskWidget(AWidget):
                  parent=None):
         super().__init__(ac=ac, parent=parent)
         # self.pos.connect(self.update_pos)
+        self.imaging_config = None
         self.snapshotCaptured.connect(self.captureSnapshot)
         self.go_current_pconfig = go_current_pconfig
         self.setControlsEnabled = setControlsEnabled
@@ -992,11 +993,13 @@ class ImagingTaskWidget(AWidget):
             layout.addWidget(QLabel("Process / CloudStitch?"))
             self.stitch_cb = QCheckBox()
             self.stitch_cb.setChecked(False)
+            self.stitch_cb.stateChanged.connect(self.update_imagine_config)
             layout.addWidget(self.stitch_cb)
 
             layout.addWidget(QLabel("Autofocus?"))
             self.autofocus_cb = QCheckBox()
             self.autofocus_cb.setChecked(self.ac.microscope.has_z())
+            self.autofocus_cb.stateChanged.connect(self.update_imagine_config)
             layout.addWidget(self.autofocus_cb)
 
             self.progress_bar = QProgressBar()
@@ -1005,14 +1008,26 @@ class ImagingTaskWidget(AWidget):
             return layout
 
         layout = QVBoxLayout()
+        snap_layout = QHBoxLayout()
 
         layout.addLayout(getNameLayout())
 
         self.snapshot_pb = QPushButton("Snap")
         self.snapshot_pb.setIcon(QIcon(config.GUI.icon_files["camera"]))
         self.snapshot_pb.clicked.connect(self.take_snapshot)
-        layout.addWidget(self.snapshot_pb)
+        snap_layout.addWidget(self.snapshot_pb)
 
+        add_scalebar_label = QLabel("Add scalebar to image")
+        self.add_scalebar_checkbox = QCheckBox()
+        self.add_scalebar_checkbox.setChecked(self.ac.microscope.has_z())
+        self.add_scalebar_checkbox.stateChanged.connect(self.update_imagine_config)
+        add_scalebar_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.add_scalebar_checkbox.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+        snap_layout.addWidget(add_scalebar_label)
+        snap_layout.addWidget(self.add_scalebar_checkbox)
+
+        layout.addLayout(snap_layout)
         layout.addLayout(getProgressLayout())
 
         gb = QGroupBox("Imaging")
@@ -1345,6 +1360,8 @@ class ImagingTaskWidget(AWidget):
             os.mkdir(snapshot_dir)
             self.ac.log('Snapshot dir %s created' % snapshot_dir)
 
+        self.update_imagine_config()
+
     def update_pconfig(self, pconfig):
         imagerj = pconfig.setdefault("imager", {})
         imagerj["save_extension"] = self.save_extension()
@@ -1356,6 +1373,7 @@ class ImagingTaskWidget(AWidget):
             "extension": self.snapshot_suffix_cb.currentIndex(),
             "stitch_cb": self.stitch_cb.isChecked(),
             "autofocus_cb": self.autofocus_cb.isChecked(),
+            "add_scalebar": self.add_scalebar_checkbox.isChecked(),
         }
 
     def cache_load(self, cachej):
@@ -1365,6 +1383,14 @@ class ImagingTaskWidget(AWidget):
         self.stitch_cb.setChecked(j.get("stitch_cb", False))
         self.autofocus_cb.setChecked(
             j.get("autofocus_cb", self.ac.microscope.has_z()))
+        self.add_scalebar_checkbox.setChecked(j.get("add_scalebar", False))
+
+    def update_imagine_config(self):
+        self.imaging_config = {
+            "stitch": self.stitch_cb.isChecked(),
+            "add_scalebar": self.add_scalebar_checkbox.isChecked(),
+            "autofocus": self.autofocus_cb.isChecked(),
+        }
 
 
 def awidgets_initUI(awidgets):

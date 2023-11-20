@@ -376,7 +376,8 @@ class CSImageProcessor(threading.Thread):
         StreamCSIP(self, *args, **kwargs).run()
 
     def process_snapshots(self, *args, **kwargs):
-        return SnapshotCSIP(self, *args, **kwargs).run()
+        options = kwargs.pop("options", {})
+        return SnapshotCSIP(self, *args, **kwargs).run(options)
 
     # was run_dir
     def process_dir(self, *args, **kwargs):

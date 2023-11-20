@@ -202,11 +202,19 @@ class QImageProcessingThread(ImageProcessingThreadBase, QThread):
         ImageProcessingThreadBase.__init__(self, microscope=ac.microscope)
         self.snapshotCaptured = ac.snapshotCaptured
         self.objective_config = ac.objective_config
+        self.imaging_config = ac.imaging_config
 
     def log(self, msg=""):
         self.log_msg.emit(msg)
 
     def _do_process_image(self, j):
+        obj_config = self.objective_config()
+        imaging_config = self.imaging_config()
+        plugins = {}
+        if imaging_config.get("add_scalebar", False):
+            plugins["annotate-scalebar"] = {}
+        j["options"]["objective_config"] = obj_config
+        j["options"]["plugins"] = plugins
         image = super()._do_process_image(j)
         data = {"image": image, "objective_config": self.objective_config()}
         # Don't emit when scripting collects a snapshot

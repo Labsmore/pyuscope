@@ -67,7 +67,7 @@ class ImageProcessingThreadBase(CommandThreadBase):
             assert videoflip_method == "rotate-180"
             image = image.rotate(180)
 
-        image = process_snapshots([image])
+        image = process_snapshots([image], options=options)
 
         if "save_filename" in options:
             kwargs = {}

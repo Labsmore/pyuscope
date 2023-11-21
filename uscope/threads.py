@@ -72,6 +72,7 @@ class CommandThreadBase:
             except MicroscopeStop as e:
                 if command_done:
                     command_done(command, args, e)
+                continue
             # :( abort
             except Exception as e:
                 self.log(f"WARNING: {self.__class__} thread crashed: {e}")

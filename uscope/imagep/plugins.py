@@ -87,8 +87,10 @@ class HDREnfusePlugin(IPPlugin):
         super().__init__(log=log,
                          default_options=default_options,
                          need_tmp_dir=True)
+        self.enfuse = config.get_bc().enfuse_cli()
 
     def _run(self, data_in, data_out, options={}):
+        assert self.enfuse, "Requires enfuse"
         ewf = options.get("ewf", "gaussian")
         best_effort = options.get("best_effort", False)
         out_fn = data_out["image"].get_filename()
@@ -128,8 +130,13 @@ class StackEnfusePlugin(IPPlugin):
         # Other systems have a lot of jitter
         self.align = self.usc.ipp.get_plugin("stack-enfuse").get(
             "align", False)
+        self.enfuse = config.get_bc().enfuse_cli()
+        self.align_image_stack = config.get_bc().align_image_stack_cli()
 
     def _run(self, data_in, data_out, options={}):
+        assert self.enfuse, "Requires enfuse"
+        if self.align:
+            assert self.align_image_stack, "Requires align_image_stack"
         best_effort = options.get("best_effort", False)
 
         def check_call(args):
@@ -163,10 +170,9 @@ class StackEnfusePlugin(IPPlugin):
         prefix = "aligned_"
         if self.align:
             # Always output as .tif
-            args = [
+            args = list(self.align_image_stack) + [
                 # is there a reason to use -i vs -x -y?
                 # -x -y is more explicit, let's do that for now
-                "align_image_stack",
                 "-l",
                 "-x",
                 "-y",
@@ -186,8 +192,8 @@ class StackEnfusePlugin(IPPlugin):
                 image_in.to_filename_tif(fn_aligned)
 
         out_fn = data_out["image"].get_filename()
-        args = [
-            "enfuse", "--exposure-weight=0", "--saturation-weight=0",
+        args = list(self.enfuse) + [
+            "--exposure-weight=0", "--saturation-weight=0",
             "--contrast-weight=1", "--hard-mask", "--output=" + out_fn
         ]
         # 2023-10-25, quick experiment, didn't seem to work

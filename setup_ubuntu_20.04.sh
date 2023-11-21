@@ -29,6 +29,13 @@ install_pyuscope() {
     sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb python3-opencv python3-serial python3-numpy python3-scipy imagemagick
     sudo pip3 install json5 boto3 pygame psutil
 
+
+    # Ubuntu 20.04
+    sudo apt-get install -y hugin-tools
+    # Ubuntu 22.04
+    # sudo apt update && sudo apt install flatpak
+    # flatpak install https://dl.flathub.org/repo/appstream/net.sourceforge.Hugin.flatpakref
+
     # For webserver
     sudo apt-get install -y python3-werkzeug
     sudo pip3 install Flask>=2.2.2

@@ -5,6 +5,8 @@ from collections import OrderedDict
 from uscope.util import writej, readj
 from pathlib import Path
 from uscope import jsond
+import shutil
+import subprocess
 '''
 There is a config directory with two primary config files:
 -microscope.j5: inherent config that doesn't really change
@@ -48,6 +50,36 @@ default_microscope_name_cache = None
 Calibration broken out into separate file to allow for easier/safer frequent updates
 Ideally we'd also match on S/N or something like that
 """
+
+
+def find_panotools_exe(config, configk, exe_name, flatpak_name):
+    exe = config.get(configk)
+    if exe is not None:
+        return tuple(exe)
+
+    if 1:
+        exe = shutil.which(exe_name)
+        if exe is not None:
+            return (exe, )
+
+    # flatpak run --command=enfuse net.sourceforge.Hugin --help
+    # bwrap: execvp align_image_stackD: No such file or directory
+    # bad command => returns 1
+    # good command => returns 0
+    command = [
+        "flatpak", "run", f"--command={flatpak_name}", "net.sourceforge.Hugin",
+        "--help"
+    ]
+    process = subprocess.Popen(command,
+                               stderr=subprocess.PIPE,
+                               stdout=subprocess.PIPE)
+    _stdout, _stderr = process.communicate()
+    exit_code = process.wait()
+    if exit_code == 0:
+        return ("flatpak", "run",
+                f"--command={flatpak_name} net.sourceforge.Hugin")
+
+    return None
 
 
 class SystemNotFound(Exception):
@@ -1171,6 +1203,10 @@ class BaseConfig:
         self.objective_db = ObjectiveDB()
         # self.joystick = JoystickConfig(jbc=self.j.get("joystick", {}))
 
+        self._enblend_cli = None
+        self._enfuse_cli = None
+        self._align_image_stack_cli = None
+
     def batch_data_dir(self, mkdir=True):
         """
         Directory holding saved batch scans
@@ -1266,6 +1302,43 @@ class BaseConfig:
         """
         # This takes up disk space => off by default
         return bool(self.j.get("ipp", {}).get("write_summary_image", False))
+
+    def check_panotools(self):
+        """
+        Check / configure all panotools paths
+        Return True if they are configured correctly
+        """
+        ret = True
+        ret = ret and bool(self.enblend_cli())
+        ret = ret and bool(self.enfuse_cli())
+        ret = ret and bool(self.align_image_stack_cli())
+        return ret
+
+    def enblend_cli(self):
+        if self._enblend_cli:
+            return self._enblend_cli
+        self._enblend_cli = find_panotools_exe(self.j.get("panotools",
+                                                          {}), "enblend_cli",
+                                               "enblend", "enblend")
+        return self._enblend_cli
+
+    def enfuse_cli(self):
+        """
+        flatpak run --command=enfuse net.sourceforge.Hugin --help
+        """
+        if self._enfuse_cli:
+            return self._enfuse_cli
+        self._enfuse_cli = find_panotools_exe(self.j.get("panotools", {}),
+                                              "enfuse_cli", "enfuse", "enfuse")
+        return self._enfuse_cli
+
+    def align_image_stack_cli(self):
+        if self._align_image_stack_cli:
+            return self._align_image_stack_cli
+        self._align_image_stack_cli = find_panotools_exe(
+            self.j.get("panotools", {}), "align_image_stack_cli",
+            "align_image_stack", "align_image_stack")
+        return self._align_image_stack_cli
 
 
 def get_bcj():

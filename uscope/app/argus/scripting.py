@@ -116,28 +116,65 @@ class ArgusScriptingPlugin(QThread):
         try:
             with StopEvent(self._ac.microscope) as self.se:
                 self.run_test()
+                self.wrap_cleanup("Done. Running cleanup")
             self._succeeded = True
+        except TestFailed:
+            self.wrap_cleanup("Failed. Running cleanup")
+            self._succeeded = False
+            self.result_message = "Failed"
+        # Test stopped but not microscope
         except TestAborted:
+            self.wrap_cleanup("Aborted. Running cleanup")
             self._succeeded = False
             self.result_message = "Aborted"
+        # Full microscope stop
+        # Closer to estop
+        # Don't clean up
         except MicroscopeStop:
             self._succeeded = False
             self.result_message = "Aborted"
-        except TestFailed:
-            self._succeeded = False
-            self.result_message = "Failed"
+        # Test unstable and force killed
+        # Unstable, don't attempt cleanup
         except TestKilled:
             self._succeeded = False
             self.result_message = "killed"
+        # Generic test crash
+        # Try to cleanup if possible
         except Exception as e:
+            self.wrap_cleanup("Exception. Running cleanup")
             self._succeeded = False
             self.result_message = f"Exception: {e}"
+            print("")
+            print("Script generated unhandled exception")
+            traceback.print_exc()
+        # file exceptions can cause this
+        # XXX: actually I think this was camera disconnect
+        except OSError as e:
+            self.wrap_cleanup("OSError. Running cleanup")
+            self._succeeded = False
+            self.result_message = f"Exception (OSError): {e}"
             print("")
             print("Script generated unhandled exception")
             traceback.print_exc()
         finally:
             self._running.clear()
             self.done.emit()
+
+    def wrap_cleanup(self, msg):
+        try:
+            self._running.set()
+            self.log(msg)
+            try:
+                self.cleanup()
+            except Exception as e:
+                self.log("Script generated unhandled exception in cleanup")
+                print("Script generated unhandled exception in cleanup")
+                traceback.print_exc()
+        finally:
+            self._running.clear()
+
+    def cleanup(self):
+        pass
 
     """
     Main API

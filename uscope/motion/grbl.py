@@ -1522,6 +1522,7 @@ class GrblHal(MotionHAL):
             # No metadata => skip sanity check
             # Not all microscopes have this set
             return
+        self.microscope.set_serial(info["sn"])
         """
         If the controller supports self-reporting the microscpoe name
         Hack to verify at least until can be auto selected

@@ -287,6 +287,9 @@ class ArgusScriptingPlugin(QThread):
         """
         return self._ac.microscope.objectives.get_full_config()
 
+    def get_objective_config(self):
+        return self.get_objectives_config()[self.get_active_objective()]
+
     def get_active_objective(self):
         """
         Returns the name of the active objective
@@ -298,6 +301,20 @@ class ArgusScriptingPlugin(QThread):
         Check if name is in cache
         """
         self._ac.mainTab.objective_widget.setObjective.emit(objective)
+
+    def microscope_model(self):
+        """
+        Config file name
+        Will always return something
+        """
+        return self._ac.microscope.model()
+
+    def microscope_serial(self):
+        """
+        From GRBL
+        May not be present and return None
+        """
+        return self._ac.microscope.serial()
 
     """
     Advanced API

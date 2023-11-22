@@ -1,4 +1,4 @@
-from uscope.config import get_bc, get_usc
+from uscope.config import get_bc, get_usc, default_microscope_name
 from uscope.motion.plugins import get_motion_hal, configure_motion_hal
 from uscope.kinematics import Kinematics
 from uscope.objective import MicroscopeObjectives
@@ -91,6 +91,8 @@ class Microscope:
         if usc is None:
             usc = get_usc(name=name)
         self.usc = usc
+        self.name = default_microscope_name()
+        self._serial = None
 
         self.objectives = None
 
@@ -211,6 +213,23 @@ class Microscope:
         if not self.objectives:
             self.objectives = MicroscopeObjectives(self)
         return self.objectives
+
+    def model(self):
+        """
+        Return microscope model number
+        Same as the config file name
+        """
+        return self.name
+
+    def serial(self):
+        """
+        From GRBL
+        May not be present and return None
+        """
+        return self._serial
+
+    def set_serial(self, serial):
+        self._serial = serial
 
 
 def get_cli_microscope(name=None):

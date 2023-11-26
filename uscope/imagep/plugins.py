@@ -505,7 +505,7 @@ class AnnotateScalebarPlugin(IPPlugin):
         self.line_width = 5
         self.short_line_length = 10
         self.font_size = 25
-        self.font_path = "../../../fonts/arial.ttf"
+        self.font_path = "../../../fonts/Roboto/Roboto-Regular.ttf"
 
     def _run(self, data_in, data_out, options={}):
         pil_im = data_in["image"].to_im()

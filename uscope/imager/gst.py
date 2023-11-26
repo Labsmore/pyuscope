@@ -127,6 +127,9 @@ class GstCLIImager(Imager):
                                             {}).get("esize", None)
             if touptek_esize is not None:
                 self.source.set_property("esize", touptek_esize)
+        elif self.source_name in ("libcamerasrc"):
+            self.source = Gst.ElementFactory.make('libcamerasrc', None)
+            assert self.source is not None
         elif self.source_name == "videotestsrc":
             # print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)

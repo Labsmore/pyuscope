@@ -556,6 +556,9 @@ class GstVideoPipeline:
             assert self.source is not None, "Failed to load toupcamsrc. Is it in the path?"
             if esize is not None:
                 properties["esize"] = esize
+        elif self.source_name == 'gst-libcamerasrc':
+            self.source = Gst.ElementFactory.make('libcamerasrc', None)
+            assert self.source is not None, "Failed to load libcamerasrc"
         elif self.source_name == 'gst-videotestsrc':
             self.verbose and print('WARNING: using test source')
             self.source = Gst.ElementFactory.make('videotestsrc', None)

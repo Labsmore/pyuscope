@@ -68,6 +68,8 @@ class MotionThreadMotion(MotionHAL):
     def jog_cancel(self):
         return self.mt.jog_cancel()
 
+    def command(self, command):
+        return self.mt.mdi(command)
 
 """
 Several sources need to periodically send jog commands based on stimulus

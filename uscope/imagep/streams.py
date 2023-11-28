@@ -333,7 +333,8 @@ class SnapshotCSIP:
         self.best_effort = best_effort
         self.verbose = verbose
 
-    def run(self):
+    def run(self, options):
+        # TODO: Write this part
         self.log("Microscope: %s" % (config.default_microscope_name(), ))
         self.log("  Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
 
@@ -364,6 +365,10 @@ class SnapshotCSIP:
         current_image = current_images[0]
 
         ipp = config.get_usc().ipp.pipeline_last()
+        current_plugins = [p["plugin"] for p in ipp]
+        for plugin in options.get("plugins", []):
+            if plugin not in current_plugins:
+                ipp.append({"plugin": plugin})
         if len(ipp) == 0:
             self.log("Post corrections: skip")
         else:
@@ -374,7 +379,8 @@ class SnapshotCSIP:
                 data_out = self.csip.queue_1_to_1_plugin(plugin=plugin,
                                                          im_in=current_image,
                                                          want_im_out=True,
-                                                         tb=tb)
+                                                         tb=tb,
+                                                         options=options)
                 tb.wait()
                 current_image = data_out["image"].get_im()
 

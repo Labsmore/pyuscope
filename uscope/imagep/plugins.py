@@ -2,7 +2,7 @@ import subprocess
 import shutil
 import traceback
 import tempfile
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import glob
 import os
@@ -499,6 +499,57 @@ class CorrectVM1V1Plugin(IPPlugin):
                     [int(cv2.IMWRITE_JPEG_QUALITY), 90])
 
 
+class AnnotateScalebarPlugin(IPPlugin):
+    def __init__(self, log, default_options={}):
+        super().__init__(log=log,
+                         default_options=default_options,
+                         need_tmp_dir=True)
+        self.black_rectangle_height_as_percent = 0.12
+        self.constant_text = "Labsmore.com"
+        self.scalebar_x_coordinate = 10
+        self.scalebar_length = 125
+        self.line_width = 5
+        self.short_line_length = 10
+        self.font_size = 25
+        self.font_path = "../../../fonts/Roboto/Roboto-Regular.ttf"
+
+    def _run(self, data_in, data_out, options={}):
+        pil_im = data_in["image"].to_im()
+        width, original_height = pil_im.size
+
+        black_rectangle_height = int(original_height * self.black_rectangle_height_as_percent)
+        new_height = original_height + black_rectangle_height
+
+        modified_image = Image.new("RGB", (width, new_height), color="black")
+
+        modified_image.paste(pil_im, (0, 0))
+
+        draw = ImageDraw.Draw(modified_image)
+        line_y = new_height - black_rectangle_height // 2
+        draw.line([self.scalebar_x_coordinate, line_y, self.scalebar_x_coordinate + self.scalebar_length, line_y],
+                  fill="white", width=self.line_width)
+
+        draw.line([self.scalebar_x_coordinate, line_y - self.short_line_length, self.scalebar_x_coordinate,
+                   line_y + self.short_line_length], fill="white", width=self.line_width)
+        draw.line(
+            [self.scalebar_x_coordinate + self.scalebar_length, line_y - self.short_line_length,
+             self.scalebar_x_coordinate + self.scalebar_length, line_y + self.short_line_length],
+            fill="white", width=self.line_width)
+
+        scale_text = str(options.get("objective_config", {}).get("um_per_pixel", "")) + " nm"
+        font = ImageFont.truetype(self.font_path, self.font_size)
+        scale_text_width, scale_text_height = draw.textsize(scale_text, font)
+        scale_text_position = (10 + (self.scalebar_length - scale_text_width) // 2, line_y - scale_text_height - 10)
+        draw.text(scale_text_position, scale_text, font=font, fill="white")
+
+        additional_text_position = (
+        self.scalebar_x_coordinate + self.scalebar_length + 10, line_y - font.getsize(scale_text)[1] // 2)
+        draw.text(additional_text_position, self.constant_text, font=font, fill="white")
+
+        modified_image.save(data_out["image"].get_filename(), quality=90)
+
+
+
 def get_plugin_ctors():
     return {
         "stack-enfuse": StackEnfusePlugin,
@@ -507,6 +558,7 @@ def get_plugin_ctors():
         "correct-ff1": CorrectFF1Plugin,
         "correct-sharp1": CorrectSharp1Plugin,
         "correct-vm1v1": CorrectVM1V1Plugin,
+        "annotate-scalebar": AnnotateScalebarPlugin,
     }
 
 

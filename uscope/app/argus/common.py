@@ -390,3 +390,9 @@ class ArgusCommon(QObject):
         Return currently selected objective configuration
         """
         return self.mainTab.objective_widget.obj_config
+
+    def imaging_config(self):
+        """
+        Return imaging widget configuration
+        """
+        return self.mainTab.imaging_widget.imaging_config

@@ -785,7 +785,7 @@ class PointGenerator3P(PlannerPlugin):
         axes = {}
         for axisc, axis in self.axes.items():
             axes[axisc] = axis.meta()
-        meta["points-xy2p"] = {
+        meta["points-xy3p"] = {
             'points_to_generate': self.points_expected(),
             'points_generated': self.itered_xy_points,
             "points": points,

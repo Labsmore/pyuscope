@@ -1020,9 +1020,11 @@ class ImagingTaskWidget(AWidget):
         add_scalebar_label = QLabel("Add scalebar to image")
         self.add_scalebar_checkbox = QCheckBox()
         self.add_scalebar_checkbox.setChecked(self.ac.microscope.has_z())
-        self.add_scalebar_checkbox.stateChanged.connect(self.update_imagine_config)
+        self.add_scalebar_checkbox.stateChanged.connect(
+            self.update_imagine_config)
         add_scalebar_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.add_scalebar_checkbox.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.add_scalebar_checkbox.setSizePolicy(QSizePolicy.Fixed,
+                                                 QSizePolicy.Fixed)
 
         snap_layout.addWidget(add_scalebar_label)
         snap_layout.addWidget(self.add_scalebar_checkbox)

@@ -517,7 +517,8 @@ class AnnotateScalebarPlugin(IPPlugin):
         pil_im = data_in["image"].to_im()
         width, original_height = pil_im.size
 
-        black_rectangle_height = int(original_height * self.black_rectangle_height_as_percent)
+        black_rectangle_height = int(original_height *
+                                     self.black_rectangle_height_as_percent)
         new_height = original_height + black_rectangle_height
 
         modified_image = Image.new("RGB", (width, new_height), color="black")
@@ -526,28 +527,46 @@ class AnnotateScalebarPlugin(IPPlugin):
 
         draw = ImageDraw.Draw(modified_image)
         line_y = new_height - black_rectangle_height // 2
-        draw.line([self.scalebar_x_coordinate, line_y, self.scalebar_x_coordinate + self.scalebar_length, line_y],
-                  fill="white", width=self.line_width)
+        draw.line([
+            self.scalebar_x_coordinate, line_y,
+            self.scalebar_x_coordinate + self.scalebar_length, line_y
+        ],
+                  fill="white",
+                  width=self.line_width)
 
-        draw.line([self.scalebar_x_coordinate, line_y - self.short_line_length, self.scalebar_x_coordinate,
-                   line_y + self.short_line_length], fill="white", width=self.line_width)
-        draw.line(
-            [self.scalebar_x_coordinate + self.scalebar_length, line_y - self.short_line_length,
-             self.scalebar_x_coordinate + self.scalebar_length, line_y + self.short_line_length],
-            fill="white", width=self.line_width)
+        draw.line([
+            self.scalebar_x_coordinate, line_y - self.short_line_length,
+            self.scalebar_x_coordinate, line_y + self.short_line_length
+        ],
+                  fill="white",
+                  width=self.line_width)
+        draw.line([
+            self.scalebar_x_coordinate + self.scalebar_length,
+            line_y - self.short_line_length, self.scalebar_x_coordinate +
+            self.scalebar_length, line_y + self.short_line_length
+        ],
+                  fill="white",
+                  width=self.line_width)
 
-        scale_text = str(options.get("objective_config", {}).get("um_per_pixel", "")) + " nm"
+        scale_text = str(
+            options.get("objective_config", {}).get("um_per_pixel",
+                                                    "")) + " nm"
         font = ImageFont.truetype(self.font_path, self.font_size)
         scale_text_width, scale_text_height = draw.textsize(scale_text, font)
-        scale_text_position = (10 + (self.scalebar_length - scale_text_width) // 2, line_y - scale_text_height - 10)
+        scale_text_position = (10 +
+                               (self.scalebar_length - scale_text_width) // 2,
+                               line_y - scale_text_height - 10)
         draw.text(scale_text_position, scale_text, font=font, fill="white")
 
-        additional_text_position = (
-        self.scalebar_x_coordinate + self.scalebar_length + 10, line_y - font.getsize(scale_text)[1] // 2)
-        draw.text(additional_text_position, self.constant_text, font=font, fill="white")
+        additional_text_position = (self.scalebar_x_coordinate +
+                                    self.scalebar_length + 10,
+                                    line_y - font.getsize(scale_text)[1] // 2)
+        draw.text(additional_text_position,
+                  self.constant_text,
+                  font=font,
+                  fill="white")
 
         modified_image.save(data_out["image"].get_filename(), quality=90)
-
 
 
 def get_plugin_ctors():

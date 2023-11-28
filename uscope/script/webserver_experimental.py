@@ -50,7 +50,6 @@ from flask_socketio import SocketIO
 import base64
 import numpy as np
 
-
 FLUTTER_WEB_DIR = "web"
 app = Flask(__name__, template_folder=FLUTTER_WEB_DIR)
 CORS(app)
@@ -79,13 +78,15 @@ class MySocket(SocketIO):
             self.start_background_task(self.video_feed, current_app.plugin)
         self.clients.add(request.sid)
         plugin = current_app.plugin
-        plugin.log_verbose(f"Client connected: connections = {len(self.clients)}")
+        plugin.log_verbose(
+            f"Client connected: connections = {len(self.clients)}")
         self.emit('client_connected')
 
     def on_disconnection(self):
         self.clients.remove(request.sid)
         plugin = current_app.plugin
-        plugin.log_verbose(f"Client disconnected: connections = {len(self.clients)}")
+        plugin.log_verbose(
+            f"Client disconnected: connections = {len(self.clients)}")
 
     def video_feed(self, plugin):
         while plugin.server:
@@ -98,7 +99,6 @@ class MySocket(SocketIO):
 
 
 class Plugin(ArgusScriptingPlugin):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.verbose = True
@@ -117,7 +117,10 @@ class Plugin(ArgusScriptingPlugin):
 
         # Keep a reference to this plugin
         app.plugin = self
-        self.server = make_server(host=HOST, port=SERVER_PORT, app=app, threaded=True)
+        self.server = make_server(host=HOST,
+                                  port=SERVER_PORT,
+                                  app=app,
+                                  threaded=True)
         self.ctx = app.app_context()
         self.ctx.push()
         self.server.serve_forever(0.1)
@@ -196,10 +199,8 @@ def active_objective_set(objective):
 def pos_get():
     plugin = current_app.plugin
     plugin.log_verbose(f"/get/pos")
-    return json.dumps({
-        'status': HTTPStatus.OK,
-        'data': plugin.pos()
-    })
+    return json.dumps({'status': HTTPStatus.OK, 'data': plugin.pos()})
+
 
 @app.route('/set/pos', methods=['GET', 'POST'])
 def pos_set():
@@ -220,16 +221,14 @@ def pos_set():
             data["z"] = z
         move_relative = request.args.get("relative", default=0, type=int)
         # Do not need to move if all axes are zero
-        if move_relative == 1 and (data.get("x") or data.get("y") or data.get("z")):
+        if move_relative == 1 and (data.get("x") or data.get("y")
+                                   or data.get("z")):
             plugin.move_relative(data)
         else:
             plugin.move_absolute(data)
         data = {}
         data.update(plugin.pos())
-        return json.dumps({
-            'status': HTTPStatus.OK,
-            'data': plugin.pos()
-        })
+        return json.dumps({'status': HTTPStatus.OK, 'data': plugin.pos()})
     except Exception as e:
         print(e)
         return json.dumps({

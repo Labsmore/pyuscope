@@ -3,7 +3,7 @@ from uscope.scan_util import index_scan_images, bucket_group, reduce_iindex_file
 import os
 from uscope import config
 from uscope.imagep.util import TaskBarrier, EtherealImageR, EtherealImageW
-from uscope.imagep.summary import write_html_viewer, write_summary_image
+from uscope.imagep.summary import write_html_viewer, write_tile_image, write_quick_pano
 import glob
 import json
 """
@@ -278,8 +278,11 @@ class DirCSIP:
         if bc.write_html_viewer():
             write_html_viewer(working_iindex)
 
-        if bc.write_summary_image():
-            write_summary_image(working_iindex)
+        if bc.write_tile_image():
+            write_tile_image(working_iindex)
+
+        if bc.write_quick_pano():
+            write_quick_pano(working_iindex)
 
         # CloudStitch currently only supports .jpg
         if need_jpg_conversion(working_iindex["dir"]):

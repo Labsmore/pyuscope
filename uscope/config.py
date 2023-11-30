@@ -1298,10 +1298,17 @@ class BaseConfig:
         # Turn on by default
         return bool(self.j.get("ipp", {}).get("write_html_viewer", True))
 
-    def write_summary_image(self):
+    def write_tile_image(self):
         """
         Write a simple combined image file at the final image level
-        Its not so much stitched as plastered together
+        There is a gutten between snapshots
+        """
+        return bool(self.j.get("ipp", {}).get("write_tile_image", False))
+
+    def write_quick_pano(self):
+        """
+        Write a simple combined image file at the final image level
+        Its not so much stitched as plastered together based on estimated positions
         """
         # This takes up disk space => off by default
         return bool(self.j.get("ipp", {}).get("write_summary_image", False))

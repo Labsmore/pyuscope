@@ -59,6 +59,10 @@
     "030000006d04000015c2000011010000": {
         "alias": "Logitech Extreme 3D",
     },
+    //marc joystick
+    "0300eb556d04000015c2000010010000": {
+        "alias": "Logitech Extreme 3D",
+    },
 
     "CH Products IP Desktop": {
         "function_map": {

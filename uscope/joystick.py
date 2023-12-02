@@ -230,6 +230,8 @@ class Joystick:
         self._jog_queue = {}
         for fn, config in self.config._function_map.items():
             getattr(self, fn)(**config["args"])
+        # generic z control may be bound
+        self.microscope.motion.only_used_axes(self._jog_queue)
         self.jog_controller.update(self._jog_queue)
         self._jog_queue = None
 

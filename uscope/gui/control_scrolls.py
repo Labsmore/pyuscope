@@ -6,7 +6,6 @@ from uscope.imager.plugins.gst_v4l2src_yw500.widgets import V4L2YW500ControlScro
 from uscope.imager.plugins.gst_v4l2src_hy800b.widgets import V4L2HY800BControlScroll
 from uscope.imager.plugins.gst_v4l2src_yw500u3m.widgets import V4L2YW500U3MControlScroll
 
-
 from collections import OrderedDict
 
 from PyQt5.QtGui import *

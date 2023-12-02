@@ -15,8 +15,7 @@ why?
 
 groups_gst = OrderedDict([(
     "Controls",
-    [
-    ],
+    [],
 )])
 
 

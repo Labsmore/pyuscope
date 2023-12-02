@@ -273,6 +273,12 @@ class ArgusScriptingPlugin(QThread):
         # Frame sync the last image, which might be bad
         self.imager().get()
 
+    def image_save_extension(self):
+        """
+        Return currently selected filename postfix such as .jpg or .tif
+        """
+        return self._ac.microscope.image_save_extension()
+
     def message_box_yes_cancel(self, title, message):
         # quick hack: run as subprocess?
         assert 0, "FIXME: not thread safe"

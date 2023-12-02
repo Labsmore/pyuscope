@@ -959,6 +959,7 @@ class ImagingTaskWidget(AWidget):
         self.current_scan_config = None
         self.restore_properties = None
         self.log_fd_scan = None
+        self._save_extension = None
 
     def initUI(self):
         def getNameLayout():
@@ -979,6 +980,8 @@ class ImagingTaskWidget(AWidget):
 
             hl.addWidget(self.job_name_le)
             hl.addWidget(self.snapshot_suffix_cb)
+            self.snapshot_suffix_cb.currentIndexChanged.connect(
+                self.update_save_extension)
             return hl
 
         def getProgressLayout():
@@ -1303,7 +1306,11 @@ class ImagingTaskWidget(AWidget):
         self.ac.capture_sink.request_image(emitSnapshotCaptured)
 
     def save_extension(self):
-        return self.snapshot_suffix_cb_map[
+        # ex: .jpg, .tif
+        return self._save_extension
+
+    def update_save_extension(self):
+        self._save_extension = self.snapshot_suffix_cb_map[
             self.snapshot_suffix_cb.currentIndex()]
 
     def snapshot_fn(self):
@@ -1354,6 +1361,7 @@ class ImagingTaskWidget(AWidget):
         self.snapshot_pb.setEnabled(True)
 
     def post_ui_init(self):
+        self.update_save_extension()
         snapshot_dir = self.ac.usc.app("argus").snapshot_dir()
         if not os.path.isdir(snapshot_dir):
             self.ac.log('Snapshot dir %s does not exist' % snapshot_dir)

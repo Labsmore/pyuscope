@@ -92,10 +92,11 @@ class Plugin(ArgusScriptingPlugin):
                 self.move_absolute(pos)
                 if autofocus:
                     self.autofocus()
-                filename = os.path.join(output_directory,
-                                        "c%03u_r%03u.jpg" % (col, row))
+                filename = os.path.join(
+                    output_directory,
+                    "c%03u_r%03u%s" % (col, row, self.image_save_extension()))
                 image = self.image()
-                image.save(filename)
+                image.save(filename, quality=95)
                 self.log(f"Saved {filename}")
         self.log("Return to lower left")
         self.move_absolute(lower_left)

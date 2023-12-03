@@ -17,10 +17,11 @@ import sys
 import traceback
 import threading
 
-from uscope.app.argus.common import ArgusCommon, ArgusShutdown, error
+from uscope.gui.common import ArgusCommon, ArgusShutdown, error
 
-from uscope.app.argus.widgets import MainTab, ImagerTab, BatchImageTab, AdvancedTab, StitchingTab, MeasureTab
-from uscope.app.argus.scripting import ScriptingTab
+from uscope.gui.widgets import TopWidget, BatchImageTab, AdvancedTab, StitchingTab, MeasureTab
+from uscope.gui.imaging import MainTab, ImagerTab
+from uscope.gui.scripting import ScriptingTab
 
 
 class FullscreenVideo(QWidget):
@@ -276,16 +277,17 @@ class MainWindow(QMainWindow):
         def left():
             layout = QVBoxLayout()
 
+            self.top_widget = TopWidget(ac=self.ac, parent=self)
+            self.ac.top_widget = self.top_widget
+            self.top_widget.initUI()
+            layout.addWidget(self.top_widget)
+
             self.tab_widget = QTabWidget()
             for tab_name, tab in self.awidgets.items():
                 tab.initUI()
                 self.tab_widget.addTab(tab, tab_name)
             self.batchTab.add_pconfig_source(self.mainTab, "Main tab")
             layout.addWidget(self.tab_widget)
-
-            self.stop_pb = QPushButton("STOP")
-            self.stop_pb.clicked.connect(self.stop_pushed)
-            layout.addWidget(self.stop_pb)
 
             return layout
 
@@ -361,18 +363,17 @@ class MainWindow(QMainWindow):
         k = event.key()
         if k == Qt.Key_Escape:
             self.ac.motion_thread.stop()
-
-        # Ignore duplicates, want only real presses
-        if 0 and event.isAutoRepeat():
-            return
-
         # KiCAD zoom in / out => F1 / F2
-        if k == Qt.Key_F1:
+        elif k == Qt.Key_F1:
             self.ac.vidpip.zoomable_plus()
         elif k == Qt.Key_F2:
             self.ac.vidpip.zoomable_minus()
         elif k == Qt.Key_F3:
             self.ac.vidpip.zoomable_high_toggle()
+        else:
+            event.ignore()
+            return
+        event.accept()
 
     def invertKJXYTriggered(self):
         mw = self.mainTab.motion_widget
@@ -387,10 +388,6 @@ class MainWindow(QMainWindow):
     def displayAdvancedMovementTriggered(self):
         self.ac.mainTab.motion_widget.show_advanced_movement(
             bool(self.displayAdvancedMovement.isChecked()))
-
-    def stop_pushed(self):
-        self.ac.log("System stop requested")
-        self.ac.microscope.stop()
 
 
 def parse_args():

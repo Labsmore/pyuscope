@@ -1,7 +1,7 @@
 from uscope.gui.gstwidget import GstVideoPipeline
 from uscope.gui.control_scrolls import get_control_scroll
 from uscope.config import get_usj, USC, get_bc, get_data_dir
-from uscope.gui import plugin
+from uscope.gui import imager
 from uscope.gst_util import Gst, CaptureSink
 from uscope.app.argus.threads import QMotionThread, QImageProcessingThread, QJoystickThread, QTaskThread
 from uscope.joystick import JoystickNotFound
@@ -257,7 +257,7 @@ class ArgusCommon(QObject):
             self.setJogSlider.emit(val)
 
         self.setJogSlider.connect(
-            self.mainTab.motion_widget.slider.set_jog_slider)
+            self.top_widget.motion_widget.slider.set_jog_slider)
         self.microscope.set_jog_scale = set_jog_scale_emit
 
         self.vid_fd = None
@@ -330,7 +330,7 @@ class ArgusCommon(QObject):
         self.log('Loading imager %s...' % source)
         # Gst is pretty ingrained for the GUI
         #
-        self.imager = plugin.get_gui_imager(source, self)
+        self.imager = imager.get_gui_imager(source, self)
 
     def emit_log(self, s='', newline=True):
         # event must be omitted from the correct thread

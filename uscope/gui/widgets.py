@@ -1189,7 +1189,7 @@ class TopMotionWidget(AWidget):
 
         # Hmm larger GUI doesn't get these if this handler is active
         if k == Qt.Key_Escape:
-            self.motion_thread.stop()
+            self.ac.motion_thread.stop()
 
         # Ignore duplicates, want only real presses
         if event.isAutoRepeat():
@@ -1231,7 +1231,7 @@ class TopMotionWidget(AWidget):
         self.jog_controller.update(jogs)
         self.jog_last_presses = {}
 
-    def poll_misc(self):
+    def _poll_misc(self):
         self.update_jogging()
 
 
@@ -1270,7 +1270,7 @@ class TopWidget(AWidget):
     def autofocus_pushed(self):
         self.ac.image_processing_thread.auto_focus(self.ac.objective_config())
 
-    def poll_misc(self):
+    def _poll_misc(self):
         last_pos = self.ac.motion_thread.pos_cache
         if last_pos:
             self.update_pos(last_pos)

@@ -248,7 +248,7 @@ class MotionWidget(AWidget):
 
         self.difference_le.setText(get_str())
 
-    def poll_misc(self):
+    def _poll_misc(self):
         self.update_reference()
 
     def _cache_save(self, cachej):
@@ -794,7 +794,7 @@ class XYPlanner2PWidget(PlannerWidget):
         self.plan_x1_le.setText(j.get("x1", ""))
         self.plan_y1_le.setText(j.get("y1", ""))
 
-    def poll_misc(self):
+    def _poll_misc(self):
         last_pos = self.ac.motion_thread.pos_cache
         if last_pos:
             self.update_pos(last_pos)
@@ -1052,7 +1052,7 @@ class XYPlanner3PWidget(PlannerWidget):
                 le.setReadOnly(True)
                 le.setStyleSheet("background-color: rgb(240, 240, 240);")
 
-    def poll_misc(self):
+    def _poll_misc(self):
         last_pos = self.ac.motion_thread.pos_cache
         if last_pos:
             self.update_pos(last_pos)
@@ -1813,7 +1813,7 @@ class ImagerTab(ArgusTab):
 
         self.setLayout(self.layout)
 
-    def poll_misc(self):
+    def _poll_misc(self):
         auto = self.hdr_auto.isChecked()
         self.hdr_auto_stops.setReadOnly(not auto)
         self.hdr_auto_stops_per.setReadOnly(not auto)

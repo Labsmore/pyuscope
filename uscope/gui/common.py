@@ -311,19 +311,20 @@ class ArgusCommon(QObject):
     def shutdown(self):
         if self.motion_thread:
             self.motion_thread.shutdown()
-            self.motion_thread = None
+            # causes too many corner cases
+            # self.motion_thread = None
         if self.planner_thread:
             self.planner_thread.shutdown()
-            self.planner_thread = None
+            # self.planner_thread = None
         if self.image_processing_thread:
             self.image_processing_thread.shutdown()
-            self.image_processing_thread = None
+            # self.image_processing_thread = None
         if self.joystick_thread:
             self.joystick_thread.shutdown()
-            self.joystick_thread = None
+            # self.joystick_thread = None
         if self.task_thread:
             self.task_thread.shutdown()
-            self.task_thread = None
+            # self.task_thread = None
 
     def init_imager(self):
         source = self.vidpip.source_name
@@ -371,9 +372,9 @@ class ArgusCommon(QObject):
         """
         Mostly looking for crashes in other contexts to propagate up
         """
-        if self.motion_thread.motion is None:
+        if self.motion_thread and self.motion_thread.motion is None:
             raise ArgusShutdown("Motion thread crashed")
-        if not self.vidpip.ok:
+        if self.vidpip and not self.vidpip.ok:
             raise ArgusShutdown("Video pipeline crashed")
 
     def joystick_disable(self):

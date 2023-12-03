@@ -62,9 +62,10 @@ class MainWindow(AMainWindow):
         # keep it hidden until we are homed since homing is still on CLI...
         self.hide()
         self.post_ui_init()
+        self.show()
+
         # sometimes GUI maximization doesn't stick
         self.showMaximized()
-        self.show()
 
     def _cache_load(self, j):
         j = j.get("main_window", {})
@@ -319,10 +320,17 @@ class MainWindow(AMainWindow):
             self.ac.vidpip.zoomable_minus()
         elif k == Qt.Key_F3:
             self.ac.vidpip.zoomable_high_toggle()
+        elif event.key() == Qt.Key_F11:
+            if self.isMaximized():
+                self.showNormal()
+            else:
+                self.showMaximized()
+                self.showFullScreen()
         else:
             event.ignore()
             return
         event.accept()
+
 
     def invertKJXYTriggered(self):
         mw = self.mainTab.motion_widget

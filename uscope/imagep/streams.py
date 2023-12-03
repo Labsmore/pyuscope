@@ -320,6 +320,8 @@ class DirCSIP:
         elif not self.cs_info and not config.get_bc(
         ).labsmore_stitch_aws_access_key():
             self.log("CloudStitch: skip (missing credidentials)")
+        elif len(working_iindex["images"]) == 1:
+            self.log("CloudStitch: skip (only one image)")
         else:
             self.log("Ready to stitch " + working_iindex["dir"])
             cloud_stitch.upload_dir(working_iindex["dir"],

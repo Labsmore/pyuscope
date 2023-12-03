@@ -51,7 +51,6 @@ class MainWindow(AMainWindow):
         self.tabs = {}
         self.hide()
         self.verbose = verbose
-        self.polli = 0
         self.ac = ArgusCommon(microscope_name=microscope, mw=self)
         self.init_objects()
         self.ac.logs.append(self.mainTab.log)
@@ -230,14 +229,12 @@ class MainWindow(AMainWindow):
         def left():
             layout = QVBoxLayout()
 
-            self.top_widget = TopWidget(ac=self.ac, parent=self)
+            self.top_widget = TopWidget(ac=self.ac, aname="top", parent=self)
             self.ac.top_widget = self.top_widget
-            self.top_widget.initUI()
             layout.addWidget(self.top_widget)
 
             self.tab_widget = QTabWidget()
             for tab_name, tab in self.tabs.items():
-                # tab.initUI()
                 self.tab_widget.addTab(tab, tab_name)
             self.batchTab.add_pconfig_source(self.mainTab, "Main tab")
             layout.addWidget(self.tab_widget)
@@ -253,35 +250,8 @@ class MainWindow(AMainWindow):
         self.createMenuBar()
         self.showMaximized()
 
-    def poll_misc(self):
-        self.polli += 1
-        ac = self.ac
-
-        motion_thread = ac.motion_thread
-        # deleted during shutdown => can lead to crash during shutdown
-        if motion_thread:
-            motion_thread.update_pos_cache()
-
-        # FIXME: maybe better to do this with events
-        # Loose the log window on shutdown...should log to file?
-        try:
-            ac.poll_misc()
-        except ArgusShutdown:
-            print(traceback.format_exc())
-            ac.shutdown()
-            QCoreApplication.exit(1)
-            return
-
-        # FIXME: convert to plugin iteration
-        self.mainTab.planner_widget_xy2p.poll_misc()
-        self.mainTab.planner_widget_xy3p.poll_misc()
-        self.mainTab.motion_widget.poll_misc()
-        self.imagerTab.poll_misc()
-        self.scriptingTab.poll_misc()
-
-        # Save ocassionally / once 3 seconds
-        if self.polli % 15 == 0:
-            self.cache_save()
+    def _poll_misc(self):
+        pass
 
     def post_ui_init(self):
         self.ac.log("pyuscope starting")
@@ -309,7 +279,6 @@ class MainWindow(AMainWindow):
         #    self.addTab(JoystickTab(ac=self.ac, parent=self))
 
     def keyPressEvent(self, event):
-
         k = event.key()
         if k == Qt.Key_Escape:
             self.ac.motion_thread.stop()
@@ -330,7 +299,6 @@ class MainWindow(AMainWindow):
             event.ignore()
             return
         event.accept()
-
 
     def invertKJXYTriggered(self):
         mw = self.mainTab.motion_widget

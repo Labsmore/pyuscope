@@ -1171,12 +1171,58 @@ Set output job name
 
 
 class ImagingOptionsWindow(QWidget):
-    def __init__(self, parent):
+    def __init__(self, itw, parent=None):
         super().__init__(parent=parent)
-        self.itw = parent
+        self.itw = itw
+        self.ac = self.itw.ac
+        self.initUI()
+
+    def initUI(self):
         layout = QVBoxLayout()
-        self.label = QLabel("Another Window")
-        layout.addWidget(self.label)
+
+        def image_gb():
+            layout = QGridLayout()
+            row = 0
+
+            self.add_scalebar_checkbox = QCheckBox()
+            self.add_scalebar_checkbox.stateChanged.connect(
+                self.itw.update_imagine_config)
+            layout.addWidget(QLabel("Add scalebar"), row, 0)
+            layout.addWidget(self.add_scalebar_checkbox, row, 1)
+            row += 1
+
+            gb = QGroupBox("Imaging")
+            gb.setLayout(layout)
+
+            return gb
+
+        def pano_gb():
+            layout = QGridLayout()
+            row = 0
+
+            # Used as generic "should stitch", although is labeled CloudStitch
+            layout.addWidget(QLabel("Process / CloudStitch?"), row, 0)
+            self.stitch_cb = QCheckBox()
+            self.stitch_cb.setChecked(False)
+            self.stitch_cb.stateChanged.connect(self.itw.update_imagine_config)
+            layout.addWidget(self.stitch_cb, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Autofocus?"), row, 0)
+            self.autofocus_cb = QCheckBox()
+            self.autofocus_cb.setChecked(self.ac.microscope.has_z())
+            self.autofocus_cb.stateChanged.connect(
+                self.itw.update_imagine_config)
+            layout.addWidget(self.autofocus_cb, row, 1)
+            row += 1
+
+            gb = QGroupBox("Panorama")
+            gb.setLayout(layout)
+
+            return gb
+
+        layout.addWidget(image_gb())
+        layout.addWidget(pano_gb())
         self.setLayout(layout)
 
 
@@ -1252,6 +1298,10 @@ class ImagingTaskWidget(AWidget):
         layoutW.addWidget(gb)
         self.setLayout(layoutW)
 
+        # Hidden by default
+        # Closing window is equivalent to hide
+        self.iow = ImagingOptionsWindow(self)
+
     def getNameJ(self):
         # return scan_dir_fn(user=str(self.le.text()), parent=parent)
         return {
@@ -1260,7 +1310,7 @@ class ImagingTaskWidget(AWidget):
         }
 
     def show_options(self):
-        self.options_window = ImagingOptionsWindow(self)
+        self.iow.show()
 
     def dry(self):
         return False
@@ -1476,7 +1526,7 @@ class ImagingTaskWidget(AWidget):
                 self.ac.planner_thread.pause()
         # Go go go!
         else:
-            autofocus = self.autofocus_cb.isChecked()
+            autofocus = self.iow.autofocus_cb.isChecked()
             auto_exposure = self.ac.auto_exposure_enabled()
             auto_color = self.ac.auto_color_enabled()
             auto_color = False
@@ -1594,30 +1644,25 @@ class ImagingTaskWidget(AWidget):
         cachej["imaging"] = {
             "file_name": str(self.job_name_le.text()),
             "extension": self.snapshot_suffix_cb.currentIndex(),
-            # "stitch_cb": self.stitch_cb.isChecked(),
-            "stitch_cb": False,
-            # "autofocus_cb": self.autofocus_cb.isChecked(),
-            "autofocus_cb": False,
-            #"add_scalebar": self.add_scalebar_checkbox.isChecked(),
+            "stitch_cb": self.iow.stitch_cb.isChecked(),
+            "autofocus_cb": self.iow.autofocus_cb.isChecked(),
+            "add_scalebar": self.iow.add_scalebar_checkbox.isChecked(),
         }
 
     def _cache_load(self, cachej):
         j = cachej.get("imaging", {})
         self.job_name_le.setText(j.get("file_name", "unknown"))
         self.snapshot_suffix_cb.setCurrentIndex(j.get("extension", 0))
-        # self.stitch_cb.setChecked(j.get("stitch_cb", False))
-        # self.autofocus_cb.setChecked(
-        #    j.get("autofocus_cb", self.ac.microscope.has_z()))
-        #self.add_scalebar_checkbox.setChecked(j.get("add_scalebar", False))
+        self.iow.stitch_cb.setChecked(j.get("stitch_cb", True))
+        self.iow.autofocus_cb.setChecked(
+            j.get("autofocus_cb", self.ac.microscope.has_z()))
+        self.iow.add_scalebar_checkbox.setChecked(j.get("add_scalebar", False))
 
     def update_imagine_config(self):
         self.imaging_config = {
-            # "stitch": self.stitch_cb.isChecked(),
-            "stitch": False,
-            # "add_scalebar": self.add_scalebar_checkbox.isChecked(),
-            "add_scalebar": False,
-            # "autofocus": self.autofocus_cb.isChecked(),
-            "autofocus": False,
+            "stitch": self.iow.stitch_cb.isChecked(),
+            "add_scalebar": self.iow.add_scalebar_checkbox.isChecked(),
+            "autofocus": self.iow.autofocus_cb.isChecked(),
         }
 
 

@@ -9,6 +9,7 @@ from collections import OrderedDict
 from uscope.cloud_stitch import CSInfo
 from uscope.imager.autofocus import AutoStacker
 import traceback
+from uscope.gui.common import ArgusShutdown
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -18,7 +19,6 @@ from PyQt5.QtWidgets import *
 import time
 import datetime
 import os.path
-from PIL import Image
 import math
 from enum import Enum
 """
@@ -30,6 +30,7 @@ class AMainWindow(QMainWindow):
     def __init__(self):
         QMainWindow.__init__(self)
         self.awidgets = OrderedDict()
+        self.polli = 0
         self.ac = None
         self.shutting_down = False
         self.cachej = None
@@ -134,9 +135,30 @@ class AMainWindow(QMainWindow):
         pass
 
     def poll_misc(self):
+        self.polli += 1
+
+        motion_thread = self.ac.motion_thread
+        # deleted during shutdown => can lead to crash during shutdown
+        if motion_thread:
+            motion_thread.update_pos_cache()
+
+        # FIXME: maybe better to do this with events
+        # Loose the log window on shutdown...should log to file?
+        try:
+            self.ac.poll_misc()
+        except ArgusShutdown:
+            print(traceback.format_exc())
+            self.ac.shutdown()
+            QCoreApplication.exit(1)
+            return
+
         self._poll_misc()
         for awidget in self.awidgets.values():
             awidget.poll_misc()
+
+        # Save ocassionally / once 3 seconds
+        if self.polli % 15 == 0:
+            self.cache_save()
 
 
 # TODO: register events in lieu of callbacks
@@ -837,7 +859,7 @@ class StitchingTab(ArgusTab):
         if scan_config["dry"]:
             return
 
-        if self.ac.mainTab.imaging_widget.stitch_cb.isChecked():
+        if self.ac.mainTab.imaging_widget.iow.stitch_cb.isChecked():
             # CLI box is special => take priority
             # CLI may launch CloudStitch under the hood
             self.stitch_add(scan_config["out_dir"])
@@ -1059,8 +1081,8 @@ class JogSlider(QWidget):
 
 
 class TopMotionWidget(AWidget):
-    def __init__(self, ac, parent=None):
-        super().__init__(ac, parent=parent)
+    def __init__(self, ac, aname=None, parent=None):
+        super().__init__(ac, aname=aname, parent=parent)
 
         self.fine_move = False
         # Used to switch back and forth + save
@@ -1114,7 +1136,7 @@ class TopMotionWidget(AWidget):
 
     def _post_ui_init(self):
         # self.max_velocities = self.ac.motion_thread.motion.get_max_velocities()
-        self.jog_controller = self.motion_thread.get_jog_controller(0.2)
+        self.jog_controller = self.ac.motion_thread.get_jog_controller(0.2)
 
     def update_slider_cache(self):
         if self.fine_move:
@@ -1243,14 +1265,15 @@ class TopWidget(AWidget):
         self.stop_pb.clicked.connect(self.stop_pushed)
         layout.addWidget(self.stop_pb)
 
-        self.motion_widget = TopMotionWidget(ac=self.ac, parent=self)
-        self.motion_widget.initUI()
+        self.motion_widget = TopMotionWidget(ac=self.ac,
+                                             aname="motion",
+                                             parent=self)
         layout.addWidget(self.motion_widget)
 
         def right_layout():
             layout = QVBoxLayout()
 
-            self.pos_label = QLabel("X1.234 Y4.2032 Z1.000")
+            self.pos_label = QLabel("")
             layout.addWidget(self.pos_label)
 
             self.autofocus_pb = QPushButton("Autofocus")
@@ -1272,11 +1295,12 @@ class TopWidget(AWidget):
 
     def _poll_misc(self):
         last_pos = self.ac.motion_thread.pos_cache
-        if last_pos:
+        if last_pos is not None:
             self.update_pos(last_pos)
 
     def update_pos(self, pos):
-        self.pos_label.setText(self.ac.usc.motion.format_positions(pos))
+        got = self.ac.usc.motion.format_positions(pos)
+        self.pos_label.setText(got)
 
     '''
     def _cache_save(self, cachej):

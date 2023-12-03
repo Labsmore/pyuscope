@@ -388,8 +388,8 @@ class ArgusScriptingPlugin(QThread):
 
 
 class ScriptingTab(ArgusTab):
-    def __init__(self, ac, parent=None):
-        super().__init__(ac=ac, parent=parent)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.stitcher_thread = None
         self.last_cs_upload = None
         self.filename = None

@@ -26,18 +26,21 @@ Argus Widget
 """
 
 
-# TODO: register events in lieu of callbacks
-class AWidget(QWidget):
-    def __init__(self, ac, parent=None):
-        """
-        Low level objects should be instantiated here
-        """
-        super().__init__(parent=parent)
-        self.ac = ac
+class AMainWindow(QMainWindow):
+    def __init__(self):
+        QMainWindow.__init__(self)
         self.awidgets = OrderedDict()
+        self.ac = None
+        self.shutting_down = False
+        self.cachej = None
+
+    def __del__(self):
+        self.shutdown()
 
     def add_awidget(self, name, awidget):
         assert name not in self.awidgets, name
+        assert name
+        assert awidget
         self.awidgets[name] = awidget
 
     def _initUI(self):
@@ -47,6 +50,121 @@ class AWidget(QWidget):
         """
         Called to initialize GUI elements
         """
+        self._initUI()
+        for awidget in self.awidgets.values():
+            awidget.initUI()
+
+    def _post_ui_init(self):
+        pass
+
+    def post_ui_init(self):
+        """
+        Called after all GUI elements are instantiated
+        """
+        self._post_ui_init()
+        for awidget in self.awidgets.values():
+            awidget.post_ui_init()
+
+    def _shutdown(self):
+        pass
+
+    def shutdown(self):
+        # Concern multiple closing events may fight
+        if self.shutting_down:
+            return
+        self.shutting_down = True
+
+        # FIXME: make this an AWidget
+        if self.fullscreen_widget:
+            self.fullscreen_widget.close()
+
+        self.cache_save()
+        self._shutdown()
+        for awidget in self.awidgets.values():
+            awidget.shutdown()
+        try:
+            if self.ac:
+                self.ac.shutdown()
+        except AttributeError:
+            pass
+
+    def closeEvent(self, event):
+        self.shutdown()
+
+    def _cache_save(self, cachej):
+        pass
+
+    def cache_save(self):
+        """
+        Called when saving GUI state to file
+        Add your state to JSON object j
+        """
+        if not self.ac:
+            return
+        cachej = {}
+        self._cache_save(cachej)
+        for awidget in self.awidgets.values():
+            awidget.cache_save(cachej)
+        fn = self.ac.aconfig.cache_fn()
+        with open(fn, "w") as f:
+            json.dump(cachej,
+                      f,
+                      sort_keys=True,
+                      indent=4,
+                      separators=(",", ": "))
+
+    def _cache_load(self, cachej):
+        pass
+
+    def cache_load(self):
+        """
+        Called when loading GUI state from file
+        Read your state from JSON object j
+        """
+        fn = self.ac.aconfig.cache_fn()
+        cachej = {}
+        if os.path.exists(fn):
+            with open(fn, "r") as f:
+                cachej = json5.load(f)
+        self._cache_load(cachej)
+        for awidget in self.awidgets.values():
+            awidget.cache_load(cachej)
+
+    def _poll_misc(self):
+        pass
+
+    def poll_misc(self):
+        self._poll_misc()
+        for awidget in self.awidgets.values():
+            awidget.poll_misc()
+
+
+# TODO: register events in lieu of callbacks
+class AWidget(QWidget):
+    def __init__(self, ac, aname=None, parent=None):
+        """
+        Low level objects should be instantiated here
+        """
+        super().__init__(parent=parent)
+        self.ac = ac
+        self.awidgets = OrderedDict()
+        if aname is not None:
+            parent.add_awidget(aname, self)
+
+    def add_awidget(self, name, awidget):
+        assert name not in self.awidgets, name
+        assert name
+        assert awidget
+        self.awidgets[name] = awidget
+
+    def _initUI(self):
+        pass
+
+    def initUI(self):
+        """
+        Called to initialize GUI elements
+        """
+        self.ac.initUI()
         self._initUI()
         for awidget in self.awidgets.values():
             awidget.initUI()
@@ -193,8 +311,9 @@ Select objective and show FoV
 
 
 class BatchImageTab(ArgusTab):
-    def __init__(self, ac, parent=None):
-        super().__init__(ac=ac, parent=parent)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pconfig_sources = []
 
     def _initUI(self):
         self.layout = QVBoxLayout()
@@ -233,13 +352,12 @@ class BatchImageTab(ArgusTab):
 
         # Which tab to get config from
         # In advanced setups multiple algorithms are possible
-        label = QLabel("Planner config source")
-        self.layout.addWidget(label)
-        self.pconfig_sources = []
-        self.pconfig_source_cb = QComboBox()
-        self.layout.addWidget(self.pconfig_source_cb)
-        label.setVisible(False)
-        self.pconfig_source_cb.setVisible(False)
+        #label = QLabel("Planner config source")
+        #self.layout.addWidget(label)
+        #self.pconfig_source_cb = QComboBox()
+        #self.layout.addWidget(self.pconfig_source_cb)
+        #label.setVisible(False)
+        #self.pconfig_source_cb.setVisible(False)
 
         def load_save_layout():
             layout = QHBoxLayout()
@@ -277,7 +395,7 @@ class BatchImageTab(ArgusTab):
 
     def add_pconfig_source(self, widget, name):
         self.pconfig_sources.append(widget)
-        self.pconfig_source_cb.addItem(name)
+        #self.pconfig_source_cb.addItem(name)
 
     def update_state(self):
         if not len(self.scan_configs):
@@ -293,7 +411,9 @@ class BatchImageTab(ArgusTab):
         self.batch_cache_save()
 
     def get_scan_config(self):
-        mainTab = self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
+        #mainTab = self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
+        assert len(self.pconfig_sources) == 1
+        mainTab = self.pconfig_sources[0]
         return mainTab.active_planner_widget().get_current_scan_config()
 
     def add_cb(self, scan_config):
@@ -404,8 +524,8 @@ class BatchImageTab(ArgusTab):
 
 
 class AdvancedTab(ArgusTab):
-    def __init__(self, ac, parent=None):
-        super().__init__(ac=ac, parent=parent)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         layout = QGridLayout()
         row = 0
@@ -623,8 +743,8 @@ class AdvancedTab(ArgusTab):
 
 
 class StitchingTab(ArgusTab):
-    def __init__(self, ac, parent=None):
-        super().__init__(ac=ac, parent=parent)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.stitcher_thread = None
         self.last_cs_upload = None
 
@@ -1333,8 +1453,8 @@ class AnnotateImage(QLabel):
 
 
 class MeasureTab(ArgusTab):
-    def __init__(self, ac, parent=None):
-        super().__init__(ac=ac, parent=parent)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         layout = QGridLayout()
         row = 0

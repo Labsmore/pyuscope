@@ -88,8 +88,8 @@ def out_dir_config_to_dir(j, parent):
 
 # Not to be confused with the smaller TopMotionWidget
 class MotionWidget(AWidget):
-    def __init__(self, ac, log, parent=None):
-        super().__init__(ac=ac, parent=parent)
+    def __init__(self, ac, log, aname=None, parent=None):
+        super().__init__(ac=ac, aname=aname, parent=parent)
 
         self.usc = self.ac.usc
         self.log = log
@@ -323,8 +323,8 @@ class SiPr0nScanNameWidget(AWidget):
 
 """
 class JoystickTab(ArgusTab):
-    def __init__(self, ac, parent=None):
-        super().__init__(ac=ac, parent=parent)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         layout = QGridLayout()
         row = 0
@@ -393,8 +393,8 @@ class ObjectiveWidget(AWidget):
 
     setObjective = pyqtSignal(str)
 
-    def __init__(self, ac, parent=None):
-        super().__init__(ac=ac, parent=parent)
+    def __init__(self, ac, aname=None, parent=None):
+        super().__init__(ac=ac, aname=aname, parent=parent)
         self.objective_name_le = None
         # MicroscopeObjectives class
         self.objectives = None
@@ -540,8 +540,13 @@ class PlannerWidget(AWidget):
     click_corner = pyqtSignal(tuple)
     go_corner = pyqtSignal(tuple)
 
-    def __init__(self, ac, scan_widget, objective_widget, parent=None):
-        super().__init__(ac=ac, parent=parent)
+    def __init__(self,
+                 ac,
+                 scan_widget,
+                 objective_widget,
+                 aname=None,
+                 parent=None):
+        super().__init__(ac=ac, aname=aname, parent=parent)
         self.imaging_widget = scan_widget
         self.objective_widget = objective_widget
         self.click_corner.connect(self.click_corner_slot)
@@ -697,10 +702,16 @@ Integrates both 2D planner controls and current display
 
 
 class XYPlanner2PWidget(PlannerWidget):
-    def __init__(self, ac, scan_widget, objective_widget, parent=None):
+    def __init__(self,
+                 ac,
+                 scan_widget,
+                 objective_widget,
+                 aname=None,
+                 parent=None):
         super().__init__(ac=ac,
                          scan_widget=scan_widget,
                          objective_widget=objective_widget,
+                         aname=aname,
                          parent=parent)
 
     def _initUI(self):
@@ -925,10 +936,16 @@ class XYPlanner2PWidget(PlannerWidget):
 
 
 class XYPlanner3PWidget(PlannerWidget):
-    def __init__(self, ac, scan_widget, objective_widget, parent=None):
+    def __init__(self,
+                 ac,
+                 scan_widget,
+                 objective_widget,
+                 aname=None,
+                 parent=None):
         super().__init__(ac=ac,
                          scan_widget=scan_widget,
                          objective_widget=objective_widget,
+                         aname=aname,
                          parent=parent)
 
     def _initUI(self):
@@ -1171,8 +1188,9 @@ class ImagingTaskWidget(AWidget):
                  ac,
                  go_current_pconfig,
                  setControlsEnabled,
+                 aname=None,
                  parent=None):
-        super().__init__(ac=ac, parent=parent)
+        super().__init__(ac=ac, aname=aname, parent=parent)
         # self.pos.connect(self.update_pos)
         self.imaging_config = None
         self.snapshotCaptured.connect(self.captureSnapshot)
@@ -1606,8 +1624,8 @@ class ImagingTaskWidget(AWidget):
 class MainTab(ArgusTab):
     go_current_pconfig_signal = pyqtSignal(tuple)
 
-    def __init__(self, ac, parent=None):
-        super().__init__(ac=ac, parent=parent)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.log_fd = None
 
@@ -1626,28 +1644,34 @@ class MainTab(ArgusTab):
         # Special case for logging that might occur out of thread
         self.ac.log_msg.connect(self.log)
 
-        self.objective_widget = ObjectiveWidget(ac=ac)
-        self.add_awidget("objective", self.objective_widget)
+        self.objective_widget = ObjectiveWidget(ac=self.ac,
+                                                aname="objective",
+                                                parent=self)
         self.imaging_widget = ImagingTaskWidget(
-            ac=ac,
+            ac=self.ac,
             go_current_pconfig=self.go_current_pconfig,
-            setControlsEnabled=self.setControlsEnabled)
-        self.add_awidget("imaging", self.imaging_widget)
+            setControlsEnabled=self.setControlsEnabled,
+            aname="imaging",
+            parent=self)
 
         self.planner_widget_tabs = QTabWidget()
         self.planner_widget_xy2p = XYPlanner2PWidget(
-            ac=ac,
+            ac=self.ac,
             scan_widget=self.imaging_widget,
-            objective_widget=self.objective_widget)
-        self.add_awidget("XY2P", self.planner_widget_xy2p)
+            objective_widget=self.objective_widget,
+            aname="XY2P",
+            parent=self)
         self.planner_widget_xy3p = XYPlanner3PWidget(
-            ac=ac,
+            ac=self.ac,
             scan_widget=self.imaging_widget,
-            objective_widget=self.objective_widget)
-        self.add_awidget("XY3P", self.planner_widget_xy3p)
+            objective_widget=self.objective_widget,
+            aname="XY3P",
+            parent=self)
 
-        self.motion_widget = MotionWidget(ac=self.ac, log=self.ac.log)
-        self.add_awidget("motion", self.motion_widget)
+        self.motion_widget = MotionWidget(ac=self.ac,
+                                          log=self.ac.log,
+                                          aname="motion",
+                                          parent=self)
 
         self.go_current_pconfig_signal.connect(self.go_current_pconfig_slot)
 
@@ -1748,8 +1772,8 @@ class MainTab(ArgusTab):
 
 
 class ImagerTab(ArgusTab):
-    def __init__(self, ac, parent=None):
-        super().__init__(ac=ac, parent=parent)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def _initUI(self):
         # Most of the layout is filled in from the ControlScroll

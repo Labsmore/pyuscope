@@ -1,7 +1,7 @@
 from uscope.gui.gstwidget import GstVideoPipeline
 from uscope.gui.control_scrolls import get_control_scroll
 from uscope.config import get_usj, USC, get_bc, get_data_dir
-from uscope.gui import plugin
+from uscope.gui import imager
 from uscope.gst_util import Gst, CaptureSink
 from uscope.app.argus.threads import QMotionThread, QImageProcessingThread, QJoystickThread, QTaskThread
 from uscope.joystick import JoystickNotFound
@@ -257,7 +257,7 @@ class ArgusCommon(QObject):
             self.setJogSlider.emit(val)
 
         self.setJogSlider.connect(
-            self.mainTab.motion_widget.slider.set_jog_slider)
+            self.top_widget.motion_widget.slider.set_jog_slider)
         self.microscope.set_jog_scale = set_jog_scale_emit
 
         self.vid_fd = None
@@ -311,26 +311,27 @@ class ArgusCommon(QObject):
     def shutdown(self):
         if self.motion_thread:
             self.motion_thread.shutdown()
-            self.motion_thread = None
+            # causes too many corner cases
+            # self.motion_thread = None
         if self.planner_thread:
             self.planner_thread.shutdown()
-            self.planner_thread = None
+            # self.planner_thread = None
         if self.image_processing_thread:
             self.image_processing_thread.shutdown()
-            self.image_processing_thread = None
+            # self.image_processing_thread = None
         if self.joystick_thread:
             self.joystick_thread.shutdown()
-            self.joystick_thread = None
+            # self.joystick_thread = None
         if self.task_thread:
             self.task_thread.shutdown()
-            self.task_thread = None
+            # self.task_thread = None
 
     def init_imager(self):
         source = self.vidpip.source_name
         self.log('Loading imager %s...' % source)
         # Gst is pretty ingrained for the GUI
         #
-        self.imager = plugin.get_gui_imager(source, self)
+        self.imager = imager.get_gui_imager(source, self)
 
     def emit_log(self, s='', newline=True):
         # event must be omitted from the correct thread
@@ -371,9 +372,9 @@ class ArgusCommon(QObject):
         """
         Mostly looking for crashes in other contexts to propagate up
         """
-        if self.motion_thread.motion is None:
+        if self.motion_thread and self.motion_thread.motion is None:
             raise ArgusShutdown("Motion thread crashed")
-        if not self.vidpip.ok:
+        if self.vidpip and not self.vidpip.ok:
             raise ArgusShutdown("Video pipeline crashed")
 
     def joystick_disable(self):

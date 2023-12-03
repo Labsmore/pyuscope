@@ -1,5 +1,5 @@
-from uscope.app.argus.widgets import ArgusTab
-from uscope.app.argus.input_widget import InputWidget
+from uscope.gui.widgets import ArgusTab
+from uscope.gui.input_widget import InputWidget
 from uscope.config import get_data_dir, get_bc
 from uscope.motion import motion_util
 from uscope.microscope import StopEvent, MicroscopeStop
@@ -11,7 +11,6 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 import importlib.util
 import sys
-import imp
 import os
 import ctypes
 import threading
@@ -166,7 +165,7 @@ class ArgusScriptingPlugin(QThread):
             self.log(msg)
             try:
                 self.cleanup()
-            except Exception as e:
+            except Exception as _e:
                 self.log("Script generated unhandled exception in cleanup")
                 print("Script generated unhandled exception in cleanup")
                 traceback.print_exc()
@@ -389,8 +388,8 @@ class ArgusScriptingPlugin(QThread):
 
 
 class ScriptingTab(ArgusTab):
-    def __init__(self, ac, parent=None):
-        super().__init__(ac=ac, parent=parent)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.stitcher_thread = None
         self.last_cs_upload = None
         self.filename = None
@@ -407,7 +406,7 @@ class ScriptingTab(ArgusTab):
         self.active_objective = None
         self.ac.objectiveChanged.connect(self.active_objective_updated)
 
-    def initUI(self):
+    def _initUI(self):
         layout = QGridLayout()
         row = 0
 
@@ -698,10 +697,10 @@ class ScriptingTab(ArgusTab):
             pb.setEnabled(True)
         self.running = False
 
-    def post_ui_init(self):
+    def _post_ui_init(self):
         pass
 
-    def shutdown(self):
+    def _shutdown(self):
         if self.plugin:
             self.plugin.shutdown()
             self.plugin = None

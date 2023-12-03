@@ -423,8 +423,7 @@ class ObjectiveWidget(AWidget):
 
         self.obj_cb = QComboBox()
         layout.addWidget(self.obj_cb, row, 1)
-        self.obj_view = QLabel("")
-        self.obj_view.setVisible(self.ac.bc.dev_mode())
+        self.obj_view = advanced_widget(QLabel(""))
         layout.addWidget(self.obj_view, row, 2)
 
         row += 1
@@ -435,14 +434,14 @@ class ObjectiveWidget(AWidget):
         layout.addWidget(self.global_scalar_le)
         self.global_scalar_le.returnPressed.connect(
             self.global_scalar_le_return)
-
+        """
         self.modify_objectives_pb = advanced_widget(
             QPushButton("Modify objectives"))
         self.modify_objectives_pb.clicked.connect(
             self.modify_objectives_clicked)
         layout.addWidget(self.modify_objectives_pb)
-
         row += 1
+        """
 
         self.setLayout(layout)
 

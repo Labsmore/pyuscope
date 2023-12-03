@@ -236,7 +236,6 @@ class MainWindow(AMainWindow):
             self.tab_widget = QTabWidget()
             for tab_name, tab in self.tabs.items():
                 self.tab_widget.addTab(tab, tab_name)
-            self.batchTab.add_pconfig_source(self.mainTab, "Main tab")
             layout.addWidget(self.tab_widget)
 
             return layout
@@ -259,9 +258,6 @@ class MainWindow(AMainWindow):
         self.ac.log("For enquiries contact support@labsmore.com")
         self.ac.log("")
 
-        self.ac.update_pconfigs.append(self.mainTab.update_pconfig)
-        self.ac.update_pconfigs.append(self.advancedTab.update_pconfig)
-        self.ac.update_pconfigs.append(self.imagerTab.update_pconfig)
         # Start services
         # This will microscope.configure() which is needed by later tabs
         self.ac.post_ui_init()

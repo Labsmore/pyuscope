@@ -14,6 +14,7 @@ import time
 import subprocess
 import psutil
 import sys
+import json
 
 
 def dbg(*args):
@@ -90,11 +91,13 @@ class StitcherThread(CommandThreadBase, QThread):
         self,
         directory,
         cs_info,
+        ipp={},
     ):
         j = {
             #"type": "imagep",
             "directory": directory,
             "cs_info": cs_info,
+            "ipp": ipp,
         }
         self.command("imagep", j)
 
@@ -118,6 +121,11 @@ class StitcherThread(CommandThreadBase, QThread):
             cs_info.id_key(), "--notification-email",
             cs_info.notification_email(), j["directory"]
         ]
+        ipp = j["ipp"]
+        args.append("--json")
+        args.append(json.dumps(ipp))
+
+        print("Running:", " ".join(args))
         # subprocess.check_call(args)
         popen = subprocess.Popen(args,
                                  stdout=subprocess.PIPE,

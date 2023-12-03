@@ -96,7 +96,7 @@ def write_html_viewer(iindex, output_filename=None):
         f.write(out)
 
 
-def write_tile_image(iindex, output_filename=None):
+def write_snapshot_grid(iindex, output_filename=None):
     if output_filename is None:
         d = os.path.join(iindex["dir"], "summary")
         if not os.path.exists(d):
@@ -295,7 +295,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Test")
     add_bool_arg(parser, "--html", default=True)
-    add_bool_arg(parser, "--tile-image", default=True)
+    add_bool_arg(parser, "--snapshot-grid", default=True)
     add_bool_arg(parser, "--quick-pano", default=True)
     parser.add_argument("dir_in")
     args = parser.parse_args()
@@ -305,8 +305,8 @@ def main():
     if args.html:
         write_html_viewer(iindex)
 
-    if args.tile_image:
-        write_tile_image(iindex)
+    if args.snapshot_grid:
+        write_snapshot_grid(iindex)
 
     if args.tile_image:
         write_quick_pano(iindex)

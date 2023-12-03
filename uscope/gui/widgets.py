@@ -160,6 +160,14 @@ class AMainWindow(QMainWindow):
         if self.polli % 15 == 0:
             self.cache_save()
 
+    def _update_pconfig(self, pconfig):
+        pass
+
+    def update_pconfig(self, pconfig):
+        self._update_pconfig(pconfig)
+        for awidget in self.awidgets.values():
+            awidget.update_pconfig(pconfig)
+
 
 # TODO: register events in lieu of callbacks
 class AWidget(QWidget):
@@ -244,6 +252,14 @@ class AWidget(QWidget):
         self._poll_misc()
         for awidget in self.awidgets.values():
             awidget.poll_misc()
+
+    def _update_pconfig(self, pconfig):
+        pass
+
+    def update_pconfig(self, pconfig):
+        self._update_pconfig(pconfig)
+        for awidget in self.awidgets.values():
+            awidget.update_pconfig(pconfig)
 
 
 class ArgusTab(AWidget):
@@ -674,7 +690,7 @@ class AdvancedTab(ArgusTab):
         return self.image_stabilization_cb_map[
             self.image_stabilization_cb.currentIndex()]
 
-    def update_pconfig(self, pconfig):
+    def _update_pconfig(self, pconfig):
         image_stabilization = self.get_image_stablization()
         if image_stabilization > 1:
             pconfig["image-stabilization"] = {
@@ -862,18 +878,22 @@ class StitchingTab(ArgusTab):
         if self.ac.mainTab.imaging_widget.iow.stitch_cb.isChecked():
             # CLI box is special => take priority
             # CLI may launch CloudStitch under the hood
-            self.stitch_add(scan_config["out_dir"])
+            self.stitch_add(scan_config["out_dir"], scan_config=scan_config)
 
-    def stitch_add(self, directory):
+    def stitch_add(self, directory, scan_config=None):
         self.ac.log(f"CloudStitch: requested {directory}")
         if not os.path.exists(directory):
             self.ac.log(
                 f"Aborting stitch: directory does not exist: {directory}")
             return
+        ipp = {}
+        if scan_config is not None:
+            ipp = scan_config["pconfig"].get("ipp", {})
         # Offload uploads etc to thread since they might take a while
         self.stitcher_thread.imagep_add(
             directory=directory,
             cs_info=self.get_cs_info(),
+            ipp=ipp,
         )
 
     def get_cs_info(self):

@@ -1289,30 +1289,6 @@ class BaseConfig:
                 return system
         return None
 
-    def write_html_viewer(self):
-        """
-        Write a simple .html file at the final image level
-        Its not so much stitched as plastered together
-        """
-        # Very little disk space, easy to distinguish from other image files
-        # Turn on by default
-        return bool(self.j.get("ipp", {}).get("write_html_viewer", True))
-
-    def write_tile_image(self):
-        """
-        Write a simple combined image file at the final image level
-        There is a gutten between snapshots
-        """
-        return bool(self.j.get("ipp", {}).get("write_tile_image", False))
-
-    def write_quick_pano(self):
-        """
-        Write a simple combined image file at the final image level
-        Its not so much stitched as plastered together based on estimated positions
-        """
-        # This takes up disk space => off by default
-        return bool(self.j.get("ipp", {}).get("write_summary_image", False))
-
     def check_panotools(self):
         """
         Check / configure all panotools paths

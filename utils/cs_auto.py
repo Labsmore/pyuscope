@@ -14,6 +14,7 @@ from uscope import config
 from uscope import cloud_stitch
 import os
 import time
+import json
 
 
 def run(directories, batch_sleep=2400, microscope_name=None, *args, **kwargs):
@@ -84,6 +85,7 @@ def main():
                         help="Hack for not overloading stitch service")
     parser.add_argument("--ewf")
     parser.add_argument("--microscope")
+    parser.add_argument("--json")
     parser.add_argument("dirs_in", nargs="*")
     args = parser.parse_args()
 
@@ -91,6 +93,10 @@ def main():
                      secret_key=args.secret_key,
                      id_key=args.id_key,
                      notification_email=args.notification_email)
+
+    j = {}
+    if args.json:
+        j = json.loads(args.json)
 
     run(args.dirs_in,
         cs_info=cs_info,
@@ -102,6 +108,7 @@ def main():
         batch_sleep=args.batch_sleep,
         nthreads=args.threads,
         microscope_name=args.microscope,
+        configj=j,
         verbose=args.verbose)
 
 

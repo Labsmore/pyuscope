@@ -830,7 +830,7 @@ class XYPlanner2PWidget(PlannerWidget):
                                                contour=contour_json)
 
         try:
-            self.ac.update_pconfig(pconfig)
+            self.ac.mw.update_pconfig(pconfig)
         # especially ValueError from bad GUI items
         except Exception as e:
             self.log(f"Scan config aborted: {e}")
@@ -1084,7 +1084,7 @@ class XYPlanner3PWidget(PlannerWidget):
                                                objective=objective,
                                                corners=corner_json)
 
-        self.ac.update_pconfig(pconfig)
+        self.ac.mw.update_pconfig(pconfig)
 
         # Ignored app specific metadata
         pconfig["app"] = {
@@ -1190,7 +1190,7 @@ class ImagingOptionsWindow(QWidget):
             layout.addWidget(self.add_scalebar_checkbox, row, 1)
             row += 1
 
-            gb = QGroupBox("Imaging")
+            gb = QGroupBox("Snapshot")
             gb.setLayout(layout)
 
             return gb
@@ -1202,9 +1202,18 @@ class ImagingOptionsWindow(QWidget):
             # Used as generic "should stitch", although is labeled CloudStitch
             layout.addWidget(QLabel("Process / CloudStitch?"), row, 0)
             self.stitch_cb = QCheckBox()
-            self.stitch_cb.setChecked(False)
+            self.stitch_cb.setChecked(True)
             self.stitch_cb.stateChanged.connect(self.itw.update_imagine_config)
             layout.addWidget(self.stitch_cb, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Keep intermediate (unstitched) files?"),
+                             row, 0)
+            self.keep_intermediate_cb = QCheckBox()
+            self.keep_intermediate_cb.setChecked(True)
+            self.keep_intermediate_cb.stateChanged.connect(
+                self.itw.update_imagine_config)
+            layout.addWidget(self.keep_intermediate_cb, row, 1)
             row += 1
 
             layout.addWidget(QLabel("Autofocus?"), row, 0)
@@ -1213,6 +1222,27 @@ class ImagingOptionsWindow(QWidget):
             self.autofocus_cb.stateChanged.connect(
                 self.itw.update_imagine_config)
             layout.addWidget(self.autofocus_cb, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("HTML viewer?"), row, 0)
+            self.html_cb = QCheckBox()
+            self.html_cb.setChecked(True)
+            self.html_cb.stateChanged.connect(self.itw.update_imagine_config)
+            layout.addWidget(self.html_cb, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Quick stitch?"), row, 0)
+            self.quick_stitch_cb = QCheckBox()
+            self.quick_stitch_cb.stateChanged.connect(
+                self.itw.update_imagine_config)
+            layout.addWidget(self.quick_stitch_cb, row, 1)
+            row += 1
+
+            layout.addWidget(QLabel("Snapshot grid overview?"), row, 0)
+            self.snapshot_grid_cb = QCheckBox()
+            self.snapshot_grid_cb.stateChanged.connect(
+                self.itw.update_imagine_config)
+            layout.addWidget(self.snapshot_grid_cb, row, 1)
             row += 1
 
             gb = QGroupBox("Panorama")
@@ -1634,10 +1664,19 @@ class ImagingTaskWidget(AWidget):
 
         self.update_imagine_config()
 
-    def update_pconfig(self, pconfig):
+    def _update_pconfig(self, pconfig):
         imagerj = pconfig.setdefault("imager", {})
         imagerj["save_extension"] = self.save_extension()
         imagerj["save_quality"] = self.ac.usc.imager.save_quality()
+        # FIXME: move scan autofocus from Argus to planner
+        # imagerj["autofocus"] = self.iow.autofocus_cb.isChecked()
+
+        # Serialized into cs_auto.py CLI option
+        ippj = pconfig.setdefault("ipp", {})
+        ippj["write_html_viewer"] = self.iow.html_cb.isChecked()
+        ippj["write_quick_pano"] = self.iow.quick_stitch_cb.isChecked()
+        ippj["write_snapshot_grid"] = self.iow.snapshot_grid_cb.isChecked()
+        ippj["keep_intermediates"] = self.iow.keep_intermediate_cb.isChecked()
 
     def _cache_save(self, cachej):
         cachej["imaging"] = {
@@ -1796,7 +1835,7 @@ class MainTab(ArgusTab):
     def active_planner_widget(self):
         return self.planner_widget_tabs.currentWidget()
 
-    def update_pconfig(self, pconfig):
+    def _update_pconfig(self, pconfig):
         self.imaging_widget.update_pconfig(pconfig)
 
     def _cache_save(self, cachej):
@@ -1908,7 +1947,7 @@ class ImagerTab(ArgusTab):
         }
         pconfig.setdefault("imager", {})["hdr"] = ret
 
-    def update_pconfig(self, pconfig):
+    def _update_pconfig(self, pconfig):
         pconfig.setdefault("imager",
                            {})["properties"] = self.ac.imager.get_properties()
         self.update_pconfig_hdr(pconfig)

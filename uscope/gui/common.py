@@ -149,7 +149,6 @@ class ArgusCommon(QObject):
 
         self.mw = mw
         self.logs = []
-        self.update_pconfigs = []
 
         self.motion_thread = None
         self.planner_thread = None
@@ -343,8 +342,7 @@ class ArgusCommon(QObject):
             log(s, newline=newline)
 
     def update_pconfig(self, pconfig):
-        for update_pconfig in self.update_pconfigs:
-            update_pconfig(pconfig)
+        pass
 
     def auto_exposure_enabled(self):
         return self.control_scroll.auto_exposure_enabled()

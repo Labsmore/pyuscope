@@ -3,7 +3,7 @@ from uscope.scan_util import index_scan_images, bucket_group, reduce_iindex_file
 import os
 from uscope import config
 from uscope.imagep.util import TaskBarrier, EtherealImageR, EtherealImageW
-from uscope.imagep.summary import write_html_viewer, write_tile_image, write_quick_pano
+from uscope.imagep.summary import write_html_viewer, write_snapshot_grid, write_quick_pano
 import glob
 import json
 """
@@ -78,6 +78,38 @@ Can tolerate partial captures (ex: bad stacking)
 """
 
 
+class IPPConfigJ:
+    def __init__(self, j=None):
+        self.j = j
+
+    def write_html_viewer(self):
+        """
+        Write a simple .html file at the final image level
+        Its not so much stitched as plastered together
+        """
+        # Very little disk space, easy to distinguish from other image files
+        # Turn on by default
+        return bool(self.j.get("write_html_viewer", True))
+
+    def write_snapshot_grid(self):
+        """
+        Write a simple combined image file at the final image level
+        There is a gutten between snapshots
+        """
+        return bool(self.j.get("write_snapshot_grid", False))
+
+    def write_quick_pano(self):
+        """
+        Write a simple combined image file at the final image level
+        Its not so much stitched as plastered together based on estimated positions
+        """
+        # This takes up disk space => off by default
+        return bool(self.j.get("write_quick_pano", False))
+
+    def keep_intermediates(self):
+        return bool(self.j.get("keep_intermediates", False))
+
+
 class DirCSIP:
     def __init__(self,
                  csip,
@@ -88,6 +120,7 @@ class DirCSIP:
                  fix=False,
                  best_effort=True,
                  ewf=None,
+                 configj={},
                  verbose=True):
         self.csip = csip
         self.log = csip.log
@@ -99,6 +132,7 @@ class DirCSIP:
         # FIXME:
         # self.ewf = ewf
         self.best_effort = best_effort
+        self.ipp_config = IPPConfigJ(configj)
         self.verbose = verbose
 
     def run_n_to_1(self,
@@ -275,13 +309,16 @@ class DirCSIP:
             self.correct_ff1_run(iindex_in=working_iindex, dir_out=next_dir)
             working_iindex = index_scan_images(next_dir)
 
-        if bc.write_html_viewer():
+        if self.ipp_config.write_html_viewer():
+            self.log("Writing HTML viewer")
             write_html_viewer(working_iindex)
 
-        if bc.write_tile_image():
-            write_tile_image(working_iindex)
+        if self.ipp_config.write_snapshot_grid():
+            self.log("Writing tile image")
+            write_snapshot_grid(working_iindex)
 
-        if bc.write_quick_pano():
+        if self.ipp_config.write_quick_pano():
+            self.log("Writing quick pano")
             write_quick_pano(working_iindex)
 
         # CloudStitch currently only supports .jpg
@@ -312,6 +349,9 @@ class DirCSIP:
             healthy = self.csip.inspect_final_dir(working_iindex)
             assert healthy
             self.log("")
+
+        if not self.ipp_config.keep_intermediates():
+            assert 0, "FIXME: implement intermediate cleanup"
 
         if not self.upload:
             self.log("CloudStitch: skip (requested)")

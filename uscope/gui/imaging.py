@@ -1488,7 +1488,8 @@ class ImagingTaskWidget(AWidget):
             if dry:
                 self.log_fd_scan = StringIO()
             else:
-                self.log_fd_scan = open(os.path.join(out_dir, "log.txt"), "w")
+                self.log_fd_scan = open(os.path.join(out_dir, "uscan.log"),
+                                        "w")
 
             self.go_pause_pb.setText("Pause")
             self.ac.control_scroll.enable_user_controls(False)

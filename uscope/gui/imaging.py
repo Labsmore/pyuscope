@@ -1186,8 +1186,8 @@ class ImagingOptionsWindow(QWidget):
             self.add_scalebar_cb = QCheckBox()
             self.add_scalebar_cb.stateChanged.connect(
                 self.itw.update_imagine_config)
-            layout.addWidget(QLabel("Add scalebar"), row, 0)
-            layout.addWidget(self.add_scalebar_cb, row, 1)
+            layout.addWidget(self.add_scalebar_cb, row, 0)
+            layout.addWidget(QLabel("Add scalebar"), row, 1)
             row += 1
 
             gb = QGroupBox("Snapshot")

@@ -248,7 +248,7 @@ class QuickPano:
 
     def fill_dst(self):
         # Fill from bottom up such that upper left is on top
-        for row in range(self.iindex["cols"]):
+        for row in range(self.iindex["rows"]):
             row = self.iindex["rows"] - row - 1
             for col in range(self.iindex["cols"]):
                 col = self.iindex["cols"] - col - 1

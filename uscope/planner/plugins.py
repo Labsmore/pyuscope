@@ -1021,7 +1021,7 @@ class PlannerHDR(PlannerPlugin):
             self.log("HDR: setting %s" % (hdrv, ))
             if not self.dry:
                 self.imager.set_properties(hdrv)
-                time.sleep(self.tsettle)
+                self.sleep(self.tsettle)
             modifiers = {
                 "filename_part": "h%02u" % hdri,
             }
@@ -1067,7 +1067,7 @@ class PlannerImageStabilization(PlannerPlugin):
             # TODO: figure out a reasonable time here
             # Needs to be > 0 to have some time for vibration to move
             if pointi and not self.dry:
-                time.sleep(0.1)
+                self.sleep(0.1)
 
             modifiers = {
                 "filename_part": self.filename_part(pointi),

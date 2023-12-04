@@ -1,4 +1,4 @@
-import threading
+import time
 
 
 class PlannerPlugin:
@@ -120,6 +120,10 @@ class PlannerPlugin:
         replace_keys[state_key][sub_key] = sub_val
         return replace_keys
     '''
+
+    def sleep(self, t):
+        if not self.dry:
+            time.sleep(t)
 
 
 plugins = {}

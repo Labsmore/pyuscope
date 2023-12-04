@@ -15,10 +15,6 @@ class Kinematics:
                 print(s)
 
         self.log = log
-        self.verbose and self.log(
-            "Kinematics(): tsettle_motion: %0.3f" % self.tsettle_motion)
-        self.verbose and self.log(
-            "Kinematics(): tsettle_hdr: %0.3f" % self.tsettle_hdr)
 
     def configure(self,
                   tsettle_motion=None,
@@ -42,6 +38,13 @@ class Kinematics:
             )
         self.tsettle_autofocus = tsettle_autofocus
 
+        self.verbose and self.log(
+            "Kinematics(): tsettle_motion: %0.3f" % self.tsettle_motion)
+        self.verbose and self.log(
+            "Kinematics(): tsettle_hdr: %0.3f" % self.tsettle_hdr)
+        self.verbose and self.log(
+            "Kinematics(): tsettle_autofocus: %0.3f" % self.tsettle_autofocus)
+
     # May be updated as objective is changed
     def set_tsettle_motion(self, tsettle_motion):
         self.tsettle_motion = tsettle_motion
@@ -52,6 +55,10 @@ class Kinematics:
     def set_tsettle_autofocus(self, tsettle_autofocus):
         self.tsettle_autofocus = tsettle_autofocus
 
+    def sleep(self, t):
+        self.verbose and self.log("kinematics sleep", t)
+        time.sleep(t)
+
     def wait_motion(self):
         if self.microscope.motion is None or self.tsettle_motion <= 0:
             return
@@ -60,7 +67,7 @@ class Kinematics:
         self.verbose and self.log(
             "FIXME TMP: this tsettle_motion: %0.3f" % tsettle)
         if tsettle > 0.0:
-            time.sleep(tsettle)
+            self.sleep(tsettle)
 
     def wait_hdr(self):
         if self.microscope.imager is None or self.tsettle_hdr <= 0:
@@ -70,7 +77,7 @@ class Kinematics:
         self.verbose and self.log(
             "FIXME TMP: this tsettle_hdr: %0.3f" % tsettle)
         if tsettle > 0.0:
-            time.sleep(tsettle)
+            self.sleep(tsettle)
 
     def wait_autofocus(self):
         """
@@ -82,7 +89,7 @@ class Kinematics:
         tsettle = self.tsettle_autofocus - self.microscope.motion.since_last_motion(
         )
         if tsettle > 0.0:
-            time.sleep(tsettle)
+            self.sleep(tsettle)
 
     def frame_sync(self):
         tstart = time.time()

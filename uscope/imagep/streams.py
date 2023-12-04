@@ -82,6 +82,10 @@ class IPPConfigJ:
     def __init__(self, j=None):
         self.j = j
 
+    def snapshot_correction(self):
+        # Usually snapshots are already corrected during normal imaging
+        return bool(self.j.get("snapshot_correction", False))
+
     def write_html_viewer(self):
         """
         Write a simple .html file at the final image level
@@ -287,19 +291,20 @@ class DirCSIP:
         Now apply custom correction plugins
         TODO: let the user actually determine order for these...ff1 before stack, etc
         """
-        ipp = config.get_usc().ipp.pipeline_last()
-        if len(ipp) == 0:
-            self.log("Post corrections: skip")
-        else:
-            for pipeline_this in ipp:
-                plugin = pipeline_this["plugin"]
-                this_dir = pipeline_this["dir"]
-                self.log(f"{plugin}: start")
-                next_dir = os.path.join(working_iindex["dir"], this_dir)
-                self.correct_plugin_run(pipeline_this,
-                                        iindex_in=working_iindex,
-                                        dir_out=next_dir)
-                working_iindex = index_scan_images(next_dir)
+        if self.ipp_config.snapshot_correction():
+            ipp = config.get_usc().ipp.snapshot_correction()
+            if len(ipp) == 0:
+                self.log("Post corrections: skip")
+            else:
+                for pipeline_this in ipp:
+                    plugin = pipeline_this["plugin"]
+                    this_dir = pipeline_this["dir"]
+                    self.log(f"{plugin}: start")
+                    next_dir = os.path.join(working_iindex["dir"], this_dir)
+                    self.correct_plugin_run(pipeline_this,
+                                            iindex_in=working_iindex,
+                                            dir_out=next_dir)
+                    working_iindex = index_scan_images(next_dir)
 
         if not config.get_usc().imager.has_ff_cal():
             self.log("FF correction: skip")
@@ -409,7 +414,7 @@ class SnapshotCSIP:
         assert len(current_images) == 1
         current_image = current_images[0]
 
-        ipp = config.get_usc().ipp.pipeline_last()
+        ipp = config.get_usc().ipp.snapshot_correction()
         current_plugins = [p["plugin"] for p in ipp]
         for plugin in options.get("plugins", []):
             if plugin not in current_plugins:

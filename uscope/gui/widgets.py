@@ -875,7 +875,7 @@ class StitchingTab(ArgusTab):
         if scan_config["dry"]:
             return
 
-        if self.ac.mainTab.imaging_widget.iow.stitch_cb.isChecked():
+        if self.ac.mainTab.imaging_widget.iow.stitch_gb.isChecked():
             # CLI box is special => take priority
             # CLI may launch CloudStitch under the hood
             self.stitch_add(scan_config["out_dir"], scan_config=scan_config)

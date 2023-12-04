@@ -214,7 +214,7 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         }
     },
     "ipp": {
-        "pipeline_last": [
+        "snapshot_correction": [
             {"plugin": "correct-vm1v1", "dir": "vm1v1"},
         ],
         "plugins": {

@@ -708,7 +708,7 @@ class USCImageProcessingPipeline:
     def pipeline_first(self):
         return self.j.get("pipeline_first", [])
 
-    def pipeline_last(self):
+    def snapshot_correction(self):
         """
         Get image processing pipeline configuration
         "ipp": [
@@ -716,7 +716,7 @@ class USCImageProcessingPipeline:
             {"plugin": "correct-vm1v1", "config": {"kernel_width": 3}},
         ],
         """
-        return self.j.get("pipeline_last", [])
+        return self.j.get("snapshot_correction", [])
 
     # plugin specific options
     def get_plugin(self, name):

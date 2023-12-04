@@ -135,7 +135,7 @@ Camera: see VM1B config ifle
     },
     "ipp": {
         /*
-        "pipeline_last": [
+        "snapshot_correction": [
             {"plugin": "correct-vm1v1", "dir": "vm1v1"},
         ],
         */

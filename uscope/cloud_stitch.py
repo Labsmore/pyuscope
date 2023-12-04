@@ -5,6 +5,7 @@ from uscope import config
 from uscope.util import writej
 import datetime
 import json
+import glob
 
 
 class CSInfo:
@@ -90,14 +91,18 @@ def upload_dir(directory,
                       aws_access_key_id=cs_info.access_key(),
                       aws_secret_access_key=cs_info.secret_key())
 
-    for root, _, files in os.walk(directory):
-        for file in sorted(files):
-            if running is not None and not running.is_set():
-                raise Exception("Upload interrupted")
-            verbose and log('Uploading {} to {}/{} '.format(
-                os.path.join(root, file), S3BUCKET, DEST_DIR + '/' + file))
-            s3.upload_file(os.path.join(root, file), S3BUCKET,
-                           DEST_DIR + '/' + file)
+    # uploading too much junk
+    # do simple glob for now
+    #for root, _, files in os.walk(directory):
+    for src_fn in sorted(
+            list(glob.glob(os.path.join(directory, "*.jpg"))) +
+            list(glob.glob(os.path.join(directory, "*.tif")))):
+        if running is not None and not running.is_set():
+            raise Exception("Upload interrupted")
+        dst_fn = DEST_DIR + '/' + os.path.basename(src_fn)
+        verbose and log('Uploading {} to {}/{} '.format(
+            src_fn, S3BUCKET, dst_fn))
+        s3.upload_file(src_fn, S3BUCKET, dst_fn)
 
     serverj = {
         "email": cs_info.notification_email(),

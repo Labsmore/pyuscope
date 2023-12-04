@@ -116,14 +116,14 @@ class MotionWidget(AWidget):
             self.move_rel_le = advanced_movement_widget(QLineEdit())
             self.move_rel_le.returnPressed.connect(self.move_rel_le_process)
             layout.addWidget(self.move_rel_le)
-
-            layout.addWidget(
-                advanced_movement_widget(QLabel("Backlash compensate?")))
+            """
+            layout.addWidget(advanced_movement_widget(QLabel("Backlash compensate?")))
             self.move_abs_backlash_cb = advanced_movement_widget(QCheckBox())
             self.move_abs_backlash_cb.setChecked(True)
             # FIXME: always enabled right now
             self.move_abs_backlash_cb.setEnabled(False)
             layout.addWidget(self.move_abs_backlash_cb)
+            """
 
             return layout
 
@@ -1183,11 +1183,11 @@ class ImagingOptionsWindow(QWidget):
             layout = QGridLayout()
             row = 0
 
-            self.add_scalebar_checkbox = QCheckBox()
-            self.add_scalebar_checkbox.stateChanged.connect(
+            self.add_scalebar_cb = QCheckBox()
+            self.add_scalebar_cb.stateChanged.connect(
                 self.itw.update_imagine_config)
             layout.addWidget(QLabel("Add scalebar"), row, 0)
-            layout.addWidget(self.add_scalebar_checkbox, row, 1)
+            layout.addWidget(self.add_scalebar_cb, row, 1)
             row += 1
 
             gb = QGroupBox("Snapshot")
@@ -1199,24 +1199,7 @@ class ImagingOptionsWindow(QWidget):
             layout = QGridLayout()
             row = 0
 
-            # Used as generic "should stitch", although is labeled CloudStitch
-            layout.addWidget(QLabel("Process / CloudStitch?"), row, 0)
-            self.stitch_cb = QCheckBox()
-            self.stitch_cb.setChecked(True)
-            self.stitch_cb.stateChanged.connect(self.itw.update_imagine_config)
-            layout.addWidget(self.stitch_cb, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Keep intermediate (unstitched) files?"),
-                             row, 0)
-            self.keep_intermediate_cb = QCheckBox()
-            self.keep_intermediate_cb.setChecked(True)
-            self.keep_intermediate_cb.stateChanged.connect(
-                self.itw.update_imagine_config)
-            layout.addWidget(self.keep_intermediate_cb, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("Autofocus?"), row, 0)
+            layout.addWidget(QLabel("Autofocus corners?"), row, 0)
             self.autofocus_cb = QCheckBox()
             self.autofocus_cb.setChecked(self.ac.microscope.has_z())
             self.autofocus_cb.stateChanged.connect(
@@ -1224,25 +1207,56 @@ class ImagingOptionsWindow(QWidget):
             layout.addWidget(self.autofocus_cb, row, 1)
             row += 1
 
-            layout.addWidget(QLabel("HTML viewer?"), row, 0)
-            self.html_cb = QCheckBox()
-            self.html_cb.setChecked(True)
-            self.html_cb.stateChanged.connect(self.itw.update_imagine_config)
-            layout.addWidget(self.html_cb, row, 1)
-            row += 1
+            def process_gb():
+                layout = QGridLayout()
+                row = 0
+                """
+                # Used as generic "should stitch", although is labeled CloudStitch
+                layout.addWidget(QLabel("Post-process / CloudStitch?"), row, 0)
+                self.stitch_cb = QCheckBox()
+                self.stitch_cb.stateChanged.connect(
+                    self.itw.update_imagine_config)
+                layout.addWidget(self.stitch_cb, row, 1)
+                row += 1
+                """
 
-            layout.addWidget(QLabel("Quick stitch?"), row, 0)
-            self.quick_stitch_cb = QCheckBox()
-            self.quick_stitch_cb.stateChanged.connect(
-                self.itw.update_imagine_config)
-            layout.addWidget(self.quick_stitch_cb, row, 1)
-            row += 1
+                self.keep_intermediate_cb = QCheckBox()
+                self.keep_intermediate_cb.setChecked(True)
+                self.keep_intermediate_cb.stateChanged.connect(
+                    self.itw.update_imagine_config)
+                layout.addWidget(self.keep_intermediate_cb, row, 0)
+                layout.addWidget(
+                    QLabel("Keep intermediate (unstitched) files?"), row, 1)
+                row += 1
 
-            layout.addWidget(QLabel("Snapshot grid overview?"), row, 0)
-            self.snapshot_grid_cb = QCheckBox()
-            self.snapshot_grid_cb.stateChanged.connect(
-                self.itw.update_imagine_config)
-            layout.addWidget(self.snapshot_grid_cb, row, 1)
+                self.html_cb = QCheckBox()
+                self.html_cb.stateChanged.connect(
+                    self.itw.update_imagine_config)
+                layout.addWidget(self.html_cb, row, 0)
+                layout.addWidget(QLabel("HTML viewer?"), row, 1)
+                row += 1
+
+                self.quick_stitch_cb = QCheckBox()
+                self.quick_stitch_cb.stateChanged.connect(
+                    self.itw.update_imagine_config)
+                layout.addWidget(self.quick_stitch_cb, row, 0)
+                layout.addWidget(QLabel("Quick stitch?"), row, 1)
+                row += 1
+
+                self.snapshot_grid_cb = QCheckBox()
+                self.snapshot_grid_cb.stateChanged.connect(
+                    self.itw.update_imagine_config)
+                layout.addWidget(self.snapshot_grid_cb, row, 0)
+                layout.addWidget(QLabel("Snapshot grid overview?"), row, 1)
+                row += 1
+
+                self.stitch_gb = QGroupBox("Post-process / CloudStitch")
+                self.stitch_gb.setCheckable(True)
+                self.stitch_gb.setLayout(layout)
+
+                return self.stitch_gb
+
+            layout.addWidget(process_gb(), row, 0, 1, 2)
             row += 1
 
             gb = QGroupBox("Panorama")
@@ -1682,24 +1696,33 @@ class ImagingTaskWidget(AWidget):
         cachej["imaging"] = {
             "file_name": str(self.job_name_le.text()),
             "extension": self.snapshot_suffix_cb.currentIndex(),
-            "stitch_cb": self.iow.stitch_cb.isChecked(),
-            "autofocus_cb": self.iow.autofocus_cb.isChecked(),
-            "add_scalebar": self.iow.add_scalebar_checkbox.isChecked(),
+            "stitch": self.iow.stitch_gb.isChecked(),
+            "autofocus": self.iow.autofocus_cb.isChecked(),
+            "add_scalebar": self.iow.add_scalebar_cb.isChecked(),
+            "keep_intermediate": self.iow.keep_intermediate_cb.isChecked(),
+            "html": self.iow.html_cb.isChecked(),
+            "quick_stitch": self.iow.quick_stitch_cb.isChecked(),
+            "snapshot_grid": self.iow.snapshot_grid_cb.isChecked(),
         }
 
     def _cache_load(self, cachej):
         j = cachej.get("imaging", {})
         self.job_name_le.setText(j.get("file_name", "unknown"))
         self.snapshot_suffix_cb.setCurrentIndex(j.get("extension", 0))
-        self.iow.stitch_cb.setChecked(j.get("stitch_cb", True))
+        self.iow.stitch_gb.setChecked(j.get("stitch", True))
         self.iow.autofocus_cb.setChecked(
-            j.get("autofocus_cb", self.ac.microscope.has_z()))
-        self.iow.add_scalebar_checkbox.setChecked(j.get("add_scalebar", False))
+            j.get("autofocus", self.ac.microscope.has_z()))
+        self.iow.add_scalebar_cb.setChecked(j.get("add_scalebar", False))
+        self.iow.keep_intermediate_cb.setChecked(
+            j.get("keep_intermediate", True))
+        self.iow.html_cb.setChecked(j.get("html", False))
+        self.iow.quick_stitch_cb.setChecked(j.get("quick_stitch", False))
+        self.iow.snapshot_grid_cb.setChecked(j.get("snapshot_grid", False))
 
     def update_imagine_config(self):
         self.imaging_config = {
-            "stitch": self.iow.stitch_cb.isChecked(),
-            "add_scalebar": self.iow.add_scalebar_checkbox.isChecked(),
+            "stitch": self.iow.stitch_gb.isChecked(),
+            "add_scalebar": self.iow.add_scalebar_cb.isChecked(),
             "autofocus": self.iow.autofocus_cb.isChecked(),
         }
 

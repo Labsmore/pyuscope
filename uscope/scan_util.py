@@ -9,6 +9,11 @@ def iindex_filename_key(filename):
     return filename.split(".")[0]
 
 
+def is_tif_scan(working_dir):
+    fns = glob.glob(working_dir + "/*.tif")
+    return bool(fns)
+
+
 def reduce_iindex_filename(filename, remove_key):
     """
     Given a list of shared filenames, return the next base filename

@@ -207,8 +207,9 @@ class IOLog(object):
 
 
 def writej(fn, j):
-    open(fn, 'w').write(
-        json.dumps(j, sort_keys=True, indent=4, separators=(",", ": ")))
+    with open(fn, 'w') as f:
+        f.write(json.dumps(j, sort_keys=True, indent=4,
+                           separators=(",", ": ")))
 
 
 def printj(j):
@@ -216,7 +217,8 @@ def printj(j):
 
 
 def readj(fn):
-    return json5.load(open(fn, "r"))
+    with open(fn, "r") as f:
+        return json5.load(f)
 
 
 def default_date_dir(root, prefix, postfix):

@@ -1,22 +1,18 @@
 from uscope import cloud_stitch
-from uscope.scan_util import index_scan_images, bucket_group, reduce_iindex_filename
-import os
+from uscope.scan_util import index_scan_images, bucket_group, reduce_iindex_filename, is_tif_scan
 from uscope import config
-from uscope.imagep.util import TaskBarrier, EtherealImageR, EtherealImageW
+from uscope.imagep.util import TaskBarrier, EtherealImageR, EtherealImageW, remove_intermediate_directories
 from uscope.imagep.summary import write_html_viewer, write_snapshot_grid, write_quick_pano
+from uscope.util import writej
 import glob
-import json
+import shutil
+import os
 """
 Support the following:
 -Planner running
 -GUI stand alone operations (ex: a single focus stack)
 -From filesystem?
 """
-
-
-def need_jpg_conversion(working_dir):
-    fns = glob.glob(working_dir + "/*.tif")
-    return bool(fns)
 
 
 def get_image_suffix(dir_in):
@@ -316,6 +312,9 @@ class DirCSIP:
 
         if self.ipp_config.write_html_viewer():
             self.log("Writing HTML viewer")
+            if is_tif_scan(working_iindex["dir"]):
+                # Only Safari supports .tif
+                self.log("WARNING: HTML viewer only works reliably with jpg")
             write_html_viewer(working_iindex)
 
         if self.ipp_config.write_snapshot_grid():
@@ -325,17 +324,6 @@ class DirCSIP:
         if self.ipp_config.write_quick_pano():
             self.log("Writing quick pano")
             write_quick_pano(working_iindex)
-
-        # CloudStitch currently only supports .jpg
-        if need_jpg_conversion(working_iindex["dir"]):
-            self.log("")
-            self.log("Converting to jpg")
-            next_dir = os.path.join(working_iindex["dir"], "jpg")
-            # runs inline, not parallelized
-            self.csip.tif2jpg_dir(iindex_in=working_iindex,
-                                  dir_out=next_dir,
-                                  lazy=self.lazy)
-            working_iindex = index_scan_images(next_dir)
 
         self.log("")
         healthy = self.csip.inspect_final_dir(working_iindex)
@@ -355,8 +343,16 @@ class DirCSIP:
             assert healthy
             self.log("")
 
+        outj = {
+            "type": "processing",
+        }
+        writej(os.path.join(self.directory, "processing.json"), outj)
+
         if not self.ipp_config.keep_intermediates():
-            assert 0, "FIXME: implement intermediate cleanup"
+            remove_intermediate_directories(self.directory,
+                                            working_iindex["dir"])
+            next_dir = self.directory
+            working_iindex = index_scan_images(next_dir)
 
         if not self.upload:
             self.log("CloudStitch: skip (requested)")
@@ -368,11 +364,36 @@ class DirCSIP:
         elif len(working_iindex["images"]) == 1:
             self.log("CloudStitch: skip (only one image)")
         else:
-            self.log("Ready to stitch " + working_iindex["dir"])
-            cloud_stitch.upload_dir(working_iindex["dir"],
-                                    cs_info=self.cs_info,
-                                    dst_basename=dst_basename,
-                                    verbose=self.verbose)
+            delete_jpg_dir = None
+            main_dir = working_iindex["dir"]
+
+            # CloudStitch currently only supports .jpg
+            if is_tif_scan(working_iindex["dir"]):
+                self.log("")
+                self.log("Converting to jpg")
+                next_dir = os.path.join(working_iindex["dir"], "jpg_tmp")
+                delete_jpg_dir = next_dir
+                # runs inline, not parallelized
+                self.csip.tif2jpg_dir(iindex_in=working_iindex,
+                                      dir_out=next_dir,
+                                      lazy=self.lazy)
+                working_iindex = index_scan_images(next_dir)
+
+            try:
+                self.log("Ready to stitch " + working_iindex["dir"])
+                cloud_stitch.upload_dir(working_iindex["dir"],
+                                        cs_info=self.cs_info,
+                                        dst_basename=dst_basename,
+                                        verbose=self.verbose)
+                # Pop the log file up to main dir before deleting tmp dir
+                if delete_jpg_dir:
+                    shutil.move(
+                        os.path.join(working_iindex["dir"],
+                                     "cloud_stitch.json"),
+                        os.path.join(main_dir, "cloud_stitch.json"))
+            finally:
+                if delete_jpg_dir:
+                    shutil.rmtree(delete_jpg_dir, ignore_errors=True)
 
 
 class SnapshotCSIP:

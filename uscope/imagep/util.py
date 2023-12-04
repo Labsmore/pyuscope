@@ -3,6 +3,7 @@ import os
 from PIL import Image
 import subprocess
 import tempfile
+import shutil
 
 # Rayleigh criterion
 # https://oeis.org/A245461
@@ -169,3 +170,49 @@ class TaskBarrier:
 
     def idle(self):
         return self.ntasks_allocated == self.ntasks_completed
+
+
+def remove_intermediate_directories(top_dir, nested_dir):
+    """
+    After focus stacking, etc, keep only the final output images
+    """
+    top_dir = os.path.realpath(top_dir)
+    nested_dir = os.path.realpath(nested_dir)
+    if top_dir == nested_dir:
+        return
+    nested_dir_rel = nested_dir.replace(top_dir + "/", "")
+    # Make sure above was done correctly
+    assert os.path.exists(os.path.join(top_dir, nested_dir_rel))
+
+    # Move all files into a temp location
+    tmp_dir = os.path.join(top_dir, "tmp_intermediate")
+    if os.path.exists(tmp_dir):
+        raise Exception("Aborted cleanup? Manual intervention required")
+    orig_files = os.listdir(top_dir)
+    os.mkdir(tmp_dir)
+    for f in orig_files:
+        src_path = os.path.join(top_dir, f)
+        dst_path = os.path.join(tmp_dir, f)
+        os.rename(src_path, dst_path)
+
+    # Fixup path after move
+    nest_dir = os.path.join(tmp_dir, nested_dir_rel)
+    # Now move those files to the top
+    for f in os.listdir(nest_dir):
+        src_path = os.path.join(nest_dir, f)
+        dst_path = os.path.join(top_dir, f)
+        os.rename(src_path, dst_path)
+
+    # Keep files from original top directory that aren't part of the original scan
+    # log file, etc
+    for f in os.listdir(tmp_dir):
+        src_path = os.path.join(tmp_dir, f)
+        if not os.path.isfile(src_path):
+            continue
+        if ".jpg" in f or ".tif" in f:
+            continue
+        dst_path = os.path.join(top_dir, f)
+        os.rename(src_path, dst_path)
+
+    # Finally delete the tmp directory
+    shutil.rmtree(tmp_dir)

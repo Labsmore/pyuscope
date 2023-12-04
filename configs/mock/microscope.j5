@@ -2,6 +2,13 @@
 A minimal configuration to do basic testing
 */
 {
+    "kinematics": {
+        "tsettle_autofocus": 0.0,
+        "tsettle_motion_na1": 0.0,
+        "tsettle_motion_base": 0.0,
+        "tsettle_hdr": 0.0,
+    },
+
     "motion": {
         "hal": "mock",
         "z_format6": true,

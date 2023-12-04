@@ -96,7 +96,8 @@ def upload_dir(directory,
     #for root, _, files in os.walk(directory):
     for src_fn in sorted(
             list(glob.glob(os.path.join(directory, "*.jpg"))) +
-            list(glob.glob(os.path.join(directory, "*.tif")))):
+            list(glob.glob(os.path.join(directory, "*.tif"))) +
+            list(glob.glob(os.path.join(directory, "*.json")))):
         if running is not None and not running.is_set():
             raise Exception("Upload interrupted")
         dst_fn = DEST_DIR + '/' + os.path.basename(src_fn)

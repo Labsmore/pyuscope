@@ -1,5 +1,5 @@
 from uscope.util import add_bool_arg
-from uscope.scan_util import index_scan_images
+from uscope.scan_util import index_scan_images, is_tif_scan
 import os
 from PIL import Image
 import struct
@@ -69,6 +69,10 @@ def write_html_viewer(iindex, output_filename=None):
 
 <body>
     <h2><center>Labsmore Grid Viewer</center></h2>
+"""
+    if is_tif_scan(iindex["dir"]):
+        out += "WARNING: HTML viewer only works reliably with .jpg (have .tif)<br>\n"
+    out += """
     <table>
         <tbody>
         """
@@ -170,8 +174,8 @@ class QuickPano:
             if os.path.exists(scan_fn):
                 break
             # assert 0, "FIXME: only support simple scans right now"
-            scan_fn = os.path.dirname(d)
-            if scan_fn == "/":
+            d = os.path.dirname(d)
+            if d == "/":
                 raise Exception("Failed to find uscan.json")
         self.uscan = readj(scan_fn)
 

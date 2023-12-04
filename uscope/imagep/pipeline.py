@@ -208,6 +208,7 @@ class CSImageProcessor(threading.Thread):
             for worker in self.workers.values():
                 worker.join()
             self.workers = None
+            self.log("Joined")
 
         if self.temp_dir_object:
             # shutil.rmtree(self.temp_dir)

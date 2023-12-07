@@ -299,13 +299,13 @@ class ArgusScriptingPlugin(QThread):
         """
         Returns the name of the active objective
         """
-        return self._ac.scriptingTab.active_objective["name"]
+        return self._ac.get_active_objective()
 
     def set_active_objective(self, objective):
         """
         Check if name is in cache
         """
-        self._ac.mainTab.objective_widget.setObjective.emit(objective)
+        self.ac.set_active_objective(objective)
 
     def microscope_model(self):
         """

@@ -240,6 +240,8 @@ class ArgusCommon(QObject):
         self.microscope.motion_stop = self.motion_thread.stop
         self.microscope.get_jog_controller = self.motion_thread.get_jog_controller
         self.microscope.image_save_extension = self.mainTab.imaging_widget.save_extension
+        self.microscope.get_active_objective = self.get_active_objective
+        self.microscope.set_active_objective = self.set_active_objective
 
         # FIXME: these are not thread safe
         # convert to signals
@@ -396,3 +398,15 @@ class ArgusCommon(QObject):
         Return imaging widget configuration
         """
         return self.mainTab.imaging_widget.imaging_config
+
+    def get_active_objective(self):
+        """
+        Returns the name of the active objective
+        """
+        return self.scriptingTab.active_objective["name"]
+
+    def set_active_objective(self, objective):
+        """
+        Check if name is in cache
+        """
+        self.mainTab.objective_widget.setObjective.emit(objective)

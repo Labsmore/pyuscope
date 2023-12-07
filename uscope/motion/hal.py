@@ -3,6 +3,7 @@ from uscope.imager.imager import Imager
 import os
 from collections import OrderedDict
 from uscope.util import time_str
+from uscope.motion.motion_util import parse_move
 
 
 class AxisExceeded(ValueError):
@@ -960,6 +961,12 @@ class MotionHAL:
         have = set(self.axes())
         assert axes == have, (f"expected axes {have}, but was given {axes}")
 
+    def validate_axes(self, axes):
+        for axis in axes:
+            if axis not in self.axes():
+                raise ValueError("Got axis %s but expect axis in %s" %
+                                 (axis, self.axes()))
+
     def home(self):
         '''Set current position to 0.0'''
         raise Exception("Required for tuning")
@@ -1011,6 +1018,9 @@ class MotionHAL:
         '''Absolute move to positions specified by pos dict'''
         raise NotSupported("Required for planner")
 
+    def move_absolute_str(self, pos, options={}):
+        self.move_absolute(parse_move(pos), options=options)
+
     def update_backlash(self, cur_pos, abs_pos):
         pass
 
@@ -1055,11 +1065,8 @@ class MotionHAL:
         '''Relative move to positions specified by delta dict'''
         raise NotSupported("Required for planner")
 
-    def validate_axes(self, axes):
-        for axis in axes:
-            if axis not in self.axes():
-                raise ValueError("Got axis %s but expect axis in %s" %
-                                 (axis, self.axes()))
+    def move_relative_str(self, pos, options={}):
+        self.move_relative(parse_move(pos), options=options)
 
     def jog_rel(self, axes, rate, options={}, keep_pos_cache=False):
         """

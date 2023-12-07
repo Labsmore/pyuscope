@@ -1,4 +1,4 @@
-from uscope.app.argus.scripting import ArgusScriptingPlugin
+from uscope.gui.scripting import ArgusScriptingPlugin
 import os
 
 

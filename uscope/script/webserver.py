@@ -32,7 +32,7 @@ $ curl 'http://localhost:8080/set/active_objective/1000X'; echo
 {"status": 400}
 """
 
-from uscope.app.argus.scripting import ArgusScriptingPlugin
+from uscope.gui.scripting import ArgusScriptingPlugin
 from multiprocessing import Process
 from flask import Flask, request, current_app
 from http import HTTPStatus

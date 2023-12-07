@@ -39,7 +39,7 @@ $ curl 'http://localhost:8080/set/pos/?x=1&z=-2'; echo
 # Move relative position
 $ curl -X POST 'http://localhost:8080/set/pos/?y=1&x=-1&relative=1'; echo
 """
-from uscope.app.argus.scripting import ArgusScriptingPlugin
+from uscope.gui.scripting import ArgusScriptingPlugin
 from flask import Flask, current_app, request, render_template, send_from_directory
 from http import HTTPStatus
 import json

@@ -231,6 +231,32 @@ class Microscope:
     def set_serial(self, serial):
         self._serial = serial
 
+    """
+    Argus hack bindings
+    See common.py
+    """
+
+    def jog_fractioned_lazy(self):
+        assert 0, "hack: overriden by GUI"
+
+    def jog_cancel(self):
+        assert 0, "hack: overriden by GUI"
+
+    def motion_stop(self):
+        assert 0, "hack: overriden by GUI"
+
+    def get_jog_controller(self):
+        assert 0, "hack: overriden by GUI"
+
+    def image_save_extension(self):
+        assert 0, "hack: overriden by GUI"
+
+    def get_active_objective(self):
+        assert 0, "hack: overriden by GUI"
+
+    def set_active_objective(self, objective):
+        assert 0, "hack: overriden by GUI"
+
 
 def get_cli_microscope(name=None):
     usc = get_usc(name=name)

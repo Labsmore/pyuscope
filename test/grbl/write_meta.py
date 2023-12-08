@@ -54,7 +54,7 @@ def main():
         if comment is None:
             comment = info.get("comment")
         if config is None:
-            config = info.get("config", b"\x00\x00\x00\x00")
+            config = info.get("config")
         print("Writing")
         grbl_write_meta(grbl.gs, comment=comment, sn=sn, config=config)
 

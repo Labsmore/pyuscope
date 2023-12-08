@@ -9,6 +9,9 @@ from uscope.motion.hal import MotionHAL, MotionCritical
 
 from uscope import util
 from uscope.motion.motion_util import parse_move
+from uscope.config import default_microscope_name, get_usc
+from uscope.util import tobytes, tostr
+
 import termios
 import serial
 import time
@@ -16,9 +19,8 @@ import os
 import threading
 import glob
 import struct
-from uscope.util import tobytes, tostr
 import hashlib
-from uscope.config import default_microscope_name, get_usc
+from bitarray import bitarray
 
 
 class GrblException(Exception):
@@ -1572,7 +1574,7 @@ class NoGRBLMeta(Exception):
 # USCOPE_MAGIC = (121, 966, 989)
 # rounding issue, see below
 # USCOPE_MAGIC = (12, 9, 68)
-USCOPE_MAGIC = struct.pack("<I", 121966989)
+USCOPE_MAGIC = struct.pack(">I", 121966989)
 """
 32 bit signed value
 divided by 1000
@@ -1628,27 +1630,91 @@ Config magic number not found
 Is there an advantage to 1024 vs 1000?
 """
 
-WCS_STR_LEN = 9
+WCS_STR_LEN = 8
 WCS_COMMENT = 4
 WCS_SN = 5
 WCS_CONFIG = 6
 
+WCS_STR_LEN_OLD = 9
 
-def write_wcs_packed(gs, wcs, data):
-    assert len(data) == WCS_STR_LEN
+
+def write_wcs_packed_old2(gs, wcs, data):
+    # 9 bytes, 3 bytes into each coordinate
+    # WARNING: ocassional 1 bit errors on LSB
+    assert len(data) == WCS_STR_LEN_OLD
     assert 1 <= wcs <= 6
     nums = {}
     data = tobytes(data)
     for i in range(3):
         offset = 3 * i
         # Pad the unused byte and then normalize to the decimal version
-        thisi = struct.unpack("<i", data[offset:offset + 3] + b"\x00")[0]
+        thisi = struct.unpack(">i", b"\x00" + data[offset:offset + 3])[0]
         nums[i] = thisi / 1000
     # Might be loosing a digit here to rounding
     # but we have enough wiggle room just drop it for now
     out = "G10 L2 P%u X%.3f Y%.3f Z%.3f" % (wcs, nums[0], nums[1], nums[2])
     # print("out", out)
     gs.txrxs(out)
+
+
+def meta_data8_to_data9(data8):
+    """
+    Convert from 8 byte to 9 byte packing
+    Pad the lower 2 bits on each coordinate to increase margin
+    (at least 1 bit needed)
+
+    Was getting 24 bits per coordinate
+    Move to getting 22 bits
+    22 * 3 = 66 bits => 8 bytes + 2 bits
+
+    Need 8 * 8 / 3 = 21.3 bits per entry
+    Total bits: 9 * 8 = 72
+    But will only use 8 * 8 = 64 bits
+    4 more bits need to be padded
+    Write as 0 for now
+    """
+    assert len(data8) == 8, len(data8)
+
+    # Write as small checksum?
+    pad_global = bitarray('00')
+    # 8 * 8 + 2 => 66 bits, 22 bits per entry
+    bits8 = bitarray()
+    bits8.frombytes(data8)
+    bits8 += pad_global
+    ret = bytearray()
+    for wordi in range(3):
+        # 22 data bits + 2 LSB bits
+        bits = bits8[wordi * 22:wordi * 22 + 22] + bitarray('00')
+        ret += bits.tobytes()
+    assert len(ret) == 9
+    return ret
+
+
+def meta_data9_to_data8(data9):
+    assert len(data9) == 9
+
+    bits8 = bitarray()
+    for wordi in range(3):
+        bits9 = bitarray()
+        bits9.frombytes(data9[wordi * 3:wordi * 3 + 3])
+        bits8 += bits9[0:22]
+
+    # bits8 should now have 22 * 3 = 66 bits
+    # Drop the last two padding bits
+    ret = bits8[0:64].tobytes()
+    assert len(ret) == 8, len(ret)
+    return ret
+
+
+def write_wcs_packed(gs, wcs, data):
+    """
+    Move from 9 byte to 8 byte packing
+    Solves ocassional rounding errors
+    Store  on each coordinate
+    """
+    assert len(data) == WCS_STR_LEN
+    data9 = meta_data8_to_data9(data)
+    write_wcs_packed_old2(gs, wcs, data9)
 
 
 def write_wcs_vals(gs, wcs, vals):
@@ -1662,7 +1728,7 @@ def wcs_pad_str(s):
 
     if len(s) < WCS_STR_LEN:
         s = s + (" " * (WCS_STR_LEN - len(s)))
-    return s
+    return tobytes(s)
 
 
 def wcs_pad_bytes(s):
@@ -1687,7 +1753,7 @@ def grbl_write_meta(gs, config=None, sn=None, comment=None):
     if not comment:
         comment = ""
     if not config:
-        config = "     "
+        config = b"\x00\x00\x00\x00"
     if not sn:
         sn = ""
 
@@ -1695,7 +1761,7 @@ def grbl_write_meta(gs, config=None, sn=None, comment=None):
     # 4 / 9 for config hash
     # 1 reserved (config rev?)
     assert len(config) == 4
-    config = USCOPE_MAGIC + tobytes(config) + b"\x00"
+    config = USCOPE_MAGIC + tobytes(config)
 
     write_wcs_packed(gs, WCS_COMMENT, wcs_pad_str(comment))
     write_wcs_packed(gs, WCS_SN, wcs_pad_str(sn))
@@ -1716,9 +1782,6 @@ def grbl_read_meta(gs):
         "sn": "",
     }
     """
-    def parse_wcs_packed(numstr):
-        pass
-
     items = {}
     for l in gs.hash():
         # WCS 4/5/6
@@ -1730,10 +1793,10 @@ def grbl_read_meta(gs):
         gcode, coords = l.split(":")
         # G54 => 1
         wcsn = int(gcode[1:]) - 53
-        buf = b""
+        data9 = b""
         for part in coords.split(","):
-            buf += struct.pack("<i", int(float(part) * 1000))[0:3]
-        items[wcsn] = buf
+            data9 += struct.pack(">i", int(float(part) * 1000))[1:4]
+        items[wcsn] = meta_data9_to_data8(data9)
 
     assert WCS_CONFIG in items, "Failed to parse WCS"
     if items[WCS_CONFIG][0:len(USCOPE_MAGIC)] != USCOPE_MAGIC:

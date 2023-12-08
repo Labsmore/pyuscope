@@ -221,6 +221,11 @@ def readj(fn):
         return json5.load(f)
 
 
+def datetime_file_str():
+    return datetime.datetime.utcnow().isoformat().replace('T', '_').replace(
+        ':', '-').split('.')[0]
+
+
 def default_date_dir(root, prefix, postfix):
     """
     root: directory to place dir in

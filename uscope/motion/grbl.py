@@ -1819,7 +1819,7 @@ def parse_gcode_coords(gcode_coords):
     ret = parse_format1(gcode_coords)
     if ret is not None:
         print(
-            "WARNING: detected old GRBL metadata format. Migration strongly reccomended"
+            "WARNING: detected old GRBL metadata format. Migration strongly recommended"
         )
         return ret
     raise NoGRBLMeta()

@@ -824,7 +824,7 @@ class XYPlanner2PWidget(PlannerWidget):
             return
 
         objective = self.get_objective()
-        pconfig = microscope_to_planner_config(self.ac.usj,
+        pconfig = microscope_to_planner_config(microscope=self.ac.microscope,
                                                objective=objective,
                                                contour=contour_json)
 
@@ -1079,7 +1079,7 @@ class XYPlanner3PWidget(PlannerWidget):
             return
 
         objective = self.get_objective()
-        pconfig = microscope_to_planner_config(self.ac.usj,
+        pconfig = microscope_to_planner_config(microscope=self.ac.microscope,
                                                objective=objective,
                                                corners=corner_json)
 
@@ -1089,7 +1089,7 @@ class XYPlanner3PWidget(PlannerWidget):
         pconfig["app"] = {
             "app": "argus",
             "objective": objective,
-            "microscope": self.ac.microscope_name,
+            "microscope": self.ac.microscope.name,
         }
 
         out_dir_config = self.get_out_dir_j()
@@ -1469,7 +1469,7 @@ class ImagingTaskWidget(AWidget):
 
                 # Includes microscope.json in the output
                 "meta_base": {
-                    "microscope": self.ac.usj
+                    "microscope": self.ac.microscope.usc.usj
                 },
 
                 # Set to true if should try to mimimize hardware actions

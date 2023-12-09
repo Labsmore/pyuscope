@@ -44,7 +44,7 @@ class StopEvent:
 
 
 class Microscope:
-    def __init__(self, log=None, configure=True, **kwargs):
+    def __init__(self, log=None, configure=True, hardware=True, **kwargs):
         self.bc = None
         self.usc = None
         self.imager = None
@@ -56,6 +56,7 @@ class Microscope:
         self.kinematics = None
         # Thread safe version
         self._kinematics_ts = None
+        self.hardware = hardware
 
         if log is None:
             log = print
@@ -75,6 +76,7 @@ class Microscope:
         usc=None,
         name=None,
         serial=None,
+        mconfig={},
         imager=None,
         make_imager=True,
         kinematics=None,
@@ -93,7 +95,9 @@ class Microscope:
 
         # Name may be auto selected from GRBL, etc
         # Must be done early and in special / careful nammer
-        mconfig = {}
+
+        if mconfig is None:
+            mconfig = {}
         if name:
             mconfig["name"] = name
         if serial:
@@ -151,16 +155,25 @@ class Microscope:
             if name:
                 mconfig["name"] = name
 
+        is_mock = mconfig.get("name") in ("mock", "mock-grbl")
         # TODO: if we want to revive touptek s/n here we could
-        if not mconfig.get("name") or not mconfig.get("serial"):
+        if not mconfig.get("name") or not mconfig.get(
+                "serial") and self.hardware and not is_mock:
             # Try to do aggressive GRBL auto-config
             grbl_mconfig(mconfig)
 
+        # Default to mock GRBL
         if not mconfig.get("name"):
+            print(
+                "WARNING: failed to find a microscope. Defaulting to mock-grbl"
+            )
             # raise Exception("Must specify microscope")
             # Microscope of last resort
             # Generally mock-grbl is better than mock
             mconfig["name"] = "mock-grbl"
+            is_mock = True
+        if is_mock:
+            mconfig["serial"] = "1234"
         if not mconfig.get("serial"):
             print("WARNING: no microscope serial number. Files may conflict")
 
@@ -293,13 +306,18 @@ class Microscope:
 
 
 def get_cli_microscope(name=None):
-    usc = get_usc(name=name)
-    return Microscope(usc=usc, imager_cli=True)
+    return Microscope(imager_cli=True, name=name)
 
 
 def get_gui_microscope(name=None):
-    usc = get_usc(name=name)
-    return Microscope(usc=usc, imager_gui=True)
+    return Microscope(imager_gui=True, name=name)
+
+
+def get_stitcher_microscope(mconfig=None):
+    return Microscope(auto=False,
+                      configure=False,
+                      hardware=False,
+                      mconfig=mconfig)
 
 
 def get_microscope_for_motion(name=None):

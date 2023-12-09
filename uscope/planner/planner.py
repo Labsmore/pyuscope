@@ -344,8 +344,13 @@ class Planner:
             plugin.gen_meta(ret)
 
         self.full_end_time = time.time()
-        ret['full_time'] = self.full_end_time - self.full_start_time
+        ret["full_time"] = self.full_end_time - self.full_start_time
         ret["pipeline"] = list(self.pipeline.keys())
+        ret["microscope"] = {
+            "name": self.microscope.name,
+            "serial": self.microscope.serial(),
+            "dataname": self.microscope.usc.get_microscope_dataname(),
+        }
 
         return ret
 

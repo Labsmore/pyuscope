@@ -41,6 +41,10 @@ class LimitSwitchActive(Estop):
     pass
 
 
+class NoGRBL(GrblException):
+    pass
+
+
 def default_port():
     port = os.getenv("GRBL_PORT", None)
     if port:
@@ -50,7 +54,7 @@ def default_port():
     # When two are plugged in only one shows up
     ports = glob.glob("/dev/serial/by-id/usb-1a86_USB_Serial-*")
     if len(ports) == 0:
-        raise Exception("Failed to auto detect any GRBL serial ports")
+        raise NoGRBL("Failed to auto detect any GRBL serial ports")
     if len(ports) == 1:
         return ports[0]
     raise Exception("Need explicit GRBL serial port (ie GRBL_PORT=/dev/blah)")
@@ -1877,15 +1881,20 @@ def grbl_mconfig(mconfig={}):
     """
     Create a minimal GRBL config to see if it has metadata to configure microscope
     """
-    grbl = get_grbl()
+    grbl = None
     try:
+        grbl = get_grbl()
         info = grbl_read_meta(grbl.gs)
+    except NoGRBL:
+        return
     except NoGRBLMeta:
         # No metadata => skip sanity check
         # Not all microscopes have this set
+        print("WARNING: detected GRBL but no metadata")
         return
     finally:
-        grbl.close()
+        if grbl:
+            grbl.close()
     mconfig["name"] = microscope_by_name_hash(info["config"])
     mconfig["serial"] = info["sn"]
     return mconfig

@@ -33,16 +33,14 @@ def fix_contour_center(contour, pconfig, usc):
     contour["end"]["y"] += y_view / 2
 
 
-def microscope_to_planner_config(usj=None,
-                                 usc=None,
+def microscope_to_planner_config(microscope,
                                  objective=None,
                                  objectivestr=None,
                                  objectivei=None,
                                  contour=None,
                                  corners=None,
                                  center=False):
-    if usc is None:
-        usc = USC(usj)
+    usc = microscope.usc
     usj = usc.usj
     if objective is None:
         objective = get_objective(usc=usc,

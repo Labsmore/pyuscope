@@ -134,12 +134,12 @@ def main():
 
     if args.microscope:
         # Used to bind /override calibration in scan
-        config.default_microscope_name(name=args.microscope)
+        config.USC.default_microscope_name(name=args.microscope)
     config.lazy_load_microscope_from_config(args.dir_in)
 
     dir_out = args.dir_out
     if not dir_out:
-        assert config.has_default_microscope_name(
+        assert config.USC.has_default_microscope_name(
         ), "Need microscope name to auto place cal files or explicit output dir"
         dir_out = config.get_microscope_data_dir()
     if not os.path.exists(dir_out):

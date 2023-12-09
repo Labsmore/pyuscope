@@ -777,6 +777,12 @@ Microscope usj config parser
 
 
 class USC:
+    default_microscope_name = None
+
+    @staticmethod
+    def has_default_microscope_name():
+        return bool(USC.default_microscope.name)
+
     def __init__(self, usj=None, microscope=None, config_dir=None):
         # Crude microscope object defining name + serial number
         # No other fields are expected to be initialized
@@ -837,9 +843,6 @@ class USC:
             jsond.apply_update(usj, dconfig)
 
         return usj
-
-    def has_default_microscope_name(self):
-        return bool(self.microscope.name)
 
     def get_microscope_data_dir(self, mkdir=True):
         return self._microscope_data_dir
@@ -1337,20 +1340,3 @@ def get_bc(j=None):
             j = get_bcj()
         bc = BaseConfig(j=j)
     return bc
-
-
-def lazy_load_microscope_from_config(directory):
-    assert 0, "FIXME: earlier microscope load"
-    """
-    If user arguments haven't already set, set the default microscope from uscan.json
-    Intended for CLI processing applications
-    """
-    usc = get_usc(config_dir=directory)
-    if not usc.has_microscope_name():
-        scan_fn = os.path.join(directory, "uscan.json")
-        if os.path.exists(scan_fn):
-            with open(scan_fn) as f:
-                scanj = json.load(f)
-            microscope_name = scanj["pconfig"]["app"]["microscope"]
-            print(f"Scan taken with microscope {microscope_name}")
-            usc.set_microscope_name(microscope_name)

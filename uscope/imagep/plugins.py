@@ -20,7 +20,12 @@ class IPPlugin:
     Thread safe: no
     If you want to do multiple in parallel create multiple instances
     """
-    def __init__(self, log=None, need_tmp_dir=False, default_options={}):
+    def __init__(self,
+                 log=None,
+                 need_tmp_dir=False,
+                 default_options={},
+                 microscope=None):
+        self.microscope = microscope
         if not log:
 
             def log(s):
@@ -84,8 +89,9 @@ class IPPlugin:
 
 
 class HDREnfusePlugin(IPPlugin):
-    def __init__(self, log, default_options={}):
+    def __init__(self, log, default_options={}, microscope=None):
         super().__init__(log=log,
+                         microscope=microscope,
                          default_options=default_options,
                          need_tmp_dir=True)
         self.enfuse = config.get_bc().enfuse_cli()
@@ -123,8 +129,9 @@ Currently skips align
 
 
 class StackEnfusePlugin(IPPlugin):
-    def __init__(self, log, default_options={}):
+    def __init__(self, log, default_options={}, microscope=None):
         super().__init__(log=log,
+                         microscope=microscope,
                          default_options=default_options,
                          need_tmp_dir=True)
         # X1 has "perfect" axes
@@ -215,8 +222,9 @@ class StackEnfusePlugin(IPPlugin):
 
 
 class StabilizationPlugin(IPPlugin):
-    def __init__(self, log, default_options={}):
+    def __init__(self, log, default_options={}, microscope=None):
         super().__init__(log=log,
+                         microscope=microscope,
                          default_options=default_options,
                          need_tmp_dir=True)
 
@@ -243,8 +251,9 @@ Correct uneven illumination using a flat field mask
 
 
 class CorrectFF1Plugin(IPPlugin):
-    def __init__(self, log, default_options={}):
+    def __init__(self, log, default_options={}, microscope=None):
         super().__init__(log=log,
+                         microscope=microscope,
                          default_options=default_options,
                          need_tmp_dir=True)
         # Plugin is always registered
@@ -375,9 +384,10 @@ Sharpen image using a kernel
 
 
 class CorrectSharp1Plugin(IPPlugin):
-    def __init__(self, log, default_options={}):
+    def __init__(self, log, default_options={}, microscope=None):
         self.kernel = None
         super().__init__(log=log,
+                         microscope=microscope,
                          default_options=default_options,
                          need_tmp_dir=True)
         """
@@ -415,9 +425,10 @@ Work around this by:
 
 
 class CorrectVM1V1Plugin(IPPlugin):
-    def __init__(self, log, default_options={}):
+    def __init__(self, log, default_options={}, microscope=None):
         self.kernel = None
         super().__init__(log=log,
+                         microscope=microscope,
                          default_options=default_options,
                          need_tmp_dir=True)
         psf_test = [
@@ -501,8 +512,9 @@ class CorrectVM1V1Plugin(IPPlugin):
 
 
 class AnnotateScalebarPlugin(IPPlugin):
-    def __init__(self, log, default_options={}):
+    def __init__(self, log, default_options={}, microscope=None):
         super().__init__(log=log,
+                         microscope=microscope,
                          default_options=default_options,
                          need_tmp_dir=True)
         self.black_rectangle_height_as_percent = 0.12
@@ -590,5 +602,8 @@ def get_plugin_ctors():
     }
 
 
-def get_plugins(log=None):
-    return {k: v(log=log) for k, v in get_plugin_ctors().items()}
+def get_plugins(log=None, microscope=None):
+    return {
+        k: v(log=log, microscope=microscope)
+        for k, v in get_plugin_ctors().items()
+    }

@@ -121,8 +121,10 @@ class DirCSIP:
                  best_effort=True,
                  ewf=None,
                  configj={},
+                 microscope=None,
                  verbose=True):
         self.csip = csip
+        self.microscope = microscope
         self.log = csip.log
         self.directory = directory
         self.cs_info = cs_info
@@ -232,11 +234,9 @@ class DirCSIP:
         working_iindex = index_scan_images(self.directory)
         dst_basename = os.path.basename(os.path.abspath(self.directory))
 
-        config.lazy_load_microscope_from_config(self.directory)
-        bc = config.get_bc()
-
-        print("Microscope: %s" % (config.default_microscope_name(), ))
-        print("  Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
+        print("Microscope: %s" % (self.microscope.name, ))
+        print("Serial: %s" % (self.microscope.serial(), ))
+        print("Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
 
         self.log("")
 
@@ -397,17 +397,24 @@ class DirCSIP:
 
 
 class SnapshotCSIP:
-    def __init__(self, csip, images, best_effort=True, verbose=True):
+    def __init__(self,
+                 csip,
+                 images,
+                 best_effort=True,
+                 microscope=None,
+                 verbose=True):
         self.csip = csip
         self.log = csip.log
         self.images = images
         self.best_effort = best_effort
         self.verbose = verbose
+        self.microscope = microscope
 
     def run(self, options):
         # TODO: Write this part
-        self.log("Microscope: %s" % (config.default_microscope_name(), ))
-        self.log("  Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
+        self.log("Microscope: %s" % (self.microscope.name, ))
+        self.log("Serial: %s" % (self.microscope.serial(), ))
+        self.log("Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
 
         self.log("")
 
@@ -481,10 +488,11 @@ If it fails you'll need to fall back to DirCSIP
 
 
 class StreamCSIP:
-    def __init__(self, csip, image_stream, upload=False):
+    def __init__(self, csip, image_stream, microscope=None, upload=False):
         assert 0, "WIP"
         self.csip = csip
         self.image_stream = image_stream
+        self.microscope = microscope
 
         # TODO: auto figure this out
         # Might also want to move these to be objects

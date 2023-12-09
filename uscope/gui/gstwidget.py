@@ -384,8 +384,9 @@ class GstVideoPipeline:
         widget_configs=None,
         # microscope configuration
         usj=None,
-        usc=None,
+        ac=None,
         log=None):
+        usc = ac.usc
         if usc is None:
             usc = config.get_usc(usj=usj)
         self.usc = usc

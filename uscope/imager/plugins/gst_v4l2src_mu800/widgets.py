@@ -49,11 +49,11 @@ groups_gst = OrderedDict([
 
 
 class V4L2MU800ControlScroll(ImagerControlScroll):
-    def __init__(self, vidpip, usc=None, parent=None):
+    def __init__(self, vidpip, ac=None, parent=None):
         self.vidpip = vidpip
         ImagerControlScroll.__init__(self,
                                      groups=self.flatten_groups(groups_gst),
-                                     usc=usc,
+                                     ac=ac,
                                      parent=parent)
 
         layout = QVBoxLayout()

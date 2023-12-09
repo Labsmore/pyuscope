@@ -6,10 +6,8 @@ Case insensitive best I can tell
 """
 
 from uscope.motion.hal import MotionHAL, MotionCritical
-
 from uscope import util
 from uscope.motion.motion_util import parse_move
-from uscope.config import default_microscope_name, get_usc
 from uscope.util import tobytes, tostr
 
 import termios
@@ -1228,20 +1226,21 @@ class GrblHal(MotionHAL):
         self._soft_mins = None
         self._soft_maxs = None
         self._max_acelerations = None
-        self._axes = get_usc().motion.axes()
         self._wcs_offsets_cache = None
 
         MotionHAL.__init__(self, verbose=verbose, **kwargs)
+        self._axes = self.microscope.usc.motion.axes()
         if grbl:
             self.grbl = grbl
         else:
             self.grbl = GRBL(port=port, verbose=verbose)
-
+        """
         # Hack, move out of here to Microscope or similar
         # Run early before any config is overriten though
         microscope_name = default_microscope_name()
         if microscope_name:
             self.validate_microscope_model(microscope_name)
+        """
 
     def _wcs_offsets(self):
         """
@@ -1280,7 +1279,7 @@ class GrblHal(MotionHAL):
         if rc is not None:
             self.rc_commands(rc)
 
-        damper = get_usc().motion.damper()
+        damper = self.microscope.usc.motion.damper()
         if damper is not None:
             self.apply_damper(damper)
 
@@ -1386,7 +1385,7 @@ class GrblHal(MotionHAL):
         """
 
         # Explicitly skip if the system is known not to have limit switches
-        if get_usc().motion.limit_switches() == False:
+        if self.microscope.usc.motion.limit_switches() == False:
             assert not force, "Requested homing on a system that can't home"
             print("Homing: skip on no limit switches")
             return
@@ -1806,8 +1805,6 @@ def parse_gcode_coords(gcode_coords):
         ret = {}
         ret["config"] = items[WCS_CONFIG][len(USCOPE_MAGIC):len(USCOPE_MAGIC) +
                                           4]
-        # one unused reserved byte
-        ret["config_rev"] = items[WCS_CONFIG][-1]
         ret["comment"] = tostr(items[WCS_COMMENT]).strip()
         ret["sn"] = tostr(items[WCS_SN]).strip()
         ret["meta_ver"] = 2
@@ -1859,5 +1856,36 @@ def microscope_name_hash(microscope):
     return hashlib.sha1(microscope.encode("ascii")).digest()[0:4]
 
 
+def microscope_by_name_hash(h):
+    subdirs = [f.path for f in os.scandir("configs") if f.is_dir()]
+
+    for d in subdirs:
+        d = os.path.basename(d)
+        if microscope_name_hash(d) == h:
+            return d
+    print("Config name hashes")
+    for d in subdirs:
+        print("  %s: %s" % (d, microscope_name_hash(d).hex()))
+    raise Exception(f"failed to find a microscope config for hash {h.hex()}")
+
+
 def get_grbl(port=None, gs=None, reset=False, verbose=False):
     return GRBL(port=port, gs=gs, reset=reset, verbose=verbose)
+
+
+def grbl_mconfig(mconfig={}):
+    """
+    Create a minimal GRBL config to see if it has metadata to configure microscope
+    """
+    grbl = get_grbl()
+    try:
+        info = grbl_read_meta(grbl.gs)
+    except NoGRBLMeta:
+        # No metadata => skip sanity check
+        # Not all microscopes have this set
+        return
+    finally:
+        grbl.close()
+    mconfig["name"] = microscope_by_name_hash(info["config"])
+    mconfig["serial"] = info["sn"]
+    return mconfig

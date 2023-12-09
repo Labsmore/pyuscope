@@ -6,8 +6,6 @@ from PyQt5.QtWidgets import *
 import os
 
 from collections import OrderedDict
-
-from uscope import config
 """
 Some properties are controlled via library
 Some are driven via GUI
@@ -202,11 +200,9 @@ High level notes:
 
 
 class ImagerControlScroll(QScrollArea):
-    def __init__(self, groups, usc, verbose=False, parent=None):
+    def __init__(self, groups, ac, verbose=False, parent=None):
         QScrollArea.__init__(self, parent=parent)
-        if usc is None:
-            usc = config.get_usc()
-        self.usc = usc
+        self.ac = ac
         self.first_update = True
         self.verbose = verbose
         # self.verbose = True
@@ -261,7 +257,7 @@ class ImagerControlScroll(QScrollArea):
     def buttonLayout(self):
         layout = QHBoxLayout()
 
-        bc = config.get_bc()
+        bc = self.ac.microscope.bc
         self.cam_default_pb = None
         if bc.dev_mode():
             self.cam_default_pb = QPushButton("Camera default")
@@ -478,8 +474,9 @@ class ImagerControlScroll(QScrollArea):
 
     def cal_load(self, load_data_dir=True):
         try:
-            j = config.cal_load(source=self.vidpip.source_name,
-                                load_data_dir=load_data_dir)
+            # source=self.vidpip.source_name
+            j = self.ac.microscope.usc.imager.cal_load(
+                load_data_dir=load_data_dir)
         except ValueError as e:
             self.log("WARNING: Failed to load cal: %s" % (e, ))
             return
@@ -488,9 +485,10 @@ class ImagerControlScroll(QScrollArea):
         self.set_disp_properties(j)
 
     def cal_save(self):
-        config.cal_save_to_data(source=self.vidpip.source_name,
-                                properties=self.get_disp_properties(),
-                                mkdir=True)
+        self.ac.microscope.usc.imager.cal_save_to_data(
+            source=self.vidpip.source_name,
+            properties=self.get_disp_properties(),
+            mkdir=True)
 
     def run(self):
         self.post_imager_ready()
@@ -553,7 +551,7 @@ Had these in the class but really fragile pre-init
 """
 
 
-def template_property(vidpip, usc, prop_entry):
+def template_property(vidpip, ac, prop_entry):
     if type(prop_entry) == str:
         prop_name = prop_entry
         defaults = {}
@@ -571,7 +569,7 @@ def template_property(vidpip, usc, prop_entry):
     if ps.value_type.name == "gint":
 
         def override(which, default):
-            if not usc:
+            if not ac:
                 return default
             """
             Ex:
@@ -585,7 +583,7 @@ def template_property(vidpip, usc, prop_entry):
                 },
             },
             """
-            spm = usc.imager.source_properties_mod()
+            spm = ac.microscope.usc.imager.source_properties_mod()
             if not spm:
                 return default
             pconfig = spm.get(prop_name)
@@ -607,7 +605,7 @@ def template_property(vidpip, usc, prop_entry):
     return ret
 
 
-def flatten_groups(vidpip, groups_gst, usc, flatten_hack):
+def flatten_groups(vidpip, groups_gst, ac, flatten_hack):
     """
     Convert a high level gst property description to something usable by widget API
     """
@@ -617,7 +615,7 @@ def flatten_groups(vidpip, groups_gst, usc, flatten_hack):
         for prop_entry in gst_properties:
             val = template_property(vidpip=vidpip,
                                     prop_entry=prop_entry,
-                                    usc=usc)
+                                    ac=ac)
             flatten_hack(val)
             propdict[val["prop_name"]] = val
         groups[group_name] = propdict
@@ -627,13 +625,10 @@ def flatten_groups(vidpip, groups_gst, usc, flatten_hack):
 
 
 class MockControlScroll(ImagerControlScroll):
-    def __init__(self, vidpip, usc, parent=None):
+    def __init__(self, vidpip, ac, parent=None):
         self.vidpip = vidpip
         groups = {}
-        ImagerControlScroll.__init__(self,
-                                     groups=groups,
-                                     usc=usc,
-                                     parent=parent)
+        ImagerControlScroll.__init__(self, groups=groups, ac=ac, parent=parent)
 
     def _raw_prop_write(self, name, value):
         pass
@@ -653,15 +648,12 @@ class GstControlScroll(ImagerControlScroll):
     """
     Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
     """
-    def __init__(self, vidpip, groups_gst, usc, parent=None):
+    def __init__(self, vidpip, groups_gst, ac, parent=None):
         groups = flatten_groups(vidpip=vidpip,
                                 groups_gst=groups_gst,
-                                usc=usc,
+                                ac=ac,
                                 flatten_hack=self.flatten_hack)
-        ImagerControlScroll.__init__(self,
-                                     groups=groups,
-                                     usc=usc,
-                                     parent=parent)
+        ImagerControlScroll.__init__(self, groups=groups, ac=ac, parent=parent)
         self.vidpip = vidpip
         # FIXME: hack
         self.log = self.vidpip.log

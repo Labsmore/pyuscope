@@ -1,9 +1,11 @@
-from uscope.config import get_bc, get_usc, default_microscope_name
+from uscope.config import get_bc, get_usc
 from uscope.motion.plugins import get_motion_hal, configure_motion_hal
 from uscope.kinematics import Kinematics
 from uscope.objective import MicroscopeObjectives
 from uscope.imager import gst
+from uscope.motion.grbl import grbl_mconfig
 import threading
+import os
 """
 CLI capable
 Do not use any Qt concepts?
@@ -72,6 +74,7 @@ class Microscope:
         bc=None,
         usc=None,
         name=None,
+        serial=None,
         imager=None,
         make_imager=True,
         kinematics=None,
@@ -88,11 +91,21 @@ class Microscope:
             bc = get_bc()
         self.bc = bc
 
+        # Name may be auto selected from GRBL, etc
+        # Must be done early and in special / careful nammer
+        mconfig = {}
+        if name:
+            mconfig["name"] = name
+        if serial:
+            mconfig["serial"] = serial
+        if not mconfig.get("name") or not mconfig.get("serial"):
+            self.default_microscope_config(mconfig)
+            print("using microscope auto config", mconfig)
+        self.name = mconfig["name"]
+        self._serial = mconfig.get("serial", None)
         if usc is None:
-            usc = get_usc(name=name)
+            usc = get_usc(microscope=self)
         self.usc = usc
-        self.name = default_microscope_name()
-        self._serial = None
 
         self.objectives = None
 
@@ -131,6 +144,27 @@ class Microscope:
                 pass
         """
         self.joystick = joystick
+
+    def default_microscope_config(self, mconfig={}):
+        if not mconfig.get("name"):
+            name = os.getenv("PYUSCOPE_MICROSCOPE")
+            if name:
+                mconfig["name"] = name
+
+        # TODO: if we want to revive touptek s/n here we could
+        if not mconfig.get("name") or not mconfig.get("serial"):
+            # Try to do aggressive GRBL auto-config
+            grbl_mconfig(mconfig)
+
+        if not mconfig.get("name"):
+            # raise Exception("Must specify microscope")
+            # Microscope of last resort
+            # Generally mock-grbl is better than mock
+            mconfig["name"] = "mock-grbl"
+        if not mconfig.get("serial"):
+            print("WARNING: no microscope serial number. Files may conflict")
+
+        return mconfig
 
     def configure(self):
         if self.motion:

@@ -1,6 +1,6 @@
 from uscope.gui.gstwidget import GstVideoPipeline
 from uscope.gui.control_scrolls import get_control_scroll
-from uscope.config import get_usj, USC, get_bc, get_data_dir
+from uscope.config import get_usc, get_bc
 from uscope.gui import imager
 from uscope.gst_util import Gst, CaptureSink
 from uscope.app.argus.threads import QMotionThread, QImageProcessingThread, QJoystickThread, QTaskThread
@@ -48,11 +48,12 @@ def gui_ask_home():
 
 
 class USCArgus:
-    def __init__(self, j=None):
+    def __init__(self, j=None, microscope=None):
         """
         j: usj["app"]["argus"]
         """
         self.j = j
+        self.microscope = microscope
 
     def scan_dir(self):
         """
@@ -62,7 +63,7 @@ class USCArgus:
         if ret:
             return ret
         else:
-            return os.path.join(get_data_dir(), "scan")
+            return os.path.join(self.microscope.usc.bc.get_data_dir(), "scan")
 
     def snapshot_dir(self):
         """
@@ -72,20 +73,22 @@ class USCArgus:
         if ret:
             return ret
         else:
-            return os.path.join(get_data_dir(), "snapshot")
+            return os.path.join(self.microscope.usc.bc.get_data_dir(),
+                                "snapshot")
 
     def cache_fn(self):
         """
         Main persistent GUI cache file
         """
-        return os.path.join(get_data_dir(), "argus.j5")
+        return os.path.join(self.microscope.usc.bc.get_data_dir(), "argus.j5")
 
     def batch_cache_fn(self):
         ret = self.j.get("batch_cache_file")
         if ret:
             return ret
         else:
-            return os.path.join(get_data_dir(), "batch_cache.j5")
+            return os.path.join(self.microscope.usc.bc.get_data_dir(),
+                                "batch_cache.j5")
 
     def dry_default(self):
         """
@@ -156,30 +159,22 @@ class ArgusCommon(QObject):
         self.image_processing_thread = None
         self.task_thread = None
 
-        self.microscope = None
-        self.microscope_name = microscope_name
-        self.usj = get_usj(name=microscope_name)
-        self.usc = USC(usj=self.usj)
+        self.bc = get_bc()
+        self.microscope = Microscope(auto=False,
+                                     configure=False,
+                                     name=microscope_name)
+        self.usc = self.microscope.usc
         self.usc.app_register("argus", USCArgus)
         self.aconfig = self.usc.app("argus")
-        self.bc = get_bc()
         # force creating directories to make structure more consistent
         self.bc.batch_data_dir()
         self.bc.script_data_dir()
-
-        # TODO: init things in Microscope and then push references here
-        self.microscope = Microscope(bc=self.bc,
-                                     usc=self.usc,
-                                     auto=False,
-                                     configure=False)
 
         self.scan_configs = None
         self.imager = None
         self.kinematics = None
         self.motion = None
-        self.vidpip = GstVideoPipeline(usc=self.usc,
-                                       zoomable=True,
-                                       log=self.log)
+        self.vidpip = GstVideoPipeline(ac=self, zoomable=True, log=self.log)
 
         # FIXME: review sizing
         # self.vidpip.size_widgets()
@@ -205,7 +200,7 @@ class ArgusCommon(QObject):
 
         # Special UI initialization
         # Requires video pipeline already setup
-        self.control_scroll = get_control_scroll(self.vidpip, usc=self.usc)
+        self.control_scroll = get_control_scroll(self.vidpip, ac=self)
 
         self.planner_thread = None
         # motion.progress = self.hal_progress

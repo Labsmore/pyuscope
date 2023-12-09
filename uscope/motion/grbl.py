@@ -1574,7 +1574,9 @@ class NoGRBLMeta(Exception):
 # USCOPE_MAGIC = (121, 966, 989)
 # rounding issue, see below
 # USCOPE_MAGIC = (12, 9, 68)
-USCOPE_MAGIC = struct.pack(">I", 121966989)
+USCOPE_MAGIC1 = struct.pack("<I", 121966989)
+USCOPE_MAGIC2 = struct.pack(">I", 121966989)
+USCOPE_MAGIC = USCOPE_MAGIC2
 """
 32 bit signed value
 divided by 1000
@@ -1768,6 +1770,61 @@ def grbl_write_meta(gs, config=None, sn=None, comment=None):
     write_wcs_packed(gs, WCS_CONFIG, config)
 
 
+def parse_gcode_coords(gcode_coords):
+    # WARNING: this format loses LSB sometimes
+    def parse_format1(gcode_coords):
+        print("check 1")
+        items = {}
+        for wcsn, coords in gcode_coords.items():
+            buf = b""
+            for part in coords.split(","):
+                buf += struct.pack("<i", int(float(part) * 1000))[0:3]
+            items[wcsn] = buf
+        if items[WCS_CONFIG][0:len(USCOPE_MAGIC1)] != USCOPE_MAGIC1:
+            print("bad1", items[WCS_CONFIG][0:len(USCOPE_MAGIC1)],
+                  USCOPE_MAGIC1)
+            return None
+        ret = {}
+        ret["config"] = items[WCS_CONFIG][len(USCOPE_MAGIC1
+                                              ):len(USCOPE_MAGIC1) + 4]
+        # one unused reserved byte
+        ret["config_rev"] = items[WCS_CONFIG][-1]
+        ret["comment"] = tostr(items[WCS_COMMENT]).strip()
+        ret["sn"] = tostr(items[WCS_SN]).strip()
+        ret["meta_ver"] = 1
+        return ret
+
+    def parse_format2(gcode_coords):
+        items = {}
+        for wcsn, coords in gcode_coords.items():
+            data9 = b""
+            for part in coords.split(","):
+                data9 += struct.pack(">i", int(float(part) * 1000))[1:4]
+            items[wcsn] = meta_data9_to_data8(data9)
+        if items[WCS_CONFIG][0:len(USCOPE_MAGIC)] != USCOPE_MAGIC:
+            return None
+        ret = {}
+        ret["config"] = items[WCS_CONFIG][len(USCOPE_MAGIC):len(USCOPE_MAGIC) +
+                                          4]
+        # one unused reserved byte
+        ret["config_rev"] = items[WCS_CONFIG][-1]
+        ret["comment"] = tostr(items[WCS_COMMENT]).strip()
+        ret["sn"] = tostr(items[WCS_SN]).strip()
+        ret["meta_ver"] = 2
+        return ret
+
+    ret = parse_format2(gcode_coords)
+    if ret is not None:
+        return ret
+    ret = parse_format1(gcode_coords)
+    if ret is not None:
+        print(
+            "WARNING: detected old GRBL metadata format. Migration strongly reccomended"
+        )
+        return ret
+    raise NoGRBLMeta()
+
+
 def grbl_read_meta(gs):
     """
     Read pyuscope metadata from GRBL controller
@@ -1782,7 +1839,7 @@ def grbl_read_meta(gs):
         "sn": "",
     }
     """
-    items = {}
+    gcode_coords = {}
     for l in gs.hash():
         # WCS 4/5/6
         if "G56:" not in l and "G57:" not in l and "G58:" not in l and "G59:" not in l:
@@ -1793,21 +1850,9 @@ def grbl_read_meta(gs):
         gcode, coords = l.split(":")
         # G54 => 1
         wcsn = int(gcode[1:]) - 53
-        data9 = b""
-        for part in coords.split(","):
-            data9 += struct.pack(">i", int(float(part) * 1000))[1:4]
-        items[wcsn] = meta_data9_to_data8(data9)
-
-    assert WCS_CONFIG in items, "Failed to parse WCS"
-    if items[WCS_CONFIG][0:len(USCOPE_MAGIC)] != USCOPE_MAGIC:
-        raise NoGRBLMeta()
-    ret = {}
-    ret["config"] = items[WCS_CONFIG][len(USCOPE_MAGIC):len(USCOPE_MAGIC) + 4]
-    # one unused reserved byte
-    ret["config_rev"] = items[WCS_CONFIG][-1]
-    ret["comment"] = tostr(items[WCS_COMMENT]).strip()
-    ret["sn"] = tostr(items[WCS_SN]).strip()
-    return ret
+        gcode_coords[wcsn] = coords
+    assert WCS_CONFIG in gcode_coords, "Failed to parse WCS"
+    return parse_gcode_coords(gcode_coords)
 
 
 def microscope_name_hash(microscope):

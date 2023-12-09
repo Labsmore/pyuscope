@@ -70,6 +70,10 @@ install_gst_plugin_toupcam() {
     popd
 }
 
+apply_migrations() {
+    ./test/grbl/migrate_meta.py
+}
+
 install_gst_plugin_toupcam
 install_pyuscope
 # Deprecated, use pyrav4l2
@@ -82,6 +86,8 @@ if [ "$PYUSCOPE_MICROSCOPE" != "none" ] ; then
     echo "export PYUSCOPE_MICROSCOPE=$PYUSCOPE_MICROSCOPE" >> ~/.profile
     echo "export PYUSCOPE_MICROSCOPE=$PYUSCOPE_MICROSCOPE" >> ~/.bashrc
 fi
+
+apply_migrations
 
 # usermod is finicky requires login / logout
 # GST_PLUGIN_PATH can be similar

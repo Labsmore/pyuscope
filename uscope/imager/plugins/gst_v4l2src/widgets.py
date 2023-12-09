@@ -37,11 +37,11 @@ class V4L2GstControlScroll(GstControlScroll):
     """
     Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
     """
-    def __init__(self, vidpip, usc=None, parent=None):
+    def __init__(self, vidpip, ac=None, parent=None):
         GstControlScroll.__init__(self,
                                   vidpip=vidpip,
                                   groups_gst=groups_gst,
-                                  usc=usc,
+                                  ac=ac,
                                   parent=parent)
 
     def auto_exposure_enabled(self):

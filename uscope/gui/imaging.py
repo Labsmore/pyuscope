@@ -6,7 +6,6 @@ from uscope.motion import motion_util
 from uscope.benchmark import Benchmark
 from uscope.app.argus.threads import QPlannerThread
 from uscope.microscope import StopEvent, MicroscopeStop
-from uscope.config import get_data_dir
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -1736,7 +1735,7 @@ class MainTab(ArgusTab):
 
         self.log_fd = None
 
-        fn = os.path.join(get_data_dir(), "log.txt")
+        fn = os.path.join(self.ac.microscope.usc.bc.get_data_dir(), "log.txt")
         existed = os.path.exists(fn)
         self.log_fd = open(fn, "w+")
         if existed:

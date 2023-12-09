@@ -1,6 +1,5 @@
 from uscope.gui.widgets import ArgusTab
 from uscope.gui.input_widget import InputWidget
-from uscope.config import get_data_dir, get_bc
 from uscope.motion import motion_util
 from uscope.microscope import StopEvent, MicroscopeStop
 from uscope.util import readj, writej
@@ -394,7 +393,8 @@ class ScriptingTab(ArgusTab):
         self.last_cs_upload = None
         self.filename = None
 
-        fn = os.path.join(get_data_dir(), "script_log.txt")
+        fn = os.path.join(self.ac.microscope.usc.bc.get_data_dir(),
+                          "script_log.txt")
         existed = os.path.exists(fn)
         self.log_all_fd = open(fn, "w+")
         if existed:
@@ -411,7 +411,7 @@ class ScriptingTab(ArgusTab):
         row = 0
 
         self.script_dirs = {'uscope': './uscope/script'}
-        for name, directory in get_bc().script_dirs().items():
+        for name, directory in self.ac.microscope.bc.script_dirs().items():
             self.script_dirs[name] = directory
 
         if len(self.script_dirs) > 1:
@@ -514,7 +514,7 @@ class ScriptingTab(ArgusTab):
 
         # Most users don't need this
         # TODO: make this a menu item
-        self.enable_advanced_scripting(get_bc().dev_mode())
+        self.enable_advanced_scripting(self.ac.microscope.usc.bc.dev_mode())
 
     def enable_advanced_scripting(self, enabled):
         self.reload_pb.setVisible(enabled)

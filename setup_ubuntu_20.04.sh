@@ -3,20 +3,6 @@
 
 set -ex
 
-if [ -z "$PYUSCOPE_MICROSCOPE" ] ; then
-    echo "Must specify PYUSCOPE_MICROSCOPE to install. Ex: PYUSCOPE_MICROSCOPE=mock ./setup_ubuntu_20.04.sh"
-    echo "Ex: PYUSCOPE_MICROSCOPE=ls-hvy-2 ./setup_ubuntu_20.04.sh"
-    echo "Ex: PYUSCOPE_MICROSCOPE=none ./setup_ubuntu_20.04.sh"
-    find configs -maxdepth 1 -mindepth 1 -type d |sort
-    exit 1
-fi
-if [ "$PYUSCOPE_MICROSCOPE" = "none" ] ; then
-    true
-elif [ '!' -d "configs/$PYUSCOPE_MICROSCOPE" ] ; then
-    echo "Invalid PYUSCOPE_MICROSCOPE given"
-    exit 1
-fi
-
 if [ \! -d configs ] ; then
     echo "Must be run from the root dir"
     exit 1
@@ -79,13 +65,6 @@ install_pyuscope
 # Deprecated, use pyrav4l2
 # install_antmicro_v4l2
 install_pyrav4l2
-
-if [ "$PYUSCOPE_MICROSCOPE" != "none" ] ; then
-    # Found some systems don't read .profile....shrug
-    echo "Adding default microscope to .profile and .bashrc"
-    echo "export PYUSCOPE_MICROSCOPE=$PYUSCOPE_MICROSCOPE" >> ~/.profile
-    echo "export PYUSCOPE_MICROSCOPE=$PYUSCOPE_MICROSCOPE" >> ~/.bashrc
-fi
 
 apply_migrations
 

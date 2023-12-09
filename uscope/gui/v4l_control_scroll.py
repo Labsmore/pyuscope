@@ -80,13 +80,13 @@ class V4L2AutoExposureDisplayer(ICSDisplayer):
 
 
 class V4L2ControlScroll(ImagerControlScroll):
-    def __init__(self, vidpip, usc=None, parent=None, groups_gst=None):
+    def __init__(self, vidpip, ac=None, parent=None, groups_gst=None):
         assert groups_gst is not None
         self.vidpip = vidpip
         self.all_controls = None
         ImagerControlScroll.__init__(self,
                                      groups=self.flatten_groups(groups_gst),
-                                     usc=usc,
+                                     ac=ac,
                                      parent=parent)
 
         layout = QVBoxLayout()

@@ -1,0 +1,14 @@
+{
+    "configs": {
+        "default": {
+            "properties": {
+                "Auto Exposure": false,
+                "Auto White Balance Temperature": false,
+                "Exposure": 250,
+                "Gain": 0,
+                "White Balance Temperature": 6500
+            },
+            "source": "gst-v4l2src-hy800b"
+        }
+    }
+}

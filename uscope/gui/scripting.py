@@ -581,6 +581,11 @@ class ScriptingTab(ArgusTab):
         self.input.configure({})
         self.log_widget.clear()
 
+    def set_filename(self, filename):
+        self.fn_le.setText(filename)
+        if filename:
+            self.select_script(filename)
+
     def reload_pb_clicked(self):
         self.select_script(self.filename)
 
@@ -652,6 +657,13 @@ class ScriptingTab(ArgusTab):
             return
         try:
             j = readj(filename)
+            self.input.setValue(j)
+        except Exception as e:
+            self.log_local(f"Failed to load script config: {type(e)}: {e}")
+            traceback.print_exc()
+
+    def set_config(self, j):
+        try:
             self.input.setValue(j)
         except Exception as e:
             self.log_local(f"Failed to load script config: {type(e)}: {e}")
@@ -730,3 +742,16 @@ class ScriptingTab(ArgusTab):
         Cache the active objective
         """
         self.active_objective = data
+
+    def _cache_save(self, cachej):
+        j = {}
+        j["filename"] = str(self.fn_le.text())
+        j["config"] = self.input.getValue()
+        cachej["scripting"] = j
+
+    def _cache_load(self, cachej):
+        j = cachej.get("scripting", {})
+        self.set_filename(j.get("filename", ""))
+        config = j.get("config", None)
+        if config is not None:
+            self.set_config(config)

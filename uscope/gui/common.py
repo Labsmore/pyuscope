@@ -322,6 +322,12 @@ class ArgusCommon(QObject):
             self.task_thread.shutdown()
             # self.task_thread = None
 
+    def cache_save(self, cachej):
+        self.microscope.cache_save(cachej)
+
+    def cache_load(self, cachej):
+        self.microscope.cache_load(cachej)
+
     def init_imager(self):
         source = self.vidpip.source_name
         self.log('Loading imager %s...' % source)

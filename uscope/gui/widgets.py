@@ -103,6 +103,7 @@ class AMainWindow(QMainWindow):
         if not self.ac:
             return
         cachej = {}
+        self.ac.microscope.cache_save(cachej)
         self._cache_save(cachej)
         for awidget in self.awidgets.values():
             awidget.cache_save(cachej)
@@ -127,6 +128,7 @@ class AMainWindow(QMainWindow):
         if os.path.exists(fn):
             with open(fn, "r") as f:
                 cachej = json5.load(f)
+        self.ac.microscope.cache_load(cachej)
         self._cache_load(cachej)
         for awidget in self.awidgets.values():
             awidget.cache_load(cachej)

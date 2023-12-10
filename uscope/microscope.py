@@ -57,6 +57,8 @@ class Microscope:
         # Thread safe version
         self._kinematics_ts = None
         self.hardware = hardware
+        self._last_cachej = None
+        self.instruments = {}
 
         if log is None:
             log = print
@@ -303,6 +305,49 @@ class Microscope:
 
     def set_active_objective(self, objective):
         assert 0, "hack: overriden by GUI"
+
+    def get_instrument(self, name):
+        return self.instruments[name]
+
+    def get_instrument_default(self, name, default=None):
+        return self.instruments.get(name, default)
+
+    def add_instrument(self, instrument, name=None):
+        if not name:
+            name = instrument.name()
+        assert name not in self.instruments
+        self.instruments[name] = instrument
+
+        # Load configuration
+        assert self._last_cachej is not None
+        instrumentsj = self._last_cachej.get("instruments", {})
+        instancesj = instrumentsj.get("instances", {})
+        instrument.cache_load(instancesj.get(name, {}))
+
+    def cache_save(self, cachej):
+        """
+        Argus hook to save configuration cache
+        In the future we might reverse such that we call argu
+        """
+        instrumentsj = cachej.setdefault("instruments", {})
+        # TODO: might have other config here (ex: paths)
+        instancesj = instrumentsj.setdefault("instances", {})
+        for name, instrument in self.instruments.items():
+            instancesj[name] = instrument.cache_save()
+        self._last_cachej = cachej
+
+    def cache_load(self, cachej):
+        """
+        Argus hook to load configurationcache
+        In the future we might reverse such that we call argu
+        """
+        self._last_cachej = cachej
+
+        instrumentsj = cachej.get("instruments", {})
+        # TODO: might have other config here (ex: paths)
+        instancesj = instrumentsj.get("instances", {})
+        for name, instrument in self.instruments.items():
+            instrument.cache_load(instancesj.get(name, {}))
 
 
 def get_cli_microscope(name=None):

@@ -300,8 +300,8 @@ class USCImager:
         return microscopej
 
     def cal_save_to_data(self, source, properties, mkdir=False):
-        if mkdir and not os.path.exists(get_data_dir()):
-            os.mkdir(get_data_dir())
+        if mkdir and not os.path.exists(self.microscope.bc.get_data_dir()):
+            os.mkdir(self.microscope.bc.get_data_dir())
         jout = {
             "configs": {
                 "default": {

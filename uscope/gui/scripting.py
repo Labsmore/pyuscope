@@ -264,12 +264,7 @@ class ArgusScriptingPlugin(QThread):
         After this a picture can be snapped with acceptable quality
         """
 
-        # FIXME: this is really hacky
-        # we should actually do wait_imaging_ok() w/ frame sync
-        # need to document thread safety better, flush_image might be thread safe
-        self._ac.microscope.kinematics.wait_imaging_ok(flush_image=False)
-        # Frame sync the last image, which might be bad
-        self.imager().get()
+        self._ac.microscope.kinematics.wait_imaging_ok()
 
     def image_save_extension(self):
         """

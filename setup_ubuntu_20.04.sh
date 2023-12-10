@@ -57,7 +57,8 @@ install_gst_plugin_toupcam() {
 }
 
 apply_migrations() {
-    ./test/grbl/migrate_meta.py
+    # User might not have microscope attached
+    ./test/grbl/migrate_meta.py || true
 }
 
 install_gst_plugin_toupcam

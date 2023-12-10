@@ -23,6 +23,7 @@ class Kinematics:
         # some CLI apps don't require these
         # assert self.microscope.imager
         # assert self.microscope.motion
+        self.last_frame_sync = None
 
         if tsettle_motion is None:
             tsettle_motion = self.microscope.usc.kinematics.tsettle_motion_max(
@@ -92,12 +93,22 @@ class Kinematics:
             self.sleep(tsettle)
 
     def frame_sync(self):
+        # Have we done a sync since last movements
+        if self.last_frame_sync is not None:
+            since_last_sync = time.time() - self.last_frame_sync
+            if since_last_sync < self.microscope.motion.since_last_motion(
+            ) and since_last_sync < self.microscope.imager.since_properties_change(
+            ):
+                return
+
         tstart = time.time()
-        images = self.microscope.imager.get()
+        imager = self.microscope.imager_ts()
+        images = imager.get()
         tend = time.time()
         self.verbose and self.log("FIXME TMP: flush image took %0.3f" %
                                   (tend - tstart, ))
         assert len(images) == 1, "Expecting single image"
+        self.last_frame_sync = time.time()
 
     def wait_imaging_ok(self, flush_image=True):
         """

@@ -159,6 +159,7 @@ class InputWidget(QWidget):
         self.layout = QGridLayout()
         self.setLayout(self.layout)
         # self.clear()
+        self.iws = {}
 
     def clear(self):
         self.config = None

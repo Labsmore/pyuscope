@@ -1,6 +1,6 @@
 from uscope.imager.autofocus import choose_best_image
 from uscope.imager.imager_util import get_scaled
-from uscope.imagep.pipeline import process_snapshots
+from uscope.imagep.pipeline import CSImageProcessor
 from uscope.imager.autofocus import Autofocus
 from uscope.threads import CommandThreadBase
 
@@ -18,6 +18,16 @@ class ImageProcessingThreadBase(CommandThreadBase):
             "auto_focus": self._do_auto_focus,
             "process_image": self._do_process_image,
         }
+
+        self.ip = None
+        self.ip = CSImageProcessor(microscope=microscope)
+        self.ip.start()
+        # nothing to process => can try to shutdown before it starts
+        self.ip.ready.wait(1.0)
+
+    def shutdown(self):
+        self.ip.stop()
+        super().shutdown()
 
     def auto_focus(self, objective_config, block=False, done=None):
         j = {
@@ -67,9 +77,12 @@ class ImageProcessingThreadBase(CommandThreadBase):
             assert videoflip_method == "rotate-180"
             image = image.rotate(180)
 
-        image = process_snapshots([image],
-                                  options=options,
-                                  microscope=self.microscope)
+        try:
+            image = self.ip.process_snapshots([image], options=options)
+        except Exception as e:
+            traceback.print_exc()
+            self.log(f"WARNING; snapshot processing crashed: {e}")
+            return None
 
         if "save_filename" in options:
             kwargs = {}

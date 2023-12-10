@@ -7,6 +7,7 @@ import json5
 import json
 import glob
 import errno
+import time
 
 
 def print_debug(s=None):
@@ -311,3 +312,30 @@ def time_str(delta):
     delta /= 60
     hours = delta
     return '%02d:%02d:%02d.%04d' % (hours, minutes, seconds, fraction * 10000)
+
+
+"""
+with LogTimer("save get", self.log):
+    do_stufF()
+"""
+
+
+class LogTimer:
+    def __init__(self, name, log=None, variable=None):
+        if log is None:
+            log = print
+        self.log = log
+        self.name = name
+        self.variable = variable
+
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, *args):
+        self.end = time.time()
+        if self.variable:
+            if os.getenv(self.variable) != "Y":
+                return
+        self.log("%s benchmark: %s took %0.3f sec" %
+                 (datetime_file_str(), self.name, self.end - self.start))

@@ -8,6 +8,7 @@ Control Scroll (imager GUI controls)
 
 from uscope.imager.imager import Imager, MockImager
 from uscope.imager.imager_util import get_scaled
+from uscope.util import LogTimer
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -81,33 +82,41 @@ class GstGUIImager(Imager):
     # maybe start by getting all parties to call this
     # then can move things into main get function?
     def get_processed(self, timeout=3.0):
-        # Get relatively unprocessed snapshot
-        image = self.get()["0"]
+        with LogTimer("get_processed: net",
+                      variable="PYUSCOPE_PROFILE_TIMAGE"):
+            # Get relatively unprocessed snapshot
+            with LogTimer("get_processed: raw",
+                          variable="PYUSCOPE_PROFILE_TIMAGE"):
+                image = self.get()["0"]
 
-        processed = {}
-        ready = threading.Event()
+            processed = {}
+            ready = threading.Event()
 
-        def callback(command, args, ret_e):
-            if type(ret_e) is Exception:
-                processed["exception"] = ret_e
-            else:
-                processed["image"] = ret_e
-            ready.set()
+            def callback(command, args, ret_e):
+                if type(ret_e) is Exception:
+                    processed["exception"] = ret_e
+                else:
+                    processed["image"] = ret_e
+                ready.set()
 
-        options = {}
-        options["image"] = image
-        options["scale_factor"] = self.ac.usc.imager.scalar()
-        options["scale_expected_wh"] = self.ac.usc.imager.final_wh()
-        if self.ac.usc.imager.videoflip_method():
-            options["videoflip_method"] = self.ac.usc.imager.videoflip_method()
+            options = {}
+            options["image"] = image
+            options["scale_factor"] = self.ac.usc.imager.scalar()
+            options["scale_expected_wh"] = self.ac.usc.imager.final_wh()
+            if self.ac.usc.imager.videoflip_method():
+                options[
+                    "videoflip_method"] = self.ac.usc.imager.videoflip_method(
+                    )
 
-        self.ac.image_processing_thread.process_image(options=options,
-                                                      callback=callback)
-        ready.wait(timeout)
-        if "exception" in processed:
-            raise Exception(
-                f"failed to process image: {processed['exception']}")
-        return processed["image"]
+            self.ac.image_processing_thread.process_image(options=options,
+                                                          callback=callback)
+            with LogTimer("get_processed: waiting",
+                          variable="PYUSCOPE_PROFILE_TIMAGE"):
+                ready.wait(timeout)
+            if "exception" in processed:
+                raise Exception(
+                    f"failed to process image: {processed['exception']}")
+            return processed["image"]
 
     def log_planner_header(self, log):
         log("Imager config")

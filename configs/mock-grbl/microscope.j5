@@ -7,6 +7,7 @@ A minimal configuration to do basic testing
         "tsettle_motion_na1": 0.0,
         "tsettle_motion_base": 0.0,
         "tsettle_hdr": 0.0,
+        "frame_sync": false,
     },
 
     "motion": {

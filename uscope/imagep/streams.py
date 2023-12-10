@@ -290,12 +290,12 @@ class DirCSIP:
         if self.ipp_config.snapshot_correction():
             ipp = config.get_usc().ipp.snapshot_correction()
             if len(ipp) == 0:
-                self.log("Post corrections: skip")
+                self.verbose and self.log("Post corrections: skip")
             else:
                 for pipeline_this in ipp:
                     plugin = pipeline_this["plugin"]
                     this_dir = pipeline_this["dir"]
-                    self.log(f"{plugin}: start")
+                    self.verbose and self.log(f"{plugin}: start")
                     next_dir = os.path.join(working_iindex["dir"], this_dir)
                     self.correct_plugin_run(pipeline_this,
                                             iindex_in=working_iindex,
@@ -303,31 +303,31 @@ class DirCSIP:
                     working_iindex = index_scan_images(next_dir)
 
         if not config.get_usc().imager.has_ff_cal():
-            self.log("FF correction: skip")
+            self.verbose and self.log("FF correction: skip")
         else:
-            self.log("FF correction: start")
+            self.verbose and self.log("FF correction: start")
             next_dir = os.path.join(working_iindex["dir"], "ff1")
             self.correct_ff1_run(iindex_in=working_iindex, dir_out=next_dir)
             working_iindex = index_scan_images(next_dir)
 
         if self.ipp_config.write_html_viewer():
-            self.log("Writing HTML viewer")
+            self.verbose and self.log("Writing HTML viewer")
             if is_tif_scan(working_iindex["dir"]):
                 # Only Safari supports .tif
                 self.log("WARNING: HTML viewer only works reliably with jpg")
             write_html_viewer(working_iindex)
 
         if self.ipp_config.write_snapshot_grid():
-            self.log("Writing tile image")
+            self.verbose and self.log("Writing tile image")
             write_snapshot_grid(working_iindex)
 
         if self.ipp_config.write_quick_pano():
-            self.log("Writing quick pano")
+            self.verbose and self.log("Writing quick pano")
             write_quick_pano(working_iindex)
 
-        self.log("")
+        self.verbose and self.log("")
         healthy = self.csip.inspect_final_dir(working_iindex)
-        self.log("")
+        self.verbose and self.log("")
 
         if not healthy and self.best_effort:
             if not self.fix:
@@ -337,8 +337,8 @@ class DirCSIP:
             next_dir = os.path.join(working_iindex["dir"], "fix")
             self.fix_dir(working_iindex, next_dir)
             working_iindex = index_scan_images(next_dir)
-            self.log("")
-            self.log("re-inspecting new dir")
+            self.verbose and self.log("")
+            self.verbose and self.log("re-inspecting new dir")
             healthy = self.csip.inspect_final_dir(working_iindex)
             assert healthy
             self.log("")
@@ -402,7 +402,7 @@ class SnapshotCSIP:
                  images,
                  best_effort=True,
                  microscope=None,
-                 verbose=True):
+                 verbose=False):
         self.csip = csip
         self.log = csip.log
         self.images = images
@@ -412,11 +412,13 @@ class SnapshotCSIP:
 
     def run(self, options):
         # TODO: Write this part
-        self.log("Microscope: %s" % (self.microscope.name, ))
-        self.log("Serial: %s" % (self.microscope.serial(), ))
-        self.log("Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
+        self.verbose and self.log("SnapshotCSIP verbose")
+        self.verbose and self.log("Microscope: %s" % (self.microscope.name, ))
+        self.verbose and self.log("Serial: %s" % (self.microscope.serial(), ))
+        self.verbose and self.log(
+            "Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
 
-        self.log("")
+        self.verbose and self.log("")
 
         current_images = self.images
 
@@ -448,11 +450,11 @@ class SnapshotCSIP:
             if plugin not in current_plugins:
                 ipp.append({"plugin": plugin})
         if len(ipp) == 0:
-            self.log("Post corrections: skip")
+            self.verbose and self.log("Post corrections: skip")
         else:
             for pipeline_this in ipp:
                 plugin = pipeline_this["plugin"]
-                self.log(f"{plugin}: start")
+                self.verbose and self.log(f"{plugin}: start")
                 tb = TaskBarrier()
                 data_out = self.csip.queue_1_to_1_plugin(plugin=plugin,
                                                          im_in=current_image,
@@ -463,9 +465,9 @@ class SnapshotCSIP:
                 current_image = data_out["image"].get_im()
 
         if not config.get_usc().imager.has_ff_cal():
-            self.log("FF correction: skip")
+            self.verbose and self.log("FF correction: skip")
         else:
-            self.log("FF correction: start")
+            self.verbose and self.log("FF correction: start")
             tb = TaskBarrier()
             self.csip.queue_correct_ff1(im_in=current_image,
                                         want_im_out=True,

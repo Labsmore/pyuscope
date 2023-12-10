@@ -628,6 +628,10 @@ class USCKinematics:
         # Set a semi-reasonable default
         return float(self.j.get("tsettle_hdr", 0.2))
 
+    def frame_sync(self):
+        # Recommended for real imagers
+        return bool(self.j.get("frame_sync", True))
+
 
 class USCOptics:
     def __init__(self, j=None, microscope=None):

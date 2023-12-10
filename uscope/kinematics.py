@@ -1,4 +1,5 @@
 import time
+from uscope.util import LogTimer
 
 
 class Kinematics:
@@ -38,6 +39,7 @@ class Kinematics:
             tsettle_autofocus = self.microscope.usc.kinematics.tsettle_autofocus(
             )
         self.tsettle_autofocus = tsettle_autofocus
+        self.should_frame_sync = self.microscope.usc.kinematics.frame_sync()
 
         self.verbose and self.log(
             "Kinematics(): tsettle_motion: %0.3f" % self.tsettle_motion)
@@ -93,6 +95,9 @@ class Kinematics:
             self.sleep(tsettle)
 
     def frame_sync(self):
+        if not self.should_frame_sync:
+            return
+
         # Have we done a sync since last movements
         if self.last_frame_sync is not None:
             since_last_sync = time.time() - self.last_frame_sync
@@ -115,10 +120,14 @@ class Kinematics:
         Return once its safe to image
         Could be due to vibration, exposure settings, frame sync, etc
         """
-        self.wait_motion()
-        self.wait_hdr()
+        with LogTimer("wait motion", variable="PYUSCOPE_PROFILE_TIMAGE"):
+            self.wait_motion()
+        with LogTimer("wait hdr", variable="PYUSCOPE_PROFILE_TIMAGE"):
+            self.wait_hdr()
 
         # In an ideal world we'd compare elapsed time vs exposure
         # Otherwise if its close snap an image to sync up
         if flush_image:
-            self.frame_sync()
+            with LogTimer("wait frame_sync",
+                          variable="PYUSCOPE_PROFILE_TIMAGE"):
+                self.frame_sync()

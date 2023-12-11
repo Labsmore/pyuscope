@@ -484,7 +484,7 @@ class CorrectVM1V1Plugin(IPPlugin):
     def _run(self, data_in, data_out, options={}):
         assert self.kernel is not None
 
-        print(f"VM1-1: run")
+        self.verbose and print(f"VM1-1: run")
         pil_im = data_in["image"].to_im()
         cv_im = np.array(pil_im.convert('RGB'))[:, :, ::-1].copy()
 

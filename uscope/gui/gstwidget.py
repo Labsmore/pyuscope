@@ -800,11 +800,10 @@ class GstVideoPipeline:
             self.rtsp_server.props.service = f"{RTSP_SERVER_PORT}"
 
             media_factory = ARtspMediaFactory()
-            print(dir(self.rtsp_server))
+            # print(dir(self.rtsp_server))
             self.player.set_state(Gst.State.PLAYING)
             self.rtsp_server.get_mount_points().add_factory(f"/{MOUNT_POINT}", media_factory)
             self.rtsp_server_id = self.rtsp_server.attach(None)
-            print(self.rtsp_server_id)
         else:
             # Stop RTSP server and remove UDP
             # self.rtsp_server.create_source(True)

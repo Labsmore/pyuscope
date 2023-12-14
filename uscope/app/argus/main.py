@@ -140,6 +140,13 @@ class MainWindow(AMainWindow):
         videoMenu.addAction(self.displayAdvancedObjective)
         self.displayAdvancedObjective.triggered.connect(
             self.displayAdvancedObjectiveTriggered)
+        # action
+        self.enableRtspServer = QAction("RTSP Server",
+                                                self,
+                                                checkable=True)
+        videoMenu.addAction(self.enableRtspServer)
+        self.enableRtspServer.triggered.connect(
+            self.enableRtspServerTriggered)
 
         motionMenu = menuBar.addMenu("Motion")
         # Some people prefer perspective of moving camera, some prefer moving stage
@@ -309,6 +316,10 @@ class MainWindow(AMainWindow):
     def displayAdvancedMovementTriggered(self):
         self.ac.mainTab.motion_widget.show_advanced_movement(
             bool(self.displayAdvancedMovement.isChecked()))
+
+    def enableRtspServerTriggered(self):
+        self.ac.vidpip.enable_rtsp_server(
+            bool(self.enableRtspServer.isChecked()))
 
 
 def parse_args():

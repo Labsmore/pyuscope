@@ -67,3 +67,26 @@ def auto_detect_source(verbose=False):
 
     verbose and print("ADS: giving up (usb: %s)" % bool(usb))
     return "gst-testsrc"
+
+
+def format_mm_3dec(value):
+    """
+    Given a value in mm return a string printing it nicely
+    Currently always gives 3 decimal places
+    """
+    if value >= 100:
+        return "%d mm" % value
+    elif value >= 10:
+        return "%0.1f mm" % value
+    elif value >= 1:
+        return "%0.2f mm" % value
+    elif value >= 0.1:
+        return "%d um" % (value * 1000, )
+    elif value >= 0.01:
+        return "%0.1f um" % (value * 1000, )
+    elif value >= 0.001:
+        return "%0.2f um" % (value * 1000, )
+    else:
+        if value < 0.0001 and value != 0.0:
+            print("WARNING: formatitng very small number: %g" % (value, ))
+        return "%0.3f um" % (value * 1000, )

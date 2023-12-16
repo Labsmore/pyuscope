@@ -246,7 +246,7 @@ class ArgusScriptingPlugin(QThread):
             time.sleep(min(delta, remain))
         self.check_running()
 
-    def image(self, wait_imaging_ok=True):
+    def image(self, wait_imaging_ok=True, raw=False):
         """
         Request and return a snapshot as PIL image
 
@@ -256,7 +256,12 @@ class ArgusScriptingPlugin(QThread):
         if wait_imaging_ok:
             self.wait_imaging_ok()
         imager = self.imager()
-        return imager.get_processed()
+        if raw:
+            images = imager.get()
+            assert len(images) == 1
+            return images["0"]
+        else:
+            return imager.get_processed()
 
     def wait_imaging_ok(self):
         """
@@ -287,6 +292,22 @@ class ArgusScriptingPlugin(QThread):
         return self._ac.microscope.objectives.get_full_config()
 
     def get_objective_config(self):
+        """
+        Sample entry:
+
+        {
+            "magnification": 5,
+            "model": "5X",
+            "na": 0.1,
+            # The auto-generated name on the dropdown menu
+            "name": "5X",
+            "tsettle_motion": 0.0,
+            "um_per_pixel": 1.0,
+            "vendor": "Mock",
+            "x_view": 0.8,
+            "y_view": 0.75
+        }
+        """
         return self.get_objectives_config()[self.get_active_objective()]
 
     def get_active_objective(self):

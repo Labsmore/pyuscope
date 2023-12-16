@@ -839,7 +839,7 @@ class XYPlanner2PWidget(PlannerWidget):
         pconfig["app"] = {
             "app": "argus",
             "objective": objective,
-            "microscope": self.ac.microscope_name,
+            "microscope": self.ac.microscope.name,
         }
 
         out_dir_config = self.get_out_dir_j()

@@ -208,11 +208,15 @@ class ArgusScriptingPlugin(QThread):
         {"x": 12.345, "y": 2.356, "z": 4.5}
         """
         self.check_running()
+
+        # TODO: find a way to get exceptions to bubble up here
+        self._ac.motion.check_valid_position(pos)
         self._ac.motion_thread.move_absolute(pos, block=block)
         self.check_running()
 
     def move_relative(self, pos, block=True):
         self.check_running()
+        # TODO: find a way to get exceptions to bubble up here
         self._ac.motion_thread.move_relative(pos, block=block)
         self.check_running()
 

@@ -101,6 +101,7 @@ class GstGUIImager(Imager):
 
             options = {}
             options["image"] = image
+            options["objective_config"] = self.ac.objective_config()
             options["scale_factor"] = self.ac.usc.imager.scalar()
             options["scale_expected_wh"] = self.ac.usc.imager.final_wh()
             if self.ac.usc.imager.videoflip_method():

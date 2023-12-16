@@ -51,6 +51,9 @@ class ImageProcessingThreadBase(CommandThreadBase):
             raise
 
     def process_image(self, options, block=False, callback=None):
+        # if "objective_config" not in options:
+        #    options["objective_config"] = self.ac.objective_config()
+        assert "objective_config" in options, options
         j = {
             #"type": "process_snapshot",
             "options": options,

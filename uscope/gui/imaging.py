@@ -1184,7 +1184,7 @@ class ImagingOptionsWindow(QWidget):
 
             self.add_scalebar_cb = QCheckBox()
             self.add_scalebar_cb.stateChanged.connect(
-                self.itw.update_imagine_config)
+                self.itw.update_imaging_config)
             layout.addWidget(self.add_scalebar_cb, row, 0)
             layout.addWidget(QLabel("Add scalebar"), row, 1)
             row += 1
@@ -1202,7 +1202,7 @@ class ImagingOptionsWindow(QWidget):
             self.autofocus_cb = QCheckBox()
             self.autofocus_cb.setChecked(self.ac.microscope.has_z())
             self.autofocus_cb.stateChanged.connect(
-                self.itw.update_imagine_config)
+                self.itw.update_imaging_config)
             layout.addWidget(self.autofocus_cb, row, 1)
             row += 1
 
@@ -1214,7 +1214,7 @@ class ImagingOptionsWindow(QWidget):
                 layout.addWidget(QLabel("Post-process / CloudStitch?"), row, 0)
                 self.stitch_cb = QCheckBox()
                 self.stitch_cb.stateChanged.connect(
-                    self.itw.update_imagine_config)
+                    self.itw.update_imaging_config)
                 layout.addWidget(self.stitch_cb, row, 1)
                 row += 1
                 """
@@ -1222,7 +1222,7 @@ class ImagingOptionsWindow(QWidget):
                 self.keep_intermediate_cb = QCheckBox()
                 self.keep_intermediate_cb.setChecked(True)
                 self.keep_intermediate_cb.stateChanged.connect(
-                    self.itw.update_imagine_config)
+                    self.itw.update_imaging_config)
                 layout.addWidget(self.keep_intermediate_cb, row, 0)
                 layout.addWidget(
                     QLabel("Keep intermediate (unstitched) files?"), row, 1)
@@ -1230,21 +1230,21 @@ class ImagingOptionsWindow(QWidget):
 
                 self.html_cb = QCheckBox()
                 self.html_cb.stateChanged.connect(
-                    self.itw.update_imagine_config)
+                    self.itw.update_imaging_config)
                 layout.addWidget(self.html_cb, row, 0)
                 layout.addWidget(QLabel("HTML viewer?"), row, 1)
                 row += 1
 
                 self.quick_stitch_cb = QCheckBox()
                 self.quick_stitch_cb.stateChanged.connect(
-                    self.itw.update_imagine_config)
+                    self.itw.update_imaging_config)
                 layout.addWidget(self.quick_stitch_cb, row, 0)
                 layout.addWidget(QLabel("Quick stitch?"), row, 1)
                 row += 1
 
                 self.snapshot_grid_cb = QCheckBox()
                 self.snapshot_grid_cb.stateChanged.connect(
-                    self.itw.update_imagine_config)
+                    self.itw.update_imaging_config)
                 layout.addWidget(self.snapshot_grid_cb, row, 0)
                 layout.addWidget(QLabel("Snapshot grid overview?"), row, 1)
                 row += 1
@@ -1646,6 +1646,7 @@ class ImagingTaskWidget(AWidget):
         options = {}
         options["is_snapshot"] = True
         options["image"] = image
+        options["objective_config"] = self.ac.objective_config()
         options["save_filename"] = self.snapshot_fn()
         extension = self.save_extension()
         if extension == ".jpg":
@@ -1654,6 +1655,12 @@ class ImagingTaskWidget(AWidget):
         options["scale_expected_wh"] = self.ac.usc.imager.final_wh()
         if self.ac.usc.imager.videoflip_method():
             options["videoflip_method"] = self.ac.usc.imager.videoflip_method()
+
+        imaging_config = self.ac.imaging_config()
+        plugins = {}
+        if imaging_config.get("add_scalebar", False):
+            plugins["annotate-scalebar"] = {}
+        options["plugins"] = plugins
 
         def callback(command, args, ret_e):
             if type(ret_e) is Exception:
@@ -1676,7 +1683,7 @@ class ImagingTaskWidget(AWidget):
             os.mkdir(snapshot_dir)
             self.ac.log('Snapshot dir %s created' % snapshot_dir)
 
-        self.update_imagine_config()
+        self.update_imaging_config()
 
     def _update_pconfig(self, pconfig):
         imagerj = pconfig.setdefault("imager", {})
@@ -1719,7 +1726,7 @@ class ImagingTaskWidget(AWidget):
         self.iow.quick_stitch_cb.setChecked(j.get("quick_stitch", False))
         self.iow.snapshot_grid_cb.setChecked(j.get("snapshot_grid", False))
 
-    def update_imagine_config(self):
+    def update_imaging_config(self):
         self.imaging_config = {
             "stitch": self.iow.stitch_gb.isChecked(),
             "add_scalebar": self.iow.add_scalebar_cb.isChecked(),

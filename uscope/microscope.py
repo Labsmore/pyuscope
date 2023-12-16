@@ -358,7 +358,19 @@ def get_gui_microscope(name=None):
     return Microscope(imager_gui=True, name=name)
 
 
-def get_stitcher_microscope(mconfig=None):
+def get_mconfig(name=None, serial=None, mconfig=None):
+    if mconfig is None:
+        mconfig = {}
+    if name:
+        mconfig["name"] = name
+    if serial:
+        mconfig["serial"] = serial
+    return mconfig
+
+
+# used by stitcher
+# also used by get_microscope_info.py
+def get_virtual_microscope(mconfig=None):
     return Microscope(auto=False,
                       configure=False,
                       hardware=False,

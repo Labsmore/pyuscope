@@ -1,4 +1,3 @@
-import json
 import json5
 import os
 from collections import OrderedDict

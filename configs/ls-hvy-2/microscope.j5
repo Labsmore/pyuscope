@@ -59,6 +59,7 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
         "source":"gst-toupcamsrc",
         "width": 5440,
         "height": 3648,
+        "native_pixel_pitch_um": 2.4,
         "source_properties": {
             "esize": 0
         },

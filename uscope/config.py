@@ -311,6 +311,14 @@ class USCImager:
         }
         writej(self.cal_fn_data(), jout)
 
+    def native_pixel_pitch_um(self):
+        """
+        "pixel size"
+        Assumes square pixels
+        Only used for checking calibration
+        """
+        return self.j.get("native_pixel_pitch_um")
+
 
 class USCMotion:
     def __init__(self, j=None, microscope=None):

@@ -176,6 +176,7 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         },
         "native_width": 3840,
         "native_height": 2160,
+        "native_pixel_pitch_um": 2.0,
         "width": 1280,
         "height": 960,
         "crop_pixels": {

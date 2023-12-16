@@ -74,6 +74,7 @@ UT100 NEMA23 stages
         "source":"gst-toupcamsrc",
         "width": 5440,
         "height": 3648,
+        "native_pixel_pitch_um": 2.4,
         "source_properties": {
             "esize": 0
         },

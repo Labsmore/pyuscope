@@ -132,6 +132,7 @@ A minimal configuration to do basic testing
         //3704*(1−0.1775*2) = 2389.08
         "width": 3704,
         "height": 2778,
+        "native_pixel_pitch_um": 4.63,
         //400 nm @ 5x will loose resolution
         //"scalar": 0.5,
         //250 is still slightly visible

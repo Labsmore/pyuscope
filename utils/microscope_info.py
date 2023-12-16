@@ -97,12 +97,12 @@ def run(microscope_name=None, microscope_sn=None, verbose=True):
                 return oversampling_ratio_800 < 1.0
 
             undersampled = False
-            if not spacial_res():
+            if spacial_res():
                 undersampled = True
             if verbose:
-                if not res_400():
+                if res_400():
                     undersampled = True
-                if not res_800():
+                if res_800():
                     undersampled = True
 
             if undersampled:

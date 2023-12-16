@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
 from uscope.util import add_bool_arg
-from uscope import config
 from uscope.imagep.util import RC_CONST
 from uscope.microscope import get_virtual_microscope, get_mconfig
-import os
 
 
 def run(microscope_name=None, microscope_sn=None, verbose=True):
@@ -25,7 +23,7 @@ def run(microscope_name=None, microscope_sn=None, verbose=True):
     although spatial resolution is fine
     """
     image_scalar = microscope.usc.imager.scalar()
-    if image_scalar >= 2.0:
+    if image_scalar <= 0.5:
         bayer_scalar = 1
     else:
         bayer_scalar = 2

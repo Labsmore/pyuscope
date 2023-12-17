@@ -997,7 +997,7 @@ class MotionHAL:
     def pos(self):
         '''Return current position for all axes'''
         # print("")
-        pos = self._pos()
+        pos = self.only_used_axes(self._pos())
         self.process_pos(pos)
         return pos
 

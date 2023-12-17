@@ -448,6 +448,11 @@ class GstVideoPipeline:
 
         self.log = log
 
+        # RTSP
+        self.rtsp_bin = None
+        self.rtsp_server = None
+        self.rtsp_media_factory = None
+
     def create_widget(self, widget_name, widget_config):
         t = {
             # "full": SinkxWidgetOverviewFixed,
@@ -787,32 +792,34 @@ class GstVideoPipeline:
         MOUNT_POINT = "feed"
         if enabled:
             self.player.set_state(Gst.State.PAUSED)
-            vc_dsts = []
-            udp_sink = UdpSink(
-                incoming_wh=(self.incoming_w, self.incoming_h),
-                player=self.player)
-            udp_sink.create_elements(self.player, vc_dsts)
-            self.link_tee_dsts(self.tee_vc, vc_dsts, add=False)
-            udp_sink.gst_link()
+            if not self.rtsp_bin:
+                self.rtsp_bin = RtspBin(
+                    gst_name="rtsp_bin",
+                    incoming_wh=(self.incoming_w, self.incoming_h)
+                )
+                self.rtsp_bin.create_elements()
+                self.rtsp_bin.gst_link()
+            self.link_tee_dsts(self.tee_vc, [self.rtsp_bin], add=True)
 
-            # # Create RTSP server
-            self.rtsp_server = GstRtspServer.RTSPServer.new()
-            self.rtsp_server.props.service = f"{RTSP_SERVER_PORT}"
-
-            media_factory = ARtspMediaFactory()
-            # print(dir(self.rtsp_server))
+            if not self.rtsp_server:
+                # Create RTSP server
+                self.rtsp_server = GstRtspServer.RTSPServer.new()
+                self.rtsp_server.props.service = f"{RTSP_SERVER_PORT}"
+                self.rtsp_media_factory = ARtspMediaFactory(host=self.rtsp_bin.host,
+                                                  port=self.rtsp_bin.port)
+                self.rtsp_server.get_mount_points().add_factory(f"/{MOUNT_POINT}", self.rtsp_media_factory)
+                self.rtsp_server.attach(None)
             self.player.set_state(Gst.State.PLAYING)
-            self.rtsp_server.get_mount_points().add_factory(f"/{MOUNT_POINT}", media_factory)
-            self.rtsp_server_id = self.rtsp_server.attach(None)
         else:
-            # Stop RTSP server and remove UDP
-            # self.rtsp_server.create_source(True)
-            # self.rtsp_server.unref()
-            # self.rtsp_server.get_mount_points().unref()
-            GObject.source_remove(self.rtsp_server_id)
-            self.rtsp_server.get_mount_points().remove_factory(f"/{MOUNT_POINT}")
+            # TODO: what needs cleaning and if the server
+            # should stop fully?
+            self.player.remove(self.rtsp_bin)
+            # self.tee_vc.unlink(self.rtsp_bin)
+            # self.rtsp_server.get_mount_points().remove_factory()
 
-class UdpSink:
+
+
+class RtspBin(Gst.Bin):
     """
     GStreamer defaults are
         host: "localhost"
@@ -824,11 +831,11 @@ class UdpSink:
                  gst_name=None,
                  config=None,
                  incoming_wh=None,
-                 player=None):
+                 # player=None
+                 ):
+        super().__init__()
 
-        self.player = player
-
-        # The actual QWidget
+        # self.player = player
         self.gst_name = gst_name
         self.config = config
         # gstreamer rendering element
@@ -854,16 +861,19 @@ class UdpSink:
         self.incoming_w, self.incoming_h = incoming_wh
 
     def update_crop_scale(self):
+        """
+        Is this QWidget related or still needed?
+        """
         pass
 
-    def create_elements(self, player, src_tee):
+    def create_elements(self):
         self.videocrop = Gst.ElementFactory.make("videocrop")
         assert self.videocrop
-        player.add(self.videocrop)
+        self.add(self.videocrop)
 
         self.videoscale = Gst.ElementFactory.make("videoscale")
         assert self.videoscale
-        player.add(self.videoscale)
+        self.add(self.videoscale)
 
         # Use hardware acceleration if present
         # Otherwise can soft flip feeds when / if needed
@@ -873,36 +883,40 @@ class UdpSink:
             self.videoflip = Gst.ElementFactory.make("videoflip")
             assert self.videoflip
             self.videoflip.set_property("method", videoflip_method)
-            player.add(self.videoflip)
+            self.add(self.videoflip)
 
         self.capsfilter = Gst.ElementFactory.make("capsfilter")
         self.update_crop_scale()
-        player.add(self.capsfilter)
+        self.add(self.capsfilter)
 
         self.videoconvert = Gst.ElementFactory.make("videoconvert")
-        self.player.add(self.videoconvert)
+        self.add(self.videoconvert)
 
         self.openh264enc = Gst.ElementFactory.make("openh264enc")
         assert self.openh264enc
-        player.add(self.openh264enc)
+        self.add(self.openh264enc)
         self.h264parse = Gst.ElementFactory.make("h264parse")
         assert self.h264parse
-        player.add(self.h264parse)
+        self.add(self.h264parse)
 
         self.rtph264pay = Gst.ElementFactory.make("rtph264pay")
         assert self.rtph264pay
         self.rtph264pay.set_property("name", "pay0")
         self.rtph264pay.set_property("pt", 96)
         self.rtph264pay.set_property("config-interval", 1)
-        player.add(self.rtph264pay)
+        self.add(self.rtph264pay)
 
-        # self.udpsink = Gst.ElementFactory.make("udpsink", self.gst_name)
         self.udpsink = Gst.ElementFactory.make("udpsink")
         assert self.udpsink
         self.udpsink.set_property("host", self.host)
         self.udpsink.set_property("port", self.port)
-        player.add(self.udpsink)
-        src_tee.append(self.videocrop)
+        self.add(self.udpsink)
+
+        # Link videocrop's sink to the bin's sink
+        bin_sink_pad = Gst.GhostPad.new("sink", self.videocrop.get_static_pad("sink"))
+        bin_sink_pad.set_active(True)
+        self.add_pad(bin_sink_pad)
+
 
     def gst_link(self):
         if self.videoflip:
@@ -921,26 +935,30 @@ class UdpSink:
 
 class ARtspMediaFactory(GstRtspServer.RTSPMediaFactory):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, host, port, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.host = host
+        self.port = port
         self.set_shared(True)
 
     def do_create_element(self, url):
-        print("Client wants feed. Create element")
-        rtsp_bin = Gst.Bin.new("rtsp_bin")
-        udp_src = Gst.ElementFactory.make("udpsrc")
-        udp_src.set_property("name", "pay0")
-        udp_src.set_property("port", 8554)
-        caps = Gst.Caps.new_empty_simple("application/x-rtp")
-        caps.set_value("media", "video")
-        caps.set_value("buffer-size", 524288)
-        caps.set_value("clock-rate", 90000)
-        caps.set_value("encoding-name", "H264")
-        caps.set_value("payload", 96)
-        udp_src.set_property("caps", caps)
-        rtsp_bin.add(udp_src)
-        print(rtsp_bin)
-        return rtsp_bin
+        print("Temp msg: Client wants feed. Return the bin")
+        bin = Gst.Bin()
+        udpsrc = Gst.ElementFactory.make("udpsrc")
+        assert udpsrc
+        udpsrc.set_property("name", "pay0")
+        udpsrc.set_property("port", self.port)
+        def create_caps():
+            caps = Gst.Caps.new_empty_simple("application/x-rtp")
+            caps.set_value("media", "video")
+            caps.set_value("buffer-size", 524288)
+            caps.set_value("clock-rate", 90000)
+            caps.set_value("encoding-name", "H264")
+            caps.set_value("payload", 96)
+            return caps
+        udpsrc.set_property("caps", create_caps())
+        bin.add(udpsrc)
+        return bin
 
 
 def excepthook(excType, excValue, tracebackobj):

@@ -113,14 +113,13 @@ class USCImager:
         The largest possible sensor resolution
         Following are not applied yet: crop, scaling
         """
-        try:
-            w = int(self.j['native_width'])
-            h = int(self.j['native_height'])
-        except KeyError:
+        valw = self.j.get("native_width", self.j.get("width"))
+        valh = self.j.get("native_height", self.j.get("height"))
+        if valw is None or valh is None:
             raise Exception(
                 "can't compute um_per_pixel_raw_1x: not specified and missing native_width/height"
             )
-        return w, h
+        return int(valw), int(valh)
 
     def raw_wh(self):
         """
@@ -313,11 +312,22 @@ class USCImager:
 
     def native_pixel_pitch_um(self):
         """
-        "pixel size"
+        "pixel size" at max camera resolution
+        The number you find in the datasheet
         Assumes square pixels
         Only used for checking calibration
         """
         return self.j.get("native_pixel_pitch_um")
+
+    def hardware_resolution_scalar(self):
+        """
+        Scalar going from native pixel resolution to selected resolution
+        Ex: native 1000 wide, but selected 500 wide
+        Returns 0.5
+        """
+        native_w_pix, _native_h_pix = self.native_wh()
+        this_w_pix, _this_h_pix = self.raw_wh()
+        return this_w_pix / native_w_pix
 
 
 class USCMotion:
@@ -645,17 +655,19 @@ class USCOptics:
         self.j = j
         self.microscope = microscope
 
-    def image_wh_1x_mm(self):
+    def image_wh_raw_1x_mm(self):
         """
         1x "objective", not 1x magnification on sensor
         Relay, barlow, etc lens may significantly alter this from actual sensor size
+        No cropping applied
         """
         return self.j.get("image_width_1x_mm"), self.j.get(
             "image_height_1x_mm")
 
     def um_per_pixel_raw_1x(self):
         """
-        1x "objective", not 1x magnification on sensor
+        1x "objective", not 1x magnification on sensor at selected resolution
+        raw => non-scaled image at selected resolution
         Relay, barlow, etc lens may significantly alter this from actual pixel size
         """
         # Directly specified?
@@ -663,13 +675,10 @@ class USCOptics:
         if ret is not None:
             return ret
         # Fallback to calculating based on resolution
-        native_w_pix, _native_h_pix = self.microscope.usc.imager.native_wh()
         this_w_pix, _this_h_pix = self.microscope.usc.imager.raw_wh()
-        w_mm, _h_mm = self.image_wh_1x_mm()
-        # Less resolution => larger pixel
-        ratio = native_w_pix / this_w_pix
-        native_um_per_pixel_raw_1x = w_mm / native_w_pix * 1000
-        return native_um_per_pixel_raw_1x * ratio
+        w_mm, _h_mm = self.image_wh_raw_1x_mm()
+        w_um = w_mm * 1000
+        return w_um / this_w_pix
 
     def diffusion(self):
         """

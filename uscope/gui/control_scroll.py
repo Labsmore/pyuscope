@@ -238,11 +238,12 @@ class ImagerControlScroll(QScrollArea):
             row = 0
             groupbox.setLayout(layoutg)
 
-            for disp_name, prop in properties.items():
+            for _raw_name, prop in properties.items():
                 # TODO: should load this earlier?
                 # currently cal is loaded after this
                 if prop.get("optional", True):
-                    # disp_name = prop.get("disp_name", prop["prop_name"])
+                    disp_name = prop.get("disp_name", prop["prop_name"])
+                    # self.optional_raw_props.add(raw_name)
                     self.optional_disp_props.add(disp_name)
                 if not self.validate_prop_config(prop):
                     continue
@@ -351,7 +352,10 @@ class ImagerControlScroll(QScrollArea):
                 if disp_name in self.optional_disp_props:
                     continue
 
+                print("")
+                print("disp_name not found", disp_name)
                 print("Widget properites:", self.disp2element.keys())
+                print("Optional properties", self.optional_disp_props)
                 print("Set properites:", vals)
                 raise
             # Rely on GUI signal writing API unless GUI updates are disabled

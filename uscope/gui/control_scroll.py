@@ -208,6 +208,7 @@ class ImagerControlScroll(QScrollArea):
         # self.verbose = True
         self.log = lambda x: print(x)
         self.groups = groups
+        self.optional_disp_props = set()
 
         self.layout = QVBoxLayout()
         self.layout.addLayout(self.buttonLayout())
@@ -237,8 +238,13 @@ class ImagerControlScroll(QScrollArea):
             row = 0
             groupbox.setLayout(layoutg)
 
-            for _disp_name, prop in properties.items():
-                if not self.validate_raw_name(prop):
+            for disp_name, prop in properties.items():
+                # TODO: should load this earlier?
+                # currently cal is loaded after this
+                if prop.get("optional", True):
+                    # disp_name = prop.get("disp_name", prop["prop_name"])
+                    self.optional_disp_props.add(disp_name)
+                if not self.validate_prop_config(prop):
                     continue
                 # assert disp_name == prop["disp_name"]
                 row = self._assemble_property(prop, layoutg, row)
@@ -338,7 +344,13 @@ class ImagerControlScroll(QScrollArea):
         for disp_name, val in vals.items():
             try:
                 element = self.disp2element[disp_name]
-            except:
+            except KeyError:
+                # Not present on this system?
+                # Ignore it
+                # Likely loaded calibration not applicable in this case
+                if disp_name in self.optional_disp_props:
+                    continue
+
                 print("Widget properites:", self.disp2element.keys())
                 print("Set properites:", vals)
                 raise
@@ -483,7 +495,7 @@ class ImagerControlScroll(QScrollArea):
             # source=self.vidpip.source_name
             j = self.ac.microscope.usc.imager.cal_load(
                 load_data_dir=load_data_dir)
-        except ValueError as e:
+        except Exception as e:
             self.log("WARNING: Failed to load cal: %s" % (e, ))
             return
         if not j:
@@ -493,7 +505,7 @@ class ImagerControlScroll(QScrollArea):
     def cal_save(self):
         self.ac.microscope.usc.imager.cal_save_to_data(
             source=self.vidpip.source_name,
-            properties=self.get_disp_properties(),
+            disp_properties=self.get_disp_properties(),
             mkdir=True)
 
     def run(self):
@@ -543,13 +555,16 @@ class ImagerControlScroll(QScrollArea):
                 continue
             element.set_gui_driven(val)
 
-    def validate_raw_name(self, prop_config):
+    def validate_prop_config(self, prop_config):
         """
         Return True if should keep
         Return False if should drop (optional / not on this system)
         Throw exception if inherently bad (not optional and not found)
         """
         return True
+
+    def is_disp_prop_optional(self, disp_prop):
+        return disp_prop in self.optional_disp_props
 
 
 """

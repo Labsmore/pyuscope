@@ -271,20 +271,22 @@ class USCImager:
 
     def cal_load(self, load_data_dir=True):
         def load_config(fn):
-            if not fn:
+            try:
+                if not fn:
+                    return {}
+                if not os.path.exists(fn):
+                    return {}
+                configj = readj(fn)
+                configs = configj["configs"]
+                config = configs["default"]
+                #if source and config["source"] != source:
+                #    raise ValueError("Source mismatches in config file")
+                if "disp_properties" not in config:
+                    raise ValueError("Old config format")
+                return config["disp_properties"]
+            except Exception as e:
+                print("WARNING: Failed to load cal: %s" % (e, ))
                 return {}
-            if not os.path.exists(fn):
-                return {}
-            configj = readj(fn)
-            configs = configj["configs"]
-            if type(configs) is list:
-                raise ValueError(
-                    "Old style calibration, please update from list to dict")
-            config = configs["default"]
-            #if source and config["source"] != source:
-            #    raise ValueError("Source mismatches in config file")
-            assert "properties" in config
-            return config["properties"]
 
         # configs/ls-hvy-1/imager_calibration.j5
         microscopej = load_config(self.cal_fn_microscope())
@@ -297,14 +299,14 @@ class USCImager:
             microscopej[k] = v
         return microscopej
 
-    def cal_save_to_data(self, source, properties, mkdir=False):
+    def cal_save_to_data(self, source, disp_properties, mkdir=False):
         if mkdir and not os.path.exists(self.microscope.bc.get_data_dir()):
             os.mkdir(self.microscope.bc.get_data_dir())
         jout = {
             "configs": {
                 "default": {
                     "source": source,
-                    "properties": properties
+                    "disp_properties": disp_properties
                 }
             }
         }

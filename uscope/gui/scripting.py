@@ -109,7 +109,11 @@ class ArgusScriptingPlugin(QThread):
     def succeeded(self):
         return bool(self._succeeded)
 
-    def run(self):
+    def run(self, input_=None, button_value=None, top_level=True):
+        if button_value is not None:
+            self._input = {"button": {"value": button_value}}
+        if input_ is not None:
+            self._input = input_
         self.ident = threading.current_thread().ident
         try:
             with StopEvent(self._ac.microscope) as self.se:
@@ -156,7 +160,8 @@ class ArgusScriptingPlugin(QThread):
             traceback.print_exc()
         finally:
             self._running.clear()
-            self.done.emit()
+            if top_level:
+                self.done.emit()
 
     def wrap_cleanup(self, msg):
         try:
@@ -344,6 +349,16 @@ class ArgusScriptingPlugin(QThread):
     Advanced API
     Try to use the higher level functions first if possible
     """
+
+    def run_plugin(self, plugin, input_=None, button_value=None):
+        p = plugin.Plugin(ac=self._ac)
+        """
+        TODO:
+        -Better Input defaults
+        -Imports don't get fully cleaned?
+        """
+        p.log = self.log
+        p.run(input_=input_, button_value=button_value, top_level=False)
 
     def run_planner(self, pconfig):
         assert 0, "FIXME"

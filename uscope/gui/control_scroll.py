@@ -364,14 +364,20 @@ class ImagerControlScroll(QScrollArea):
         Update state based on camera API
         Query all GUI controlled properties and update GUI to reflect current state
         """
-        for disp_name, val in self.get_disp_properties().items():
-            # print("Should update %s: %s" % (disp_name, self.disp2element[disp_name]["push_prop"]))
-            element = self.disp2element[disp_name]
-            # Force GUI to take readback values on first update
-            if not element.config["gui_driven"] or self.first_update:
-                element.disp_property_set_widgets(
-                    val, first_update=self.first_update)
-        self.first_update = False
+        try:
+            for disp_name, val in self.get_disp_properties().items():
+                # print("Should update %s: %s" % (disp_name, self.disp2element[disp_name]["push_prop"]))
+                element = self.disp2element[disp_name]
+                # Force GUI to take readback values on first update
+                if not element.config["gui_driven"] or self.first_update:
+                    element.disp_property_set_widgets(
+                        val, first_update=self.first_update)
+            self.first_update = False
+        # 2023-12-17
+        # VM1 / UVC issue trying to chase down
+        # Can we recover or do we need to re-open the camera?
+        except OSError:
+            self.log("WARNING: camera bad file descriptor on read")
 
     def update_by_cam_defaults(self):
         """

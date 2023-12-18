@@ -126,8 +126,11 @@ class AMainWindow(QMainWindow):
         fn = self.ac.aconfig.cache_fn()
         cachej = {}
         if os.path.exists(fn):
-            with open(fn, "r") as f:
-                cachej = json5.load(f)
+            try:
+                with open(fn, "r") as f:
+                    cachej = json5.load(f)
+            except Exception as e:
+                print("Invalid configuration cache. Ignoring", e)
         self.ac.microscope.cache_load(cachej)
         self._cache_load(cachej)
         for awidget in self.awidgets.values():

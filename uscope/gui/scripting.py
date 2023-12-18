@@ -2,7 +2,7 @@ from uscope.gui.widgets import ArgusTab
 from uscope.gui.input_widget import InputWidget
 from uscope.motion import motion_util
 from uscope.microscope import StopEvent, MicroscopeStop
-from uscope.util import readj, writej
+from uscope.util import readj, writej, time_str_1dec
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -57,6 +57,8 @@ class ArgusScriptingPlugin(QThread):
         # Graceful shutdown request
         self._running = threading.Event()
         self.reset()
+        self.tstart = None
+        self.tend = None
 
     def reset(self):
         self._succeeded = None
@@ -110,6 +112,7 @@ class ArgusScriptingPlugin(QThread):
         return bool(self._succeeded)
 
     def run(self, input_=None, button_value=None, top_level=True):
+        self.tstart = time.time()
         if button_value is not None:
             self._input = {"button": {"value": button_value}}
         if input_ is not None:
@@ -164,9 +167,12 @@ class ArgusScriptingPlugin(QThread):
                 self.done.emit()
 
     def wrap_cleanup(self, msg):
+        self.tend = time.time()
         try:
             self._running.set()
             self.log(msg)
+            self.log("Completed after %s" %
+                     time_str_1dec(self.tend - self.tstart))
             try:
                 self.cleanup()
             except Exception as _e:
@@ -353,11 +359,15 @@ class ArgusScriptingPlugin(QThread):
     def run_plugin(self, plugin, input_=None, button_value=None):
         p = plugin.Plugin(ac=self._ac)
         """
+        WARNING: this is very rough and doesn't work well
+
         TODO:
         -Better Input defaults
         -Imports don't get fully cleaned?
+        -Cleanup / stop doesn't work correctly
         """
         p.log = self.log
+        p.check_running = self.check_running
         p.run(input_=input_, button_value=button_value, top_level=False)
 
     def run_planner(self, pconfig):

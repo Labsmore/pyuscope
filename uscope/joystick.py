@@ -1,11 +1,12 @@
-import math
-import pygame
 from uscope import config
 import json5
 from collections import OrderedDict
 import os
 from uscope.config import get_bc
 from uscope import jsond
+
+# Delaying import since it has side effects / takes a while
+pygame = None
 
 
 class JoystickNotFound(Exception):
@@ -178,9 +179,16 @@ class JoystickConfig:
         return joystick_config["function_map"]
 
 
+def import_pygame():
+    global pygame
+    if pygame is None:
+        import pygame
+
+
 # FIXME: low level joystick object should not depend on Argus
 class Joystick:
     def __init__(self, microscope):
+        import_pygame()
         self.microscope = microscope
         self.was_jogging = False
         pygame.init()

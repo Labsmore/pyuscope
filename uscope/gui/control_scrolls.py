@@ -39,7 +39,7 @@ def get_control_scroll(vidpip, ac):
         return V4L2YW500ControlScroll(vidpip, ac=ac)
     elif vidpip.source_name == "gst-v4l2src-hy800b":
         return V4L2HY800BControlScroll(vidpip, ac=ac)
-    elif vidpip.source_name == "gst-v4l2src-yw500u3M":
+    elif vidpip.source_name == "gst-v4l2src-yw500u3m":
         return V4L2YW500U3MControlScroll(vidpip, ac=ac)
     else:
         # vidpip.log eats this message

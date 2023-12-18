@@ -18,7 +18,7 @@ from uscope.imagep.util import EtherealImageR, EtherealImageW
 from uscope.imagep.streams import StreamCSIP, DirCSIP, SnapshotCSIP
 from uscope.imagep.plugins import get_plugins, get_plugin_ctors
 from uscope import config
-from uscope.microscope import get_stitcher_microscope
+from uscope.microscope import get_virtual_microscope, get_mconfig
 
 import os
 import glob
@@ -443,7 +443,7 @@ def process_dir(directory,
         else:
             microscope_name_from_scan_dir(directory, mconfig)
 
-        microscope = get_stitcher_microscope(mconfig=mconfig)
+        microscope = get_virtual_microscope(mconfig=mconfig)
 
     ip = None
     try:
@@ -464,7 +464,7 @@ def process_snapshots(images,
                       mconfig=None,
                       **kwargs):
     if microscope is None:
-        microscope = get_stitcher_microscope(mconfig=mconfig)
+        microscope = get_virtual_microscope(mconfig=mconfig)
 
     ip = None
     try:

@@ -109,7 +109,11 @@ class ArgusScriptingPlugin(QThread):
     def succeeded(self):
         return bool(self._succeeded)
 
-    def run(self):
+    def run(self, input_=None, button_value=None, top_level=True):
+        if button_value is not None:
+            self._input = {"button": {"value": button_value}}
+        if input_ is not None:
+            self._input = input_
         self.ident = threading.current_thread().ident
         try:
             with StopEvent(self._ac.microscope) as self.se:
@@ -156,7 +160,8 @@ class ArgusScriptingPlugin(QThread):
             traceback.print_exc()
         finally:
             self._running.clear()
-            self.done.emit()
+            if top_level:
+                self.done.emit()
 
     def wrap_cleanup(self, msg):
         try:
@@ -208,11 +213,15 @@ class ArgusScriptingPlugin(QThread):
         {"x": 12.345, "y": 2.356, "z": 4.5}
         """
         self.check_running()
+
+        # TODO: find a way to get exceptions to bubble up here
+        self._ac.motion.check_valid_position(pos)
         self._ac.motion_thread.move_absolute(pos, block=block)
         self.check_running()
 
     def move_relative(self, pos, block=True):
         self.check_running()
+        # TODO: find a way to get exceptions to bubble up here
         self._ac.motion_thread.move_relative(pos, block=block)
         self.check_running()
 
@@ -246,7 +255,7 @@ class ArgusScriptingPlugin(QThread):
             time.sleep(min(delta, remain))
         self.check_running()
 
-    def image(self, wait_imaging_ok=True):
+    def image(self, wait_imaging_ok=True, raw=False):
         """
         Request and return a snapshot as PIL image
 
@@ -256,7 +265,12 @@ class ArgusScriptingPlugin(QThread):
         if wait_imaging_ok:
             self.wait_imaging_ok()
         imager = self.imager()
-        return imager.get_processed()
+        if raw:
+            images = imager.get()
+            assert len(images) == 1
+            return images["0"]
+        else:
+            return imager.get_processed()
 
     def wait_imaging_ok(self):
         """
@@ -287,6 +301,22 @@ class ArgusScriptingPlugin(QThread):
         return self._ac.microscope.objectives.get_full_config()
 
     def get_objective_config(self):
+        """
+        Sample entry:
+
+        {
+            "magnification": 5,
+            "model": "5X",
+            "na": 0.1,
+            # The auto-generated name on the dropdown menu
+            "name": "5X",
+            "tsettle_motion": 0.0,
+            "um_per_pixel": 1.0,
+            "vendor": "Mock",
+            "x_view": 0.8,
+            "y_view": 0.75
+        }
+        """
         return self.get_objectives_config()[self.get_active_objective()]
 
     def get_active_objective(self):
@@ -319,6 +349,16 @@ class ArgusScriptingPlugin(QThread):
     Advanced API
     Try to use the higher level functions first if possible
     """
+
+    def run_plugin(self, plugin, input_=None, button_value=None):
+        p = plugin.Plugin(ac=self._ac)
+        """
+        TODO:
+        -Better Input defaults
+        -Imports don't get fully cleaned?
+        """
+        p.log = self.log
+        p.run(input_=input_, button_value=button_value, top_level=False)
 
     def run_planner(self, pconfig):
         assert 0, "FIXME"

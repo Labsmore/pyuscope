@@ -1,7 +1,7 @@
 {
     "configs": {
         "default": {
-            "properties": {
+            "disp_properties": {
                 "hflip": true,
                 "vflip": true,
             },

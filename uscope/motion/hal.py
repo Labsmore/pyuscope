@@ -673,6 +673,19 @@ class MotionHAL:
             self.axes_abs(axes)
         return axes
 
+    def check_valid_position(self, pos):
+        self.validate_axes(pos)
+        limits = self.get_soft_limits()
+        for axis, axpos in pos.items():
+            axmin = limits["mins"].get(axis)
+            axmax = limits["maxs"].get(axis)
+            if axmin is None or axmax is None:
+                continue
+            if not self.axis_pos_in_range(axis, axmin, axpos, axmax):
+                raise AxisExceeded(
+                    "axis %s: out of range %0.3f <= got %0.3f <= %0.3f" %
+                    (axis, axmin, axpos, axmax))
+
     def _get_machine_limits(self):
         return {"mins": {}, "maxs": {}}
 
@@ -984,7 +997,7 @@ class MotionHAL:
     def pos(self):
         '''Return current position for all axes'''
         # print("")
-        pos = self._pos()
+        pos = self.only_used_axes(self._pos())
         self.process_pos(pos)
         return pos
 
@@ -1004,6 +1017,7 @@ class MotionHAL:
 
     def _move_absolute_wrap(self, pos, options={}):
         '''Absolute move to positions specified by pos dict'''
+        pos = dict(pos)
         try:
             for modifier in self.iter_active_modifiers():
                 modifier.move_absolute_pre(pos, options=options)

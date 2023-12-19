@@ -193,7 +193,10 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         //1280 * 4.125 = 5280
         //"image_width_1x_mm": 5.280,
         //2023-12-17: move from 2.5x to 1.5x after validating improved illuminator
-        "image_width_1x_mm": 8.8,
+        //"image_width_1x_mm": 8.8,
+        //2023-12-18: move from 1.5x to 2.0x
+        //2.0x is still a lot more even until can add diffusor and/or improve FF correction
+        "image_width_1x_mm": 6.6,
 
         //Quick guess, not calibrated
         "diffusion": {

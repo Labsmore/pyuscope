@@ -108,12 +108,17 @@ class AMainWindow(QMainWindow):
         for awidget in self.awidgets.values():
             awidget.cache_save(cachej)
         fn = self.ac.aconfig.cache_fn()
-        with open(fn, "w") as f:
+        # file getting corrupted on save
+        # https://github.com/Labsmore/pyuscope/issues/366
+        # Be absolutely sure we have a good file before saving
+        fn_tmp = fn + ".tmp"
+        with open(fn_tmp, "w") as f:
             json.dump(cachej,
                       f,
                       sort_keys=True,
                       indent=4,
                       separators=(",", ": "))
+        os.rename(fn_tmp, fn)
 
     def _cache_load(self, cachej):
         pass
@@ -126,8 +131,11 @@ class AMainWindow(QMainWindow):
         fn = self.ac.aconfig.cache_fn()
         cachej = {}
         if os.path.exists(fn):
-            with open(fn, "r") as f:
-                cachej = json5.load(f)
+            try:
+                with open(fn, "r") as f:
+                    cachej = json5.load(f)
+            except Exception as e:
+                print("Invalid configuration cache. Ignoring", e)
         self.ac.microscope.cache_load(cachej)
         self._cache_load(cachej)
         for awidget in self.awidgets.values():

@@ -623,11 +623,15 @@ class AdvancedTab(ArgusTab):
             1: 3,
             2: 9,
             3: 27,
+            4: 100,
+            5: 1000,
         }
         self.image_stabilization_cb.addItem("1 (off)")
         self.image_stabilization_cb.addItem("3")
         self.image_stabilization_cb.addItem("9")
         self.image_stabilization_cb.addItem("27")
+        self.image_stabilization_cb.addItem("100")
+        self.image_stabilization_cb.addItem("1000")
         layout.addWidget(self.image_stabilization_cb, row, 1)
         row += 1
 

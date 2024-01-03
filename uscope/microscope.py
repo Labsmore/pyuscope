@@ -105,7 +105,7 @@ class Microscope:
         if serial:
             mconfig["serial"] = serial
         if not mconfig.get("name") or not mconfig.get("serial"):
-            self.default_microscope_config(mconfig)
+            self.default_microscope_config(mconfig, overwrite=False)
             print("using microscope auto config", mconfig)
         self.name = mconfig["name"]
         self._serial = mconfig.get("serial", None)
@@ -151,18 +151,19 @@ class Microscope:
         """
         self.joystick = joystick
 
-    def default_microscope_config(self, mconfig={}):
+    def default_microscope_config(self, mconfig={}, overwrite=False):
         if not mconfig.get("name"):
             name = os.getenv("PYUSCOPE_MICROSCOPE")
             if name:
                 mconfig["name"] = name
 
+        # TODO: put mock flag in config file
         is_mock = mconfig.get("name") in ("mock", "mock-grbl")
         # TODO: if we want to revive touptek s/n here we could
         if not mconfig.get("name") or not mconfig.get(
                 "serial") and self.hardware and not is_mock:
             # Try to do aggressive GRBL auto-config
-            grbl_mconfig(mconfig)
+            grbl_mconfig(mconfig, overwrite=overwrite)
 
         # Default to mock GRBL
         if not mconfig.get("name"):

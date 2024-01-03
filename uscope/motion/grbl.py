@@ -1877,7 +1877,7 @@ def get_grbl(port=None, gs=None, reset=False, verbose=False):
     return GRBL(port=port, gs=gs, reset=reset, verbose=verbose)
 
 
-def grbl_mconfig(mconfig={}):
+def grbl_mconfig(mconfig={}, overwrite=False):
     """
     Create a minimal GRBL config to see if it has metadata to configure microscope
     """
@@ -1895,6 +1895,8 @@ def grbl_mconfig(mconfig={}):
     finally:
         if grbl:
             grbl.close()
-    mconfig["name"] = microscope_by_name_hash(info["config"])
-    mconfig["serial"] = info["sn"]
+    if overwrite or "name" not in mconfig:
+        mconfig["name"] = microscope_by_name_hash(info["config"])
+    if overwrite or "serial" not in mconfig:
+        mconfig["serial"] = info["sn"]
     return mconfig

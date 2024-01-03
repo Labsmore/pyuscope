@@ -778,7 +778,7 @@ class XYPlanner2PWidget(PlannerWidget):
         # return ("ll", "ur")
         # Only makes sense to focus one corner since we don't track z
         # TODO: do center instead?
-        return ("ll",)
+        return ("ll", )
 
     def _cache_save(self, cachej):
         cachej["XY2P"] = {

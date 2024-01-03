@@ -22,6 +22,7 @@ DEFAULT_V4L2_DEVICE = "/dev/video0"
 gi.require_version('Gst', '1.0')
 gi.require_version('GstBase', '1.0')
 gi.require_version('GstVideo', '1.0')
+gi.require_version('GstRtspServer', '1.0')
 
 # Needed for window.get_xid(), xvimagesink.set_window_handle(), respectively:
 # WARNING: importing GdkX11 will cause hard crash (related to Qt)
@@ -30,7 +31,7 @@ gi.require_version('GstVideo', '1.0')
 from gi.repository import Gst
 
 Gst.init(None)
-from gi.repository import GstBase, GObject, GstVideo
+from gi.repository import GstBase, GObject, GstVideo, GstRtspServer
 
 from uscope import config
 
@@ -447,6 +448,11 @@ class GstVideoPipeline:
 
         self.log = log
 
+        # RTSP
+        self.rtsp_bin = None
+        self.rtsp_server = None
+        self.rtsp_media_factory = None
+
     def create_widget(self, widget_name, widget_config):
         t = {
             # "full": SinkxWidgetOverviewFixed,
@@ -779,6 +785,178 @@ class GstVideoPipeline:
                 print(f"  WARNING: ignoring bad winid for name {name}")
             else:
                 imagesink.set_window_handle(winid)
+
+    def enable_rtsp_server(self, enabled):
+        # RTSP config vars
+        RTSP_SERVER_PORT = 8554
+        MOUNT_POINT = "feed"
+        if enabled:
+            self.player.set_state(Gst.State.PAUSED)
+            if not self.rtsp_bin:
+                self.rtsp_bin = RtspBin(
+                    gst_name="rtsp_bin",
+                    incoming_wh=(self.incoming_w, self.incoming_h)
+                )
+                self.rtsp_bin.create_elements()
+                self.rtsp_bin.gst_link()
+            self.link_tee_dsts(self.tee_vc, [self.rtsp_bin], add=True)
+
+            if not self.rtsp_server:
+                # Create RTSP server
+                self.rtsp_server = GstRtspServer.RTSPServer.new()
+                self.rtsp_server.props.service = f"{RTSP_SERVER_PORT}"
+                self.rtsp_media_factory = ARtspMediaFactory(host=self.rtsp_bin.host,
+                                                  port=self.rtsp_bin.port)
+                self.rtsp_server.get_mount_points().add_factory(f"/{MOUNT_POINT}", self.rtsp_media_factory)
+                self.rtsp_server.attach(None)
+            self.player.set_state(Gst.State.PLAYING)
+        else:
+            # TODO: post server shutdown cleanup
+            self.player.remove(self.rtsp_bin)
+            # self.tee_vc.unlink(self.rtsp_bin)
+            # self.rtsp_server.get_mount_points().remove_factory()
+
+
+
+class RtspBin(Gst.Bin):
+    """
+    GStreamer defaults are
+        host: "localhost"
+        port: 5004
+    """
+    host = "127.0.0.1"
+    port = 8554
+    def __init__(self,
+                 gst_name=None,
+                 config=None,
+                 incoming_wh=None,
+                 # player=None
+                 ):
+        super().__init__()
+
+        # self.player = player
+        self.gst_name = gst_name
+        self.config = config
+        # gstreamer rendering element
+        self.udpsink = None
+        # Used to fit incoming stream to window
+        self.videoscale = None
+        self.videocrop = None
+        # Tell the videoscale the window size we need
+        self.capsfilter = None
+        #
+        self.videoflip = None
+
+        # H264 to RTP to UDP
+        self.videoconvert = None
+        self.openh264enc = None
+        self.h264parse = None
+        self.rtph264pay = None
+        self.udpsink = None
+
+        # Input image may be cropped, don't use the raw w/h for anything
+        # Fixed across a microscope run, not currently configurable after startup
+        # XXX: would be nice if we could detect these
+        self.incoming_w, self.incoming_h = incoming_wh
+
+    def update_crop_scale(self):
+        """
+        Is this QWidget related or still needed?
+        """
+        pass
+
+    def create_elements(self):
+        self.videocrop = Gst.ElementFactory.make("videocrop")
+        assert self.videocrop
+        self.add(self.videocrop)
+
+        self.videoscale = Gst.ElementFactory.make("videoscale")
+        assert self.videoscale
+        self.add(self.videoscale)
+
+        # Use hardware acceleration if present
+        # Otherwise can soft flip feeds when / if needed
+        # videoflip_method = self.parent.usc.imager.videoflip_method()
+        videoflip_method = config.get_usc().imager.videoflip_method()
+        if videoflip_method:
+            self.videoflip = Gst.ElementFactory.make("videoflip")
+            assert self.videoflip
+            self.videoflip.set_property("method", videoflip_method)
+            self.add(self.videoflip)
+
+        self.capsfilter = Gst.ElementFactory.make("capsfilter")
+        self.update_crop_scale()
+        self.add(self.capsfilter)
+
+        self.videoconvert = Gst.ElementFactory.make("videoconvert")
+        self.add(self.videoconvert)
+
+        self.openh264enc = Gst.ElementFactory.make("openh264enc")
+        assert self.openh264enc
+        self.add(self.openh264enc)
+        self.h264parse = Gst.ElementFactory.make("h264parse")
+        assert self.h264parse
+        self.add(self.h264parse)
+
+        self.rtph264pay = Gst.ElementFactory.make("rtph264pay")
+        assert self.rtph264pay
+        self.rtph264pay.set_property("name", "pay0")
+        self.rtph264pay.set_property("pt", 96)
+        self.rtph264pay.set_property("config-interval", 1)
+        self.add(self.rtph264pay)
+
+        self.udpsink = Gst.ElementFactory.make("udpsink")
+        assert self.udpsink
+        self.udpsink.set_property("host", self.host)
+        self.udpsink.set_property("port", self.port)
+        self.add(self.udpsink)
+
+        # Link videocrop's sink to the bin's sink
+        bin_sink_pad = Gst.GhostPad.new("sink", self.videocrop.get_static_pad("sink"))
+        bin_sink_pad.set_active(True)
+        self.add_pad(bin_sink_pad)
+
+
+    def gst_link(self):
+        if self.videoflip:
+            assert self.videocrop.link(self.videoflip)
+            assert self.videoflip.link(self.videoscale)
+        else:
+            assert self.videocrop.link(self.videoscale)
+
+        assert self.videoscale.link(self.capsfilter)
+        assert self.capsfilter.link(self.videoconvert)
+        assert self.videoconvert.link(self.openh264enc)
+        assert self.openh264enc.link(self.h264parse)
+        assert self.h264parse.link(self.rtph264pay)
+        assert self.rtph264pay.link(self.udpsink)
+
+
+class ARtspMediaFactory(GstRtspServer.RTSPMediaFactory):
+
+    def __init__(self, host, port, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.host = host
+        self.port = port
+        self.set_shared(True)
+
+    def do_create_element(self, url):
+        bin = Gst.Bin()
+        udpsrc = Gst.ElementFactory.make("udpsrc")
+        assert udpsrc
+        udpsrc.set_property("name", "pay0")
+        udpsrc.set_property("port", self.port)
+        def create_caps():
+            caps = Gst.Caps.new_empty_simple("application/x-rtp")
+            caps.set_value("media", "video")
+            caps.set_value("buffer-size", 524288)
+            caps.set_value("clock-rate", 90000)
+            caps.set_value("encoding-name", "H264")
+            caps.set_value("payload", 96)
+            return caps
+        udpsrc.set_property("caps", create_caps())
+        bin.add(udpsrc)
+        return bin
 
 
 def excepthook(excType, excValue, tracebackobj):

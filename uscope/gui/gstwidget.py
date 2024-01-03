@@ -793,10 +793,9 @@ class GstVideoPipeline:
         if enabled:
             self.player.set_state(Gst.State.PAUSED)
             if not self.rtsp_bin:
-                self.rtsp_bin = RtspBin(
-                    gst_name="rtsp_bin",
-                    incoming_wh=(self.incoming_w, self.incoming_h)
-                )
+                self.rtsp_bin = RtspBin(gst_name="rtsp_bin",
+                                        incoming_wh=(self.incoming_w,
+                                                     self.incoming_h))
                 self.rtsp_bin.create_elements()
                 self.rtsp_bin.gst_link()
             self.link_tee_dsts(self.tee_vc, [self.rtsp_bin], add=True)
@@ -805,9 +804,10 @@ class GstVideoPipeline:
                 # Create RTSP server
                 self.rtsp_server = GstRtspServer.RTSPServer.new()
                 self.rtsp_server.props.service = f"{RTSP_SERVER_PORT}"
-                self.rtsp_media_factory = ARtspMediaFactory(host=self.rtsp_bin.host,
-                                                  port=self.rtsp_bin.port)
-                self.rtsp_server.get_mount_points().add_factory(f"/{MOUNT_POINT}", self.rtsp_media_factory)
+                self.rtsp_media_factory = ARtspMediaFactory(
+                    host=self.rtsp_bin.host, port=self.rtsp_bin.port)
+                self.rtsp_server.get_mount_points().add_factory(
+                    f"/{MOUNT_POINT}", self.rtsp_media_factory)
                 self.rtsp_server.attach(None)
             self.player.set_state(Gst.State.PLAYING)
         else:
@@ -815,7 +815,6 @@ class GstVideoPipeline:
             self.player.remove(self.rtsp_bin)
             # self.tee_vc.unlink(self.rtsp_bin)
             # self.rtsp_server.get_mount_points().remove_factory()
-
 
 
 class RtspBin(Gst.Bin):
@@ -826,12 +825,14 @@ class RtspBin(Gst.Bin):
     """
     host = "127.0.0.1"
     port = 8554
-    def __init__(self,
-                 gst_name=None,
-                 config=None,
-                 incoming_wh=None,
-                 # player=None
-                 ):
+
+    def __init__(
+        self,
+        gst_name=None,
+        config=None,
+        incoming_wh=None,
+        # player=None
+    ):
         super().__init__()
 
         # self.player = player
@@ -912,10 +913,10 @@ class RtspBin(Gst.Bin):
         self.add(self.udpsink)
 
         # Link videocrop's sink to the bin's sink
-        bin_sink_pad = Gst.GhostPad.new("sink", self.videocrop.get_static_pad("sink"))
+        bin_sink_pad = Gst.GhostPad.new("sink",
+                                        self.videocrop.get_static_pad("sink"))
         bin_sink_pad.set_active(True)
         self.add_pad(bin_sink_pad)
-
 
     def gst_link(self):
         if self.videoflip:
@@ -933,7 +934,6 @@ class RtspBin(Gst.Bin):
 
 
 class ARtspMediaFactory(GstRtspServer.RTSPMediaFactory):
-
     def __init__(self, host, port, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.host = host
@@ -946,6 +946,7 @@ class ARtspMediaFactory(GstRtspServer.RTSPMediaFactory):
         assert udpsrc
         udpsrc.set_property("name", "pay0")
         udpsrc.set_property("port", self.port)
+
         def create_caps():
             caps = Gst.Caps.new_empty_simple("application/x-rtp")
             caps.set_value("media", "video")
@@ -954,6 +955,7 @@ class ARtspMediaFactory(GstRtspServer.RTSPMediaFactory):
             caps.set_value("encoding-name", "H264")
             caps.set_value("payload", 96)
             return caps
+
         udpsrc.set_property("caps", create_caps())
         bin.add(udpsrc)
         return bin

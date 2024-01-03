@@ -141,12 +141,9 @@ class MainWindow(AMainWindow):
         self.displayAdvancedObjective.triggered.connect(
             self.displayAdvancedObjectiveTriggered)
         # action
-        self.enableRtspServer = QAction("RTSP Server",
-                                                self,
-                                                checkable=True)
+        self.enableRtspServer = QAction("RTSP Server", self, checkable=True)
         videoMenu.addAction(self.enableRtspServer)
-        self.enableRtspServer.triggered.connect(
-            self.enableRtspServerTriggered)
+        self.enableRtspServer.triggered.connect(self.enableRtspServerTriggered)
 
         motionMenu = menuBar.addMenu("Motion")
         # Some people prefer perspective of moving camera, some prefer moving stage

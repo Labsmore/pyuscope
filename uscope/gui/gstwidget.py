@@ -811,8 +811,7 @@ class GstVideoPipeline:
                 self.rtsp_server.attach(None)
             self.player.set_state(Gst.State.PLAYING)
         else:
-            # TODO: what needs cleaning and if the server
-            # should stop fully?
+            # TODO: post server shutdown cleanup
             self.player.remove(self.rtsp_bin)
             # self.tee_vc.unlink(self.rtsp_bin)
             # self.rtsp_server.get_mount_points().remove_factory()
@@ -942,7 +941,6 @@ class ARtspMediaFactory(GstRtspServer.RTSPMediaFactory):
         self.set_shared(True)
 
     def do_create_element(self, url):
-        print("Temp msg: Client wants feed. Return the bin")
         bin = Gst.Bin()
         udpsrc = Gst.ElementFactory.make("udpsrc")
         assert udpsrc

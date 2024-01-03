@@ -13,6 +13,10 @@ sudo apt-get install -y python3-pip
 
 install_pyuscope() {
     sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb python3-opencv python3-serial python3-numpy python3-scipy imagemagick enfuse
+    # 2024-01-03: dev seems to be required, not just base
+    # Some people suggest gir1.2-gst-rtsp-server-1.0
+    # Install all for now
+    sudo apt-get install -y libgstrtspserver-1.0-0 libgstrtspserver-1.0-dev gir1.2-gst-rtsp-server-1.0
     sudo pip3 install json5 boto3 pygame psutil bitarray
 
 

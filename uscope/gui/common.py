@@ -373,10 +373,15 @@ class ArgusCommon(QObject):
         """
         Mostly looking for crashes in other contexts to propagate up
         """
+        # It is not always possible to recover a motion controller crash without re-homing (ex: LIP-X1)
+        # We also have seen some transient serial errors but full crashes seem to be pretty rare
         if self.motion_thread and self.motion_thread.motion is None:
             raise ArgusShutdown("Motion thread crashed")
+        # In theory we can fairly quickly restart camera on disconnect
         if self.vidpip and not self.vidpip.ok:
-            raise ArgusShutdown("Video pipeline crashed")
+            # raise ArgusShutdown("Video pipeline crashed")
+            self.log("WARNING: video pipeline crashed. Attempting restart")
+            self.recover_video_crash()
 
     def joystick_disable(self):
         jl = self.mainTab.motion_widget.joystick_listener
@@ -411,3 +416,12 @@ class ArgusCommon(QObject):
         Check if name is in cache
         """
         self.mainTab.objective_widget.setObjective.emit(objective)
+
+    def recover_video_crash(self):
+        # prop_cache = self.control_scroll.get_prop_cache()
+        self.vidpip.recover_video_crash()
+        # FIXME: maybe this needs to be delayed until we are actually up?
+        # In any case GUI will still have old state and it might "just work"
+        # Assume we are good
+        # If the camera is still gone we'll get a pipeline crash in a second or so
+        # self.control_scroll.set_prop_cache(prop_cache)

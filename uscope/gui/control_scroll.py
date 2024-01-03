@@ -311,6 +311,13 @@ class ImagerControlScroll(QScrollArea):
         assert prop_name not in self.raw2element
         self.raw2element[prop_name] = element
 
+        # Normal users don't need to change these
+        # but its needed to configure the camera
+        # See https://github.com/Labsmore/pyuscope/issues/274
+        # Ex: hflip/vflip
+        if not prop.get("visible", True):
+            element.setVisible(self.ac.microscope.bc.dev_mode())
+
         return row
 
     def refresh_defaults(self):

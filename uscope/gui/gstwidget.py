@@ -816,6 +816,35 @@ class GstVideoPipeline:
             # self.tee_vc.unlink(self.rtsp_bin)
             # self.rtsp_server.get_mount_points().remove_factory()
 
+    def recover_video_crash(self):
+        """
+        Goal: recover from transient camera errors
+        At a high level:
+        -Stop pipeline
+        -Deconstruct the old video source / remove from pipeline
+        -Create a new video source and add to pipeline
+        -Start pipeline
+        -Restore properties (exposure, etc)
+        """
+        # Stop pipeline and remove the bad element
+        self.ok = False
+        self.player.set_state(Gst.State.NULL)
+        self.source.unlink(self.raw_capsfilter)
+        self.player.remove(self.source)
+        self.source = None
+
+        # Allocate a new source
+        self.prepareSource()
+        self.player.add(self.source)
+        # Now insert it back into the pipeline
+        if not self.source.link(self.raw_capsfilter):
+            raise RuntimeError("Couldn't set capabilities on the source")
+        # Go go go!
+        # Hopefully we'll come back up
+        # If not we'll crash in short order
+        self.player.set_state(Gst.State.PLAYING)
+        self.ok = True
+
 
 class RtspBin(Gst.Bin):
     """

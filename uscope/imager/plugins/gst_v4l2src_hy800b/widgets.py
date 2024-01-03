@@ -12,7 +12,15 @@ auto temp is a "bool"
 why?
 
 """
-
+"""
+Re: hidden properties
+hardware auto-exposure:
+-Can't read back exposure => doesn't synchronize well
+White balance:
+-Can't read back AWB parameter
+-Only AWB can correct fully
+-Favor software correcting color curves at known value
+"""
 groups_gst = OrderedDict([(
     "Controls",
     [
@@ -24,6 +32,7 @@ groups_gst = OrderedDict([(
             "ctor": V4L2AutoExposureDisplayer,
             "type": "ctor",
             "optional": True,
+            "visible": False,
         },
         {
             "prop_name": "Exposure, Auto",
@@ -32,6 +41,7 @@ groups_gst = OrderedDict([(
             "ctor": V4L2AutoExposureDisplayer,
             "type": "ctor",
             "optional": True,
+            "visible": False,
         },
         {
             "prop_name": "Exposure (Absolute)",
@@ -79,6 +89,7 @@ groups_gst = OrderedDict([(
             # Not present on all host systems for some reason
             # maybe added in Linux 5.15?
             "optional": True,
+            "visible": False,
         },
         # <class 'pyrav4l2.device.WrongIntValue'>: '6509' is not valid for 'White Balance Temperature'. Allowed values: 2800 - 6500 (step: 1)
         {
@@ -88,6 +99,7 @@ groups_gst = OrderedDict([(
             "max": 6500,
             "default": 5000,
             "type": "int",
+            "visible": False,
         },
     ],
 )])

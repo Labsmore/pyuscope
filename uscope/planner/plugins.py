@@ -565,7 +565,7 @@ class PointGenerator3P(PlannerPlugin):
         if self.pc.j["points-xy3p"].get("refocus", False):
             self.refocus_corners(corners)
         assert len(corners) == 3
-        pos0 = self.planner.motion.pos()
+        #pos0 = self.planner.motion.pos()
         self.corners = {}
         self.ax_min = {}
         self.ax_max = {}
@@ -576,19 +576,19 @@ class PointGenerator3P(PlannerPlugin):
             # Fill in a dummy consistent value to make matrix solve
             # It will be dropped during moves
             # Its also accurate in the telemetry
-            if not self.tracking_z:
-                corner["z"] = pos0["z"]
+            #if not self.tracking_z and "z" in pos0:
+            #    corner["z"] = pos0["z"]
             self.log("  %s x=%0.3f, y=%0.3f, z=%0.3f" %
-                     (cornerk, corner["x"], corner["y"], corner["z"]))
+                     (cornerk, corner["x"], corner["y"], corner.get("z", 0)))
             self.corners[cornerk] = corner
-            for ax in "xyz":
+            for ax in self.motion.axes():
                 self.ax_min[ax] = min(self.ax_min.get(ax, +float('inf')),
                                       corner[ax])
                 self.ax_max[ax] = max(self.ax_max.get(ax, -float('inf')),
                                       corner[ax])
 
         self.log("Bounding box")
-        for axis in "xyz":
+        for axis in self.motion.axes():
             self.log("  %c: %0.3f to %0.3f" %
                      (axis, self.ax_min[axis], self.ax_max[axis]))
 
@@ -663,7 +663,7 @@ class PointGenerator3P(PlannerPlugin):
         # Dependence of x on col
         self.per_col = {}
         self.per_row = {}
-        for axis in "xyz":
+        for axis in self.motion.axes():
 
             def corner_trim(corner):
                 """
@@ -702,7 +702,7 @@ class PointGenerator3P(PlannerPlugin):
 
     def calc_pos(self, ll_col, ll_row):
         ret = {}
-        for axis in "xyz":
+        for axis in self.motion.axes():
             # Project from corner
             # Adjust from center of imager
             offset = self.corners["ll"][axis]

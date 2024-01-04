@@ -1122,8 +1122,9 @@ class XYPlanner3PWidget(PlannerWidget):
             self.ac.usc.motion.format_position("x", pos_cur["x"]))
         widgets["y_le"].setText(
             self.ac.usc.motion.format_position("y", pos_cur["y"]))
-        widgets["z_le"].setText(
-            self.ac.usc.motion.format_position("z", pos_cur["z"]))
+        if "z" in pos_cur:
+            widgets["z_le"].setText(
+                self.ac.usc.motion.format_position("z", pos_cur["z"]))
 
     def get_corner_widget_pos(self, corner_name):
         widgets = self.corner_widgets[corner_name]

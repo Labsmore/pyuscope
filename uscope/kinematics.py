@@ -40,6 +40,7 @@ class Kinematics:
             )
         self.tsettle_autofocus = tsettle_autofocus
         self.should_frame_sync = self.microscope.usc.kinematics.frame_sync()
+        self.tsettle_video_pipeline = 3.0
 
         self.verbose and self.log(
             "Kinematics(): tsettle_motion: %0.3f" % self.tsettle_motion)
@@ -47,6 +48,9 @@ class Kinematics:
             "Kinematics(): tsettle_hdr: %0.3f" % self.tsettle_hdr)
         self.verbose and self.log(
             "Kinematics(): tsettle_autofocus: %0.3f" % self.tsettle_autofocus)
+        self.verbose and self.log(
+            "Kinematics(): tsettle_video_pipeline: %0.3f" %
+            self.tsettle_video_pipeline)
 
     # May be updated as objective is changed
     def set_tsettle_motion(self, tsettle_motion):
@@ -61,6 +65,17 @@ class Kinematics:
     def sleep(self, t):
         self.verbose and self.log("kinematics sleep", t)
         time.sleep(t)
+
+    def wait_video_pipeline(self):
+        if self.microscope.imager is None or self.tsettle_video_pipeline <= 0:
+            return
+        tsettle = self.tsettle_video_pipeline - self.microscope.imager.since_last_restart(
+        )
+        if tsettle > 0.0:
+            self.log(
+                "Kinematics sleeping due to video pipeline restart: %0.3f" %
+                tsettle)
+            self.sleep(tsettle)
 
     def wait_motion(self):
         if self.microscope.motion is None or self.tsettle_motion <= 0:
@@ -120,6 +135,9 @@ class Kinematics:
         Return once its safe to image
         Could be due to vibration, exposure settings, frame sync, etc
         """
+        with LogTimer("wait video_pipeline",
+                      variable="PYUSCOPE_PROFILE_TIMAGE"):
+            self.wait_video_pipeline()
         with LogTimer("wait motion", variable="PYUSCOPE_PROFILE_TIMAGE"):
             self.wait_motion()
         with LogTimer("wait hdr", variable="PYUSCOPE_PROFILE_TIMAGE"):

@@ -334,6 +334,8 @@ class ArgusCommon(QObject):
         # Gst is pretty ingrained for the GUI
         #
         self.imager = imager.get_gui_imager(source, self)
+        # gst pipeline already created / should be ready to go
+        self.imager.device_restarted()
 
     def emit_log(self, s='', newline=True):
         # event must be omitted from the correct thread

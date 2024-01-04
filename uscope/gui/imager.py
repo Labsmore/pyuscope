@@ -7,7 +7,6 @@ Control Scroll (imager GUI controls)
 """
 
 from uscope.imager.imager import Imager, MockImager
-from uscope.imager.imager_util import get_scaled
 from uscope.util import LogTimer
 
 from PyQt5 import Qt
@@ -16,7 +15,9 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
 import threading
-from PIL import Image
+import time
+import traceback
+from uscope.imager.gst import ImageTimeout
 """
 WARNING: early on there was some variety in maybe different imagers
 for now GUI pretty solidly assumes Gst
@@ -57,7 +58,7 @@ class GstGUIImager(Imager):
     def wh(self):
         return self.width, self.height
 
-    def next_image(self):
+    def next_image(self, timeout=3.0):
         #self.ac.emit_log('gstreamer imager: taking image to %s' % file_name_out)
         def got_image(image_id):
             # self.ac.emit_log('Image captured reported: %s' % image_id)
@@ -68,26 +69,41 @@ class GstGUIImager(Imager):
         self.image_ready.clear()
         self.ac.capture_sink.request_image(got_image)
         # self.ac.emit_log('Waiting for next image...')
-        self.image_ready.wait()
+        if not self.image_ready.wait(timeout=timeout):
+            raise ImageTimeout(
+                "Failed to get raw image within timeout %0.1f sec" %
+                (timeout, ))
         # self.ac.emit_log('Got image %s' % self.image_id)
         return self.ac.capture_sink.pop_image(self.image_id)
 
-    def get(self):
-        # 2023-11-16: we used to do scaling / etc here
-        # Now its done in image processing thread
-        # This also allows getting "raw" image if needed
-        return {"0": self.next_image()}
+    def get(self, recover_errors=True, timeout=3.0):
+        while True:
+            try:
+                # 2023-11-16: we used to do scaling / etc here
+                # Now its done in image processing thread
+                # This also allows getting "raw" image if needed
+                return {"0": self.next_image(timeout=timeout)}
+            except Exception as e:
+                if not recover_errors:
+                    raise
+                self.ac.log(
+                    f"WARNING: failed to get image ({type(e)}: {e}). Sleeping then retrying"
+                )
+                print(traceback.format_exc())
+                # If something went badly wrong need to give it some time to recover / restart pipeline
+                time.sleep(
+                    self.ac.microscope.kinematics.tsettle_video_pipeline * 2)
 
     # FIXME: clean this up
     # maybe start by getting all parties to call this
     # then can move things into main get function?
-    def get_processed(self, timeout=3.0):
+    def get_processed(self, recover_errors=True, processing_timeout=3.0):
         with LogTimer("get_processed: net",
                       variable="PYUSCOPE_PROFILE_TIMAGE"):
             # Get relatively unprocessed snapshot
             with LogTimer("get_processed: raw",
                           variable="PYUSCOPE_PROFILE_TIMAGE"):
-                image = self.get()["0"]
+                image = self.get(recover_errors=recover_errors)["0"]
 
             processed = {}
             ready = threading.Event()
@@ -113,7 +129,10 @@ class GstGUIImager(Imager):
                                                           callback=callback)
             with LogTimer("get_processed: waiting",
                           variable="PYUSCOPE_PROFILE_TIMAGE"):
-                ready.wait(timeout)
+                if not ready.wait(processing_timeout):
+                    raise ImageTimeout(
+                        "Failed to get image within processing timeout %0.1f sec"
+                        % (processing_timeout, ))
             if "exception" in processed:
                 raise Exception(
                     f"failed to process image: {processed['exception']}")

@@ -387,6 +387,7 @@ class GstVideoPipeline:
         usj=None,
         ac=None,
         log=None):
+        self.ac = ac
         usc = ac.usc
         if usc is None:
             usc = config.get_usc(usj=usj)
@@ -543,6 +544,8 @@ class GstVideoPipeline:
             assert widget.winid, "Need widget_winid by run"
 
         self.player.set_state(Gst.State.PLAYING)
+        if self.ac.imager:
+            self.ac.imager.device_restarted()
 
     def remove_full_widget(self):
         assert 0, "FIXME"
@@ -843,6 +846,7 @@ class GstVideoPipeline:
         # Hopefully we'll come back up
         # If not we'll crash in short order
         self.player.set_state(Gst.State.PLAYING)
+        self.ac.imager.device_restarted()
         self.ok = True
 
 

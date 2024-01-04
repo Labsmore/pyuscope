@@ -29,6 +29,21 @@ class Imager:
         self.verbose = verbose
         # Used to flush pipeline with changing HDR properties
         self.last_properties_change = time.time()
+        # Used for re-synchronizing after a camera disconnect
+        self._t_last_restart = None
+
+    def device_restarted(self):
+        """
+        The imager has had a significant reconfiguration
+        Intended for a full device disconnect / renumeration recovery
+        """
+        self._t_last_restart = time.time()
+
+    def since_last_restart(self):
+        if self._t_last_restart is None:
+            return None
+        else:
+            return time.time() - self._t_last_restart
 
     def configure(self):
         pass

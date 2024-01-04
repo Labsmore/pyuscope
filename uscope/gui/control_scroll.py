@@ -222,6 +222,12 @@ class ImagerControlScroll(QScrollArea):
         # Indexed by low level name
         self.raw2element = OrderedDict()
 
+        # Used for saving / restoring state
+        # In particular to restore if the camera disconnects
+        # (or maybe save on exit)
+        self.raw_cache = {}
+        self.disp_cache = {}
+
     def post_imager_ready(self):
         """
         Call once gst is running
@@ -457,6 +463,7 @@ class ImagerControlScroll(QScrollArea):
         self.verbose and print(f"raw_prop_write() {name} = {value}")
         self._raw_prop_write(name, value)
         self.raw_prop_written(name, value)
+        self.raw_cache[name] = value
 
     def raw_prop_read(self, name, default=False):
         """
@@ -465,6 +472,7 @@ class ImagerControlScroll(QScrollArea):
         ret = self._raw_prop_read(name)
         self.verbose and print(f"raw_prop_read() {name} = {ret}")
         self.raw_prop_was_read(name, ret)
+        self.raw_cache[name] = ret
         return ret
 
     def _raw_prop_write(self, name, value):
@@ -484,13 +492,34 @@ class ImagerControlScroll(QScrollArea):
     def disp_prop_read(self, disp_name):
         element = self.disp2element[disp_name]
         raw = self.raw_prop_read(element.config["prop_name"])
-        return element.val_raw2disp(raw)
+        ret = element.val_raw2disp(raw)
+        self.disp_cache[disp_name] = ret
+        return ret
 
     def disp_prop_write(self, disp_name, disp_val):
         element = self.disp2element[disp_name]
         raw_val = element.val_disp2raw(disp_val)
         # print("translate to raw val", raw_val)
         self.raw_prop_write(element.config["prop_name"], raw_val)
+        self.disp_cache[disp_name] = disp_val
+
+    def get_prop_cache(self):
+        return {
+            "disp": dict(self.disp_cache),
+            "raw": dict(self.raw_cache),
+        }
+
+    def recover_video_crash(self, prop_cache):
+        """
+        Its unclear the best way to deal with this
+        Think just write everything and let the GUI update is best
+        Assume for now that only disp properties are needed
+
+        Assumes that all properties are contained in prop_cache
+        We could also force GUI elements to update if we wanted to be really sure
+        """
+        for disp_name, disp_val in prop_cache["disp"].items():
+            self.disp_prop_write(disp_name, disp_val)
 
     def cal_load_clicked(self, checked):
         self.cal_load(load_data_dir=True)

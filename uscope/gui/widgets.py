@@ -33,7 +33,7 @@ class AMainWindow(QMainWindow):
         self.polli = 0
         self.ac = None
         self.shutting_down = False
-        self.cachej = None
+        self.cachej = {}
 
     def __del__(self):
         self.shutdown()
@@ -102,7 +102,10 @@ class AMainWindow(QMainWindow):
         """
         if not self.ac:
             return
-        cachej = {}
+        # Recycle old value
+        # otherwise we can loose some config
+        # ex: carry over joystick config when not plugged in
+        cachej = self.cachej
         self.ac.microscope.cache_save(cachej)
         self._cache_save(cachej)
         for awidget in self.awidgets.values():
@@ -140,6 +143,7 @@ class AMainWindow(QMainWindow):
         self._cache_load(cachej)
         for awidget in self.awidgets.values():
             awidget.cache_load(cachej)
+        self.cachej = cachej
 
     def _poll_misc(self):
         pass

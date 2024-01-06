@@ -73,6 +73,7 @@ class JoystickConfig:
         self.guid = guid
         function_map = self.make_function_map(model, guid, jdb)
         self._apply_dconfig(function_map)
+        self._user_config = {}
         self._function_map = function_map
         self._volatile_scalars = {}
         """
@@ -97,27 +98,70 @@ class JoystickConfig:
         dconfig = bc_system.get("dconfig", None)
         if not dconfig:
             return
-        print("Applying dconfig for joystick")
+        # print("Applying dconfig for joystick")
         jsond.apply_update(function_map, dconfig)
 
     # User scalars: user supplied calibration
     # Non-volatile / can be saved
 
-    def reset_user_scalars(self):
-        for config in self._function_map.values():
-            config["user_scalar"] = 1.0
+    def set_user_config(self, config):
+        """
+        Example
+        {
+            "axis_move_x": {
+                "threshold": 0.1,
+                "scalar": 2.0,
+            },
+            ...
+        }
+        """
+        # Filter out entries that are None
+        # Allows us to easier take default values
+        ret = {}
+        for function_name, values in config.items():
+            ret_function = ret.setdefault(function_name, {})
+            for k, v in values.items():
+                if v is not None:
+                    ret_function[k] = v
+        # TODO: should we validate here?
+        self._user_config = ret
 
-    def set_user_scalars(self, scalars):
-        # External tuning not implicit to configuration
-        # ex: if user wants to increase or decrease sensitivity
-        # self._user_scalars = scalars
-        for function, val in scalars:
-            config = self._function_map[function]
-            config["user_scalar"] = val
+    def get_user_config(self):
+        """
+        Return a config structure of the current values of user modifiable properties
+        Typically this is user_scalar, user_threshold
+        """
+        config = {}
+        for function, function_config in self._function_map.items():
+            for k, v in function_config.items():
+                # Filter out only "supported" configurations to show in GUI
+                # In general if it has a defined threshold / scalar though, allow user to modify it
+                # Not all functions are configurable
+                # (ex: no calibration on press button for snapshot)
+                # User threshold overrides our threshold
+                if k == "threshold":
+                    config.setdefault(function, {})[k] = {
+                        # Default of None means its not configured
+                        "value": self._user_config.get(function, {}).get(k),
+                        "default": v,
+                        "min": 0.0,
+                        "max": 1.0,
+                    }
+                # User scalar multiplies our scalar
+                if k == "scalar":
+                    config.setdefault(function, {})[k] = {
+                        # Default of None means its not configured
+                        "value": self._user_config.get(function, {}).get(k),
+                        "default": 1.0,
+                    }
+        return config
 
     def device_number(self):
         return self._device_number
 
+    # for "invert keyboard / mouse"
+    # consider folding into user scalars?
+    # per axis scalars (not per function)
     def set_volatile_scalars(self, volatile_scalars):
         self._volatile_scalars = volatile_scalars
 
@@ -136,18 +180,31 @@ class JoystickConfig:
 
     def process_axis(self, function, axis, value):
         config = self._function_map[function]
-        threshold = config.get("threshold")
-        if threshold:
-            if abs(value) < threshold:
-                return 0.0
-        return value * config.get("scalar", 1.0) * config.get(
-            "user_scalar", 1.0) * self._volatile_scalars.get(axis, 1.0)
+        user_config = self._user_config.get(function, {})
+        # User threshold, if given, takes priority over default
+        threshold = user_config.get("threshold", config.get("threshold", 0.0))
+        if abs(value) < threshold:
+            return 0.0
+        if value > 0:
+            value -= threshold
+        else:
+            value += threshold
+        scalar = config.get("scalar", 1.0) * user_config.get(
+            "scalar", 1.0) * self._volatile_scalars.get(axis, 1.0)
+        ret = value * scalar
+        # print("process axis", "value", value, "threshold", threshold, "scalar", scalar, "ret", ret)
+        if ret < -1:
+            ret = -1
+        elif ret > +1:
+            ret = +1
+        return ret
 
     def process_hat(self, function, axis, value):
         config = self._function_map[function]
+        user_config = self._user_config.get(function, {})
         # Hat values are either -1 or 1, so we can just multiply for sign
-        return value * config.get("scalar", 1.0) * config.get(
-            "user_scalar", 1.0) * self._volatile_scalars.get(axis, 1.0)
+        return value * config.get("scalar", 1.0) * user_config.get(
+            "scalar", 1.0) * self._volatile_scalars.get(axis, 1.0)
 
     def make_function_map(self, model, guid, jdb):
         # If user manually specifies just take that

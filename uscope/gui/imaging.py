@@ -449,8 +449,7 @@ class ObjectiveWidget(AWidget):
             widget.setVisible(visible)
 
     def _post_ui_init(self):
-        self.reload_obj_cb()
-        self.obj_cb.currentIndexChanged.connect(self.update_obj_config)
+        pass
 
     def reload_obj_cb(self):
         '''Re-populate the objective combo box'''
@@ -520,6 +519,9 @@ class ObjectiveWidget(AWidget):
         self.default_objective_name = j.get("name", None)
         self.global_scalar_le.setText(j.get("global_scalar", ""))
         self.global_scalar_le_return()
+
+        self.reload_obj_cb()
+        self.obj_cb.currentIndexChanged.connect(self.update_obj_config)
 
     def set_objective(self, objective):
         index = self.obj_cb.findText(objective)

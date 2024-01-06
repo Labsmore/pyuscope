@@ -25,6 +25,63 @@ from uscope.gui.imaging import MainTab, ImagerTab
 from uscope.gui.scripting import ScriptingTab
 
 
+class ArgusOptionsWindow(QWidget):
+    def __init__(self, mw, parent=None):
+        super().__init__(parent=parent)
+        self.mw = mw
+        self.ac = self.mw.ac
+        # self.motion_damper = None
+        self.initUI()
+
+    def initUI(self):
+        layout = QVBoxLayout()
+
+        def motion_gb():
+            layout = QGridLayout()
+            row = 0
+
+            layout.addWidget(QLabel("Motion damper (1.0 => full speed)"), row,
+                             0)
+            self.motion_damper_le = QLineEdit("")
+            self.motion_damper_le.returnPressed.connect(
+                self.motion_damper_le_return)
+            layout.addWidget(self.motion_damper_le, row, 1)
+            row += 1
+
+            gb = QGroupBox("Motion")
+            gb.setLayout(layout)
+
+            return gb
+
+        layout.addWidget(motion_gb())
+        self.setLayout(layout)
+
+    def motion_damper_le_return(self):
+        try:
+            s = str(self.motion_damper_le.text()).strip()
+            if not s:
+                return
+            motion_damper = float(s)
+        except ValueError:
+            self.ac.log("Failed to parse motion damper scalar")
+            return
+        if motion_damper <= 0 or motion_damper > 1.0:
+            self.ac.log(f"Require motion damper 0 < {motion_damper} <= 1.0")
+            return
+        self.ac.log(f"Setting motion damper {motion_damper}")
+        self.ac.microscope.motion_ts().apply_damper(motion_damper)
+        # self.motion_damper = motion_damper
+
+    def cache_load(self, j):
+        j = j.get("main_window", {}).get("options", {})
+        self.motion_damper_le.setText(j.get("motion_damper", ""))
+        self.motion_damper_le_return()
+
+    def cache_save(self, j):
+        j = j.setdefault("main_window", {}).setdefault("options", {})
+        j["motion_damper"] = str(self.motion_damper_le.text())
+
+
 class FullscreenVideo(QWidget):
     closing = pyqtSignal()
 
@@ -55,12 +112,15 @@ class MainWindow(AMainWindow):
         self.init_objects()
         self.ac.logs.append(self.mainTab.log)
         self.initUI()
-        # Load last GUI state
-        self.cache_load()
         # something causes this to pop back up
         # keep it hidden until we are homed since homing is still on CLI...
         self.hide()
         self.post_ui_init()
+
+        # Load last GUI state
+        # Must be done after post_ui_init() as may depend on threads being fully initialized
+        self.cache_load()
+
         self.show()
 
         # sometimes GUI maximization doesn't stick
@@ -77,6 +137,7 @@ class MainWindow(AMainWindow):
         self.displayAdvancedObjective.setChecked(
             j.get("display_advanced_objective", config.bc.dev_mode()))
         self.displayAdvancedObjectiveTriggered()
+        self.argus_options_window.cache_load(j)
 
     def _cache_save(self, j):
         j = j.setdefault("main_window", {})
@@ -85,6 +146,7 @@ class MainWindow(AMainWindow):
         )
         j["display_advanced_objective"] = self.displayAdvancedObjective.isChecked(
         )
+        self.argus_options_window.cache_save(j)
 
     def add_tab(self, cls, name):
         tab = cls(ac=self.ac, aname=name, parent=self)
@@ -107,6 +169,8 @@ class MainWindow(AMainWindow):
         self.ac.stitchingTab = self.stitchingTab
         self.ac.batchTab = self.batchTab
 
+        self.argus_options_window = ArgusOptionsWindow(self)
+
     def createMenuBar(self):
         self.exitAction = QAction("Exit", self)
         self.helpContentAction = QAction("Help Content", self)
@@ -118,6 +182,11 @@ class MainWindow(AMainWindow):
         fileMenu = QMenu("File", self)
         menuBar.addMenu(fileMenu)
         fileMenu.addAction(self.exitAction)
+        # Extended options
+        self.displayArgusOptions = QAction("Advanced options", fileMenu)
+        fileMenu.addAction(self.displayArgusOptions)
+        self.displayArgusOptions.triggered.connect(
+            self.displayArgusOptionsTriggered)
 
         # Video menu
         videoMenu = menuBar.addMenu("Video")
@@ -313,6 +382,9 @@ class MainWindow(AMainWindow):
     def displayAdvancedMovementTriggered(self):
         self.ac.mainTab.motion_widget.show_advanced_movement(
             bool(self.displayAdvancedMovement.isChecked()))
+
+    def displayArgusOptionsTriggered(self):
+        self.argus_options_window.show()
 
     def enableRtspServerTriggered(self):
         self.ac.vidpip.enable_rtsp_server(

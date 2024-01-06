@@ -220,3 +220,31 @@
  * Misc fixes / improvements
    * Planner: focus stacking Z return fixes
    * Soft limits should be more reliable
+
+## 4.5.0
+ * Compatible with
+   * gst-plugin-toupcam: v0.5.0
+   * Motion HAL: GRBL
+ * Argus
+   * General layout overhaul: video always visible
+   * Camera can be disconnected and reconnected
+   * Web server alpha support
+   * RTSP alpha support
+ * Panoramic imaging options
+   * Add button to bring up options
+   * Quick stitch
+   * HTML tile viewer
+   * Single image tile viewer
+ * General imaging options
+   * Scalebar support
+   * Motion damper support
+ * Batch: load / save job config
+ * Microscope support
+   * LIP-VM1: general support
+     * Hide properties user should not change (notably temperature)
+   * LIP-A2: general support
+ * Scripting
+   * Cleanup function
+   * Misc additional functions: model / serial, raw image capture
+ * grbl meta: move from 9 byte to 8 byte encoding
+ * Auto select microscope based on GRBL metal

@@ -68,6 +68,9 @@ class MotionThreadMotion(MotionHAL):
     def jog_cancel(self):
         return self.mt.jog_cancel()
 
+    def apply_damper(self, damper):
+        return self.mt.apply_damper(damper)
+
     def command(self, command):
         return self.mt.mdi(command)
 
@@ -292,6 +295,9 @@ class MotionThreadBase(CommandThreadBase):
     def update_pos_cache(self):
         self.command("update_pos_cache")
 
+    def apply_damper(self, damper, block=False, callback=None):
+        self.command("apply_damper", damper, block=block, callback=callback)
+
     def qsize(self):
         return self.queue.qsize()
 
@@ -437,6 +443,7 @@ class MotionThreadBase(CommandThreadBase):
                     'unestop': self.motion.unestop,
                     'mdi': self.motion.command,
                     'log_info': self.motion.log_info,
+                    'apply_damper': self.motion.apply_damper,
                 }.get(command, default)
                 tstart = time.time()
                 try:

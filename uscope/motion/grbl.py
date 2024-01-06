@@ -1283,9 +1283,14 @@ class GrblHal(MotionHAL):
         if rc is not None:
             self.rc_commands(rc)
 
+        # Cache so that damper can be adjusted later
+        self._abs_max_velocities = self._get_max_velocities()
+        self._abs_max_accelerations = self._get_max_accelerations()
+        """
         damper = self.microscope.usc.motion.damper()
         if damper is not None:
-            self.apply_damper(damper)
+            self.apply_damper_early(damper)
+        """
 
         # Used to be in ScalarMM but moved here
         # Too much nuance / tied ot GRBL specific things
@@ -1338,6 +1343,13 @@ class GrblHal(MotionHAL):
                 self.microscope.usc.motion.format_positions(
                     self._wcs_offsets_cache))
 
+    def reconfigure(self):
+        """
+        Call to re-calculate constants at runtime
+        Call if you change some calibration constants
+        """
+        self.cache_constants()
+
     def _get_steps_per_mm(self):
         """
         Figure out the smallest possible machine delta
@@ -1370,10 +1382,20 @@ class GrblHal(MotionHAL):
         }
 
     def _get_max_velocities(self):
+        # Current value. May have damper applied from base value
         return self.only_used_axes(self.grbl.axes_max_rate())
 
     def _get_max_accelerations(self):
+        # Current value. May have damper applied from base value
         return self.only_used_axes(self.grbl.axes_max_acceleration())
+
+    def _get_abs_max_velocities(self):
+        # No damper applied
+        return self._abs_max_velocities
+
+    def _get_abs_max_accelerations(self):
+        # No damper applied
+        return self._abs_max_accelerations
 
     def assert_not_limit_switch(self):
         # X1 doesn't spam limit switch trip estop
@@ -1505,20 +1527,37 @@ class GrblHal(MotionHAL):
         self.log("  S/N: %s" % (info["sn"], ))
         self.log("  Config: %s" % (info["config"].hex(), ))
 
-    def apply_damper(self, damper):
+    def _apply_damper(self, damper):
+        velocities = dict(self._get_abs_max_velocities())
+        accelerations = dict(self._get_abs_max_accelerations())
+        for axis in self.axes():
+            velocities[axis] = velocities[axis] * damper
+            accelerations[axis] = accelerations[axis] * damper
+        self.grbl.axes_set_max_rate(velocities)
+        self.grbl.axes_set_max_acceleration(accelerations)
+
+    '''
+    def apply_damper_early(self, damper):
         """
         NOTE: this function is called very early on
         before configure()
         We can do it after but would need to maybe call configure again
         """
         assert self._hal_max_velocities is None, "must be called before configure()"
-        velocities = self._get_max_velocities()
-        accelerations = self._get_max_accelerations()
-        for axis in self.axes():
-            velocities[axis] = velocities[axis] * damper
-            accelerations[axis] = accelerations[axis] * damper
-        self.grbl.axes_set_max_rate(velocities)
-        self.grbl.axes_set_max_acceleration(accelerations)
+        self._apply_damper(damper)
+    '''
+
+    def apply_damper(self, damper):
+        # Should we allow overclock?
+        assert 0 < damper <= 1.0, f"invalid damper require 0 < {damper} <= 1.0"
+        try:
+            self._apply_damper(damper)
+            # Recalculate constants
+            self.reconfigure()
+        except:
+            print("WARNING: apply damper failed. Restoring default value")
+            self._apply_damper(1.0)
+            self.reconfigure()
 
     def validate_microscope_model(self, name):
         try:

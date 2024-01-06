@@ -9,6 +9,7 @@ from uscope.motion.hal import MotionHAL, MotionCritical
 from uscope import util
 from uscope.motion.motion_util import parse_move
 from uscope.util import tobytes, tostr
+from uscope.config import get_bc
 
 import termios
 import serial
@@ -274,7 +275,7 @@ class GRBLSer:
         self.verbose = verbose if verbose is not None else bool(
             int(os.getenv("GRBLSER_VERBOSE", "0")))
         # For debugging concurrency issue
-        self.poison_threads = False
+        self.check_threads = get_bc().dev_mode()
         self.last_thread = None
         self.ser_timeout = ser_timeout
 
@@ -359,7 +360,7 @@ class GRBLSer:
     def tx(self, out, nl=True):
         self.verbose and print("tx '%s'" % (out, ))
 
-        if self.poison_threads:
+        if self.check_threads:
             if self.last_thread:
                 assert self.last_thread == threading.get_ident(), (
                     self.last_thread, threading.get_ident())
@@ -670,7 +671,6 @@ class MockGRBLSer(GRBLSer):
         self.verbose and print("MOCK: opening", port)
         self.ser_timeout = -1
         self.serial = None
-        self.poison_threads = False
         self.reset()
 
     def in_reset(self):

@@ -1875,6 +1875,9 @@ class MainTab(ArgusTab):
         self.ac.cncProgress.connect(self.imaging_widget.processCncProgress)
 
     def log(self, s='', newline=True):
+        # This is a "high risk" way for non main thread things to modify GUI
+        self.ac.check_thread_safety()
+
         s = str(s)
         # print("LOG: %s" % s)
         if newline:

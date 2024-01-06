@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import *
 
 import os.path
 import sys
+import threading
 """
 Common GUI related services to a typical application
 Owns core logging, motion, and imaging objects
@@ -161,6 +162,12 @@ class ArgusCommon(QObject):
         self.task_thread = None
 
         self.bc = get_bc()
+        self.check_threads = os.getenv("PYUSCOPE_CHECK_THREADS",
+                                       "N") == "Y" or self.bc.dev_mode()
+        if self.check_threads:
+            print("ArgusCommon: checking threads")
+        self.main_thread = threading.get_ident()
+
         self.microscope = Microscope(auto=False,
                                      configure=False,
                                      name=microscope_name)
@@ -331,6 +338,12 @@ class ArgusCommon(QObject):
         if self.task_thread:
             self.task_thread.shutdown()
             # self.task_thread = None
+
+    def check_thread_safety(self):
+        if self.check_threads:
+            assert self.main_thread == threading.get_ident(), (
+                "GUI thread unsafe access detected", self.main_thread,
+                threading.get_ident())
 
     def cache_save(self, cachej):
         self.microscope.cache_save(cachej)

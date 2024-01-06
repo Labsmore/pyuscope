@@ -91,13 +91,13 @@ class StitcherThread(CommandThreadBase, QThread):
         self,
         directory,
         cs_info,
-        ipp={},
+        ippj={},
     ):
         j = {
             #"type": "imagep",
             "directory": directory,
             "cs_info": cs_info,
-            "ipp": ipp,
+            "ipp": ippj,
         }
         self.command("imagep", j)
 

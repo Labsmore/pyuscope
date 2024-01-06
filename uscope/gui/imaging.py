@@ -1710,6 +1710,9 @@ class ImagingTaskWidget(AWidget):
 
         # Serialized into cs_auto.py CLI option
         ippj = pconfig.setdefault("ipp", {})
+        self.update_ippj(ippj)
+
+    def update_ippj(self, ippj):
         ippj["write_html_viewer"] = self.iow.html_cb.isChecked()
         ippj["write_quick_pano"] = self.iow.quick_stitch_cb.isChecked()
         ippj["write_snapshot_grid"] = self.iow.snapshot_grid_cb.isChecked()

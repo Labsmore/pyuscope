@@ -916,14 +916,17 @@ class StitchingTab(ArgusTab):
             self.ac.log(
                 f"Aborting stitch: directory does not exist: {directory}")
             return
-        ipp = {}
         if scan_config is not None:
-            ipp = scan_config["pconfig"].get("ipp", {})
+            ippj = scan_config["pconfig"].get("ipp", {})
+        else:
+            ippj = {}
+            self.ac.mainTab.imaging_widget.update_ippj(ippj)
+
         # Offload uploads etc to thread since they might take a while
         self.stitcher_thread.imagep_add(
             directory=directory,
             cs_info=self.get_cs_info(),
-            ipp=ipp,
+            ippj=ippj,
         )
 
     def get_cs_info(self):

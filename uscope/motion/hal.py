@@ -1318,6 +1318,9 @@ class MotionHAL:
         """
         raise NotSupported("")
 
+    def apply_damper(self, damper):
+        raise NotSupported("")
+
 
 '''
 Has no actual hardware associated with it
@@ -1382,6 +1385,9 @@ class MockHal(MotionHAL):
         Print some high level debug info
         """
         self.log("Motion: no additional info")
+
+    def apply_damper(self, damper):
+        pass
 
 
 """

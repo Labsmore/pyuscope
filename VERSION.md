@@ -247,4 +247,4 @@
    * Cleanup function
    * Misc additional functions: model / serial, raw image capture
  * grbl meta: move from 9 byte to 8 byte encoding
- * Auto select microscope based on GRBL metal
+ * Auto select microscope based on GRBL meta

@@ -852,14 +852,26 @@ class StitchingTab(ArgusTab):
             layout.addWidget(self.stitch_email, row, 1)
             row += 1
 
-            layout.addWidget(QLabel("Manual stitch directory"), row, 0)
-            self.manual_stitch_dir = QLineEdit("")
-            layout.addWidget(self.manual_stitch_dir, row, 1)
-            row += 1
+            def manual_gb():
+                layout = QVBoxLayout()
 
-            self.cs_pb = QPushButton("Manual CloudStitch")
-            self.cs_pb.clicked.connect(self.stitch_begin_manual_cs)
-            layout.addWidget(self.cs_pb, row, 1)
+                self.stitch_browse_pb = QPushButton("Browse for directory")
+                self.stitch_browse_pb.clicked.connect(
+                    self.browse_for_stitch_dir)
+                layout.addWidget(self.stitch_browse_pb)
+
+                self.manual_stitch_dir = QLineEdit("")
+                layout.addWidget(self.manual_stitch_dir)
+
+                self.cs_pb = QPushButton("Run manual stitch")
+                self.cs_pb.clicked.connect(self.stitch_begin_manual_cs)
+                layout.addWidget(self.cs_pb)
+
+                gb = QGroupBox("Manual stitch")
+                gb.setLayout(layout)
+                return gb
+
+            layout.addWidget(manual_gb(), row, 0, 1, 2)
             row += 1
 
             gb = QGroupBox("Cloud Stitching")
@@ -919,6 +931,14 @@ class StitchingTab(ArgusTab):
                       secret_key=str(self.stitch_secretkey.text()),
                       id_key=str(self.stitch_idkey.text()),
                       notification_email=str(self.stitch_email.text()))
+
+    def browse_for_stitch_dir(self):
+        filename = QFileDialog.getExistingDirectory(
+            None, "Select directory", self.ac.microscope.bc.get_scan_dir(),
+            QFileDialog.ShowDirsOnly)
+        if not filename:
+            return
+        self.manual_stitch_dir.setText(filename)
 
 
 class JoystickListener(QPushButton):

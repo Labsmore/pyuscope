@@ -82,6 +82,9 @@ class IPPConfigJ:
         # Usually snapshots are already corrected during normal imaging
         return bool(self.j.get("snapshot_correction", False))
 
+    def cloud_stitch(self):
+        return bool(self.j.get("cloud_stitch", True))
+
     def write_html_viewer(self):
         """
         Write a simple .html file at the final image level
@@ -355,7 +358,9 @@ class DirCSIP:
             working_iindex = index_scan_images(next_dir)
 
         if not self.upload:
-            self.log("CloudStitch: skip (requested)")
+            self.log("CloudStitch: skip (requested by CLI)")
+        elif not self.ipp_config.cloud_stitch():
+            self.log("CloudStitch: skip (requested by JSON policy)")
         elif not healthy:
             self.log("CloudStitch: skip (incomplete data)")
         elif not self.cs_info and not config.get_bc(

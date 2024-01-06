@@ -1225,15 +1225,18 @@ class ImagingOptionsWindow(QWidget):
             def process_gb():
                 layout = QGridLayout()
                 row = 0
-                """
-                # Used as generic "should stitch", although is labeled CloudStitch
-                layout.addWidget(QLabel("Post-process / CloudStitch?"), row, 0)
-                self.stitch_cb = QCheckBox()
-                self.stitch_cb.stateChanged.connect(
+
+                self.cloudstitch_cb = QCheckBox()
+                # Currently don't officially support changing at runtime
+                if self.ac.stitchingTab.has_cs_info():
+                    self.cloudstitch_cb.setChecked(True)
+                else:
+                    self.cloudstitch_cb.setEnabled(False)
+                self.cloudstitch_cb.stateChanged.connect(
                     self.itw.update_imaging_config)
-                layout.addWidget(self.stitch_cb, row, 1)
+                layout.addWidget(self.cloudstitch_cb, row, 0)
+                layout.addWidget(QLabel("CloudStitch?"), row, 1)
                 row += 1
-                """
 
                 self.keep_intermediate_cb = QCheckBox()
                 self.keep_intermediate_cb.setChecked(True)
@@ -1265,7 +1268,7 @@ class ImagingOptionsWindow(QWidget):
                 layout.addWidget(QLabel("Snapshot grid overview?"), row, 1)
                 row += 1
 
-                self.stitch_gb = QGroupBox("Post-process / CloudStitch")
+                self.stitch_gb = QGroupBox("Post-processing")
                 self.stitch_gb.setCheckable(True)
                 self.stitch_gb.setLayout(layout)
 
@@ -1593,14 +1596,39 @@ class ImagingTaskWidget(AWidget):
 
             warning = ""
             if auto_exposure or auto_color:
-                warning = f"WARNING: you have automatic exposure ({auto_exposure}) and/or color correction ({auto_color}) enabled. This will lead to an inconsistent capture\n\n"
+                warning = f"\n\nWARNING: you have automatic exposure ({auto_exposure}) and/or color correction ({auto_color}) enabled. This will lead to an inconsistent capture"
                 mb_type = QMessageBox.warning
 
+            scan_settings = "Scan settings:"
+            scan_settings += "\nAutofocus corners: %s" % (autofocus, )
+            if self.ac.advancedTab.image_stacking_enabled():
+                pm_n = self.ac.advancedTab.image_stacking_pm_n()
+                scan_settings += "\nFocus stacking enabled (+/- %u images => %u per stack)" % (
+                    pm_n, pm_n * 2 + 1)
+            if self.ac.advancedTab.image_stablization_enabled():
+                scan_settings += "\nImage stabilization enabled (n=%u)" % (
+                    self.ac.advancedTab.get_image_stablization(), )
+
+            if self.iow.stitch_gb.isChecked():
+                post_settings = "Post processing (stitching) settings:"
+                ippj = {}
+                self.update_ippj(ippj)
+                post_settings += "\nCloudStitch: %s" % (ippj["cloud_stitch"], )
+                post_settings += "\nKeeping intermediate files: %s" % (
+                    ippj["keep_intermediates"], )
+                if ippj["write_html_viewer"]:
+                    post_settings += "\nWriting overview as HTML index"
+                if ippj["write_quick_pano"]:
+                    post_settings += "\nWriting overview as quick image stitch"
+                if ippj["write_snapshot_grid"]:
+                    post_settings += "\nWriting overview as grid image"
+            else:
+                post_settings = "Post processing (stitching) disabled"
+
             ret = mb_type(
-                self, "Start scan?",
-                "Start scan?\n\n%sScan settings:\nAutofocus corners: %s" %
-                (warning, autofocus), QMessageBox.Yes | QMessageBox.Cancel,
-                QMessageBox.Cancel)
+                self, "Start scan?", "Start scan?%s\n\n%s\n\n%s" %
+                (warning, scan_settings, post_settings),
+                QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel)
             if ret != QMessageBox.Yes:
                 return
 
@@ -1713,6 +1741,7 @@ class ImagingTaskWidget(AWidget):
         self.update_ippj(ippj)
 
     def update_ippj(self, ippj):
+        ippj["cloud_stitch"] = self.iow.cloudstitch_cb.isChecked()
         ippj["write_html_viewer"] = self.iow.html_cb.isChecked()
         ippj["write_quick_pano"] = self.iow.quick_stitch_cb.isChecked()
         ippj["write_snapshot_grid"] = self.iow.snapshot_grid_cb.isChecked()
@@ -1723,6 +1752,8 @@ class ImagingTaskWidget(AWidget):
             "file_name": str(self.job_name_le.text()),
             "extension": self.snapshot_suffix_cb.currentIndex(),
             "stitch": self.iow.stitch_gb.isChecked(),
+            # currently not saving cloud stitch state
+            # instead let it default to whether they have creds
             "autofocus": self.iow.autofocus_cb.isChecked(),
             "add_scalebar": self.iow.add_scalebar_cb.isChecked(),
             "keep_intermediate": self.iow.keep_intermediate_cb.isChecked(),

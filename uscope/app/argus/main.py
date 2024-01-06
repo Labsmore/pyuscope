@@ -177,7 +177,6 @@ class MainWindow(AMainWindow):
         AMainWindow.__init__(self)
         # Homing may need attention in CLI
         # Make sure user sees that before UI
-        self.tabs = {}
         self.hide()
         self.verbose = verbose
         self.ac = ArgusCommon(microscope_name=microscope, mw=self)
@@ -222,7 +221,7 @@ class MainWindow(AMainWindow):
 
     def add_tab(self, cls, name):
         tab = cls(ac=self.ac, aname=name, parent=self)
-        self.tabs[name] = tab
+        self.ac.tabs[name] = tab
         return tab
 
     def init_objects(self):
@@ -240,6 +239,7 @@ class MainWindow(AMainWindow):
         self.ac.scriptingTab = self.scriptingTab
         self.ac.stitchingTab = self.stitchingTab
         self.ac.batchTab = self.batchTab
+        self.ac.advancedTab = self.advancedTab
 
         self.argus_options_window = ArgusOptionsWindow(self)
 
@@ -380,7 +380,7 @@ class MainWindow(AMainWindow):
             layout.addWidget(self.top_widget)
 
             self.tab_widget = QTabWidget()
-            for tab_name, tab in self.tabs.items():
+            for tab_name, tab in self.ac.tabs.items():
                 self.tab_widget.addTab(tab, tab_name)
             layout.addWidget(self.tab_widget)
 

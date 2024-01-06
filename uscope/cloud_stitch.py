@@ -29,7 +29,7 @@ class CSInfo:
         self._id_key = id_key
         self._notification_email = notification_email
 
-    def is_plausible(self):
+    def check_plausible(self):
         if not self._access_key:
             raise ValueError("Requires access_key")
         if not self._secret_key:
@@ -38,6 +38,13 @@ class CSInfo:
             raise ValueError("Requires id_key")
         if not self._notification_email:
             raise ValueError("Requires notification_email")
+
+    def is_plausible(self):
+        try:
+            self.check_plausible()
+            return True
+        except ValueError:
+            return False
 
     def access_key(self, required=True):
         if required and not self._access_key:
@@ -69,7 +76,7 @@ def upload_dir(directory,
 
     if not cs_info:
         cs_info = CSInfo()
-    cs_info.is_plausible()
+    cs_info.check_plausible()
 
     if not os.path.isdir(directory):
         raise ValueError("Need a directory")

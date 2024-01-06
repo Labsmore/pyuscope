@@ -1271,6 +1271,12 @@ class BaseConfig:
     def labsmore_stitch_notification_email(self):
         return self.j.get("labsmore_stitch", {}).get("notification_email")
 
+    def labsmore_stitch_plausible(self):
+        return self.labsmore_stitch_aws_access_key(
+        ) and self.labsmore_stitch_aws_secret_key(
+        ) and self.labsmore_stitch_aws_id_key(
+        ) and self.labsmore_stitch_notification_email()
+
     def argus_stitch_cli(self):
         """
         Call given program with the scan output directory as the argument

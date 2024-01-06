@@ -718,6 +718,20 @@ class AdvancedTab(ArgusTab):
         if self.ac.microscope.has_z():
             self.update_pconfig_stack(pconfig)
 
+    def image_stacking_enabled(self):
+        images_pm = int(str(self.stacker_number_le.text()))
+        distance_pm = float(self.stacker_distance_le.text())
+        if not images_pm or distance_pm == 0.0:
+            return False
+        else:
+            return True
+
+    def image_stacking_pm_n(self):
+        return int(str(self.stacker_number_le.text()))
+
+    def image_stablization_enabled(self):
+        return self.get_image_stablization() > 1
+
     def _post_ui_init(self):
         if self.ac.microscope.has_z():
             self.ac.objectiveChanged.connect(self.update_stack_mode)
@@ -934,6 +948,11 @@ class StitchingTab(ArgusTab):
                       secret_key=str(self.stitch_secretkey.text()),
                       id_key=str(self.stitch_idkey.text()),
                       notification_email=str(self.stitch_email.text()))
+
+    def has_cs_info(self):
+        # called too early in initialization
+        # return self.get_cs_info().is_plausible()
+        return self.ac.bc.labsmore_stitch_plausible()
 
     def browse_for_stitch_dir(self):
         filename = QFileDialog.getExistingDirectory(

@@ -151,6 +151,7 @@ class ArgusCommon(QObject):
         QObject.__init__(self)
 
         self.mw = mw
+        self.tabs = {}
         self.logs = []
 
         self.motion_thread = None

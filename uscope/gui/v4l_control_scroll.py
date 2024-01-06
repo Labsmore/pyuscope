@@ -48,7 +48,7 @@ class V4L2AutoExposureDisplayer(ICSDisplayer):
         # print("cb toggled")
         # Race conditon?
         if not self.config["gui_driven"]:
-            print("not gui driven")
+            # print("not gui driven")
             return
         self.cs.disp_prop_write(self.config["disp_name"], self.cb.isChecked())
 
@@ -77,6 +77,9 @@ class V4L2AutoExposureDisplayer(ICSDisplayer):
             return AUTO_EXPOSURE_VAL
         else:
             return 1
+
+    def setVisible(self, val):
+        self.cb.setVisible(val)
 
 
 class V4L2ControlScroll(ImagerControlScroll):

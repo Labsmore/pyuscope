@@ -1650,7 +1650,7 @@ class ImagingTaskWidget(AWidget):
         self.snapshot_pb.setEnabled(False)
 
         def emitSnapshotCaptured(image_id):
-            self.ac.log('Image captured: %s' % image_id)
+            self.ac.microscope.log('Image captured: %s' % image_id)
             self.snapshotCaptured.emit(image_id)
 
         self.ac.capture_sink.request_image(emitSnapshotCaptured)
@@ -1708,10 +1708,10 @@ class ImagingTaskWidget(AWidget):
 
         def callback(command, args, ret_e):
             if type(ret_e) is Exception:
-                self.ac.log(f"Snapshot: save failed")
+                self.ac.microscope.log(f"Snapshot: save failed")
             else:
                 filename = args[0]["options"]["save_filename"]
-                self.ac.log(f"Snapshot: saved to {filename}")
+                self.ac.microscope.log(f"Snapshot: saved to {filename}")
 
         self.ac.image_processing_thread.process_image(options=options,
                                                       callback=callback)

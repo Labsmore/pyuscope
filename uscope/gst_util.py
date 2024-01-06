@@ -91,7 +91,11 @@ class CaptureSink(CbSink):
         self.verbose = False
 
     def request_image(self, cb):
-        '''Request that the next image be saved'''
+        '''
+        Request that the next image be saved
+        NOTE: callback executes in gstreamer thread context
+        It does not (necessarily) execute in main thread
+        '''
         # Later we might make this multi-image
         if self.image_requested.is_set():
             raise Exception('Image already requested')

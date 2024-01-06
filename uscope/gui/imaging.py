@@ -1930,6 +1930,7 @@ class ImagerTab(ArgusTab):
 
             gb = QGroupBox("HDR")
             gb.setLayout(layout)
+            gb.setVisible(self.ac.microscope.bc.dev_mode())
             return gb
 
         self.layout.addWidget(hdr_gb())

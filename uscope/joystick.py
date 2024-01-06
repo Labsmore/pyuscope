@@ -31,7 +31,7 @@ Sample uscope.j5 entry:
         "fn_map": {
             //"func_from_joystick_file": dict(keyword args for the function),
             'axis_set_jog_slider_value': {'id': 3},
-            'btn_capture_image': {'id': 0},
+            'button_capture_image': {'id': 0},
             'axis_move_x': {'id': 0},
             'axis_move_y': {'id': 1},
             'hat_move_z': {'id': 0, 'idx': 1}
@@ -75,6 +75,7 @@ class JoystickConfig:
         self._apply_dconfig(function_map)
         self._user_config = {}
         self._function_map = function_map
+        self.event_list = self.make_events_list(model, guid, jdb)
         self._volatile_scalars = {}
         """
         # Things that can take a calibration constant
@@ -206,11 +207,7 @@ class JoystickConfig:
         return value * config.get("scalar", 1.0) * user_config.get(
             "scalar", 1.0) * self._volatile_scalars.get(axis, 1.0)
 
-    def make_function_map(self, model, guid, jdb):
-        # If user manually specifies just take that
-        ret = self.jbc.get("function_map", None)
-        if ret:
-            return ret
+    def default_joystick_config(self, model, guid, jdb):
         # Auto detection requires model
         if guid is None:
             raise Exception("guid required for auto detection")
@@ -232,8 +229,21 @@ class JoystickConfig:
                 except KeyError:
                     raise Exception(f"bad alias {alias}")
             break
+        return joystick_config
 
-        return joystick_config["function_map"]
+    def make_function_map(self, model, guid, jdb):
+        # If user manually specifies just take that
+        ret = self.jbc.get("scan", None)
+        if ret:
+            return ret
+        return self.default_joystick_config(model, guid, jdb).get("scan", {})
+
+    def make_events_list(self, model, guid, jdb):
+        # If user manually specifies just take that
+        ret = self.jbc.get("events", None)
+        if ret:
+            return ret
+        return self.default_joystick_config(model, guid, jdb).get("events", [])
 
 
 def import_pygame():
@@ -282,17 +292,33 @@ class Joystick:
         # self._jog_fractioned_period = 0.2
         self.jog_controller = self.microscope.get_jog_controller(period=0.2)
 
-    def execute(self):
+    def execute(self, paused=False):
+        if paused:
+            # flush events
+            pygame.event.get()
+            # Make sure its not actuating
+            self.jog_controller.pause()
+            return
+
+        # jogs across multiple axes need to be issued together
+        # otherwise it will override the previous jog
+        self._jog_queue = {}
+
         # Get events and perform actions
-        pygame.event.get()
+        for event in pygame.event.get():
+            if event.type == pygame.JOYBUTTONDOWN:
+                print('event down', event.button)
+                print("event_list", self.config.event_list)
+                for handler in self.config.event_list:
+                    if handler["button_id"] == event.button:
+                        assert handler["function"] == "take_snapshot"
+                        self.event_take_snapshot()
+
         # Run through all the mapped funcs specified in the config
         # Expected format of config is:
         #     dict(fn_name(dict(fn_args))
         # Call the fn with provided args
 
-        # jogs across multiple axes need to be issued together
-        # otherwise it will override the previous jog
-        self._jog_queue = {}
         for fn, config in self.config._function_map.items():
             getattr(self, fn)(**config["args"])
         # generic z control may be bound
@@ -362,11 +388,6 @@ class Joystick:
         val = self.config.process_hat("hat_move_z", "z", val)
         self._jog_add_queue("z", +val)
 
-    def btn_capture_image(self, id):
-        if self.joystick.get_button(id):
-            # self.ac.mainTab.snapshot_widget.take_snapshot()
-            self.microscope.take_snapshot()
-
     def axis_set_jog_slider_value(self, id, invert=True):
         # The min and max values of the joystick range (it is not
         # always -1 to 1)
@@ -383,3 +404,8 @@ class Joystick:
         new_value = (((val - val_min) * new_range) / old_range) + new_min
         # self.ac.mainTab.motion_widget.slider.set_jog_slider(new_value)
         self.microscope.set_jog_scale(new_value)
+
+    def event_take_snapshot(self):
+        print('snapshot event')
+        # self.ac.mainTab.snapshot_widget.take_snapshot()
+        self.microscope.take_snapshot()

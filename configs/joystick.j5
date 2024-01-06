@@ -2,13 +2,20 @@
 //names are really unstable across pygame versions
 {
     "Logitech Extreme 3D": {
-        "function_map": {
+        "events": [
+            {
+                "function": "take_snapshot",
+                "event": "JOYBUTTONDOWN",
+                "button_id": 0
+            },
+        ],
+        "scan": {
             "axis_set_jog_slider_value": {
                 "args": {
                     "id": 3
                 }
             },
-            "btn_capture_image": {
+            "button_capture_image": {
                 "args": {
                     "id": 0,
                 },
@@ -65,12 +72,14 @@
     },
 
     "CH Products IP Desktop": {
-        "function_map": {
-            "btn_capture_image": {
-                "args": {
-                    "id": 0,
-                },
+        "events": [
+            {
+                "function": "take_snapshot",
+                "event": "JOYBUTTONDOWN",
+                "button_id": 0
             },
+        ],
+        "scan": {
             "axis_move_x": {
                 "args": {
                     "id": 0,

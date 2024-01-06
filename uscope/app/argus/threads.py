@@ -254,11 +254,8 @@ class QJoystickThread(JoystickThreadBase, QThread):
                 # It is important to check that the button is both enabled and
                 # active before performing actions. This allows us to preserve
                 # state by disabling and enabling the button only during scans.
-                if self.enabled:
-                    #self.joystick.debug_dump()
-                    self.joystick.execute()
-                else:
-                    self.joystick.jog_controller.pause()
+                #self.joystick.debug_dump()
+                self.joystick.execute(paused=not self.enabled)
                 tlast = time.time()
             except Exception as e:
                 self.log('WARNING: joystick thread crashed: %s' % str(e))

@@ -101,7 +101,7 @@ class ArgusOptionsWindow(QWidget):
         layout.addWidget(joystick_gb())
         self.setLayout(layout)
 
-    def motion_damper_le_return(self):
+    def motion_damper_le_return(self, lazy=False):
         s = str(self.motion_damper_le.text()).strip()
         if s:
             try:
@@ -114,6 +114,8 @@ class ArgusOptionsWindow(QWidget):
                     f"Require motion damper 0 < {motion_damper} <= 1.0")
                 return
         else:
+            if lazy:
+                return
             motion_damper = 1.0
         self.ac.log(f"Setting motion damper {motion_damper}")
         self.ac.microscope.motion_ts().apply_damper(motion_damper)
@@ -135,7 +137,7 @@ class ArgusOptionsWindow(QWidget):
     def cache_load(self, j):
         j = j.get("main_window", {}).get("options", {})
         self.motion_damper_le.setText(j.get("motion_damper", ""))
-        self.motion_damper_le_return()
+        self.motion_damper_le_return(lazy=True)
         if self.joystick_iw:
             try:
                 saved_val = j.get("joystick_iw")

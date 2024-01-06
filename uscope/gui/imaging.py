@@ -494,7 +494,7 @@ class ObjectiveWidget(AWidget):
     def modify_objectives_clicked(self):
         self.ac.log("FIXME: not supported")
 
-    def global_scalar_le_return(self):
+    def global_scalar_le_return(self, lazy=False):
         s = str(self.global_scalar_le.text()).strip()
         if s:
             try:
@@ -503,6 +503,8 @@ class ObjectiveWidget(AWidget):
                 self.ac.log("Failed to parse global image scalar")
                 return
         else:
+            if lazy:
+                return
             self.global_scalar = 1.0
         self.ac.log(f"Setting global objective scalar {self.global_scalar}")
         self.reload_obj_cb()
@@ -523,7 +525,7 @@ class ObjectiveWidget(AWidget):
         j = cachej.get("objective", {})
         self.default_objective_name = j.get("name", None)
         self.global_scalar_le.setText(j.get("global_scalar", ""))
-        self.global_scalar_le_return()
+        self.global_scalar_le_return(lazy=True)
 
         self.reload_obj_cb()
         self.obj_cb.currentIndexChanged.connect(self.update_obj_config)

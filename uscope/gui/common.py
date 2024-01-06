@@ -8,7 +8,7 @@ from uscope.joystick import JoystickNotFound
 from uscope.microscope import Microscope
 from uscope.kinematics import Kinematics
 from uscope.motion.hal import HomingAborted
-from uscope.motion.grbl import LimitSwitchActive
+from uscope.motion.grbl import LimitSwitchActive, Estop
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -270,6 +270,12 @@ class ArgusCommon(QObject):
             QMessageBox.critical(
                 None, "Error",
                 "Limit switch tripped. Manually move away from limit switches and then re-home",
+                QMessageBox.Ok, QMessageBox.Ok)
+            raise
+        except Estop:
+            QMessageBox.critical(
+                None, "Error",
+                "Emergency stop is activated. Check estop button and/or power supply and then re-home",
                 QMessageBox.Ok, QMessageBox.Ok)
             raise
 

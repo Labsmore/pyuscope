@@ -57,17 +57,19 @@ class ArgusOptionsWindow(QWidget):
         self.setLayout(layout)
 
     def motion_damper_le_return(self):
-        try:
-            s = str(self.motion_damper_le.text()).strip()
-            if not s:
+        s = str(self.motion_damper_le.text()).strip()
+        if s:
+            try:
+                motion_damper = float(s)
+            except ValueError:
+                self.ac.log("Failed to parse motion damper scalar")
                 return
-            motion_damper = float(s)
-        except ValueError:
-            self.ac.log("Failed to parse motion damper scalar")
-            return
-        if motion_damper <= 0 or motion_damper > 1.0:
-            self.ac.log(f"Require motion damper 0 < {motion_damper} <= 1.0")
-            return
+            if motion_damper <= 0 or motion_damper > 1.0:
+                self.ac.log(
+                    f"Require motion damper 0 < {motion_damper} <= 1.0")
+                return
+        else:
+            motion_damper = 1.0
         self.ac.log(f"Setting motion damper {motion_damper}")
         self.ac.microscope.motion_ts().apply_damper(motion_damper)
         # self.motion_damper = motion_damper

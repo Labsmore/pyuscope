@@ -15,6 +15,8 @@ import subprocess
 import psutil
 import sys
 import json
+import platform
+import distro
 
 
 def dbg(*args):
@@ -314,14 +316,33 @@ class QTaskThread(CommandThreadBase, QThread):
         log("Microscope")
         log(f"  Configuration: {self.ac.microscope.config_name()}")
         log(f"  Serial: {self.ac.microscope.serial()}")
-        log("Kinematics")
-        self.ac.kinematics.diagnostic_info(indent="  ",
-                                           verbose=verbose,
-                                           log=log)
+        log("Host system")
+        ver = sys.version.split('\n')[0]
+        log(f"  sys.version: {ver}")
+        log(f"  sys.platform: {sys.platform}")
+        log(f"  platform.distribution: {distro.linux_distribution()}")
+        log(f"  platform.machine: {platform.machine()}")
+        if verbose:
+            log(f"  platform.version: {platform.version()}")
+            log(f"  platform.platform: {platform.platform()}")
+            log(f"  platform.uname: {platform.uname()}")
+            log(f"  platform.system: {platform.system()}")
+            log(f"  platform.release: {platform.release()}")
+            log(f"  platform.processor: {platform.processor()}")
+        log(f"  psutil.cpu_count(logical, physical): {psutil.cpu_count(logical=True)}, {psutil.cpu_count(logical=False)}"
+            )
+        log(f"  psutil.virtual_memory.total: {psutil.virtual_memory().total}")
+        log(f"  psutil.swap_memory.total: {psutil.swap_memory().total}")
+        log(f"  psutil.disk_usage: {psutil.disk_usage('/')}")
         log("Imager")
         imager_state = metadata["imager_state"]
         log("  Serial number: " + str(imager_state.get("sn")))
         log("Motion")
+        if verbose:
+            log("Kinematics")
+            self.ac.kinematics.diagnostic_info(indent="  ",
+                                               verbose=verbose,
+                                               log=log)
 
         if verbose:
             log("")

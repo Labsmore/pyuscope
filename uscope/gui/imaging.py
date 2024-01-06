@@ -1034,8 +1034,11 @@ class XYPlanner3PWidget(PlannerWidget):
     def _cache_load(self, cachej):
         j1 = cachej.get("XY3P", {})
 
-        if self.ac.microscope.has_z():
-            self.track_z_cb.setChecked(j1.get("track_z", 1))
+        # This needs to be tracked per s/n or it can become "contaminated"
+        # just force for now since no-track-z is basically deprecated anyway
+        self.track_z_cb.setChecked(self.ac.microscope.has_z())
+        #if self.ac.microscope.has_z():
+        #    self.track_z_cb.setChecked(j1.get("track_z", True))
 
         for group in ("ll", "ul", "lr"):
             widgets = self.corner_widgets[group]

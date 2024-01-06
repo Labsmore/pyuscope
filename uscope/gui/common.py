@@ -229,6 +229,9 @@ class ArgusCommon(QObject):
     def post_ui_init(self):
         # Try to do critical initialization first in case something fails
 
+        # Now that UI is setup start directing log messages here
+        self.microscope.log = self.emit_log
+
         # hack...used by joystick...
         # self.microscope.jog_abs_lazy = self.motion_thread.jog_abs_lazy
         self.microscope.jog_fractioned_lazy = self.motion_thread.jog_fractioned_lazy
@@ -350,6 +353,10 @@ class ArgusCommon(QObject):
         self.log_msg.emit(s)
 
     def log(self, s='', newline=True):
+        """
+        WARNING: this is not thread safe
+        If you need something thread safe use microscope.log
+        """
         for log in self.logs:
             log(s, newline=newline)
 

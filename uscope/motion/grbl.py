@@ -230,6 +230,35 @@ class GrblError(Exception):
         super().__init__(new_msg)
 
 
+def reformat_config(s):
+    """
+    "$0=10 (step pulse,usec)",
+    to
+    ("$0=10", "step pulse,usec")
+    """
+    s = s.strip()
+    if "(" in s:
+        config, comment = s.split("(")
+        comment = comment.replace(")", "").strip()
+        config = config.strip()
+        return config, comment
+    else:
+        return s, None
+
+
+def print_config(s, prefix="", log=print):
+    config, comment = reformat_config(s)
+    if comment:
+        log(f'{prefix}"{config}", //{comment}')
+    else:
+        log(f'{prefix}"{config}",')
+
+
+def print_configs(l, log=print):
+    for s in l:
+        print_config(s, prefix="", log=log)
+
+
 class GRBLSer:
     def __init__(
         self,
@@ -1214,6 +1243,35 @@ class GRBL:
         for axis, value in axes.items():
             self.gs.txrxs("$%s=%0.3f" % (axis2reg[axis], value))
 
+    def log_info(self, log=print):
+        log("GRBL info")
+        try:
+            info = grbl_read_meta(self.gs)
+            log("  Comment: %s" % (info["comment"], ))
+            log("  S/N: %s" % (info["sn"], ))
+            log("  Config: %s" % (info["config"].hex(), ))
+        except NoGRBLMeta:
+            log("  Config magic number not found")
+
+        # Can take up to two times to pop all status info
+        # Third print is stable
+        for i in range(3):
+            log("")
+            log("? (%u / %u)" % (i + 1, 3))
+            log(self.gs.question())
+        log("")
+        log("i")
+        print_configs(self.gs.i(), log=log)
+        log("")
+        log("g")
+        print_config(self.gs.g(), log=log)
+        log("")
+        log("$")
+        print_configs(self.gs.dollar(), log=log)
+        log("")
+        log("#")
+        print_configs(self.gs.hash(), log=log)
+
 
 """
 Coordinate system convention
@@ -1517,15 +1575,7 @@ class GrblHal(MotionHAL):
         self.grbl.jog_cancel()
 
     def log_info(self):
-        self.log("GRBL info")
-        try:
-            info = grbl_read_meta(self.grbl.gs)
-        except NoGRBLMeta:
-            self.log("  Config magic number not found")
-            return
-        self.log("  Comment: %s" % (info["comment"], ))
-        self.log("  S/N: %s" % (info["sn"], ))
-        self.log("  Config: %s" % (info["config"].hex(), ))
+        self.grbl.log_info(log=self.log)
 
     def _apply_damper(self, damper):
         velocities = dict(self._get_abs_max_velocities())

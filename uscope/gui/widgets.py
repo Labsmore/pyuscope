@@ -10,6 +10,7 @@ from uscope.cloud_stitch import CSInfo
 from uscope.imager.autofocus import AutoStacker
 import traceback
 from uscope.gui.common import ArgusShutdown
+import copy
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -646,49 +647,50 @@ class AdvancedTab(ArgusTab):
         # FIXME: display for now, but should make editable
         # Or maybe have it log a report instead of making widgets?
 
-        self.sysinfo_pb = QPushButton("System info")
-        self.sysinfo_pb.clicked.connect(self.log_system_info)
-        layout.addWidget(self.sysinfo_pb, row, 0)
+        self.diagnostic_info_pb = QPushButton("Diagnostic info (brief)")
+        self.diagnostic_info_pb.clicked.connect(self.diagnostic_info)
+        layout.addWidget(self.diagnostic_info_pb, row, 0)
+        row += 1
+
+        self.diagnostic_info_pb = QPushButton("Diagnostic info (verbose)")
+        self.diagnostic_info_pb.clicked.connect(self.diagnostic_info_verbose)
+        layout.addWidget(self.diagnostic_info_pb, row, 0)
         row += 1
 
         self.setLayout(layout)
 
-    def log_system_info(self):
-        """
-        TODO: make this generic Microscope status report
-        TODO: some of these we might want editable live for tuning
-        But for now lets just keep a simple report
-        """
-        self.ac.log("")
-        self.ac.log("System configuration / status")
-        self.ac.log("Kinematics")
-        self.ac.log("  tsettle_motion: %f" % self.ac.kinematics.tsettle_motion)
-        self.ac.log("  tsettle_hdr: %f" % self.ac.kinematics.tsettle_hdr)
-        self.ac.log("Image")
-        self.ac.log("  scalar: %f" % self.ac.usc.imager.scalar())
-        self.ac.log("Motion")
-        self.ac.log("  origin: %s" % self.ac.usc.motion.origin())
-        self.ac.log("  Backlash compensation")
-        self.ac.log("    Status: %s" %
-                    str(self.ac.usc.motion.backlash_compensation()))
-        backlashes = self.ac.usc.motion.backlash()
-        self.ac.log("    X: %s" % backlashes["x"])
-        self.ac.log("    Y: %s" % backlashes["y"])
-        if self.ac.microscope.has_z():
-            self.ac.log("    Z: %s" % backlashes["z"])
-        self.ac.log("Planner")
-        pconfig = microscope_to_planner_config(self.ac.usj,
-                                               objective={"x_view": None},
-                                               contour={})
-        pc = PC(j=pconfig)
-        self.ac.log("  Ideal overlap X: %f" % pc.ideal_overlap("x"))
-        self.ac.log("  Ideal overlap Y: %f" % pc.ideal_overlap("y"))
-        self.ac.log("  XY border: %f" % pc.border())
+    def diagnostic_info_verbose(self):
+        self.diagnostic_info(verbose=True)
 
-        # This is in another thread => print race conditions
-        # if we need more than one print we'll need to sequence these
-        # maybe offload the whole print to another thread
-        self.ac.motion_thread.log_info()
+    def diagnostic_info(self, verbose=False):
+        """
+        Some things take a while and/or need to be sequenced
+        Gather up all GUI state we can and pass off to another thread to actually print
+        """
+
+        self.ac.log("")
+        self.ac.log("")
+        self.ac.log("")
+        self.ac.log("Gathering diagnostic info")
+        # This has a lot of misc info
+        try:
+            scan_config = self.ac.mainTab.active_planner_widget(
+            ).get_current_scan_config()
+        except:
+            scan_config = {}
+            self.ac.log("Exception getting planner config")
+
+        imager_state = {}
+        imager_state["sn"] = self.ac.microscope.imager.get_sn()
+        imager_state["prop_cache"] = self.ac.control_scroll.get_prop_cache()
+
+        j = {
+            "argus_cachej": copy.deepcopy(self.ac.mw.cachej),
+            "scan_config": scan_config,
+            "imager_state": imager_state,
+            "verbose": verbose,
+        }
+        self.ac.task_thread.diagnostic_info(j)
 
     def update_pconfig_stack(self, pconfig):
         images_pm = int(str(self.stacker_number_le.text()))

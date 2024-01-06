@@ -190,8 +190,8 @@ class MotionThreadBase(CommandThreadBase):
                                      log=self.log,
                                      microscope=self.microscope)
 
-    def log_info(self):
-        self.command("log_info")
+    def log_info(self, block=False):
+        self.command("log_info", block=block)
 
     def setRunning(self, running):
         if running:

@@ -253,6 +253,10 @@ class MainWindow(AMainWindow):
         # File menu
         fileMenu = QMenu("File", self)
         menuBar.addMenu(fileMenu)
+        # Option
+        self.clearLog = QAction("Clear log", fileMenu)
+        fileMenu.addAction(self.clearLog)
+        self.clearLog.triggered.connect(self.clearLogTriggered)
         # Extended options
         self.displayArgusOptions = QAction("Advanced options", fileMenu)
         fileMenu.addAction(self.displayArgusOptions)
@@ -452,6 +456,9 @@ class MainWindow(AMainWindow):
 
     def displayLimitsTriggered(self):
         self.ac.mainTab.show_minmax(bool(self.displayLimits.isChecked()))
+
+    def clearLogTriggered(self):
+        self.ac.mainTab.clear_log()
 
     def displayAdvancedMovementTriggered(self):
         self.ac.mainTab.motion_widget.show_advanced_movement(

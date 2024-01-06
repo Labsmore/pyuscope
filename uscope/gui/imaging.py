@@ -1752,8 +1752,10 @@ class ImagingTaskWidget(AWidget):
             "file_name": str(self.job_name_le.text()),
             "extension": self.snapshot_suffix_cb.currentIndex(),
             "stitch": self.iow.stitch_gb.isChecked(),
-            # currently not saving cloud stitch state
+            # currently not load cloud stitch state
             # instead let it default to whether they have creds
+            # However its useful for debug dumps
+            "cloudstitch": self.iow.cloudstitch_cb.isChecked(),
             "autofocus": self.iow.autofocus_cb.isChecked(),
             "add_scalebar": self.iow.add_scalebar_cb.isChecked(),
             "keep_intermediate": self.iow.keep_intermediate_cb.isChecked(),
@@ -1889,6 +1891,9 @@ class MainTab(ArgusTab):
         if self.imaging_widget.log_fd_scan is not None:
             self.imaging_widget.log_fd_scan.write(s)
             self.imaging_widget.log_fd_scan.flush()
+
+    def clear_log(self):
+        self.log_widget.clear()
 
     def go_current_pconfig(self, callback=None):
         scan_config = self.active_planner_widget().get_current_scan_config()

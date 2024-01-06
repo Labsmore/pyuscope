@@ -42,15 +42,7 @@ class Kinematics:
         self.should_frame_sync = self.microscope.usc.kinematics.frame_sync()
         self.tsettle_video_pipeline = 3.0
 
-        self.verbose and self.log(
-            "Kinematics(): tsettle_motion: %0.3f" % self.tsettle_motion)
-        self.verbose and self.log(
-            "Kinematics(): tsettle_hdr: %0.3f" % self.tsettle_hdr)
-        self.verbose and self.log(
-            "Kinematics(): tsettle_autofocus: %0.3f" % self.tsettle_autofocus)
-        self.verbose and self.log(
-            "Kinematics(): tsettle_video_pipeline: %0.3f" %
-            self.tsettle_video_pipeline)
+        # self.diagnostic_info()
 
     # May be updated as objective is changed
     def set_tsettle_motion(self, tsettle_motion):
@@ -149,3 +141,14 @@ class Kinematics:
             with LogTimer("wait frame_sync",
                           variable="PYUSCOPE_PROFILE_TIMAGE"):
                 self.frame_sync()
+
+    def diagnostic_info(self, indent=None, verbose=False, log=None):
+        if log is None:
+            log = self.log
+        if indent is None:
+            indent = "Kinematics(): "
+        log(indent + "tsettle_motion: %0.3f" % self.tsettle_motion)
+        log(indent + "tsettle_hdr: %0.3f" % self.tsettle_hdr)
+        log(indent + "tsettle_autofocus: %0.3f" % self.tsettle_autofocus)
+        log(indent +
+            "tsettle_video_pipeline: %0.3f" % self.tsettle_video_pipeline)

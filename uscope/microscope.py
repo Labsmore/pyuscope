@@ -267,7 +267,13 @@ class Microscope:
     def model(self):
         """
         Return microscope model number
-        Same as the config file name
+        Currently the same as the config file name
+        """
+        return self.name
+
+    def config_name(self):
+        """
+        Return the config name
         """
         return self.name
 

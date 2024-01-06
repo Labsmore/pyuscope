@@ -279,6 +279,7 @@ class QTaskThread(CommandThreadBase, QThread):
         CommandThreadBase.__init__(self, microscope=ac.microscope)
         self.command_map = {
             "offload": self._offload,
+            "diagnostic_info": self._diagnostic_info,
         }
 
     def offload(self, function, block=False, callback=None):
@@ -286,3 +287,107 @@ class QTaskThread(CommandThreadBase, QThread):
 
     def _offload(self, function):
         function(self.ac)
+
+    def diagnostic_info(self, metadata, block=False, callback=None):
+        self.command("diagnostic_info",
+                     metadata,
+                     block=block,
+                     callback=callback)
+
+    def _diagnostic_info(self, metadata):
+        """
+            "argus_cachej": copy.deepcopy(self.ac.mw.cachej),
+            "scan_config": scan_config,
+            "verbose": verbose,
+
+
+        imager_state = {
+            }
+        imager_state["sn"] = self.ac.microscope.imager.get_sn()
+        imager_state["prop_cache"] = self.ac.control_scroll.get_prop_cache()
+
+        """
+        verbose = metadata.get("verbose", False)
+        log = self.ac.microscope.log
+        # Note: header was already printed in main thread
+        log("System configuration / status")
+        log("Microscope")
+        log(f"  Configuration: {self.ac.microscope.config_name()}")
+        log(f"  Serial: {self.ac.microscope.serial()}")
+        log("Kinematics")
+        self.ac.kinematics.diagnostic_info(indent="  ",
+                                           verbose=verbose,
+                                           log=log)
+        log("Imager")
+        imager_state = metadata["imager_state"]
+        log("  Serial number: " + str(imager_state.get("sn")))
+        log("Motion")
+
+        if verbose:
+            log("")
+            log("")
+            log("")
+            log("*" * 80)
+            log("*" * 80)
+            log("Verbose dump")
+            log("")
+            log("")
+            log("")
+            log("*" * 80)
+            log("Argus GUI state")
+            log(
+                json.dumps(metadata.get("argus_cachej", {}),
+                           sort_keys=True,
+                           indent=4,
+                           separators=(",", ": ")))
+            log("")
+            log("")
+            log("")
+            log("*" * 80)
+            log("Objective database")
+            try:
+                objective_db = self.ac.microscope.get_objectives(
+                ).get_full_config()
+                log(
+                    json.dumps(objective_db,
+                               sort_keys=True,
+                               indent=4,
+                               separators=(",", ": ")))
+            except:
+                self.log("Exception getting objective database")
+            log("")
+            log("")
+            log("")
+            log("*" * 80)
+            log("Imager properties cache (as displayed)")
+            log(
+                json.dumps(imager_state["prop_cache"].get("disp", {}),
+                           sort_keys=True,
+                           indent=4,
+                           separators=(",", ": ")))
+            log("")
+            log("")
+            log("")
+            log("*" * 80)
+            log("Imager properties cache (raw / low level)")
+            log(
+                json.dumps(imager_state["prop_cache"].get("raw", {}),
+                           sort_keys=True,
+                           indent=4,
+                           separators=(",", ": ")))
+            log("")
+            log("")
+            log("")
+            log("*" * 80)
+            log("Next planner configuration")
+            log(
+                json.dumps(metadata.get("scan_config", {}),
+                           sort_keys=True,
+                           indent=4,
+                           separators=(",", ": ")))
+            log("")
+            log("")
+            log("")
+            log("*" * 80)
+            log("GRBL configuration")
+            self.ac.motion_thread.log_info(block=True)

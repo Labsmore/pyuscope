@@ -85,11 +85,12 @@ class ArgusScriptingPlugin(QThread):
         """
         return self._input
 
-    def set_input_default(self, label, value):
+    def set_input_default(self, k, value):
         """
         Allows a script to have modes that setup various parameters
+        NOTE: this used to be by label, now its by key
         """
-        self.new_defaults[label] = value
+        self.new_defaults[k] = value
 
     def fail(self, message):
         """
@@ -640,7 +641,7 @@ class ScriptingTab(ArgusTab):
             return
 
         if input_val is None:
-            input_val = self.input.getValue()
+            input_val = self.input.getValues()
         self.plugin._input = input_val
         for pb in self.select_pbs.values():
             pb.setEnabled(False)
@@ -659,7 +660,7 @@ class ScriptingTab(ArgusTab):
 
     # An alternate way to launch using custom buttons
     def inputWidgetClicked(self, j):
-        input_val = self.input.getValue()
+        input_val = self.input.getValues()
         input_val["button"] = j
         self.run_pb_clicked(input_val=input_val)
 
@@ -702,14 +703,14 @@ class ScriptingTab(ArgusTab):
             return
         try:
             j = readj(filename)
-            self.input.setValue(j)
+            self.input.setValues(j)
         except Exception as e:
             self.log_local(f"Failed to load script config: {type(e)}: {e}")
             traceback.print_exc()
 
     def set_config(self, j):
         try:
-            self.input.setValue(j)
+            self.input.setValues(j)
         except Exception as e:
             self.log_local(f"Failed to load script config: {type(e)}: {e}")
             traceback.print_exc()
@@ -725,14 +726,14 @@ class ScriptingTab(ArgusTab):
             return
         filename = str(filename[0])
 
-        j = self.input.getValue()
+        j = self.input.getValues()
         writej(filename, j)
 
     def plugin_done(self):
         if self.plugin.succeeded():
             status = "Status: finished ok"
             try:
-                self.input.update_defaults(self.plugin.new_defaults)
+                self.input.setValues(self.plugin.new_defaults)
             except KeyError as e:
                 self.log_local(f"Failed to update defaults: bad label: {e}")
             except Exception as e:
@@ -791,7 +792,7 @@ class ScriptingTab(ArgusTab):
     def _cache_save(self, cachej):
         j = {}
         j["filename"] = str(self.fn_le.text())
-        j["config"] = self.input.getValue()
+        j["config"] = self.input.getValues()
         cachej["scripting"] = j
 
     def _cache_load(self, cachej):

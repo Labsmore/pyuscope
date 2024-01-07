@@ -199,9 +199,13 @@ class CSImageProcessor(threading.Thread):
         self.running.set()
 
     def __del__(self):
-        self.stop()
+        self.shutdown()
 
-    def stop(self):
+    def shutdown(self):
+        self.shutdown_request()
+        self.shutdown_join()
+
+    def shutdown_request(self):
         self.running.clear()
 
         if self.workers:
@@ -209,11 +213,13 @@ class CSImageProcessor(threading.Thread):
             for worker in self.workers.values():
                 worker.stop()
             self.log("Shutting down: joining")
-            for worker in self.workers.values():
-                worker.join()
-            self.workers = None
-            self.log("Joined")
 
+    def shutdown_join(self, timeout=3.0):
+        for worker in self.workers.values():
+            worker.join(timeout=timeout)
+        self.log("Joined")
+
+        # Now that threads are destroyed get rid of temp files
         if self.temp_dir_object:
             # shutil.rmtree(self.temp_dir)
             self.temp_dir_object.cleanup()
@@ -453,7 +459,7 @@ def process_dir(directory,
         ip.process_dir(directory, *args, **kwargs)
     finally:
         if ip:
-            ip.stop()
+            ip.shutdown()
     del ip
 
 

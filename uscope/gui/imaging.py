@@ -1214,12 +1214,12 @@ class ImagingOptionsWindow(QWidget):
             layout = QGridLayout()
             row = 0
 
-            layout.addWidget(QLabel("Autofocus corners?"), row, 0)
             self.autofocus_cb = QCheckBox()
             self.autofocus_cb.setChecked(self.ac.microscope.has_z())
             self.autofocus_cb.stateChanged.connect(
                 self.itw.update_imaging_config)
-            layout.addWidget(self.autofocus_cb, row, 1)
+            layout.addWidget(self.autofocus_cb, row, 0)
+            layout.addWidget(QLabel("Autofocus corners?"), row, 1)
             row += 1
 
             def process_gb():

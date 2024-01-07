@@ -321,22 +321,34 @@ class ArgusCommon(QObject):
             self.log("  align_image_stack: " +
                      str(self.bc.align_image_stack_cli()))
 
-    def shutdown(self):
+    def shutdown_request(self):
         if self.motion_thread:
-            self.motion_thread.shutdown()
+            self.motion_thread.shutdown_request()
+        if self.planner_thread:
+            self.planner_thread.shutdown_request()
+        if self.image_processing_thread:
+            self.image_processing_thread.shutdown_request()
+        if self.joystick_thread:
+            self.joystick_thread.shutdown_request()
+        if self.task_thread:
+            self.task_thread.shutdown_request()
+
+    def shutdown_join(self):
+        if self.motion_thread:
+            self.motion_thread.shutdown_join()
             # causes too many corner cases
             # self.motion_thread = None
         if self.planner_thread:
-            self.planner_thread.shutdown()
+            self.planner_thread.shutdown_join()
             # self.planner_thread = None
         if self.image_processing_thread:
-            self.image_processing_thread.shutdown()
+            self.image_processing_thread.shutdown_join()
             # self.image_processing_thread = None
         if self.joystick_thread:
-            self.joystick_thread.shutdown()
+            self.joystick_thread.shutdown_join()
             # self.joystick_thread = None
         if self.task_thread:
-            self.task_thread.shutdown()
+            self.task_thread.shutdown_join()
             # self.task_thread = None
 
     def check_thread_safety(self):

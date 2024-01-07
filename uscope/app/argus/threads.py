@@ -28,13 +28,19 @@ def dbg(*args):
         print('threading: ' + (args[0] % args[1:]))
 
 
+class ArgusThread(QThread):
+    def shutdown_join(self, timeout=3.0):
+        # seconds = milliseconds
+        self.wait(int(timeout * 1000))
+
+
 # FIXME: merge this into image processing thread
-class StitcherThread(CommandThreadBase, QThread):
+class StitcherThread(CommandThreadBase, ArgusThread):
     # stitcherDone = pyqtSignal()
     log_msg = pyqtSignal(str)
 
     def __init__(self, ac, parent=None):
-        QThread.__init__(self, parent)
+        ArgusThread.__init__(self, parent)
         super().__init__(ac)
 
         self.command_map = {
@@ -145,11 +151,11 @@ class StitcherThread(CommandThreadBase, QThread):
         print(f"Image processing CLI: finished job w/ code {return_code}")
 
 
-class QMotionThread(MotionThreadBase, QThread):
+class QMotionThread(MotionThreadBase, ArgusThread):
     log_msg = pyqtSignal(str)
 
     def __init__(self, ac, parent=None):
-        QThread.__init__(self, parent)
+        ArgusThread.__init__(self, parent)
         self.ac = ac
         MotionThreadBase.__init__(self, microscope=self.ac.microscope)
 
@@ -157,12 +163,12 @@ class QMotionThread(MotionThreadBase, QThread):
         self.log_msg.emit(msg)
 
 
-class QPlannerThread(PlannerThreadBase, QThread):
+class QPlannerThread(PlannerThreadBase, ArgusThread):
     plannerDone = pyqtSignal(dict)
     log_msg = pyqtSignal(str)
 
     def __init__(self, planner_args, progress_cb, parent=None):
-        QThread.__init__(self, parent)
+        ArgusThread.__init__(self, parent)
         PlannerThreadBase.__init__(self,
                                    planner_args=planner_args,
                                    progress_cb=progress_cb)
@@ -204,12 +210,12 @@ class QPlannerThread(PlannerThreadBase, QThread):
             self.plannerDone.emit(ret)
 
 
-class QImageProcessingThread(ImageProcessingThreadBase, QThread):
+class QImageProcessingThread(ImageProcessingThreadBase, ArgusThread):
     log_msg = pyqtSignal(str)
 
     def __init__(self, ac, parent=None):
         self.ac = ac
-        QThread.__init__(self, parent)
+        ArgusThread.__init__(self, parent)
         ImageProcessingThreadBase.__init__(self, microscope=ac.microscope)
 
     def log(self, msg=""):
@@ -227,13 +233,13 @@ class QImageProcessingThread(ImageProcessingThreadBase, QThread):
         return image
 
 
-class QJoystickThread(JoystickThreadBase, QThread):
+class QJoystickThread(JoystickThreadBase, ArgusThread):
     log_msg = pyqtSignal(str)
     joystickDone = pyqtSignal()
 
     def __init__(self, ac, parent=None):
         self.ac = ac
-        QThread.__init__(self, parent)
+        ArgusThread.__init__(self, parent)
         JoystickThreadBase.__init__(self, microscope=self.ac.microscope)
         self.ac.microscope.joystick = self.joystick
         self.enabled = False
@@ -272,11 +278,11 @@ Ex: setting up a scan w/ multiple autofocus steps
 """
 
 
-class QTaskThread(CommandThreadBase, QThread):
+class QTaskThread(CommandThreadBase, ArgusThread):
     log_msg = pyqtSignal(str)
 
     def __init__(self, ac, parent=None):
-        QThread.__init__(self, parent)
+        ArgusThread.__init__(self, parent)
         self.ac = ac
         CommandThreadBase.__init__(self, microscope=ac.microscope)
         self.command_map = {

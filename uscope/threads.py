@@ -18,8 +18,18 @@ class CommandThreadBase:
     def log(self, msg=""):
         print(msg)
 
-    def shutdown(self):
+    def shutdown_request(self):
         self.running.clear()
+
+    '''
+    def shutdown_join(self, timeout=3.0):
+        # self.join(timeout=timeout)
+        assert 0, "required"
+    '''
+
+    def shutdown(self, timeout=3.0):
+        self.shutdown_request()
+        self.shutdown_join(timeout=timeout)
 
     def command(self, command, *args, block=False, callback=None, done=None):
         """

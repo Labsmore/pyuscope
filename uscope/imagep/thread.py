@@ -25,9 +25,17 @@ class ImageProcessingThreadBase(CommandThreadBase):
         # nothing to process => can try to shutdown before it starts
         self.ip.ready.wait(1.0)
 
-    def shutdown(self):
-        self.ip.stop()
-        super().shutdown()
+    def shutdown_request(self):
+        # Stop requests first
+        super().shutdown_request()
+        # Then lower level engine
+        self.ip.shutdown_request()
+
+    def shutdown_join(self, timeout=3.0):
+        # Stop requests first
+        super().shutdown_join(timeout=timeout)
+        # Then lower level engine
+        self.ip.shutdown_join(timeout=timeout)
 
     def auto_focus(self, objective_config, block=False, done=None):
         j = {

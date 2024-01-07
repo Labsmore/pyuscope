@@ -758,10 +758,9 @@ class ScriptingTab(ArgusTab):
     def _post_ui_init(self):
         pass
 
-    def _shutdown(self):
+    def _shutdown_request(self):
         if self.plugin:
             self.plugin.shutdown()
-            self.plugin = None
 
     def log_local(self, s='', newline=True):
         s = str(s)

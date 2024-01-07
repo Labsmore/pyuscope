@@ -1577,7 +1577,7 @@ class GrblHal(MotionHAL):
     def log_info(self):
         self.grbl.log_info(log=self.log)
 
-    def _apply_damper(self, damper):
+    def _do_apply_damper(self, damper):
         velocities = dict(self._get_abs_max_velocities())
         accelerations = dict(self._get_abs_max_accelerations())
         for axis in self.axes():
@@ -1597,19 +1597,20 @@ class GrblHal(MotionHAL):
         self._apply_damper(damper)
     '''
 
-    def apply_damper(self, damper):
+    def _apply_damper(self, damper):
         # Should we allow overclock?
         assert 0 < damper <= 1.0, f"invalid damper require 0 < {damper} <= 1.0"
         try:
-            self._apply_damper(damper)
+            self._do_apply_damper(damper)
             # Recalculate constants
             self.reconfigure()
         except:
             print("WARNING: apply damper failed. Restoring default value")
-            self._apply_damper(1.0)
+            self._do_apply_damper(1.0)
             self.reconfigure()
 
     def validate_microscope_model(self, name):
+        self.check_thread_safety()
         try:
             info = grbl_read_meta(self.grbl.gs)
         except NoGRBLMeta:

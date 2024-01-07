@@ -4,6 +4,7 @@ import os
 from collections import OrderedDict
 from uscope.util import time_str
 from uscope.motion.motion_util import parse_move
+import threading
 
 
 class AxisExceeded(ValueError):
@@ -605,8 +606,26 @@ class MotionHAL:
         self.ask_home = self.default_ask_home
         self.home_progress = self.default_home_progress
 
+        self.check_threads = os.getenv("PYUSCOPE_CHECK_THREADS",
+                                       "N") == "Y" or self.bc.dev_mode()
+        self.motion_thread = None
+        if self.check_threads:
+            print(f"Motion {self} ({type(self)}): checking threads requested")
+
     def __del__(self):
         self.close()
+
+    def updte_motion_thread(self):
+        self.motion_thread = threading.get_ident()
+        print(
+            f"Motion {self} ({type(self)}): checking threads enabled with {self.motion_thread}"
+        )
+
+    def check_thread_safety(self):
+        if self.check_threads and self.motion_thread:
+            assert self.motion_thread == threading.get_ident(), (
+                "GUI thread unsafe access detected", self.main_thread,
+                threading.get_ident())
 
     def default_ask_home(self):
         while True:
@@ -997,6 +1016,7 @@ class MotionHAL:
     def pos(self):
         '''Return current position for all axes'''
         # print("")
+        self.check_thread_safety()
         pos = self.only_used_axes(self._pos())
         self.process_pos(pos)
         return pos
@@ -1008,6 +1028,7 @@ class MotionHAL:
     def move_absolute(self, pos, options={}):
         '''Absolute move to positions specified by pos dict'''
         assert self.jog_estimated_end is None, f"Can't move while jogging ({self.jog_estimated_end})"
+        self.check_thread_safety()
         if len(pos) == 0:
             return
         self.validate_axes(pos.keys())
@@ -1186,6 +1207,7 @@ class MotionHAL:
         period: how often commands will be issued
             longer period => jog further to keep constant
         """
+        self.check_thread_safety()
         # print("")
         # print("jog_fractioned", axes, period, time.time())
         tstart = time.time()
@@ -1257,6 +1279,7 @@ class MotionHAL:
         raise NotSupported("Required for jogging")
 
     def jog_cancel(self):
+        self.check_thread_safety()
         self._jog_cancel()
         # No longer jogging
         self.jog_estimated_end = None
@@ -1319,6 +1342,10 @@ class MotionHAL:
         raise NotSupported("")
 
     def apply_damper(self, damper):
+        self.check_thread_safety()
+        self._apply_damper(damper)
+
+    def _apply_damper(self, damper):
         raise NotSupported("")
 
 

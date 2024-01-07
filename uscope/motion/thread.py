@@ -341,6 +341,8 @@ class MotionThreadBase(CommandThreadBase):
     def run(self):
         self.verbose and print("Motion thread started: %s" %
                                (threading.get_ident(), ))
+        self.motion.updte_motion_thread()
+        self.motion.check_thread_safety()
         self.running.set()
         self.idle.clear()
         self.motion.on()

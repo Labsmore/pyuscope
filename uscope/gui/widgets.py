@@ -67,7 +67,10 @@ class AMainWindow(QMainWindow):
         for awidget in self.awidgets.values():
             awidget.post_ui_init()
 
-    def _shutdown(self):
+    def _shutdown_request(self):
+        pass
+
+    def _shutdown_join(self):
         pass
 
     def shutdown(self):
@@ -81,14 +84,16 @@ class AMainWindow(QMainWindow):
             self.fullscreen_widget.close()
 
         self.cache_save()
-        self._shutdown()
+        self._shutdown_request()
         for awidget in self.awidgets.values():
-            awidget.shutdown()
-        try:
-            if self.ac:
-                self.ac.shutdown()
-        except AttributeError:
-            pass
+            awidget.shutdown_request()
+        if self.ac:
+            self.ac.shutdown_request()
+        self._shutdown_join()
+        for awidget in self.awidgets.values():
+            awidget.shutdown_join()
+        if self.ac:
+            self.ac.shutdown_join()
 
     def closeEvent(self, event):
         self.shutdown()
@@ -163,7 +168,7 @@ class AMainWindow(QMainWindow):
             self.ac.poll_misc()
         except ArgusShutdown:
             print(traceback.format_exc())
-            self.ac.shutdown()
+            self.shutdown()
             QCoreApplication.exit(1)
             return
 
@@ -225,16 +230,24 @@ class AWidget(QWidget):
         for awidget in self.awidgets.values():
             awidget.post_ui_init()
 
-    def _shutdown(self):
+    def _shutdown_request(self):
         pass
 
-    def shutdown(self):
+    def shutdown_request(self):
         """
         Called when GUI is shutting down
         """
-        self._shutdown()
+        self._shutdown_request()
         for awidget in self.awidgets.values():
-            awidget.shutdown()
+            awidget.shutdown_request()
+
+    def _shutdown_join(self):
+        pass
+
+    def shutdown_join(self):
+        self._shutdown_join()
+        for awidget in self.awidgets.values():
+            awidget.shutdown_join()
 
     def _cache_save(self, cachej):
         pass
@@ -904,10 +917,13 @@ class StitchingTab(ArgusTab):
         self.stitcher_thread.log_msg.connect(self.ac.log)
         self.stitcher_thread.start()
 
-    def _shutdown(self):
+    def _shutdown_request(self):
         if self.stitcher_thread:
-            self.stitcher_thread.shutdown()
-            self.stitcher_thread = None
+            self.stitcher_thread.shutdown_request()
+
+    def _shutdown_join(self):
+        if self.stitcher_thread:
+            self.stitcher_thread.shutdown_join()
 
     def stitch_begin_manual_cs(self):
         this_upload = str(self.manual_stitch_dir.text())

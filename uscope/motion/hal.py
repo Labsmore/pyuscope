@@ -606,8 +606,9 @@ class MotionHAL:
         self.ask_home = self.default_ask_home
         self.home_progress = self.default_home_progress
 
-        self.check_threads = os.getenv("PYUSCOPE_CHECK_THREADS",
-                                       "N") == "Y" or self.microscope.bc.dev_mode()
+        self.check_threads = os.getenv(
+            "PYUSCOPE_CHECK_THREADS",
+            "N") == "Y" or self.microscope.bc.dev_mode()
         self.motion_thread = None
         if self.check_threads:
             print(f"Motion {self} ({type(self)}): checking threads requested")

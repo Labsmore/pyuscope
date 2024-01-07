@@ -310,6 +310,11 @@ class V4L2ControlRWNew:
             V4L2ControlRWNew.dump_devices()
             raise Exception(f"Failed to find video device {name}")
 
+    def dump_control_names(self):
+        print("valid control names")
+        for name, control in self.controls.items():
+            print(f"  {name}: {control}")
+
 
 """
 Alternate engine?

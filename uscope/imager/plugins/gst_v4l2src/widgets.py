@@ -44,6 +44,13 @@ class V4L2GstControlScroll(GstControlScroll):
                                   ac=ac,
                                   parent=parent)
 
+
+class V4L2GstControlScrollTest(V4L2GstControlScroll):
     def auto_exposure_enabled(self):
-        # FIXME: is this accurate? There might be a prop
-        return True
+        # Might not be true, but turns off warning
+        # TODO: check if property is found
+        # Assume off otherwise to avoid generating a warning for something we can't check
+        return False
+
+    def auto_color_enabled(self):
+        return False

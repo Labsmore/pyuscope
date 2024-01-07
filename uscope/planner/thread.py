@@ -36,9 +36,14 @@ class PlannerThreadBase:
         if self.planner:
             self.planner.unpause()
 
-    def shutdown(self):
+    def shutdown_request(self):
         if self.planner:
-            self.planner.stop()
+            self.planner.shutdown_request()
+
+    def shutdown_join(self):
+        if self.planner:
+            self.planner.shutdown_join()
+        super().shutdown_join()
 
     def run(self):
         self.planner = get_planner(log=self.log, **self.planner_args)

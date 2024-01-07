@@ -170,8 +170,11 @@ class Planner:
                     break
             self.log('Planner unpaused')
 
-    def stop(self):
+    def shutdown_request(self):
         self.running = False
+
+    def shutdown_join(self):
+        pass
 
     def write_meta(self):
         # Copy config for reference

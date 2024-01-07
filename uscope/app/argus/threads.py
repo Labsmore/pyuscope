@@ -17,6 +17,7 @@ import sys
 import json
 import platform
 import distro
+import random
 
 
 def dbg(*args):
@@ -32,6 +33,10 @@ class ArgusThread(QThread):
     def shutdown_join(self, timeout=3.0):
         # seconds = milliseconds
         self.wait(int(timeout * 1000))
+
+    def check_stress(self):
+        if self.microscope.bc.stress_test():
+            time.sleep(random.randint(0, 100) * 0.001)
 
 
 # FIXME: merge this into image processing thread
@@ -256,6 +261,8 @@ class QJoystickThread(JoystickThreadBase, ArgusThread):
     def run(self):
         tlast = time.time()
         while self.running:
+            # is this useful?
+            # self.check_stress()
             try:
                 waited = time.time() - tlast
                 time.sleep(max(0, self.joystick.config.scan_secs() - waited))

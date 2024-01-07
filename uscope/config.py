@@ -1394,6 +1394,9 @@ class BaseConfig:
         else:
             return None
 
+    def stress_test(self):
+        return bool(self.j.get("stress_test", False))
+
 
 def get_bcj():
     try:

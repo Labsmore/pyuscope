@@ -2,6 +2,8 @@ from uscope.microscope import MicroscopeStop
 import threading
 import queue
 import traceback
+import random
+import time
 
 
 class CommandThreadBase:
@@ -58,12 +60,17 @@ class CommandThreadBase:
                 raise Exception("oopsie: %s" % (ret, ))
             return ret
 
+    def check_stress(self):
+        if self.microscope.bc.stress_test():
+            time.sleep(random.randint(0, 100) * 0.001)
+
     def run(self):
         self.verbose and print("Task thread started: %s" %
                                (threading.get_ident(), ))
         self.running.set()
 
         while self.running.is_set():
+            self.check_stress()
             try:
                 (command, args, command_done) = self.queue.get(True, 0.1)
             except queue.Empty:

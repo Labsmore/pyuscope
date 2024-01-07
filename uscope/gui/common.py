@@ -321,6 +321,9 @@ class ArgusCommon(QObject):
             self.log("  align_image_stack: " +
                      str(self.bc.align_image_stack_cli()))
 
+        if self.microscope.bc.stress_test():
+            self.log("WARNING: stress test enabled")
+
     def shutdown_request(self):
         if self.motion_thread:
             self.motion_thread.shutdown_request()

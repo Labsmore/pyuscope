@@ -626,6 +626,7 @@ class ScriptingTab(ArgusTab):
         self.status_le.setText("Status: idle")
         self.input.configure({})
         self.log_widget.clear()
+        self.run_pb.setEnabled(False)
 
     def set_filename(self, filename):
         self.fn_le.setText(filename)
@@ -638,6 +639,10 @@ class ScriptingTab(ArgusTab):
     def run_pb_clicked(self, _checked=None, input_val=None):
         if self.running:
             self.log_local("Can't run while already running")
+            return
+        # This can happen if plugin fails to load
+        if self.plugin is None:
+            self.log_local("Can't run without plugin")
             return
 
         if input_val is None:

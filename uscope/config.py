@@ -104,6 +104,22 @@ class USCImager:
         self.microscope = microscope
         #if not "width" in j or not "height" in j:
         #    raise ValueError("width/height required")
+        self.cache_constants()
+
+    def cache_constants(self):
+        # More of a hard real time constant
+        # Something is wrong if this is exceeded
+        self._snapshot_timeout = self.microscope.bc.timeout_scalar_scale(3.0)
+        # If processing gets expensive or backs up this could get high
+        # Maybe this should be set to a high value
+        # However planner etc relies on this running relatively quickly
+        self._processing_timeout = self.microscope.bc.timeout_scalar_scale(5.0)
+
+    def snapshot_timeout(self):
+        return self._snapshot_timeout
+
+    def processing_timeout(self):
+        return self._processing_timeout
 
     def source(self):
         return self.j.get("source", "auto")
@@ -1192,6 +1208,7 @@ class BaseConfig:
         self._align_image_stack_cli = None
 
         self.init_dirs()
+        self.cache_constants()
 
     def init_dirs(self):
         self._data_dir = os.getenv("PYUSCOPE_DATA_DIR", "data")
@@ -1218,6 +1235,21 @@ class BaseConfig:
         self._script_data_dir = os.path.join(self.get_data_dir(), "script")
         if not os.path.exists(self._script_data_dir):
             os.mkdir(self._script_data_dir)
+
+    def cache_constants(self):
+        raw = self.j.get("timeout_scalar", "1.0")
+        if raw is None:
+            print("WARNING: timeouts are disabled. Software may lock up")
+            self._timeout_scalar = None
+        else:
+            self._timeout_scalar = float(raw)
+            if self._timeout_scalar <= 0:
+                raise ValueError(
+                    f"Invalid timouet scalar {self._timeout_scalar}")
+            if self._timeout_scalar < 1:
+                print(
+                    "WARNING: timeout scalar is below recommended value. Software may crash without cause"
+                )
 
     def get_data_dir(self):
         return self._data_dir
@@ -1346,6 +1378,21 @@ class BaseConfig:
             self.j.get("panotools", {}), "align_image_stack_cli",
             "align_image_stack", "align_image_stack")
         return self._align_image_stack_cli
+
+    def timeout_scalar(self):
+        """
+        Sigh
+        https://github.com/Labsmore/pyuscope/issues/400
+        System is overheating / underpowered and sometimes failing real time requirements
+        """
+        return self._timeout_scalar
+
+    def timeout_scalar_scale(self, val):
+        if self._timeout_scalar:
+            return self._timeout_scalar * val
+        # Timeout disabled
+        else:
+            return None
 
 
 def get_bcj():

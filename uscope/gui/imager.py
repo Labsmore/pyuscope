@@ -58,7 +58,10 @@ class GstGUIImager(Imager):
     def wh(self):
         return self.width, self.height
 
-    def next_image(self, timeout=3.0):
+    def next_image(self, timeout=None):
+        # WARNING: this must be thread safe / may be called from any context
+        if timeout is None:
+            timeout = self.ac.microscope.usc.imager.snapshot_timeout()
         #self.ac.emit_log('gstreamer imager: taking image to %s' % file_name_out)
         def got_image(image_id):
             # self.ac.emit_log('Image captured reported: %s' % image_id)
@@ -76,7 +79,8 @@ class GstGUIImager(Imager):
         # self.ac.emit_log('Got image %s' % self.image_id)
         return self.ac.capture_sink.pop_image(self.image_id)
 
-    def get(self, recover_errors=True, timeout=3.0):
+    def get(self, recover_errors=True, timeout=None):
+        # WARNING: this must be thread safe / may be called from any context
         while True:
             try:
                 # 2023-11-16: we used to do scaling / etc here
@@ -86,7 +90,7 @@ class GstGUIImager(Imager):
             except Exception as e:
                 if not recover_errors:
                     raise
-                self.ac.log(
+                self.ac.microscope.log(
                     f"WARNING: failed to get image ({type(e)}: {e}). Sleeping then retrying"
                 )
                 print(traceback.format_exc())
@@ -97,13 +101,20 @@ class GstGUIImager(Imager):
     # FIXME: clean this up
     # maybe start by getting all parties to call this
     # then can move things into main get function?
-    def get_processed(self, recover_errors=True, processing_timeout=3.0):
+    def get_processed(self,
+                      recover_errors=True,
+                      snapshot_timeout=None,
+                      processing_timeout=None):
+        if processing_timeout is None:
+            processing_timeout = self.ac.microscope.usc.imager.processing_timeout(
+            )
         with LogTimer("get_processed: net",
                       variable="PYUSCOPE_PROFILE_TIMAGE"):
             # Get relatively unprocessed snapshot
             with LogTimer("get_processed: raw",
                           variable="PYUSCOPE_PROFILE_TIMAGE"):
-                image = self.get(recover_errors=recover_errors)["0"]
+                image = self.get(timeout=snapshot_timeout,
+                                 recover_errors=recover_errors)["0"]
 
             processed = {}
             ready = threading.Event()
@@ -129,7 +140,7 @@ class GstGUIImager(Imager):
                                                           callback=callback)
             with LogTimer("get_processed: waiting",
                           variable="PYUSCOPE_PROFILE_TIMAGE"):
-                if not ready.wait(processing_timeout):
+                if not ready.wait(timeout=processing_timeout):
                     raise ImageTimeout(
                         "Failed to get image within processing timeout %0.1f sec"
                         % (processing_timeout, ))

@@ -18,6 +18,8 @@ import json
 import platform
 import distro
 import random
+import os
+import datetime
 
 
 def dbg(*args):
@@ -248,6 +250,7 @@ class QJoystickThread(JoystickThreadBase, ArgusThread):
         JoystickThreadBase.__init__(self, microscope=self.ac.microscope)
         self.ac.microscope.joystick = self.joystick
         self.enabled = False
+        self.ac.microscope.statistics.add_getj(self.statistics_getj)
 
     def log(self, msg=""):
         self.log_msg.emit(msg)
@@ -257,6 +260,12 @@ class QJoystickThread(JoystickThreadBase, ArgusThread):
 
     def disable(self):
         self.enabled = False
+
+    def statistics_getj(self, statj):
+        j = statj.setdefault("joystick", {})
+        j["thread_running"] = self.running
+        j["enabled"] = self.enabled
+        j["slow_jogs"] = self.joystick.jog_controller.slow_jogs
 
     def run(self):
         tlast = time.time()
@@ -277,12 +286,122 @@ class QJoystickThread(JoystickThreadBase, ArgusThread):
                 traceback.print_exc()
             finally:
                 self.joystickDone.emit()
+        self.running = False
 
 
 """
 For offloading general purpose long running tasks
 Ex: setting up a scan w/ multiple autofocus steps
+
+TODO:
+-Add errors such as number of camera disconnects
+-Statistics such as number of images taken
 """
+
+
+class Profiler:
+    def __init__(self, microscope=None):
+        self.microscope = microscope
+        self.time_last = None
+        self.interval = 10.0
+        log_file = os.path.join(self.microscope.usc.bc.get_data_dir(),
+                                "profile.jl")
+        self.f = open(log_file, "a+")
+        self.log_header()
+        self.poll()
+
+    def logj(self, j):
+        self.f.write(json.dumps(j) + "\n")
+        self.f.flush()
+
+    def host_virtual_memory(self):
+        mem = psutil.virtual_memory()
+        return {
+            "percent": mem.percent,
+            "total": mem.total,
+            "available": mem.available,
+            "used": mem.used,
+            "free": mem.free,
+            "active": mem.active,
+            "inactive": mem.inactive,
+            "buffers": mem.buffers,
+            "cached": mem.cached,
+            "shared": mem.shared,
+            "slab": mem.slab,
+        }
+
+    def host_swap_memory(self):
+        mem = psutil.swap_memory()
+        return {
+            "total": mem.total,
+            "used": mem.used,
+            "free": mem.free,
+            "percent": mem.percent,
+            "sin": mem.sin,
+            "sout": mem.sout,
+        }
+
+    def host_disk_usage(self):
+        mem = psutil.disk_usage('/')
+        return {
+            "total": mem.total,
+            "used": mem.used,
+            "free": mem.free,
+            "percent": mem.percent,
+        }
+
+    def log_header(self):
+        j = {
+            "type": "profile.header",
+            "time": time.time(),
+            "utcnow": datetime.datetime.utcnow().isoformat(),
+            "microscope": {
+                "configuration": self.microscope.config_name(),
+                "sn": self.microscope.serial(),
+            },
+            "host": {
+                "sys.version": str(sys.version),
+                "sys.platform": str(sys.platform),
+                "distro.linux_distribution": distro.linux_distribution(),
+                "platform.machine": str(platform.machine),
+                "platform.version": str(platform.version()),
+                "platform.platform": str(platform.platform()),
+                "platform.uname": str(platform.uname()),
+                "platform.system": str(platform.system()),
+                "platform.release": str(platform.release()),
+                "platform.processor": str(platform.processor()),
+                "psutil.cpu_count.logical": psutil.cpu_count(logical=True),
+                "psutil.cpu_count.physical": psutil.cpu_count(logical=False),
+                "psutil.virtual_memory": self.host_virtual_memory(),
+                "psutil.swap_memory": self.host_swap_memory(),
+                "psutil.disk_usage": self.host_disk_usage(),
+            },
+            "argus": {
+                "profile": self.microscope.bc.profile(),
+                "checking_threads": self.microscope.bc.check_threads(),
+                "stress_test": self.microscope.bc.stress_test(),
+            }
+        }
+        self.logj(j)
+
+    def poll(self):
+        if not (self.time_last is None
+                or time.time() - self.time_last >= self.interval):
+            return
+        j = {
+            "type": "profile.poll",
+            "time": time.time(),
+            "utcnow": datetime.datetime.utcnow().isoformat(),
+            "host": {
+                "psutil.virtual_memory": self.host_virtual_memory(),
+                "psutil.swap_memory": self.host_swap_memory(),
+                "psutil.cpu_freq.current": psutil.cpu_freq().current,
+                "psutil.cpu_percent": psutil.cpu_percent(),
+            },
+            "statistics": self.microscope.statistics.getj()
+        }
+        self.logj(j)
+        self.time_last = time.time()
 
 
 class QTaskThread(CommandThreadBase, ArgusThread):
@@ -296,6 +415,9 @@ class QTaskThread(CommandThreadBase, ArgusThread):
             "offload": self._offload,
             "diagnostic_info": self._diagnostic_info,
         }
+        self.profiler = None
+        if self.microscope.bc.profile():
+            self.profiler = Profiler(self.microscope)
 
     def offload(self, function, block=False, callback=None):
         self.command("offload", function, block=block, callback=callback)
@@ -333,7 +455,7 @@ class QTaskThread(CommandThreadBase, ArgusThread):
         ver = sys.version.split('\n')[0]
         log(f"  sys.version: {ver}")
         log(f"  sys.platform: {sys.platform}")
-        log(f"  platform.distribution: {distro.linux_distribution()}")
+        log(f"  distro.linux_distribution: {distro.linux_distribution()}")
         log(f"  platform.machine: {platform.machine()}")
         if verbose:
             log(f"  platform.version: {platform.version()}")
@@ -425,3 +547,7 @@ class QTaskThread(CommandThreadBase, ArgusThread):
             log("*" * 80)
             log("GRBL configuration")
             self.ac.motion_thread.log_info(block=True)
+
+    def loop_poll(self):
+        if self.profiler:
+            self.profiler.poll()

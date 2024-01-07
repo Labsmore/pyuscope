@@ -1394,8 +1394,21 @@ class BaseConfig:
         else:
             return None
 
+    def check_threads(self):
+        return os.getenv("PYUSCOPE_CHECK_THREADS",
+                         "N") == "Y" or self.bc.dev_mode()
+
     def stress_test(self):
+        """
+        Random sleeps, consume extra CPU, extra RAM
+        """
         return bool(self.j.get("stress_test", False))
+
+    def profile(self):
+        """
+        Record memory / CPU utilization
+        """
+        return bool(self.j.get("profile", False))
 
 
 def get_bcj():

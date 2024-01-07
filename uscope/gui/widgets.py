@@ -1210,6 +1210,10 @@ class TopMotionWidget(AWidget):
 
         self.keys_up = {}
 
+    def statistics_getj(self, statj):
+        j = statj.setdefault("argus", {})
+        j["keyboard_slow_jogs"] = self.jog_controller.slow_jogs
+
     # Used to invert XY for user preference
     def set_kj_xy_scalar(self, val):
         self.kj_xy_scalar = val
@@ -1235,6 +1239,7 @@ class TopMotionWidget(AWidget):
     def _post_ui_init(self):
         # self.max_velocities = self.ac.motion_thread.motion.get_max_velocities()
         self.jog_controller = self.ac.motion_thread.get_jog_controller(0.2)
+        self.ac.microscope.statistics.add_getj(self.statistics_getj)
 
     def update_slider_cache(self):
         if self.fine_move:

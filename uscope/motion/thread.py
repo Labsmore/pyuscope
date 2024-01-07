@@ -89,6 +89,7 @@ class JogController:
         self.jogging = False
         self.dts = []
         self.tlast = None
+        self.slow_jogs = 0
 
     def update(self, axes):
         # XXX: adjust jogging based on actual loop time instead of estimated?
@@ -109,6 +110,7 @@ class JogController:
                     f"JOG WARNING: actual loop time {this_dt} is less than estimated period {self.period}. GRBL jog queue may overflow"
                 )
             if this_dt > 1.5 * self.period:
+                self.slow_jogs += 1
                 1 and print(
                     f"JOG WARNING: actual loop time {this_dt} is significantly larger than estimated period {self.period}. Jogging may stutter"
                 )

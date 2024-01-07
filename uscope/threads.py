@@ -64,6 +64,12 @@ class CommandThreadBase:
         if self.microscope.bc.stress_test():
             time.sleep(random.randint(0, 100) * 0.001)
 
+    def loop_poll(self):
+        """
+        Called every loop before checking queue
+        """
+        pass
+
     def run(self):
         self.verbose and print("Task thread started: %s" %
                                (threading.get_ident(), ))
@@ -71,6 +77,7 @@ class CommandThreadBase:
 
         while self.running.is_set():
             self.check_stress()
+            self.loop_poll()
             try:
                 (command, args, command_done) = self.queue.get(True, 0.1)
             except queue.Empty:

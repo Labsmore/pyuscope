@@ -43,6 +43,26 @@ class StopEvent:
         self.microscope.stop_unregister(self.event)
 
 
+class MicroscopeStatistics:
+    def __init__(self, microscope):
+        self.microscope = microscope
+        self.getjs = []
+
+    def add_getj(self, callback):
+        self.getjs.append(callback)
+
+    def getj(self):
+        """
+        Return a JSON compatible object snapshotting all recorded statistics
+        Intended for profiling / error handling
+        This function should be thread safe
+        """
+        ret = {}
+        for callback in self.getjs:
+            callback(ret)
+        return ret
+
+
 class Microscope:
     def __init__(self, log=None, configure=True, hardware=True, **kwargs):
         self.bc = None
@@ -120,6 +140,8 @@ class Microscope:
             make_imager = False
             make_kinematics = False
             make_joystick = False
+
+        self.statistics = MicroscopeStatistics(self)
 
         if imager is None and imager_cli and make_imager:
             imager = gst.get_cli_imager_by_config(usc=self.usc,

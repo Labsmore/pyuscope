@@ -162,8 +162,7 @@ class ArgusCommon(QObject):
         self.task_thread = None
 
         self.bc = get_bc()
-        self.check_threads = os.getenv("PYUSCOPE_CHECK_THREADS",
-                                       "N") == "Y" or self.bc.dev_mode()
+        self.check_threads = self.bc.check_threads()
         if self.check_threads:
             print("ArgusCommon: checking threads")
         self.main_thread = threading.get_ident()

@@ -1396,7 +1396,7 @@ class BaseConfig:
 
     def check_threads(self):
         return os.getenv("PYUSCOPE_CHECK_THREADS",
-                         "N") == "Y" or self.bc.dev_mode()
+                         "N") == "Y" or self.dev_mode()
 
     def stress_test(self):
         """

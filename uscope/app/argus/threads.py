@@ -307,6 +307,7 @@ class Profiler:
         log_file = os.path.join(self.microscope.usc.bc.get_data_dir(),
                                 "profile.jl")
         self.f = open(log_file, "a+")
+        self.process = psutil.Process()
         self.log_header()
         self.poll()
 
@@ -348,6 +349,18 @@ class Profiler:
             "used": mem.used,
             "free": mem.free,
             "percent": mem.percent,
+        }
+
+    def process_info(self):
+        mi = self.process.memory_info()
+        return {
+            "rss": mi.rss,
+            "vms": mi.vms,
+            "shared": mi.shared,
+            "text": mi.text,
+            "lib": mi.lib,
+            "data": mi.data,
+            "dirty": mi.dirty,
         }
 
     def log_header(self):
@@ -398,10 +411,14 @@ class Profiler:
                 "psutil.cpu_freq.current": psutil.cpu_freq().current,
                 "psutil.cpu_percent": psutil.cpu_percent(),
             },
+            "argus": {
+                "process": self.process_info(),
+            },
             "statistics": self.microscope.statistics.getj()
         }
         self.logj(j)
         self.time_last = time.time()
+        return j
 
 
 class QTaskThread(CommandThreadBase, ArgusThread):
@@ -416,6 +433,7 @@ class QTaskThread(CommandThreadBase, ArgusThread):
             "diagnostic_info": self._diagnostic_info,
         }
         self.profiler = None
+        self.rss_last = None
         if self.microscope.bc.profile():
             self.profiler = Profiler(self.microscope)
 
@@ -550,4 +568,11 @@ class QTaskThread(CommandThreadBase, ArgusThread):
 
     def loop_poll(self):
         if self.profiler:
-            self.profiler.poll()
+            j = self.profiler.poll()
+            if j is not None:
+                rss = j["argus"]["process"]["rss"]
+                if self.rss_last is None:
+                    self.rss_last = rss
+                delta = (rss - self.rss_last) / 1e6
+                self.microscope.log("Profile: memory usage delta: %0.1f MB" %
+                                    (delta, ))

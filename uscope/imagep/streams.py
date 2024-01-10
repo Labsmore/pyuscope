@@ -474,9 +474,9 @@ class SnapshotCSIP:
         else:
             self.verbose and self.log("FF correction: start")
             tb = TaskBarrier()
-            self.csip.queue_correct_ff1(im_in=current_image,
-                                        want_im_out=True,
-                                        tb=tb)
+            data_out = self.csip.queue_correct_ff1(im_in=current_image,
+                                                   want_im_out=True,
+                                                   tb=tb)
             tb.wait()
             current_image = data_out["image"].get_im()
 

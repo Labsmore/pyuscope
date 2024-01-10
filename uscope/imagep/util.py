@@ -149,6 +149,7 @@ class EtherealImageW:
 class TaskBarrier:
     """
     Track when all allocated tasks are complete
+    TODO: consider an event to wake up for faster response
     """
     def __init__(self):
         self.ntasks_allocated = 0

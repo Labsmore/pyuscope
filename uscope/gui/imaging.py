@@ -1645,12 +1645,12 @@ class ImagingTaskWidget(AWidget):
             )
             return
 
-        self.ac.log('Requesting snapshot')
+        # self.ac.log('Requesting snapshot')
         # Disable until snapshot is completed
         self.snapshot_pb.setEnabled(False)
 
         def emitSnapshotCaptured(image_id):
-            self.ac.microscope.log('Image captured: %s' % image_id)
+            # self.ac.microscope.log('Image captured: %s' % image_id)
             self.snapshotCaptured.emit(image_id)
 
         self.ac.capture_sink.request_image(emitSnapshotCaptured)
@@ -1669,7 +1669,7 @@ class ImagingTaskWidget(AWidget):
                            parent=self.ac.usc.app("argus").snapshot_dir())
 
     def captureSnapshot(self, image_id):
-        self.ac.log('RX image for saving')
+        # self.ac.log('RX image for saving')
 
         image = self.ac.capture_sink.pop_image(image_id)
         """

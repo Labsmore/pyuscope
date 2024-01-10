@@ -64,7 +64,7 @@ class CSImageProcessorThread(threading.Thread):
         self.simple_idle = threading.Event()
         self.simple_idle.set()
         self.queue_in = queue.Queue()
-        self.queue_out = queue.Queue()
+        # self.queue_out = queue.Queue()
 
         # Each thrread gets its own set of correction engines
         self.plugins = get_plugins(log=self.log,
@@ -98,7 +98,7 @@ class CSImageProcessorThread(threading.Thread):
 
             def finish_command(result, info):
                 out = (ip_params, result, info)
-                self.queue_out.put(out)
+                # self.queue_out.put(out)
                 if ip_params.tb:
                     ip_params.tb.callback()
                 if ip_params.callback:
@@ -182,7 +182,7 @@ class CSImageProcessor(threading.Thread):
 
         self.log = log
         self.queue_in = queue.Queue()
-        self.queue_out = queue.Queue()
+        # self.queue_out = queue.Queue()
         self.running = threading.Event()
         self.ready = threading.Event()
         self.workers = OrderedDict()

@@ -606,9 +606,7 @@ class MotionHAL:
         self.ask_home = self.default_ask_home
         self.home_progress = self.default_home_progress
 
-        self.check_threads = os.getenv(
-            "PYUSCOPE_CHECK_THREADS",
-            "N") == "Y" or self.microscope.bc.dev_mode()
+        self.check_threads = self.microscope.bc.check_threads()
         self.motion_thread = None
         if self.check_threads:
             print(f"Motion {self} ({type(self)}): checking threads requested")
@@ -618,9 +616,10 @@ class MotionHAL:
 
     def updte_motion_thread(self):
         self.motion_thread = threading.get_ident()
-        print(
-            f"Motion {self} ({type(self)}): checking threads enabled with {self.motion_thread}"
-        )
+        if self.check_threads:
+            print(
+                f"Motion {self} ({type(self)}): checking threads enabled with {self.motion_thread}"
+            )
 
     def check_thread_safety(self):
         if self.check_threads and self.motion_thread:

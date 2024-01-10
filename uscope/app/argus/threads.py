@@ -252,6 +252,10 @@ class QJoystickThread(JoystickThreadBase, ArgusThread):
         self.enabled = False
         self.ac.microscope.statistics.add_getj(self.statistics_getj)
 
+    def shutdown_request(self):
+        self.running.clear()
+        self.enabled = False
+
     def log(self, msg=""):
         self.log_msg.emit(msg)
 

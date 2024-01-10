@@ -404,11 +404,6 @@ class MainWindow(AMainWindow):
         pass
 
     def post_ui_init(self):
-        self.ac.log("pyuscope starting")
-        self.ac.log("https://github.com/Labsmore/pyuscope/")
-        self.ac.log("For enquiries contact support@labsmore.com")
-        self.ac.log("")
-
         # Start services
         # This will microscope.configure() which is needed by later tabs
         self.ac.post_ui_init()

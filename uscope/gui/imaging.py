@@ -1227,11 +1227,15 @@ class ImagingOptionsWindow(QWidget):
                 row = 0
 
                 self.cloudstitch_cb = QCheckBox()
-                # Currently don't officially support changing at runtime
                 if self.ac.stitchingTab.has_cs_info():
+                    self.ac.log("CloudStitch: available")
                     self.cloudstitch_cb.setChecked(True)
                 else:
+                    # Currently don't officially support changing at runtime
                     self.cloudstitch_cb.setEnabled(False)
+                    self.ac.log(
+                        "CloudStitch: not configured. Contact support@labsmore.com to enable"
+                    )
                 self.cloudstitch_cb.stateChanged.connect(
                     self.itw.update_imaging_config)
                 layout.addWidget(self.cloudstitch_cb, row, 0)
@@ -1818,6 +1822,11 @@ class MainTab(ArgusTab):
             setControlsEnabled=self.setControlsEnabled,
             aname="imaging",
             parent=self)
+
+        self.log("pyuscope starting")
+        self.log("https://github.com/Labsmore/pyuscope/")
+        self.log("For enquiries contact support@labsmore.com")
+        self.log("")
 
         self.planner_widget_tabs = QTabWidget()
         self.planner_widget_xy2p = XYPlanner2PWidget(

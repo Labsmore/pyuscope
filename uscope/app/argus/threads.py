@@ -121,7 +121,7 @@ class StitcherThread(CommandThreadBase, ArgusThread):
         print("")
         print("")
         print("")
-        print(f"Process image dir ({variant}): starting {directory_comment}")
+        print(f"Process scan ({variant}): starting {directory_comment}")
         # subprocess.check_call(args)
         popen = subprocess.Popen(args,
                                  stdout=subprocess.PIPE,
@@ -136,9 +136,9 @@ class StitcherThread(CommandThreadBase, ArgusThread):
         popen.stdout.close()
         return_code = popen.wait()
         if return_code == 0:
-            msg = f"Process image dir ({variant}): ok"
+            msg = f"Process scan ({variant}): ok"
         else:
-            msg = f"Process image dir ({variant}): error ({return_code})"
+            msg = f"Process scan ({variant}): error ({return_code})"
             self.log(msg)
         print(msg)
         return return_code == 0
@@ -152,17 +152,21 @@ class StitcherThread(CommandThreadBase, ArgusThread):
         cs_auto_cli = self.microscope.bc.argus_cs_auto_path()
         simple_cli = self.microscope.bc.argus_stitch_cli()
 
-        self.log(f"Process image dir: starting {j['directory']}")
+        self.log(f"Process scan: starting {j['directory']}")
 
         if not cs_auto_cli and not simple_cli:
             self.log(
-                "Process image dir: WARNING: no image processing engines are configured"
+                "Process scan: WARNING: no image processing engines are configured"
             )
+        # Plausible stitching configured?
+        cs_info = j.get("cs_info")
+        if not (cs_auto_cli and cs_info or simple_cli):
+            self.log(
+                "Process scan: WARNING: no stitching engines are configured")
 
         # Run this first in case user wants it to pre-process a scan
         # Originally this only did cloud stitching but now has some other stuff
         if cs_auto_cli:
-            cs_info = j.get("cs_info")
             args = [
                 cs_auto_cli,
             ]
@@ -189,12 +193,16 @@ class StitcherThread(CommandThreadBase, ArgusThread):
                 simple_cli,
                 j["directory"],
             ]
-            ok = ok and self.process_run(args, "custom", j['directory'])
+            ok = ok and self.process_run(args, "custom CLI", j['directory'])
 
         if ok:
-            self.log(f"Process image dir: completed {j['directory']}")
+            if cs_info:
+                self.log(
+                    f"Process scan: processed and uploaded {j['directory']}")
+            else:
+                self.log(f"Process scan: completed {j['directory']}")
         else:
-            self.log(f"Process image dir: error on {j['directory']}")
+            self.log(f"Process scan: error on {j['directory']}")
 
 
 class QMotionThread(MotionThreadBase, ArgusThread):

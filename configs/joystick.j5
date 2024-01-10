@@ -9,7 +9,7 @@
                 "button_id": 0
             },
         ],
-        "scan": {
+        "poll": {
             "axis_set_jog_slider_value": {
                 "args": {
                     "id": 3
@@ -30,15 +30,14 @@
                 "scalar": -1.0,
             },
             //2024-01-09: https://github.com/Labsmore/pyuscope/issues/385
-            /*
+            //Was a bit of back and forth, settled on having both enabled
             "hat_move_z": {
                 "args": {
                     "id": 0,
                     "idx": 1,
                 },
                 "scalar": 1.0,
-            }
-            */
+            },
             "axis_move_z": {
                 "args": {
                     "id": 2,
@@ -84,7 +83,7 @@
                 "button_id": 0
             },
         ],
-        "scan": {
+        "poll": {
             "axis_move_x": {
                 "args": {
                     "id": 0,

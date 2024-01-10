@@ -325,7 +325,7 @@ class QJoystickThread(JoystickThreadBase, ArgusThread):
             # self.check_stress()
             try:
                 waited = time.time() - tlast
-                time.sleep(max(0, self.joystick.config.scan_secs() - waited))
+                time.sleep(max(0, self.joystick.config.poll_secs() - waited))
                 # It is important to check that the button is both enabled and
                 # active before performing actions. This allows us to preserve
                 # state by disabling and enabling the button only during scans.

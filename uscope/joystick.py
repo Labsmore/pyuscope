@@ -27,7 +27,7 @@ Sample uscope.j5 entry:
     ...
     "joystick": {
         //(float) in seconds, to query/run the joystick actions
-        "scan_secs": 0.2
+        "poll_secs": 0.2
         "fn_map": {
             //"func_from_joystick_file": dict(keyword args for the function),
             'axis_set_jog_slider_value': {'id': 3},
@@ -57,7 +57,7 @@ class JoystickConfig:
         self.jbc = jbc
         # Early configurable not related to model or
         # needed to get model
-        self._scan_secs = self.jbc.get("scan_secs", 0.2)
+        self._poll_secs = self.jbc.get("poll_secs", 0.2)
         self._device_number = self.jbc.get("device_number", 0)
         self._volatile_scalars = None
         self._function_map = None
@@ -169,9 +169,9 @@ class JoystickConfig:
     def volatile_scalars(self):
         return self._volatile_scalars
 
-    def scan_secs(self):
+    def poll_secs(self):
         # assert 0, "hard coded loop time assumptions? tread carefully"
-        return self._scan_secs
+        return self._poll_secs
 
     def function_map(self):
         """
@@ -233,10 +233,10 @@ class JoystickConfig:
 
     def make_function_map(self, model, guid, jdb):
         # If user manually specifies just take that
-        ret = self.jbc.get("scan", None)
+        ret = self.jbc.get("poll", None)
         if ret:
             return ret
-        return self.default_joystick_config(model, guid, jdb).get("scan", {})
+        return self.default_joystick_config(model, guid, jdb).get("poll", {})
 
     def make_events_list(self, model, guid, jdb):
         # If user manually specifies just take that
@@ -288,7 +288,7 @@ class Joystick:
 
     def configure(self):
         # 0.2 default
-        # self._jog_fractioned_period = config.get_bc().joystick.scan_secs()
+        # self._jog_fractioned_period = config.get_bc().joystick.poll_secs()
         # self._jog_fractioned_period = 0.2
         self.jog_controller = self.microscope.get_jog_controller(period=0.2)
 
@@ -307,8 +307,8 @@ class Joystick:
         # Get events and perform actions
         for event in pygame.event.get():
             if event.type == pygame.JOYBUTTONDOWN:
-                print('event down', event.button)
-                print("event_list", self.config.event_list)
+                # print('event down', event.button)
+                # print("event_list", self.config.event_list)
                 for handler in self.config.event_list:
                     if handler["button_id"] == event.button:
                         assert handler["function"] == "take_snapshot"
@@ -343,7 +343,7 @@ class Joystick:
         # self.ac.motion_thread.jog_lazy({axis: val})
         # print("jog joystick", time.time())
         # self.microscope.jog_fractioned_lazy({axis: val}, self._jog_fractioned_period)
-        self._jog_queue[axis] = val
+        self._jog_queue[axis] = val + self._jog_queue.get(axis, 0.0)
 
     # The following functions can be specified in the fn_map of the
     # joystick configuration files.
@@ -406,6 +406,6 @@ class Joystick:
         self.microscope.set_jog_scale(new_value)
 
     def event_take_snapshot(self):
-        print('snapshot event')
+        # print('snapshot event')
         # self.ac.mainTab.snapshot_widget.take_snapshot()
         self.microscope.take_snapshot()

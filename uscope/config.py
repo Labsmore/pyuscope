@@ -1315,6 +1315,12 @@ class BaseConfig:
         """
         return self.j.get("argus_stitch_cli", None)
 
+    def argus_cs_auto_path(self):
+        """
+        Override with a custom stitching program
+        """
+        return self.j.get("argus_cs_auto", "./utils/cs_auto.py")
+
     def dev_mode(self):
         """
         Display unsightly extra information

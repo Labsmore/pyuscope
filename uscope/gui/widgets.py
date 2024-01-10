@@ -943,7 +943,7 @@ class StitchingTab(ArgusTab):
             self.stitch_add(scan_config["out_dir"], scan_config=scan_config)
 
     def stitch_add(self, directory, scan_config=None):
-        self.ac.log(f"CloudStitch: requested {directory}")
+        self.ac.log(f"Stitch: requested {directory}")
         if not os.path.exists(directory):
             self.ac.log(
                 f"Aborting stitch: directory does not exist: {directory}")
@@ -955,9 +955,16 @@ class StitchingTab(ArgusTab):
             self.ac.mainTab.imaging_widget.update_ippj(ippj)
 
         # Offload uploads etc to thread since they might take a while
+        cs_info = None
+        if ippj["cloud_stitch"]:
+            cs_info = self.get_cs_info()
+            if not cs_info.is_plausible():
+                self.log(
+                    "ERROR: requested CloudStitch but don't have credentials")
+                return
         self.stitcher_thread.imagep_add(
             directory=directory,
-            cs_info=self.get_cs_info(),
+            cs_info=cs_info,
             ippj=ippj,
         )
 

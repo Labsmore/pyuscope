@@ -105,42 +105,23 @@ class StitcherThread(CommandThreadBase, ArgusThread):
     def imagep_add(
         self,
         directory,
-        cs_info,
+        cs_info=None,
         ippj={},
     ):
         j = {
             #"type": "imagep",
             "directory": directory,
-            "cs_info": cs_info,
             "ipp": ippj,
         }
+        if cs_info is not None:
+            j["cs_info"] = cs_info
         self.command("imagep", j)
 
-    def _imagep_run(self, j):
-        # Taking too much CPU
-        # For now let's kick off to own process
-        # process_dir(directory=j["directory"], cs_info=j["cs_info"])
-
-        self.log(f"Image processing CLI: kicking off {j['directory']}")
-        # Hacky but good enough for now
-        # Check terminal for process output
+    def process_run(self, args, variant, directory_comment):
         print("")
         print("")
         print("")
-        print(f"Image processing CLI: kicking off {j['directory']}")
-        cs_info = j["cs_info"]
-        args = [
-            "./utils/cs_auto.py", "--access-key",
-            cs_info.access_key(), "--secret-key",
-            cs_info.secret_key(), "--id-key",
-            cs_info.id_key(), "--notification-email",
-            cs_info.notification_email(), j["directory"]
-        ]
-        ipp = j["ipp"]
-        args.append("--json")
-        args.append(json.dumps(ipp))
-
-        print("Running:", " ".join(args))
+        print(f"Process image dir ({variant}): starting {directory_comment}")
         # subprocess.check_call(args)
         popen = subprocess.Popen(args,
                                  stdout=subprocess.PIPE,
@@ -154,8 +135,66 @@ class StitcherThread(CommandThreadBase, ArgusThread):
             sys.stdout.write(stdout_line)
         popen.stdout.close()
         return_code = popen.wait()
-        self.log(f"Image processing CLI: finished job w/ code {return_code}")
-        print(f"Image processing CLI: finished job w/ code {return_code}")
+        if return_code == 0:
+            msg = f"Process image dir ({variant}): ok"
+        else:
+            msg = f"Process image dir ({variant}): error ({return_code})"
+            self.log(msg)
+        print(msg)
+        return return_code == 0
+
+    def _imagep_run(self, j):
+        # Taking too much CPU
+        # For now let's kick off to own process
+        # process_dir(directory=j["directory"], cs_info=j["cs_info"])
+
+        ok = True
+        cs_auto_cli = self.microscope.bc.argus_cs_auto_path()
+        simple_cli = self.microscope.bc.argus_stitch_cli()
+
+        self.log(f"Process image dir: starting {j['directory']}")
+
+        if not cs_auto_cli and not simple_cli:
+            self.log(
+                "Process image dir: WARNING: no image processing engines are configured"
+            )
+
+        # Run this first in case user wants it to pre-process a scan
+        # Originally this only did cloud stitching but now has some other stuff
+        if cs_auto_cli:
+            cs_info = j.get("cs_info")
+            args = [
+                cs_auto_cli,
+            ]
+            if cs_info:
+                args += [
+                    "--access-key",
+                    cs_info.access_key(),
+                    "--secret-key",
+                    cs_info.secret_key(),
+                    "--id-key",
+                    cs_info.id_key(),
+                    "--notification-email",
+                    cs_info.notification_email(),
+                ]
+
+            args.append(j["directory"])
+            ipp = j["ipp"]
+            args.append("--json")
+            args.append(json.dumps(ipp))
+            ok = ok and self.process_run(args, "cs_auto", j['directory'])
+
+        if ok and simple_cli:
+            args = [
+                simple_cli,
+                j["directory"],
+            ]
+            ok = ok and self.process_run(args, "custom", j['directory'])
+
+        if ok:
+            self.log(f"Process image dir: completed {j['directory']}")
+        else:
+            self.log(f"Process image dir: error on {j['directory']}")
 
 
 class QMotionThread(MotionThreadBase, ArgusThread):
@@ -273,7 +312,7 @@ class QJoystickThread(JoystickThreadBase, ArgusThread):
 
     def run(self):
         tlast = time.time()
-        while self.running:
+        while self.running.is_set():
             # is this useful?
             # self.check_stress()
             try:

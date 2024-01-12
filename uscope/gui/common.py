@@ -455,9 +455,6 @@ class ArgusCommon(QObject):
         return self.scriptingTab.active_objective["name"]
 
     def set_active_objective(self, objective):
-        """
-        Check if name is in cache
-        """
         self.mainTab.objective_widget.setObjective.emit(objective)
 
     def recover_video_crash(self):

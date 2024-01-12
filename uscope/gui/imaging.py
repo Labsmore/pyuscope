@@ -1609,6 +1609,8 @@ class ImagingTaskWidget(AWidget):
                 pm_n = self.ac.advancedTab.image_stacking_pm_n()
                 scan_settings += "\nFocus stacking enabled (+/- %u images => %u per stack)" % (
                     pm_n, pm_n * 2 + 1)
+                if self.ac.advancedTab.stack_drift_cb.isChecked():
+                    scan_settings += "\nFocus stacking drift correction enabled"
             if self.ac.advancedTab.image_stablization_enabled():
                 scan_settings += "\nImage stabilization enabled (n=%u)" % (
                     self.ac.advancedTab.get_image_stablization(), )

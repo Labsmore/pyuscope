@@ -110,7 +110,10 @@ class IPPConfigJ:
         return bool(self.j.get("write_quick_pano", False))
 
     def keep_intermediates(self):
-        return bool(self.j.get("keep_intermediates", False))
+        # https://github.com/Labsmore/pyuscope/issues/410
+        # Keep GUI default but more conservative here
+        # In part due to no lock file which caused GUI / CLI contention
+        return bool(self.j.get("keep_intermediates", True))
 
 
 class DirCSIP:

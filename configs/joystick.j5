@@ -38,6 +38,8 @@
                 },
                 "scalar": 1.0,
             },
+            /*
+            2024-01-11: andrew hates it
             "axis_move_z": {
                 "args": {
                     "id": 2,
@@ -45,6 +47,7 @@
                 "threshold": 0.1,
                 "scalar": 1.0,
             }
+            */
         },
     },
     /*

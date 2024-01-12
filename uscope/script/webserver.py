@@ -79,10 +79,9 @@ class Plugin(ArgusScriptingPlugin):
         while self.server and self.server.is_alive():
             self.sleep(0.1)
 
-    def shutdown(self):
+    def cleanup(self):
         self.server.shutdown()
         self.server.join()
-        super().shutdown()
 
 
 @app.route('/get/objectives', methods=['GET'])
@@ -123,6 +122,6 @@ def active_objective_set(objective):
     except Exception as e:
         print(e)
         return json.dumps({
-            'status': HTTPStatus.CONFLICT,
-            'error': "Invalid Input Value"
+            'status': HTTPStatus.INTERNAL_SERVER_ERROR,
+            'error': f"{type(e)}: {e}"
         })

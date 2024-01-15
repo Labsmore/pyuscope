@@ -167,9 +167,23 @@ class ArgusCommon(QObject):
             print("ArgusCommon: checking threads")
         self.main_thread = threading.get_ident()
 
-        self.microscope = Microscope(auto=False,
-                                     configure=False,
-                                     name=microscope_name)
+        try:
+            self.microscope = Microscope(auto=False,
+                                         configure=False,
+                                         name=microscope_name)
+        # vm1 GRBL is queried during auto config
+        except Estop:
+            QMessageBox.critical(
+                None, "Error",
+                "Emergency stop is activated. Check estop button and/or power supply and then re-home",
+                QMessageBox.Ok, QMessageBox.Ok)
+            raise
+        except LimitSwitchActive:
+            QMessageBox.critical(
+                None, "Error",
+                "Limit switch tripped. Manually move away from limit switches and then re-home",
+                QMessageBox.Ok, QMessageBox.Ok)
+            raise
         self.usc = self.microscope.usc
         self.usc.app_register("argus", USCArgus)
         self.aconfig = self.usc.app("argus")

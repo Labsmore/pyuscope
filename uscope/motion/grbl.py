@@ -1866,7 +1866,6 @@ def grbl_write_meta(gs, config=None, sn=None, comment=None):
 def parse_gcode_coords(gcode_coords):
     # WARNING: this format loses LSB sometimes
     def parse_format1(gcode_coords):
-        print("check 1")
         items = {}
         for wcsn, coords in gcode_coords.items():
             buf = b""
@@ -1874,8 +1873,6 @@ def parse_gcode_coords(gcode_coords):
                 buf += struct.pack("<i", int(float(part) * 1000))[0:3]
             items[wcsn] = buf
         if items[WCS_CONFIG][0:len(USCOPE_MAGIC1)] != USCOPE_MAGIC1:
-            print("bad1", items[WCS_CONFIG][0:len(USCOPE_MAGIC1)],
-                  USCOPE_MAGIC1)
             return None
         ret = {}
         ret["config"] = items[WCS_CONFIG][len(USCOPE_MAGIC1

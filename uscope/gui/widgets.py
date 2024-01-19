@@ -1,16 +1,11 @@
-from uscope.config import PC
 from uscope.app.argus.threads import StitcherThread
-from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import config
 from uscope.util import readj, writej
-import json
-import json5
 from collections import OrderedDict
 from uscope.cloud_stitch import CSInfo
 from uscope.imager.autofocus import AutoStacker
-import traceback
 from uscope.gui.common import ArgusShutdown
-import copy
+from uscope.imager.imager_util import format_mm_3dec
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -22,6 +17,10 @@ import datetime
 import os.path
 import math
 from enum import Enum
+import copy
+import traceback
+import json
+import json5
 """
 Argus Widget
 """
@@ -1535,9 +1534,10 @@ class AnnotateImage(QLabel):
             else:
                 # Move right
                 dx += 10
+            distance_um = self.pixel_conversion * distance
+            text = format_mm_3dec(distance_um / 1000)
             qp.drawText((start.x() + end.x()) // 2 + dx,
-                        (start.y() + end.y()) // 2 + dy,
-                        "%0.2f µm" % (self.pixel_conversion * distance, ))
+                        (start.y() + end.y()) // 2 + dy, text)
 
         selected_color = QColor(43, 250, 43, 200)
         default_color = QColor(43, 43, 43, 200)

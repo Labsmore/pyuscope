@@ -1,0 +1,178 @@
+/*
+A minimal configuration to do basic testing
+*/
+{
+    "kinematics": {
+        //2023-10-25: experimental
+        "tsettle_autofocus": 0.1,
+        //FIXME: not tuned
+        "tsettle_motion_na1": 0.1,
+        //2023-09-04: 0.1 seems tight w/o real tuning, increase 0.1 => 0.2
+        //suspect NA delay is actually helping us here, lower it in favor of fixed delay here
+        "tsettle_motion_base": 0.3,
+        //2023-09-04: saw miss at 0.2
+        "tsettle_hdr": 0.3,
+    },
+    "motion": {
+        "hal": "grbl-ser",
+
+        "backlash": 0.05,
+        "backlash_compensation": -1,
+        "xyz_format6": true,
+
+        "use_wcs_offsets": true,
+        /*
+        2023-09-06
+        X289 Y189 Z-65
+        1:20 to first hit z limit switch
+        2:35 to complete z homing
+        3:15: x axis hit (after y)
+        4:40: done
+        */
+        "max_home_time": 300,
+        "grbl": {
+            "rc_pre_home": [
+                //$100, $101 and $102 – [X,Y,Z] steps/mm
+                //Z is actually 5x this but we'll loose precision if here
+                //so instead apply that reduction host side
+                //"$100=800.000", "$101=800.000", "$102=800.000",
+                //Eliminate rounding errors => 8/5 adjustment
+                //However we need to basically rescale everything now
+                "$100=500.000", "$101=500.000", "$102=500.000",
+
+                //2023-02-24: suspect missing steps. Make less aggressive
+                //X - Max Rate (mm/min)
+                //Default
+                //"$110=1200.000", "$111=1200.000", "$112=1200.000",
+                //"$110=600.000", "$111=600.000", "$112=600.000",
+                //8/5 adjustment
+                "$110=960.000", "$111=960.000", "$112=1920.000",
+                //$120, $121, $122 – [X,Y,Z] Acceleration, mm/sec^2
+                //Default values, didn't try changing
+                //"$120=30.000", "$121=30.000", "$122=30.000",
+                //8/5 adjustment
+                "$120=24.000", "$121=24.000", "$122=24.000",
+
+                //max travel
+                //"$130=300.000", "$131=200.000", "$132=60.000",
+                //"$130=480.000", "$131=320.000", "$132=96.000",
+                //z axis gearbox + 0.9 motor
+                "$130=480.000", "$131=320.000", "$132=960.000",
+
+                //Homing adjustments to account for gearbox etc
+                //"$24=25.0","$25=500.000",
+                //"$26=250","$27=15.000",
+                //8/5 adjustment
+                //$24: Homing feed, mm/min
+                //$25: Homing seek, mm/min
+                "$24=40.0","$25=800.000",
+                //$26: Homing debounce, milliseconds
+                "$26=400",
+                //$27: Homing pull-off, mm
+                //x/y: 24 * 5/8 => 15 mm
+                //z: 24 / (8/5 * 10) => 1.5 mm
+                //z:  48 => 3.0 mm
+                //2023-10-12: had increased this to be within soft limits, but it makes it take a really long time to home
+                "$27=48.000",
+            ],
+            "rc_post_home": [
+                /*
+                //Non-homing scheme
+                //intentionally starts locked
+                "$X",
+                //G54: zero out offsets
+                //Could use P0 but better to make state canonical
+                "G10 L2 P1 X0 Y0 Z0",
+                //Select WCS1
+                "G54",
+                */
+                //More proper homed scheme
+                //"G10 L2 P1 X-297.000 Y-197.000 Z-3.000",
+                //8/5 adjustment
+                //"G10 L2 P1 X-475.200 Y-315.200 Z-4.800",
+                //gearbox + 0.9 motor
+                "G10 L2 P1 X-475.200 Y-315.200 Z-48.000",
+                "G10 L2 P2 X0 Y0 Z0",
+
+                //Select WCS2
+                "G55",
+            ]
+        },
+        "scalars": {
+            "x": 1.6,
+            "y": 1.6,
+            "z": 16.0,
+        },
+        /*
+        Actual limits should be:
+        X: 0.0 to 300.0, homed at -297 (12)
+        Y: 0.0 to 200.0, homed at -197 (12)
+        Z: -60.0 to 0.0, homed at -2.4
+        */
+        //"home_soft_limits": true,
+        "soft_limits": {
+            //machine: 0.0 to 300.0
+            "xmin": 10.0,
+            "xmax": 290.0,
+            //machine: 0.0 to 200.0
+            "ymin": 10.0,
+            "ymax": 190.0,
+            //machine: -67.5 to +3.0
+            //LIA-TT-1 is well within this range
+            "zmin": -65.0,
+            "zmax": +1.0,
+        },
+    },
+
+    //E3ISPM20000KPA
+    "imager": {
+        "source":"gst-toupcamsrc",
+        "width": 5440,
+        "height": 3648,
+        "native_pixel_pitch_um": 2.4,
+        "source_properties": {
+            "esize": 0
+        },
+        "source_properties_mod": {
+            //In us. Can go up to 15 sec which is impractical for typical usage
+            "expotime": {
+                "max": 200000
+            },
+        },
+        //2023-11-16: is this actually needed?
+        "scalar": 0.5,
+        //400 looked ok
+        //0 shows corners (cemented field stop...)
+        //200 might be good estimate
+        "crop_pixels": {
+            "top": 200,
+            "bottom": 200,
+            "left": 1096,
+            "right": 1096,
+        },
+    },
+
+    "optics": {
+        "um_per_pixel_raw_1x": 2.3364486,
+    },
+
+    "systems": [
+        //Default configuration
+        {
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: Mitutoyo, model: 58-235, magnification: 1, na: 0.025",
+                "vendor: Mitutoyo, model: 46-142, magnification: 2, na: 0.055",
+                "vendor: Mitutoyo, model: 46-143, magnification: 5, na: 0.14",
+                "vendor: Mitutoyo, model: 46-144, magnification: 10, na: 0.28",
+                "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.42",
+                "vendor: Mitutoyo, model: 46-147, magnification: 100, na: 0.70",
+                "vendor: Nikon, model: CF Plan 10X",
+                "vendor: Nikon, model: CF Plan 20X",
+                "vendor: Nikon, model: CF Plan 50X",
+                "vendor: Nikon, model: CF Plan 100X",
+                "vendor: Nikon, model: VC 60X",
+            ],
+        },
+   ],
+}

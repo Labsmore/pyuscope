@@ -316,21 +316,6 @@ class DirCSIP:
             self.correct_ff1_run(iindex_in=working_iindex, dir_out=next_dir)
             working_iindex = index_scan_images(next_dir)
 
-        if self.ipp_config.write_html_viewer():
-            self.verbose and self.log("Writing HTML viewer")
-            if is_tif_scan(working_iindex["dir"]):
-                # Only Safari supports .tif
-                self.log("WARNING: HTML viewer only works reliably with jpg")
-            write_html_viewer(working_iindex)
-
-        if self.ipp_config.write_snapshot_grid():
-            self.verbose and self.log("Writing tile image")
-            write_snapshot_grid(working_iindex)
-
-        if self.ipp_config.write_quick_pano():
-            self.verbose and self.log("Writing quick pano")
-            write_quick_pano(working_iindex)
-
         self.verbose and self.log("")
         healthy = self.csip.inspect_final_dir(working_iindex)
         self.verbose and self.log("")
@@ -348,6 +333,29 @@ class DirCSIP:
             healthy = self.csip.inspect_final_dir(working_iindex)
             assert healthy
             self.log("")
+
+        # https://github.com/Labsmore/pyuscope/issues/416
+        # In the future we might make this more error resistant instead of skipping it
+        if healthy:
+            if self.ipp_config.write_html_viewer():
+                self.verbose and self.log("Writing HTML viewer")
+                if is_tif_scan(working_iindex["dir"]):
+                    # Only Safari supports .tif
+                    self.log(
+                        "WARNING: HTML viewer only works reliably with jpg")
+                write_html_viewer(working_iindex)
+
+            if self.ipp_config.write_snapshot_grid():
+                self.verbose and self.log("Writing tile image")
+                write_snapshot_grid(working_iindex)
+
+            if self.ipp_config.write_quick_pano():
+                self.verbose and self.log("Writing quick pano")
+                write_quick_pano(working_iindex)
+        else:
+            self.log(
+                "WARNING: skipping generating summary output on incomplete processed scan"
+            )
 
         outj = {
             "type": "processing",

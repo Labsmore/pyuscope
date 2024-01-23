@@ -228,6 +228,7 @@
  * Argus
    * General layout overhaul: video always visible
    * Camera can be disconnected and reconnected
+   * Diagnostic dump overhaul
    * Web server alpha support
    * RTSP alpha support
  * Panoramic imaging options
@@ -243,8 +244,13 @@
    * LIP-VM1: general support
      * Hide properties user should not change (notably temperature)
    * LIP-A2: general support
+   * LIP-M2: alpha support
  * Scripting
    * Cleanup function
    * Misc additional functions: model / serial, raw image capture
  * grbl meta: move from 9 byte to 8 byte encoding
  * Auto select microscope based on GRBL meta
+ * Joystick calibration GUI
+ * Bug fixes
+   * Misc Qt / memory corruption fixes
+   * Fix image processing memory leak

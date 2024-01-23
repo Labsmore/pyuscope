@@ -1956,16 +1956,32 @@ def microscope_name_hash(microscope):
     return hashlib.sha1(microscope.encode("ascii")).digest()[0:4]
 
 
-def microscope_by_name_hash(h):
+def microscope_hash2name_name2hash():
     subdirs = [f.path for f in os.scandir("configs") if f.is_dir()]
-
+    hash2name = {}
+    name2hash = {}
     for d in subdirs:
         d = os.path.basename(d)
-        if microscope_name_hash(d) == h:
-            return d
+        h = microscope_name_hash(d)
+        hash2name[h] = d
+        name2hash[d] = h
+    return hash2name, name2hash
+
+
+def microscope_hash2name():
+    hash2name, _name2hash = microscope_hash2name_name2hash()
+    return hash2name
+
+
+def microscope_by_name_hash(h):
+    hash2name = microscope_hash2name()
+
+    name = hash2name.get(h)
+    if name:
+        return name
     print("Config name hashes")
-    for d in subdirs:
-        print("  %s: %s" % (d, microscope_name_hash(d).hex()))
+    for this_h, name in hash2name.items():
+        print("  %s: %s" % (name, this_h.hex()))
     raise Exception(f"failed to find a microscope config for hash {h.hex()}")
 
 

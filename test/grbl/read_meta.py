@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from uscope.motion.grbl import GRBL, grbl_read_meta, NoGRBLMeta
+from uscope.motion.grbl import GRBL, grbl_read_meta, NoGRBLMeta, microscope_hash2name
 from uscope.util import add_bool_arg
 
 
@@ -19,6 +19,12 @@ def main():
     print("Comment: %s" % (info["comment"], ))
     print("S/N: %s" % (info["sn"], ))
     print("Config: %s" % (info["config"].hex(), ))
+    hash2name = microscope_hash2name()
+    print("  Microscope:", hash2name.get(info["config"]))
+    if args.verbose:
+        print("All hashes:")
+        for this_h, name in hash2name.items():
+            print("  %s: %s" % (name, this_h.hex()))
 
 
 if __name__ == "__main__":

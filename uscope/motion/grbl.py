@@ -675,6 +675,7 @@ class MockGRBLSer(GRBLSer):
         self.verbose and print("MOCK: opening", port)
         self.ser_timeout = -1
         self.serial = None
+        self.check_threads = get_bc().dev_mode()
         self.reset()
 
     def in_reset(self):

@@ -25,7 +25,7 @@ install_pyuscope() {
     # use flat pack
     # Ubuntu 22.04
     # FIXME: make this suck less...
-    if ["$linux_distribution" == "Ubuntu 22.04.3 LTS"] ; then
+    if ["$linux_distribution" = "Ubuntu 22.04.3 LTS"] ; then
         sudo apt update && sudo apt install flatpak
         flatpak install https://dl.flathub.org/repo/appstream/net.sourceforge.Hugin.flatpakref
     # Ubuntu 20.04.6 LTS

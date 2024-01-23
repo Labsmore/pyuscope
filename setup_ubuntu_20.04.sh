@@ -27,7 +27,7 @@ install_pyuscope() {
     # FIXME: make this suck less...
     if [ "$linux_distribution" = "Ubuntu 22.04.3 LTS" ] ; then
         sudo apt-get install -y flatpak
-        flatpak install -y --noninteractive https://dl.flathub.org/repo/appstream/net.sourceforge.Hugin.flatpakref
+        sudo flatpak install -y --noninteractive https://dl.flathub.org/repo/appstream/net.sourceforge.Hugin.flatpakref
     # Ubuntu 20.04.6 LTS
     # Linux Mint 20.3
     else

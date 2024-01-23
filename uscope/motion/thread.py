@@ -163,6 +163,9 @@ class JogController:
 class MotionThreadBase(CommandThreadBase):
     def __init__(self, microscope):
         super().__init__(microscope)
+        if self.microscope.bc.check_threads():
+            print("Motion thread init (main thread): %s" %
+                  (threading.get_ident(), ))
         self.verbose = False
         self.queue = queue.Queue()
         self.motion = None
@@ -341,9 +344,9 @@ class MotionThreadBase(CommandThreadBase):
             self.log("WARNING: jog disabled, dropping jog cancel")
 
     def run(self):
-        self.verbose and print("Motion thread started: %s" %
-                               (threading.get_ident(), ))
-        self.motion.updte_motion_thread()
+        if self.microscope.bc.check_threads():
+            print("Motion thread started: %s" % (threading.get_ident(), ))
+        self.motion.update_check_thread()
         self.motion.check_thread_safety()
         self.running.set()
         self.idle.clear()
@@ -475,6 +478,9 @@ class MotionThreadBase(CommandThreadBase):
                     print(traceback.format_exc())
                     if command_done:
                         command_done(command, args, e)
+                    if self.microscope.bc.dev_mode():
+                        import sys
+                        sys.exit(1)
                     continue
                 # motion command update_pos_cache completed in 0.006439208984375
                 # motion command jog_fractioned completed in 0.021370649337768555

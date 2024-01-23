@@ -357,6 +357,11 @@ class GRBLSer:
         finally:
             self.serial.timeout = timeout
 
+    def update_check_thread(self):
+        self.last_thread = threading.get_ident()
+        if self.check_threads:
+            print("grbl thread updated: %s" % threading.get_ident())
+
     def tx(self, out, nl=True):
         self.verbose and print("tx '%s'" % (out, ))
 
@@ -365,8 +370,7 @@ class GRBLSer:
                 assert self.last_thread == threading.get_ident(), (
                     self.last_thread, threading.get_ident())
             else:
-                self.last_thread = threading.get_ident()
-            print("grbl thread: %s" % threading.get_ident())
+                self.update_check_thread()
 
         if nl:
             out = out + '\r'
@@ -1303,6 +1307,10 @@ class GrblHal(MotionHAL):
         if microscope_name:
             self.validate_microscope_model(microscope_name)
         """
+
+    def update_check_thread(self):
+        self.grbl.gs.update_check_thread()
+        super().update_check_thread()
 
     def _wcs_offsets(self):
         """

@@ -607,23 +607,23 @@ class MotionHAL:
         self.home_progress = self.default_home_progress
 
         self.check_threads = self.microscope.bc.check_threads()
-        self.motion_thread = None
+        self.check_thread_id = None
         if self.check_threads:
             print(f"Motion {self} ({type(self)}): checking threads requested")
 
     def __del__(self):
         self.close()
 
-    def updte_motion_thread(self):
-        self.motion_thread = threading.get_ident()
+    def update_check_thread(self):
+        self.check_thread_id = threading.get_ident()
         if self.check_threads:
             print(
-                f"Motion {self} ({type(self)}): checking threads enabled with {self.motion_thread}"
+                f"Motion {self} ({type(self)}): checking threads enabled with {self.check_thread_id}"
             )
 
     def check_thread_safety(self):
-        if self.check_threads and self.motion_thread:
-            assert self.motion_thread == threading.get_ident(), (
+        if self.check_threads and self.check_thread_id:
+            assert self.check_thread_id == threading.get_ident(), (
                 "GUI thread unsafe access detected", self.main_thread,
                 threading.get_ident())
 

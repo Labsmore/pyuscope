@@ -23,10 +23,12 @@ install_pyuscope() {
 
     # Package removed
     # use flat pack
-    if ["$linux_distribution" == "Linux Ubuntu 22.04"] ; then
+    # Ubuntu 22.04
+    # FIXME: make this suck less...
+    if ["$linux_distribution" == "Ubuntu 22.04.3 LTS"] ; then
         sudo apt update && sudo apt install flatpak
         flatpak install https://dl.flathub.org/repo/appstream/net.sourceforge.Hugin.flatpakref
-    # Linux Ubuntu 20.04
+    # Ubuntu 20.04.6 LTS
     # Linux Mint 20.3
     else
         sudo apt-get install -y hugin-tools enfuse

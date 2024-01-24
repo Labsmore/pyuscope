@@ -1416,6 +1416,9 @@ class BaseConfig:
         """
         return bool(self.j.get("profile", False))
 
+    def qr_regex(self):
+        return self.j.get("qr_regex", None)
+
 
 def get_bcj():
     try:

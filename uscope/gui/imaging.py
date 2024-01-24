@@ -1711,6 +1711,7 @@ class ImagingTaskWidget(AWidget):
         if imaging_config.get("add_scalebar", False):
             plugins["annotate-scalebar"] = {}
         options["plugins"] = plugins
+        options["qr_regex"] = config.bc.qr_regex()
 
         def callback(command, args, ret_e):
             if type(ret_e) is Exception:

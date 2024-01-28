@@ -1203,7 +1203,7 @@ class BaseConfig:
         self.objective_db = ObjectiveDB()
         # self.joystick = JoystickConfig(jbc=self.j.get("joystick", {}))
 
-        self._enblend_cli = None
+        # self._enblend_cli = None
         self._enfuse_cli = None
         self._align_image_stack_cli = None
 
@@ -1354,11 +1354,12 @@ class BaseConfig:
         Return True if they are configured correctly
         """
         ret = True
-        ret = ret and bool(self.enblend_cli())
+        # ret = ret and bool(self.enblend_cli())
         ret = ret and bool(self.enfuse_cli())
         ret = ret and bool(self.align_image_stack_cli())
         return ret
 
+    '''
     def enblend_cli(self):
         if self._enblend_cli:
             return self._enblend_cli
@@ -1366,6 +1367,7 @@ class BaseConfig:
                                                           {}), "enblend_cli",
                                                "enblend", "enblend")
         return self._enblend_cli
+    '''
 
     def enfuse_cli(self):
         """

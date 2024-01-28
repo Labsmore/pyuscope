@@ -74,8 +74,8 @@ def find_panotools_exe(config, configk, exe_name, flatpak_name):
         _stdout, _stderr = process.communicate()
         exit_code = process.wait()
         if exit_code == 0:
-            return ("flatpak", "run",
-                    f"--command={flatpak_name} net.sourceforge.Hugin")
+            return ("flatpak", "run", "--filesystem=host",
+                    f"--command={flatpak_name}", "net.sourceforge.Hugin")
     # FIME: catch the specific exception for command not found
     except:
         pass

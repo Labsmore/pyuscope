@@ -329,7 +329,7 @@ class ArgusCommon(QObject):
 
         if not self.bc.check_panotools():
             self.log("WARNING panotools: incomplete installation")
-            self.log("  enblend: " + str(self.bc.enblend_cli()))
+            # self.log("  enblend: " + str(self.bc.enblend_cli()))
             self.log("  enfuse: " + str(self.bc.enfuse_cli()))
             self.log("  align_image_stack: " +
                      str(self.bc.align_image_stack_cli()))

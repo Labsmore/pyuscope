@@ -9,6 +9,29 @@ import queue
 import traceback
 from PIL import Image
 from uscope.microscope import MicroscopeStop
+import re
+import os.path
+from pyzbar.pyzbar import decode as pyzbar_decode
+
+
+def find_qr_code_match(image, expr):
+    """
+    Scan image for QR code(s) and return first match
+    """
+    decode_results = pyzbar_decode(image)
+    for decoded in decode_results:
+        data = decoded.data
+        try:
+            m = re.match(expr, str(data, "utf-8"))
+            if m:
+                return m.string
+        except TypeError as e:
+            # Log this error?
+            print("Invalid qr_regex", e)
+            return None
+
+    # No detected match
+    return None
 
 
 class ImageProcessingThreadBase(CommandThreadBase):
@@ -96,6 +119,12 @@ class ImageProcessingThreadBase(CommandThreadBase):
             return None
 
         if "save_filename" in options:
+            if "qr_regex" in options:
+                qr_match = find_qr_code_match(image, options.get("qr_regex"))
+                if qr_match:
+                    base_name, ext = os.path.splitext( options["save_filename"])
+                    save_filename = base_name + "_" + qr_match + ext
+                    options["save_filename"] = save_filename
             kwargs = {}
             if "save_quality" in options:
                 kwargs["quality"] = options["save_quality"]

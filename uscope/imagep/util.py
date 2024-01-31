@@ -4,6 +4,8 @@ from PIL import Image
 import subprocess
 import tempfile
 import shutil
+import re
+from pyzbar.pyzbar import decode as pyzbar_decode
 
 # Rayleigh criterion
 # https://oeis.org/A245461
@@ -217,3 +219,23 @@ def remove_intermediate_directories(top_dir, nested_dir):
 
     # Finally delete the tmp directory
     shutil.rmtree(tmp_dir)
+
+
+def find_qr_code_match(image, expr):
+    """
+    Scan image for QR code(s) and return first match
+    """
+    decode_results = pyzbar_decode(image)
+    for decoded in decode_results:
+        data = decoded.data
+        try:
+            m = re.match(expr, str(data, "utf-8"))
+            if m:
+                return m.string
+        except TypeError as e:
+            # Log this error?
+            print("Invalid qr_regex", e)
+            return None
+
+    # No detected match
+    return None

@@ -1,12 +1,13 @@
 from uscope import cloud_stitch
 from uscope.scan_util import index_scan_images, bucket_group, reduce_iindex_filename, is_tif_scan
 from uscope import config
-from uscope.imagep.util import TaskBarrier, EtherealImageR, EtherealImageW, remove_intermediate_directories
+from uscope.imagep.util import TaskBarrier, EtherealImageR, EtherealImageW, remove_intermediate_directories, find_qr_code_match
 from uscope.imagep.summary import write_html_viewer, write_snapshot_grid, write_quick_pano
 from uscope.util import writej
 import glob
 import shutil
 import os
+from PIL import Image
 """
 Support the following:
 -Planner running
@@ -333,6 +334,20 @@ class DirCSIP:
             healthy = self.csip.inspect_final_dir(working_iindex)
             assert healthy
             self.log("")
+
+        qr_regex = config.bc.qr_regex()
+        if qr_regex:
+            for fn in working_iindex["images"]:
+                fn_full = os.path.join(working_iindex["dir"], fn)
+                image = Image.open(fn_full)
+                qr_match = find_qr_code_match(image, qr_regex)
+                if qr_match:
+                    next_dir = working_iindex["dir"] + "_" + qr_match
+                    os.rename(working_iindex["dir"], next_dir)
+                    working_iindex = index_scan_images(next_dir)
+                    self.directory = next_dir
+                    # self.log("QR match found, renaming dir")
+                    break
 
         # https://github.com/Labsmore/pyuscope/issues/416
         # In the future we might make this more error resistant instead of skipping it

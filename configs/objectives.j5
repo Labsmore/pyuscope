@@ -105,6 +105,7 @@
             "fl": 200.0,
             "wd": 11.0,
             "thread": "M26",
+            "infinity_tube_length": 200,
         },
         {
             "vendor": "Mitutoyo",
@@ -115,6 +116,7 @@
             "fl": 100.0,
             "wd": 34.0,
             "thread": "M26",
+            "infinity_tube_length": 200,
         },
         //Common 5X
         {
@@ -126,6 +128,7 @@
             "fl": 40.0,
             "wd": 34.0,
             "thread": "M26",
+            "infinity_tube_length": 200,
         },
         //Common 10X
         {
@@ -137,6 +140,7 @@
             "fl": 20.0,
             "wd": 34.0,
             "thread": "M26",
+            "infinity_tube_length": 200,
         },
         //Common 20X
         {
@@ -148,6 +152,7 @@
             "fl": 10.0,
             "wd": 20.0,
             "thread": "M26",
+            "infinity_tube_length": 200,
         },
         //Common 100X
         {
@@ -159,6 +164,7 @@
             "fl": 2.0,
             "wd": 6.0,
             "thread": "M26",
+            "infinity_tube_length": 200,
         },
 
         /******************************************************************
@@ -203,6 +209,7 @@
             "magnification": 5,
             "na": 0.10,
             "thread": "M26",
+            "infinity_tube_length": 180,
         },
         {
             "vendor": "Olympus",
@@ -211,6 +218,7 @@
             "magnification": 10,
             "na": 0.25,
             "thread": "M26",
+            "infinity_tube_length": 180,
         },
         {
             "vendor": "Olympus",
@@ -219,6 +227,7 @@
             "magnification": 50,
             "na": 0.75,
             "thread": "M26",
+            "infinity_tube_length": 180,
         },
         /*
         NeoSPlan
@@ -230,6 +239,7 @@
             "magnification": 5,
             "na": 0.13,
             "thread": "M26",
+            "infinity_tube_length": 180,
         },
         {
             "vendor": "Olympus",
@@ -238,6 +248,7 @@
             "magnification": 10,
             "na": 0.30,
             "thread": "M26",
+            "infinity_tube_length": 180,
         },
         {
             "vendor": "Olympus",
@@ -246,6 +257,7 @@
             "magnification": 20,
             "na": 0.46,
             "thread": "M26",
+            "infinity_tube_length": 180,
         },
         {
             "vendor": "Olympus",
@@ -254,6 +266,7 @@
             "magnification": 100,
             "na": 0.90,
             "thread": "M26",
+            "infinity_tube_length": 180,
         },
 
         /******************************************************************
@@ -270,6 +283,7 @@
             "na": 0.30,
             "wd": 16.5,
             "thread": "M27",
+            "infinity_tube_length": 200,
         },
         {
             "vendor": "Nikon",
@@ -279,6 +293,7 @@
             "na": 0.46,
             "wd": 3.1,
             "thread": "M27",
+            "infinity_tube_length": 200,
         },
         {
             "vendor": "Nikon",
@@ -288,6 +303,7 @@
             "na": 0.80,
             "wd": 0.54,
             "thread": "M27",
+            "infinity_tube_length": 200,
         },
         {
             "vendor": "Nikon",
@@ -297,6 +313,7 @@
             "na": 0.95,
             "wd": 0.3,
             "thread": "M27",
+            "infinity_tube_length": 200,
         },
 
         /*
@@ -309,6 +326,7 @@
             "magnification": 60,
             "na": 1.40,
             "thread": "M26",
+            "infinity_tube_length": 200,
         },
 
 

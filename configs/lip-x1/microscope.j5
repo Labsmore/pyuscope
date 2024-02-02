@@ -179,6 +179,7 @@ A minimal configuration to do basic testing
     },
     "optics": {
         "um_per_pixel_raw_1x": 4.6728972,
+        "infinity_tube_length": 200,
     },
 
     "systems": [

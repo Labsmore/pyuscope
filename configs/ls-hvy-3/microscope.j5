@@ -88,6 +88,7 @@ UT100 NEMA23 stages
     },
     "optics": {
         "um_per_pixel_raw_1x": 3.262867647,
+        "infinity_tube_length": 180,
     },
 
     "systems": [

@@ -93,6 +93,7 @@ very similar to "pr0nscope" mk2 original BH2 CNC microscope
     },
     "optics": {
         "um_per_pixel_raw_1x": 3.262867647,
+        "infinity_tube_length": 180,
     },
 
     "systems": [

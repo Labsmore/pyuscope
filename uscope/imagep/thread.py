@@ -101,7 +101,7 @@ class ImageProcessingThreadBase(CommandThreadBase):
             if "qr_regex" in options:
                 qr_match = find_qr_code_match(image, options.get("qr_regex"))
                 if qr_match:
-                    base_name, ext = os.path.splitext( options["save_filename"])
+                    base_name, ext = os.path.splitext(options["save_filename"])
                     save_filename = base_name + "_" + qr_match + ext
                     options["save_filename"] = save_filename
             kwargs = {}

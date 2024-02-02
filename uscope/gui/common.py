@@ -379,6 +379,12 @@ class ArgusCommon(QObject):
     def cache_load(self, cachej):
         self.microscope.cache_load(cachej)
 
+    def cache_sn_save(self, cachej):
+        self.microscope.cache_sn_save(cachej)
+
+    def cache_sn_load(self, cachej):
+        self.microscope.cache_sn_load(cachej)
+
     def init_imager(self):
         source = self.vidpip.source_name
         self.log('Loading imager %s...' % source)
@@ -454,7 +460,9 @@ class ArgusCommon(QObject):
         """
         Return currently selected objective configuration
         """
-        return self.mainTab.objective_widget.obj_config
+        ret = self.mainTab.objective_widget.obj_config
+        assert ret
+        return ret
 
     def imaging_config(self):
         """

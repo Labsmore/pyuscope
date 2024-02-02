@@ -25,86 +25,46 @@ class MicroscopeObjectives:
         objectives = copy.deepcopy(
             self.microscope.usc.get_uncalibrated_objectives(
                 microscope=self.microscope))
+        self.objectives_in = copy.deepcopy(objectives)
+        self.magnification = 1.0
+        # override value or can be None
+        # If none objectives must all be fully specified individually
+        self.um_per_pixel_raw_1x = self.microscope.usc.optics.um_per_pixel_raw_1x(
+        )
+        self.recalculate_db()
 
-        # Start by filling in missing metdata from DB
-        self.microscope.usc.bc.objective_db.set_defaults(objectives)
-        # Now apply system specific sizing / calibration
-        self.scale_objectives_1x(objectives)
-        # Derrive kinematics parameters
-        # (ie slower settling at higher mag)
-        self.apply_objective_tsettle(objectives)
-
-        final_w, final_h = self.microscope.usc.imager.final_wh()
-        for objective in objectives:
-            if "um_per_pixel" not in objective:
-                if "x_view" not in objective:
-                    raise Exception(
-                        "Failed to calculate objective um_per_pixel: need x_view. Microscope missing um_per_pixel_raw_1x?"
-                    )
-                # mm to um
-                objective[
-                    "um_per_pixel"] = objective["x_view"] / final_w * 1000
-
-        # Sanity check required parameters
-        names = set()
-        for objectivei, objective in enumerate(objectives):
-            # last ditch name
-            if "name" not in objective:
-                if "magnification" in objective:
-                    if "series" in objective:
-                        objective["name"] = "%s %uX" % (
-                            objective["series"], objective["magnification"])
-                    else:
-                        objective["name"] = "%uX" % objective["magnification"]
-                else:
-                    objective["name"] = "Objective %u" % objectivei
-            assert "name" in objective, objective
-            assert objective[
-                "name"] not in names, f"Duplicate objective name {objective}"
-            names.add(objective["name"])
-            assert "x_view" in objective, objective
-            assert "um_per_pixel" in objective, objective
-            assert "tsettle_motion" in objective, objective
-
-        # Used to be list by index
-        # Lets make this a dictionary by name
-        objectivesd = OrderedDict()
-        for objective in objectives:
-            objectivesd[objective["name"]] = objective
-        self.objectives = objectivesd
-
-    def scale_objectives_1x(self, objectives):
+    def scale_objectives_1x(self):
         # In raw sensor pixels before scaling
         # That way can adjust scaling w/o adjusting
         # This is the now preferred way to set configuration
-        um_per_pixel_raw_1x = self.microscope.usc.optics.um_per_pixel_raw_1x()
-        if not um_per_pixel_raw_1x:
+        if not self.um_per_pixel_raw_1x:
             return
 
         # crop_w, _crop_h = self.imager.cropped_wh()
         final_w, final_h = self.microscope.usc.imager.final_wh()
         # Objectives must support magnification to scale
-        for objective in objectives:
+        for objective in self.objectives.values():
             if "um_per_pixel" not in objective:
-                objective["um_per_pixel"] = um_per_pixel_raw_1x / objective[
-                    "magnification"] / self.microscope.usc.imager.scalar()
+                objective[
+                    "um_per_pixel"] = self.um_per_pixel_raw_1x / objective[
+                        "magnification"] / self.microscope.usc.imager.scalar()
             if "x_view" not in objective:
                 # um to mm
                 objective[
-                    "x_view"] = final_w * um_per_pixel_raw_1x / self.microscope.usc.imager.scalar(
+                    "x_view"] = final_w * self.um_per_pixel_raw_1x / self.microscope.usc.imager.scalar(
                     ) / objective["magnification"] / 1000
             if "y_view" not in objective:
                 # um to mm
                 objective[
-                    "y_view"] = final_h * um_per_pixel_raw_1x / self.microscope.usc.imager.scalar(
+                    "y_view"] = final_h * self.um_per_pixel_raw_1x / self.microscope.usc.imager.scalar(
                     ) / objective["magnification"] / 1000
 
-    def apply_objective_tsettle(self, objectives):
+    def apply_objective_tsettle(self):
         reference_tsettle_motion = self.microscope.usc.kinematics.tsettle_motion_na1(
         )
         reference_na = 1.0
         # Objectives must support magnification to scale
-        for objective in objectives:
+        for objective in self.objectives.values():
             if "tsettle_motion" in objective:
                 continue
             tsettle_motion = 0.0
@@ -134,7 +94,88 @@ class MicroscopeObjectives:
         # First name
         return list(self.objectives.keys())[0]
 
-    def set_global_scalar(self, magnification):
+    def check_db(self):
+        # Sanity check required parameters
+        names = set()
+        for objectivei, objective in enumerate(self.objectives.values()):
+            # last ditch name
+            if "name" not in objective:
+                if "magnification" in objective:
+                    if "series" in objective:
+                        objective["name"] = "%s %uX" % (
+                            objective["series"], objective["magnification"])
+                    else:
+                        objective["name"] = "%uX" % objective["magnification"]
+                else:
+                    objective["name"] = "Objective %u" % objectivei
+            assert "name" in objective, objective
+            assert objective[
+                "name"] not in names, f"Duplicate objective name {objective}"
+            names.add(objective["name"])
+            assert "x_view" in objective, objective
+            assert "um_per_pixel" in objective, objective
+            assert "tsettle_motion" in objective, objective
+
+    def fill_um_per_pixel(self):
+        final_w, final_h = self.microscope.usc.imager.final_wh()
+        for objective in self.objectives.values():
+            if "um_per_pixel" not in objective:
+                if "x_view" not in objective:
+                    raise Exception(
+                        "Failed to calculate objective um_per_pixel: need x_view. Microscope missing um_per_pixel_raw_1x?"
+                    )
+                # mm to um
+                objective[
+                    "um_per_pixel"] = objective["x_view"] / final_w * 1000
+
+    def scale_mag(self):
+        """
+        This is tacked on the end due to history on how um_per_pixel is calculated
+        """
+        for objective in self.objectives.values():
+            # Higher magnification means each pixel sees fewer um
+            objective["um_per_pixel"] /= self.magnification
+            # Similarly field of view is reduced
+            objective["x_view"] /= self.magnification
+            objective["y_view"] /= self.magnification
+
+    def name_objective(self, objective, objectivei):
+        if "name" in objective:
+            return objective["name"]
+        if "magnification" in objective:
+            if "series" in objective:
+                return "%s %uX" % (objective["series"],
+                                   objective["magnification"])
+            else:
+                return "%uX" % objective["magnification"]
+        else:
+            return "Objective %u" % objectivei
+
+    def recalculate_db(self):
+        objectives_list = copy.deepcopy(self.objectives_in)
+        # Start by filling in missing metadata from DB
+        # Adds enough background to name them
+        self.microscope.usc.bc.objective_db.set_defaults_list(objectives_list)
+
+        # Assign names and move into final form
+        self.objectives = OrderedDict()
+        for objectivei, objective in enumerate(objectives_list):
+            name = self.name_objective(objective, objectivei)
+            assert name not in self.objectives
+            self.objectives[name] = objective
+
+        # Now apply system specific sizing / calibration
+        self.scale_objectives_1x()
+        # Derive kinematics parameters
+        # (ie slower settling at higher mag)
+        self.apply_objective_tsettle()
+        self.fill_um_per_pixel()
+
+        self.check_db()
+        self.scale_mag()
+        self.check_db()
+
+    def set_global_scalar(self, magnification, recalculate=True):
         """
         Set a magnification factor
         Intended to:
@@ -145,9 +186,14 @@ class MicroscopeObjectives:
         In the future we will probably also support per objective correction
         """
         assert magnification
-        for objective in self.objectives.values():
-            # Higher magnification means each pixel sees fewer um
-            objective["um_per_pixel"] /= magnification
-            # Similarly field of view is reduced
-            objective["x_view"] /= magnification
-            objective["y_view"] /= magnification
+        self.magnification = magnification
+        if recalculate:
+            self.recalculate_db()
+
+    def set_um_per_pixel_raw_1x(self, value, recalculate=True):
+        """
+        Set the base calibration value used to rescale the system
+        """
+        self.um_per_pixel_raw_1x = value
+        if recalculate:
+            self.recalculate_db()

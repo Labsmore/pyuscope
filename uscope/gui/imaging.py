@@ -391,6 +391,7 @@ class JoystickTab(ArgusTab):
 class ObjectiveWidget(AWidget):
 
     setObjective = pyqtSignal(str)
+    setUmPerPixelRaw1x = pyqtSignal(float)
 
     def __init__(self, ac, aname=None, parent=None):
         super().__init__(ac=ac, aname=aname, parent=parent)
@@ -403,9 +404,12 @@ class ObjectiveWidget(AWidget):
         self.selected_objective_name = None
         self.default_objective_index = 0
         self.global_scalar = None
+        self.um_per_pixel_raw_1x = None
         self.updating_objectives = False
+        self.default_objective_name = None
 
         self.setObjective.connect(self.set_objective)
+        self.setUmPerPixelRaw1x.connect(self.set_um_per_pixel_raw_1x)
 
     def _initUI(self):
         self.advanced_widgets = []
@@ -449,7 +453,11 @@ class ObjectiveWidget(AWidget):
             widget.setVisible(visible)
 
     def _post_ui_init(self):
-        pass
+        self.reload_obj_cb()
+
+    def set_um_per_pixel_raw_1x(self, val):
+        self.um_per_pixel_raw_1x = val
+        self.reload_obj_cb()
 
     def reload_obj_cb(self):
         '''Re-populate the objective combo box'''
@@ -458,6 +466,8 @@ class ObjectiveWidget(AWidget):
         self.objectives = self.ac.microscope.get_objectives()
         if self.global_scalar:
             self.objectives.set_global_scalar(self.global_scalar)
+        if self.um_per_pixel_raw_1x:
+            self.objectives.set_um_per_pixel_raw_1x(self.um_per_pixel_raw_1x)
         for name in self.objectives.names():
             self.obj_cb.addItem(name)
 
@@ -515,19 +525,23 @@ class ObjectiveWidget(AWidget):
     Might also be better to select by name
     """
 
-    def _cache_save(self, cachej):
+    def _cache_sn_save(self, cachej):
         cachej["objective"] = {
             "name": self.selected_objective_name,
             "global_scalar": self.global_scalar_le.text(),
+            "um_per_pixel_raw_1x": self.um_per_pixel_raw_1x,
         }
 
-    def _cache_load(self, cachej):
+    def _cache_sn_load(self, cachej):
         j = cachej.get("objective", {})
+
         self.default_objective_name = j.get("name", None)
         self.global_scalar_le.setText(j.get("global_scalar", ""))
         self.global_scalar_le_return(lazy=True)
 
+        self.um_per_pixel_raw_1x = j.get("um_per_pixel_raw_1x", None)
         self.reload_obj_cb()
+        assert self.obj_config, "not loaded :("
         self.obj_cb.currentIndexChanged.connect(self.update_obj_config)
 
     def set_objective(self, objective):
@@ -1713,7 +1727,7 @@ class ImagingTaskWidget(AWidget):
         options["plugins"] = plugins
         qr_regex = config.bc.qr_regex()
         if qr_regex:
-            options["qr_regex"] = qr_regex 
+            options["qr_regex"] = qr_regex
 
         def callback(command, args, ret_e):
             if type(ret_e) is Exception:

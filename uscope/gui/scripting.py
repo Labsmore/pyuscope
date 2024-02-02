@@ -408,6 +408,12 @@ class ArgusScriptingPlugin(QThread):
         """
         self._ac.motion_thread.backlash_enable(block=block)
 
+    def set_um_per_pixel_raw_1x(self, val):
+        """
+        Set calibration info
+        """
+        self._ac.mainTab.objective_widget.setUmPerPixelRaw1x.emit(val)
+
     """
     Plugin defined functions
     """

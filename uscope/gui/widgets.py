@@ -100,6 +100,18 @@ class AMainWindow(QMainWindow):
     def _cache_save(self, cachej):
         pass
 
+    def _cache_sn_save(self, cachej):
+        pass
+
+    def cache_get_set_sn_entry(self, cachej):
+        ret = cachej.setdefault("microscopes", {}).setdefault(
+            self.ac.microscope.model_serial_string(), {})
+        if "model" not in ret:
+            ret["model"] = self.ac.microscope.model()
+        if "serial" not in ret:
+            ret["serial"] = self.ac.microscope.serial()
+        return ret
+
     def cache_save(self):
         """
         Called when saving GUI state to file
@@ -111,10 +123,20 @@ class AMainWindow(QMainWindow):
         # otherwise we can loose some config
         # ex: carry over joystick config when not plugged in
         cachej = self.cachej
+
+        # Full structure
         self.ac.microscope.cache_save(cachej)
         self._cache_save(cachej)
         for awidget in self.awidgets.values():
             awidget.cache_save(cachej)
+
+        # S/N specific
+        cachej_sn = self.cache_get_set_sn_entry(cachej)
+        self.ac.microscope.cache_sn_save(cachej_sn)
+        self._cache_sn_save(cachej_sn)
+        for awidget in self.awidgets.values():
+            awidget.cache_sn_save(cachej_sn)
+
         fn = self.ac.aconfig.cache_fn()
         # file getting corrupted on save
         # https://github.com/Labsmore/pyuscope/issues/366
@@ -131,6 +153,9 @@ class AMainWindow(QMainWindow):
     def _cache_load(self, cachej):
         pass
 
+    def _cache_sn_load(self, cachej):
+        pass
+
     def cache_load(self):
         """
         Called when loading GUI state from file
@@ -144,10 +169,20 @@ class AMainWindow(QMainWindow):
                     cachej = json5.load(f)
             except Exception as e:
                 print("Invalid configuration cache. Ignoring", e)
+
+        # Full
         self.ac.microscope.cache_load(cachej)
         self._cache_load(cachej)
         for awidget in self.awidgets.values():
             awidget.cache_load(cachej)
+
+        # S/N specific
+        cachej_sn = self.cache_get_set_sn_entry(cachej)
+        self.ac.microscope.cache_sn_load(cachej_sn)
+        self._cache_sn_load(cachej_sn)
+        for awidget in self.awidgets.values():
+            awidget.cache_sn_load(cachej_sn)
+
         self.cachej = cachej
 
     def _poll_misc(self):
@@ -271,6 +306,30 @@ class AWidget(QWidget):
         self._cache_load(cachej)
         for awidget in self.awidgets.values():
             awidget.cache_load(cachej)
+
+    def _cache_sn_save(self, cachej):
+        pass
+
+    def cache_sn_save(self, cachej):
+        """
+        Called when saving GUI state to file
+        Add your state to JSON object j
+        """
+        self._cache_sn_save(cachej)
+        for awidget in self.awidgets.values():
+            awidget.cache_sn_save(cachej)
+
+    def _cache_sn_load(self, cachej):
+        pass
+
+    def cache_sn_load(self, cachej):
+        """
+        Called when loading GUI state from file
+        Read your state from JSON object j
+        """
+        self._cache_sn_load(cachej)
+        for awidget in self.awidgets.values():
+            awidget.cache_sn_load(cachej)
 
     def _poll_misc(self):
         pass
@@ -793,6 +852,7 @@ class AdvancedTab(ArgusTab):
         def setup_die_step(distance_mult, step_mult):
             stacker = AutoStacker(microscope=self.ac.microscope)
             objective_config = self.ac.objective_config()
+            assert objective_config
             params = stacker.calc_die_parameters(objective_config,
                                                  distance_mult, step_mult)
             self.stacker_distance_le.setText("%0.6f" % params["pm_distance"])

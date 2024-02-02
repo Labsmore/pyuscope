@@ -309,6 +309,15 @@ class Microscope:
     def set_serial(self, serial):
         self._serial = serial
 
+    def model_serial_string(self):
+        """
+        Used for various config items
+        """
+        if self._serial:
+            return self.name + "_sn-" + self._serial
+        else:
+            return self.name
+
     """
     Argus hack bindings
     See common.py
@@ -377,6 +386,31 @@ class Microscope:
         instancesj = instrumentsj.get("instances", {})
         for name, instrument in self.instruments.items():
             instrument.cache_load(instancesj.get(name, {}))
+
+    def cache_sn_save(self, cachej):
+        """
+        Argus hook to save configuration cache
+        In the future we might reverse such that we call argu
+        """
+        instrumentsj = cachej.setdefault("instruments", {})
+        # TODO: might have other config here (ex: paths)
+        instancesj = instrumentsj.setdefault("instances", {})
+        for name, instrument in self.instruments.items():
+            instancesj[name] = instrument.cache_sn_save()
+        self._last_cachej = cachej
+
+    def cache_sn_load(self, cachej):
+        """
+        Argus hook to load configurationcache
+        In the future we might reverse such that we call argu
+        """
+        self._last_cachej = cachej
+
+        instrumentsj = cachej.get("instruments", {})
+        # TODO: might have other config here (ex: paths)
+        instancesj = instrumentsj.get("instances", {})
+        for name, instrument in self.instruments.items():
+            instrument.cache_sn_load(instancesj.get(name, {}))
 
 
 def get_cli_microscope(name=None):

@@ -754,7 +754,7 @@ class ObjectiveDB:
     def get(self, vendor, model):
         return self.db[(vendor.upper(), model.upper())]
 
-    def set_defaults(self, objectivejs):
+    def set_defaults_list(self, objectivejs):
         for objectivej in objectivejs:
             self.set_default(objectivej)
 

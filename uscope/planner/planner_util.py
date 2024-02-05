@@ -50,6 +50,7 @@ def microscope_to_planner_config(microscope,
         "imager": {
             "x_view": objective["x_view"],
         },
+        "calibration": microscope.calibration,
         "motion": {},
         "kinematics": {},
     }

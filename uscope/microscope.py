@@ -79,6 +79,8 @@ class Microscope:
         self.hardware = hardware
         self._last_cachej = None
         self.instruments = {}
+        # General purpose data that is passed to Planner and other things
+        self.calibration = {}
 
         if log is None:
             log = print
@@ -405,6 +407,7 @@ class Microscope:
         In the future we might reverse such that we call argu
         """
         self._last_cachej = cachej
+        self.calibration = cachej.get("calibration", {})
 
         instrumentsj = cachej.get("instruments", {})
         # TODO: might have other config here (ex: paths)

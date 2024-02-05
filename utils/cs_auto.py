@@ -75,6 +75,7 @@ def main():
         "--best-effort",
         default=True,
         help="Best effort in lieu of crashing on error (ex: stack failure)")
+    add_bool_arg(parser, "--quick-pano", default=None, help="")
     parser.add_argument("--threads", default=None)
     parser.add_argument("--access-key")
     parser.add_argument("--secret-key")
@@ -101,6 +102,8 @@ def main():
     j = {}
     if args.json:
         j = json.loads(args.json)
+    if args.quick_pano is not None:
+        j["write_quick_pano"] = args.quick_pano
 
     run(args.dirs_in,
         cs_info=cs_info,

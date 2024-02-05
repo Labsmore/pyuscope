@@ -250,7 +250,37 @@ class QuickPano:
                 self.pixel_per_mm)
         return (x, y)
 
-    def fill_dst(self):
+    def get_overlaps(self):
+        # We could also calculate this from points by regression
+        point_gen = self.uscan.get("points-xy3p")
+        if point_gen is None:
+            point_gen = self.uscan.get("points-xy2p")
+        if point_gen is None:
+            print("WARNING: quick pano failed to calculate expected overlap")
+            return {}
+        ret = {}
+        for axis in "xy":
+            ret[axis] = {
+                # floor better to guarantee overlap
+                "overlap_pixels":
+                int(point_gen["axes"][axis]["overlap_fraction"] *
+                    point_gen["axes"][axis]["view_pixels"])
+            }
+        return ret
+
+    def get_rotation_cw(self):
+        """
+        Get the amount the image is rotated relative to the expected axis position
+        """
+        return self.uscan["pconfig"].get("calibration",
+                                         {}).get("optics",
+                                                 {}).get("rotation_cw")
+
+    def fill_dst_simple(self):
+        """
+        Paste images in simplified manner
+        Directly at coordinates, no rotation / alpha required
+        """
         # Fill from bottom up such that upper left is on top
         for row in range(self.iindex["rows"]):
             row = self.iindex["rows"] - row - 1
@@ -264,6 +294,77 @@ class QuickPano:
                 im = Image.open(
                     os.path.join(self.iindex["dir"], info["filename"]))
                 self.dst.paste(im, (x, y))
+
+    def fill_dst_rotate(self):
+        overlaps = self.get_overlaps()
+        rotation_cw = self.get_rotation_cw()
+        # print("overlaps", overlaps)
+        # Half each side of image
+        # Need a few percent of overlap to ensure no gaps
+        # TODO: calculate this based on rotation
+        trim_x = int(overlaps["x"]["overlap_pixels"] * 0.48)
+        trim_y = int(overlaps["y"]["overlap_pixels"] * 0.48)
+        # print("x y", trim_x, trim_y)
+        # print("rotation_cw", rotation_cw)
+        orig_mode = self.dst.mode
+        # self.dst.putalpha(255)
+        self.dst = self.dst.convert('RGBA')
+
+        # assert 0
+
+        # Fill from bottom up such that upper left is on top
+        for row in range(self.iindex["rows"]):
+            row = self.iindex["rows"] - row - 1
+            for col in range(self.iindex["cols"]):
+                col = self.iindex["cols"] - col - 1
+                # print("col", col, row)
+                #for this in self.iindex["images"].values():
+                # col, row = this["col"], this["row"]
+                info = self.cr2info[(col, row)]
+                x, y = self.image_coordinate(col, row)
+                self.verbose and print(f"{row}r {col}c => {x} x {y} y")
+                im_orig = Image.open(
+                    os.path.join(self.iindex["dir"], info["filename"]))
+
+                im = im_orig.convert('RGBA')
+                # im.putalpha(255)
+                im = im.rotate(rotation_cw, Image.BICUBIC, expand=True)
+                offset_x = 0
+                offset_y = 0
+                """
+                if rotation_cw > 0:
+                    offset_x = -int(math.sin(rotation_cw * 3.14 / 180) * im_orig.height)
+                else:
+                    offset_y = -int(math.sin(-rotation_cw * 3.14 / 180) * im_orig.width)
+                print("offsets", offset_x, offset_y)
+                """
+
+                crop_x0 = 0
+                crop_x1 = im.width
+                crop_y0 = 0
+                crop_y1 = im.height
+                if col > 0:
+                    crop_x0 = trim_x
+                    offset_x += crop_x0
+                if row > 0:
+                    crop_y0 = trim_y
+                    offset_y += crop_y0
+                if col < self.iindex["cols"] - 1:
+                    crop_x1 -= trim_x
+                if row < self.iindex["rows"] - 1:
+                    crop_y1 -= trim_y
+                # print("crop", crop_x0, crop_y0, crop_x1, crop_y1)
+                im = im.crop((crop_x0, crop_y0, crop_x1, crop_y1))
+                # print("paste", (x, y), (x + offset_x, y + offset_y))
+
+                self.dst.paste(im, (x + offset_x, y + offset_y), im)
+        self.dst = self.dst.convert(orig_mode)
+
+    def fill_dst(self):
+        if self.get_rotation_cw():
+            self.fill_dst_rotate()
+        else:
+            self.fill_dst_simple()
 
     def save(self):
         self.verbose and print(('Saving %s...' % (self.output_filename, )))

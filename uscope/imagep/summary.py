@@ -281,6 +281,7 @@ class QuickPano:
         Paste images in simplified manner
         Directly at coordinates, no rotation / alpha required
         """
+        print('"Quick pano": fast w/o rotation')
         # Fill from bottom up such that upper left is on top
         for row in range(self.iindex["rows"]):
             row = self.iindex["rows"] - row - 1
@@ -309,11 +310,13 @@ class QuickPano:
         orig_mode = self.dst.mode
         # self.dst.putalpha(255)
         self.dst = self.dst.convert('RGBA')
+        print('"Quick pano": slower w/ rotation')
 
         # assert 0
 
         # Fill from bottom up such that upper left is on top
         for row in range(self.iindex["rows"]):
+            print("  Row %u / %u" % (row + 1, self.iindex["rows"]))
             row = self.iindex["rows"] - row - 1
             for col in range(self.iindex["cols"]):
                 col = self.iindex["cols"] - col - 1

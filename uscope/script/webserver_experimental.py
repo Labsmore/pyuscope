@@ -40,8 +40,9 @@ $ curl 'http://localhost:8080/set/pos/?x=1&z=-2'; echo
 $ curl -X POST 'http://localhost:8080/set/pos/?y=1&x=-1&relative=1'; echo
 """
 from uscope.gui.scripting import ArgusScriptingPlugin
+from uscope.script import webserver_common
+
 from flask import Flask, current_app, request, render_template, send_from_directory
-from http import HTTPStatus
 import json
 from werkzeug.serving import make_server
 from flask_cors import CORS
@@ -68,6 +69,7 @@ def image_to_base64(p_img):
 
 class MySocket(SocketIO):
     def __init__(self, *args, **kwargs):
+        webserver_common.plugin = self
         super().__init__(*args, **kwargs)
         self.clients = set()
         self.on_event('connect', self.on_connection)
@@ -133,6 +135,9 @@ class Plugin(ArgusScriptingPlugin):
         self.server = None
 
 
+webserver_common.make_app(app)
+
+
 @app.route('/')
 @app.route('/index.html')
 def index():
@@ -150,88 +155,3 @@ def return_flutter_doc(name):
         for i in range(0, len(data_list) - 1):
             dir_name += '/' + data_list[i]
     return send_from_directory(dir_name, data_list[-1])
-
-
-@app.route('/get/objectives', methods=['GET'])
-def objectives():
-    plugin = current_app.plugin
-    objectives = plugin.get_objectives_config()
-    plugin.log_verbose(f"/get/objectives")
-    data = {'objectives': objectives}
-    return json.dumps({
-        'data': data,
-        'status': HTTPStatus.OK,
-    })
-
-
-@app.route('/get/active_objective', methods=['GET'])
-def active_objective():
-    plugin = current_app.plugin
-    objective = plugin.get_active_objective()
-    plugin.log_verbose(f"/get/active_objective: '{objective}'")
-    data = {'objective': objective}
-    return json.dumps({
-        'data': data,
-        'status': HTTPStatus.OK,
-    })
-
-
-@app.route('/set/active_objective/<objective>', methods=['GET', 'POST'])
-def active_objective_set(objective):
-    plugin = current_app.plugin
-    try:
-        # Validate objective name before sending request
-        plugin.log_verbose(f"/set/active_objective/{objective}")
-        if objective not in plugin.objectives.names():
-            plugin.log(f"WARNING: objective '{objective}' not found")
-            return json.dumps({'status': HTTPStatus.BAD_REQUEST})
-        plugin.set_active_objective(objective)
-        return json.dumps({'status': HTTPStatus.OK})
-    except Exception as e:
-        print(e)
-        return json.dumps({
-            'status': HTTPStatus.CONFLICT,
-            'error': "Invalid Input Value"
-        })
-
-
-@app.route('/get/pos', methods=['GET'])
-def pos_get():
-    plugin = current_app.plugin
-    plugin.log_verbose(f"/get/pos")
-    return json.dumps({'status': HTTPStatus.OK, 'data': plugin.pos()})
-
-
-@app.route('/set/pos', methods=['GET', 'POST'])
-def pos_set():
-    plugin = current_app.plugin
-    try:
-        plugin.log_verbose(f"/set/pos?{request.query_string.decode()}")
-        # Validate values - default bool value is to handle
-        # excluding null values for absolute movement
-        x = request.args.get("x", default=False, type=float)
-        y = request.args.get("y", default=False, type=float)
-        z = request.args.get("z", default=False, type=float)
-        data = {}
-        if x is not False:
-            data["x"] = x
-        if y is not False:
-            data["y"] = y
-        if z is not False:
-            data["z"] = z
-        move_relative = request.args.get("relative", default=0, type=int)
-        # Do not need to move if all axes are zero
-        if move_relative == 1 and (data.get("x") or data.get("y")
-                                   or data.get("z")):
-            plugin.move_relative(data)
-        else:
-            plugin.move_absolute(data)
-        data = {}
-        data.update(plugin.pos())
-        return json.dumps({'status': HTTPStatus.OK, 'data': plugin.pos()})
-    except Exception as e:
-        print(e)
-        return json.dumps({
-            'status': HTTPStatus.CONFLICT,
-            'error': "Invalid Input Value"
-        })

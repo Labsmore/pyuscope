@@ -108,3 +108,46 @@ class CommandThreadBase:
                 continue
             if command_done:
                 command_done(command, args, ret)
+
+
+# Modeled after queue interface
+# Force kwargs callback to simplify misc things
+class CBSync:
+    def __init__(self, block=False, callback=None, done=None):
+        """
+        block: don't return until offloaded task completes?
+        callback: simple callback taking no args
+        done: threading.Event()
+        """
+        self.block = block
+        self._callback = callback
+        self.done_args = None
+        self.done_kwargs = None
+        if done is None:
+            done = threading.Event()
+        self.done = done
+
+    def callback(self, *args, **kwargs):
+        self.done_args = args
+        self.done_kwargs = kwargs
+        # better to set condition before callback?
+        self.done.set()
+        if self._callback:
+            self._callback(*args, **kwargs)
+
+    def wait_done(self):
+        self.done.wait()
+
+    def check_return_kw1(self):
+        """
+        Call when launching the job
+        Some context may choose to immediately block
+        """
+        if self.block:
+            self.done.wait()
+            # Return the single kwarg value
+            assert len(self.done_args) == 0, "Expect kwargs only"
+            assert len(self.done_kwargs) == 1, "Expect single kwarg"
+            return list(self.done_kwargs.values())[0]
+        else:
+            return None

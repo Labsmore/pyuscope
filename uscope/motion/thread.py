@@ -74,6 +74,10 @@ class MotionThreadMotion(MotionHAL):
     def command(self, command):
         return self.mt.mdi(command)
 
+    def system_status_ts(self, status):
+        # FIXME: this won't handle jogging quite correctly
+        status["idle"] = self.mt.idle.is_set()
+
 
 """
 Several sources need to periodically send jog commands based on stimulus

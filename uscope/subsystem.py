@@ -1,10 +1,4 @@
-"""
-An accessory of some sort
-It could be a laser, a motorized turret, or just a fiducial
-"""
-
-
-class Instrument:
+class Subsystem:
     def __init__(self, microscope):
         self.microscope = microscope
 

@@ -63,6 +63,13 @@ class MicroscopeStatistics:
         return ret
 
 
+"""
+By default do not assume Microscope is thread safe
+In Argus it is owned by the GUi thread
+However, there are major thread safe subsystems by calling associated wrappers
+"""
+
+
 class Microscope:
     def __init__(self, log=None, configure=True, hardware=True, **kwargs):
         self.bc = None
@@ -78,7 +85,8 @@ class Microscope:
         self._kinematics_ts = None
         self.hardware = hardware
         self._last_cachej = None
-        self.instruments = {}
+        #self.instruments = {}
+        self.subsystems = {}
         # General purpose data that is passed to Planner and other things
         self.calibration = {}
 
@@ -346,6 +354,7 @@ class Microscope:
     def set_active_objective(self, objective):
         assert 0, "hack: overriden by GUI"
 
+    '''
     def get_instrument(self, name):
         return self.instruments[name]
 
@@ -363,17 +372,40 @@ class Microscope:
         instrumentsj = self._last_cachej.get("instruments", {})
         instancesj = instrumentsj.get("instances", {})
         instrument.cache_load(instancesj.get(name, {}))
+    '''
+
+    def get_subsystem(self, name):
+        return self.subsystems[name]
+
+    def get_subsystem_default(self, name, default=None):
+        return self.subsystems.get(name, default)
+
+    def add_subsystem(self, subsystem, name=None):
+        if not name:
+            name = subsystem.name()
+        assert name not in self.subsystems
+        self.subsystems[name] = subsystem
+
+        # Load configuration
+        assert self._last_cachej is not None
+        subsystemsj = self._last_cachej.get("subsystems", {})
+        subsystem.cache_load(subsystemsj.get(name, {}))
 
     def cache_save(self, cachej):
         """
         Argus hook to save configuration cache
         In the future we might reverse such that we call argu
         """
+        '''
         instrumentsj = cachej.setdefault("instruments", {})
         # TODO: might have other config here (ex: paths)
         instancesj = instrumentsj.setdefault("instances", {})
         for name, instrument in self.instruments.items():
             instancesj[name] = instrument.cache_save()
+        '''
+        subsystemsj = cachej.setdefault("subsystems", {})
+        for name, instrument in self.subsystemsj.items():
+            instrument.cache_save(subsystemsj.setdefault(name, {}))
         self._last_cachej = cachej
 
     def cache_load(self, cachej):
@@ -382,23 +414,32 @@ class Microscope:
         In the future we might reverse such that we call argu
         """
         self._last_cachej = cachej
-
+        '''
         instrumentsj = cachej.get("instruments", {})
         # TODO: might have other config here (ex: paths)
         instancesj = instrumentsj.get("instances", {})
         for name, instrument in self.instruments.items():
             instrument.cache_load(instancesj.get(name, {}))
+        '''
+        subsystemsj = cachej.setdefault("subsystems", {})
+        for name, instrument in self.subsystemsj.items():
+            instrument.cache_load(subsystemsj.get(name, {}))
 
     def cache_sn_save(self, cachej):
         """
         Argus hook to save configuration cache
         In the future we might reverse such that we call argu
         """
+        '''
         instrumentsj = cachej.setdefault("instruments", {})
         # TODO: might have other config here (ex: paths)
         instancesj = instrumentsj.setdefault("instances", {})
         for name, instrument in self.instruments.items():
             instancesj[name] = instrument.cache_sn_save()
+        '''
+        subsystemsj = cachej.setdefault("subsystems", {})
+        for name, instrument in self.subsystemsj.items():
+            instrument.cache_sn_save(subsystemsj.setdefault(name, {}))
         self._last_cachej = cachej
 
     def cache_sn_load(self, cachej):
@@ -408,12 +449,40 @@ class Microscope:
         """
         self._last_cachej = cachej
         self.calibration = cachej.get("calibration", {})
-
+        '''
         instrumentsj = cachej.get("instruments", {})
         # TODO: might have other config here (ex: paths)
         instancesj = instrumentsj.get("instances", {})
         for name, instrument in self.instruments.items():
             instrument.cache_sn_load(instancesj.get(name, {}))
+        '''
+        subsystemsj = cachej.setdefault("subsystems", {})
+        for name, instrument in self.subsystemsj.items():
+            instrument.cache_sn_load(subsystemsj.get(name, {}))
+
+    def system_status_ts(self):
+        """
+        Get info about various subsystems
+        Thread safe
+        """
+        ret = {}
+        self.imager().system_status(ret.setdefault("imager", {}))
+        self.motion().system_status(ret.setdefault("motion", {}))
+
+        # maybe instruments as subsystem would make more sense?
+        '''
+        instruments_j = ret.setdefault("instruments")
+        for instrument in self.instruments.values():
+            instrument.system_status_ts(instruments_j).setdefault(instrument.name(), {}))
+        '''
+
+        # Notably argus subsystem
+        subsystems_j = ret.setdefault("subsystems")
+        for subsystem in self.subsystems.values():
+            subsystem.system_status_ts(
+                subsystems_j.setdefault(subsystem.name(), {}))
+
+        return ret
 
 
 def get_cli_microscope(name=None):

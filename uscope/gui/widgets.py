@@ -589,7 +589,7 @@ class BatchImageTab(ArgusTab):
         if ret != QMessageBox.Yes:
             return
 
-        self.ac.mainTab.imaging_widget.go_scan_configs(self.scan_configs)
+        self.ac.mainTab.imaging_widget.go_planner_hconfigs(self.scan_configs)
 
     def load_pb_clicked(self):
         directory = self.ac.bc.batch_data_dir()

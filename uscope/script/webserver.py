@@ -33,6 +33,8 @@ $ curl 'http://localhost:8080/set/active_objective/1000X'; echo
 """
 
 from uscope.gui.scripting import ArgusScriptingPlugin
+from uscope.script import webserver_common
+
 from multiprocessing import Process
 from flask import Flask, request, current_app
 from http import HTTPStatus
@@ -61,6 +63,7 @@ class ServerThread(Thread):
 
 class Plugin(ArgusScriptingPlugin):
     def __init__(self, *args, **kwargs):
+        webserver_common.plugin = self
         super().__init__(*args, **kwargs)
         self.verbose = True
 
@@ -84,44 +87,4 @@ class Plugin(ArgusScriptingPlugin):
         self.server.join()
 
 
-@app.route('/get/objectives', methods=['GET'])
-def objectives():
-    plugin = current_app.plugin
-    objectives = plugin.get_objectives_config()
-    plugin.log_verbose(f"/get/objectives")
-    data = {'objectives': objectives}
-    return json.dumps({
-        'data': data,
-        'status': HTTPStatus.OK,
-    })
-
-
-@app.route('/get/active_objective', methods=['GET'])
-def active_objective():
-    plugin = current_app.plugin
-    objective = plugin.get_active_objective()
-    plugin.log_verbose(f"/get/active_objective: '{objective}'")
-    data = {'objective': objective}
-    return json.dumps({
-        'data': data,
-        'status': HTTPStatus.OK,
-    })
-
-
-@app.route('/set/active_objective/<objective>', methods=['GET', 'POST'])
-def active_objective_set(objective):
-    plugin = current_app.plugin
-    try:
-        # Validate objective name before sending request
-        plugin.log_verbose(f"/set/active_objective/{objective}")
-        if objective not in plugin.objectives.names():
-            plugin.log(f"WARNING: objective '{objective}' not found")
-            return json.dumps({'status': HTTPStatus.BAD_REQUEST})
-        plugin.set_active_objective(objective)
-        return json.dumps({'status': HTTPStatus.OK})
-    except Exception as e:
-        print(e)
-        return json.dumps({
-            'status': HTTPStatus.INTERNAL_SERVER_ERROR,
-            'error': f"{type(e)}: {e}"
-        })
+webserver_common.make_app(app)

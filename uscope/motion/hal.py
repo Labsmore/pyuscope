@@ -1285,6 +1285,14 @@ class MotionHAL:
         self.jog_estimated_end = None
         self.last_jog_time = None
 
+    def idle(self):
+        """
+        Return true of a jog or other movement has not yet completed
+        XXX: currently JogController makes sure a cancel is sent
+        But jog might actually finish before
+        """
+        return self.last_jog_time is not None
+
     def on(self):
         '''Call at start of MDI phase, before planner starts'''
         pass
@@ -1347,6 +1355,9 @@ class MotionHAL:
 
     def _apply_damper(self, damper):
         raise NotSupported("")
+
+    def system_status_ts(self, status):
+        pass
 
 
 '''

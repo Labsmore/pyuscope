@@ -9,6 +9,7 @@ from uscope.microscope import Microscope
 from uscope.kinematics import Kinematics
 from uscope.motion.hal import HomingAborted
 from uscope.motion.grbl import LimitSwitchActive, Estop
+from uscope.subsystem import Subsystem
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -130,6 +131,40 @@ class USCArgus:
     """
 
 
+# GUI specific functionality
+class ACSubsystem(Subsystem):
+    def __init__(self, ac):
+        self.ac = ac
+        super().__init__(self.ac.microscope)
+
+    def name(self):
+        return "argus"
+
+    def system_status_ts(self, status):
+        """
+        WARNING: this must be thread safe
+        Be very careful taking cached instead of widget state values
+        """
+        status[
+            "taking_snapshot"] = self.ac.mw.mainTab.imaging_widget.taking_snapshot
+        planner_running = self.ac.planner_thread is not None
+        status["planner"] = {
+            "running": planner_running,
+            # this is way too low level / detailed
+            # need to flatten into a more dumb (JSON/network) friendly format
+            # "progress": self.ac.mainTab.imaging_widget.last_planner_progress,
+        }
+        if planner_running:
+            status["planner"][
+                "progress"] = self.ac.mainTab.imaging_widget.planner_progress_cache
+        status["scripting"] = {
+            "running": self.ac.scriptingTab.is_running(),
+        }
+        status["autofocus"] = {
+            "running": self.ac.image_processing_thread.autofocus_running,
+        }
+
+
 class ArgusCommon(QObject):
     """
     was:
@@ -184,6 +219,8 @@ class ArgusCommon(QObject):
                 "Limit switch tripped. Manually move away from limit switches and then re-home",
                 QMessageBox.Ok, QMessageBox.Ok)
             raise
+        self.subsystem = ACSubsystem(self)
+        self.microscope.add_subsystem(self.subsystem)
         self.usc = self.microscope.usc
         self.usc.app_register("argus", USCArgus)
         self.aconfig = self.usc.app("argus")
@@ -379,6 +416,7 @@ class ArgusCommon(QObject):
     def cache_load(self, cachej):
         self.microscope.cache_load(cachej)
 
+    # TODO: refactor these into subsystem interface
     def cache_sn_save(self, cachej):
         self.microscope.cache_sn_save(cachej)
 
@@ -427,7 +465,8 @@ class ArgusCommon(QObject):
 
     # FIXME: better abstraction
     def is_idle(self):
-        if not self.mw.mainTab.imaging_widget.snapshot_pb.isEnabled():
+        # if not self.mw.mainTab.imaging_widget.snapshot_pb.isEnabled():
+        if self.mw.mainTab.imaging_widget.taking_snapshot:
             self.log("Wait for snapshot to complete before CNC'ing")
             return False
         return True

@@ -21,6 +21,7 @@ class ImageProcessingThreadBase(CommandThreadBase):
             "process_image": self._do_process_image,
         }
 
+        self.autofocus_running = False
         self.ip = None
         self.ip = CSImageProcessor(microscope=microscope)
         self.ip.start()
@@ -48,6 +49,7 @@ class ImageProcessingThreadBase(CommandThreadBase):
 
     def _do_auto_focus(self, j):
         try:
+            self.autofocus_running = True
             af = Autofocus(
                 self.microscope,
                 move_absolute=self.microscope.motion_thread.move_absolute,
@@ -59,6 +61,8 @@ class ImageProcessingThreadBase(CommandThreadBase):
         except MicroscopeStop:
             self.log("Autofocus cancelled")
             raise
+        finally:
+            self.autofocus_running = False
 
     def process_image(self, options, block=False, callback=None):
         # if "objective_config" not in options:

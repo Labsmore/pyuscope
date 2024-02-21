@@ -1380,9 +1380,6 @@ class MockHal(MotionHAL):
         for axis in self._axes:
             self._pos_cache[axis] = 0.0
 
-    def take_picture(self, file_name):
-        self._log('taking picture to %s' % file_name)
-
     def _move_absolute(self, pos):
         for axis, apos in pos.items():
             self._pos_cache[axis] = apos
@@ -1402,9 +1399,6 @@ class MockHal(MotionHAL):
 
     def settle(self):
         # No hardware to let settle
-        pass
-
-    def ar_stop(self):
         pass
 
     def log_info(self):
@@ -1452,9 +1446,6 @@ class DryHal(MotionHAL):
         for axis in self._axes:
             self._posd[axis] = 0.0
 
-    def take_picture(self, file_name):
-        self._log('taking picture to %s' % file_name)
-
     def _move_absolute(self, pos):
         for axis, apos in pos.items():
             self._posd[axis] = apos
@@ -1474,9 +1465,6 @@ class DryHal(MotionHAL):
 
     def settle(self):
         # No hardware to let settle
-        pass
-
-    def ar_stop(self):
         pass
 
     def _get_max_velocities(self):

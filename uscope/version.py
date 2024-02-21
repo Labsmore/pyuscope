@@ -46,7 +46,7 @@ def get_meta():
         ["git", "status", "--untracked-files=no", "--porcelain"],
         stderr=subprocess.DEVNULL).strip().strip() != 0
 
-    description = f"ret{tag}"
+    description = f"{tag}"
     if ret["dirty"] or ret["githash"] != tag_githash:
         description += "-" + ret["githash"][0:8]
         if ret["dirty"]:

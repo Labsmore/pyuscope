@@ -387,9 +387,11 @@ class Microscope:
         self.subsystems[name] = subsystem
 
         # Load configuration
-        assert self._last_cachej is not None
-        subsystemsj = self._last_cachej.get("subsystems", {})
-        subsystem.cache_load(subsystemsj.get(name, {}))
+        # FIXME: subsystem getting added before init
+        # need to make sure this gets deferred later for early adds
+        if self._last_cachej is not None:
+            subsystemsj = self._last_cachej.get("subsystems", {})
+            subsystem.cache_load(subsystemsj.get(name, {}))
 
     def cache_save(self, cachej):
         """
@@ -404,8 +406,8 @@ class Microscope:
             instancesj[name] = instrument.cache_save()
         '''
         subsystemsj = cachej.setdefault("subsystems", {})
-        for name, instrument in self.subsystemsj.items():
-            instrument.cache_save(subsystemsj.setdefault(name, {}))
+        for name, subsystem in self.subsystems.items():
+            subsystem.cache_save(cachej, subsystemsj.setdefault(name, {}))
         self._last_cachej = cachej
 
     def cache_load(self, cachej):
@@ -422,8 +424,8 @@ class Microscope:
             instrument.cache_load(instancesj.get(name, {}))
         '''
         subsystemsj = cachej.setdefault("subsystems", {})
-        for name, instrument in self.subsystemsj.items():
-            instrument.cache_load(subsystemsj.get(name, {}))
+        for name, subsystem in self.subsystems.items():
+            subsystem.cache_load(cachej, subsystemsj.get(name, {}))
 
     def cache_sn_save(self, cachej):
         """
@@ -438,8 +440,8 @@ class Microscope:
             instancesj[name] = instrument.cache_sn_save()
         '''
         subsystemsj = cachej.setdefault("subsystems", {})
-        for name, instrument in self.subsystemsj.items():
-            instrument.cache_sn_save(subsystemsj.setdefault(name, {}))
+        for name, subsystem in self.subsystems.items():
+            subsystem.cache_sn_save(cachej, subsystemsj.setdefault(name, {}))
         self._last_cachej = cachej
 
     def cache_sn_load(self, cachej):
@@ -457,8 +459,8 @@ class Microscope:
             instrument.cache_sn_load(instancesj.get(name, {}))
         '''
         subsystemsj = cachej.setdefault("subsystems", {})
-        for name, instrument in self.subsystemsj.items():
-            instrument.cache_sn_load(subsystemsj.get(name, {}))
+        for name, subsystem in self.subsystems.items():
+            subsystem.cache_sn_load(cachej, subsystemsj.get(name, {}))
 
     def system_status_ts(self):
         """
@@ -466,8 +468,8 @@ class Microscope:
         Thread safe
         """
         ret = {}
-        self.imager().system_status(ret.setdefault("imager", {}))
-        self.motion().system_status(ret.setdefault("motion", {}))
+        self.imager().system_status(ret, ret.setdefault("imager", {}))
+        self.motion().system_status(ret, ret.setdefault("motion", {}))
 
         # maybe instruments as subsystem would make more sense?
         '''
@@ -480,7 +482,7 @@ class Microscope:
         subsystems_j = ret.setdefault("subsystems")
         for subsystem in self.subsystems.values():
             subsystem.system_status_ts(
-                subsystems_j.setdefault(subsystem.name(), {}))
+                ret, subsystems_j.setdefault(subsystem.name(), {}))
 
         return ret
 

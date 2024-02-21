@@ -6,19 +6,19 @@ class Subsystem:
         assert 0, "Required"
         return ""
 
-    def cache_load(self, j):
+    def cache_load(self, jroot, j):
         pass
 
-    def cache_save(self):
-        return {}
-
-    def cache_sn_load(self, j):
+    def cache_save(self, jroot, j):
         pass
 
-    def cache_sn_save(self):
-        return {}
+    def cache_sn_load(self, jroot, j):
+        pass
 
-    def system_status_ts(self, status):
+    def cache_sn_save(self, jroot, j):
+        pass
+
+    def system_status_ts(self, root_status, status):
         """
         Get the current status in a thread safe manner
         Add a key to the output with our name

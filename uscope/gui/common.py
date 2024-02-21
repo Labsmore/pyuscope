@@ -140,29 +140,23 @@ class ACSubsystem(Subsystem):
     def name(self):
         return "argus"
 
-    def system_status_ts(self, status):
+    def system_status_ts(self, root_status, status):
         """
         WARNING: this must be thread safe
         Be very careful taking cached instead of widget state values
         """
-        status[
+        root_status[
             "taking_snapshot"] = self.ac.mw.mainTab.imaging_widget.taking_snapshot
         planner_running = self.ac.planner_thread is not None
-        status["planner"] = {
-            "running": planner_running,
-            # this is way too low level / detailed
-            # need to flatten into a more dumb (JSON/network) friendly format
-            # "progress": self.ac.mainTab.imaging_widget.last_planner_progress,
-        }
-        if planner_running:
-            status["planner"][
-                "progress"] = self.ac.mainTab.imaging_widget.planner_progress_cache
-        status["scripting"] = {
+        progress_cache = self.ac.mainTab.imaging_widget.planner_progress_cache
+        root_status["planner"] = None
+        if planner_running and progress_cache:
+            root_status["planner"] = progress_cache
+        root_status["scripting"] = {
             "running": self.ac.scriptingTab.is_running(),
         }
-        status["autofocus"] = {
-            "running": self.ac.image_processing_thread.autofocus_running,
-        }
+        root_status[
+            "autofocusing"] = self.ac.image_processing_thread.autofocus_running,
 
 
 class ArgusCommon(QObject):
@@ -219,8 +213,6 @@ class ArgusCommon(QObject):
                 "Limit switch tripped. Manually move away from limit switches and then re-home",
                 QMessageBox.Ok, QMessageBox.Ok)
             raise
-        self.subsystem = ACSubsystem(self)
-        self.microscope.add_subsystem(self.subsystem)
         self.usc = self.microscope.usc
         self.usc.app_register("argus", USCArgus)
         self.aconfig = self.usc.app("argus")
@@ -232,6 +224,7 @@ class ArgusCommon(QObject):
         self.imager = None
         self.kinematics = None
         self.motion = None
+        self.subsystem = None
         self.vidpip = GstVideoPipeline(ac=self, zoomable=True, log=self.log)
 
         # FIXME: review sizing
@@ -363,6 +356,9 @@ class ArgusCommon(QObject):
         self.microscope.set_motion_ts(self.motion_thread.get_planner_motion())
         # emits events + uses queue => already thread safe
         self.microscope.set_imager_ts(self.microscope.imager)
+
+        self.subsystem = ACSubsystem(self)
+        self.microscope.add_subsystem(self.subsystem)
 
         if not self.bc.check_panotools():
             self.log("WARNING panotools: incomplete installation")

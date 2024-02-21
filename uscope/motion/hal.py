@@ -1356,7 +1356,7 @@ class MotionHAL:
     def _apply_damper(self, damper):
         raise NotSupported("")
 
-    def system_status_ts(self, status):
+    def system_status_ts(self, root_status, status):
         pass
 
 

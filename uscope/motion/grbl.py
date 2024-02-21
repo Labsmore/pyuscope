@@ -1669,9 +1669,9 @@ class GrblHal(MotionHAL):
         flags = int(is_homed)
         self.grbl.gs.txrxs("T%u" % flags)
 
-    def system_status_ts(self, status):
+    def system_status_ts(self, root_status, status):
         # status["last_qstatus"] = dict(self.last_qstatus)
-        status["idle"] = self.last_qstatus["status"] == "Idle"
+        status["active"] = self.last_qstatus["status"] != "Idle"
 
 
 class NoGRBLMeta(Exception):

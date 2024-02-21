@@ -365,13 +365,15 @@ class ArgusScriptingPlugin(QThread):
         Sample entry:
         {
             "imager": {
-                "idle": true,
+                "active": true,
             },
             "motion": {
-                "idle": true,
+                "active": false,
             },
+            "taking_snapshot": false,
+            "autofocusing": false,
+            # none if not running
             "planner": {
-                "running": true,
                 # In seconds
                 "remaining_time": 123.45,
                 "images_captured": 1,
@@ -392,10 +394,11 @@ class ArgusScriptingPlugin(QThread):
         """
         self.check_running()
         status = self.system_status()
-        planner_idle = not status["argus"]["planner"].get("running", False)
-        autofocus_idle = not status["argus"]["autofocus"].get("running", False)
-        return status["imager"].get("idle", True) and status["motion"].get(
-            "idle", True) and planner_idle and autofocus_idle
+        imager_idle = not status["imager"].get("active", False)
+        motion_idle = not status["motion"].get("active", False)
+        planner_idle = status["argus"]["planner"] is None
+        autofocus_idle = not status["argus"]["autofocusing"]
+        return imager_idle and motion_idle and planner_idle and autofocus_idle
 
     def pyuscope_version(self):
         """
@@ -419,6 +422,10 @@ class ArgusScriptingPlugin(QThread):
     """
     Advanced API
     Try to use the higher level functions first if possible
+    These functions:
+    -Will change more frequently
+    -Be more model dependent
+    -Require more advanced software concepts
     """
 
     def run_plugin(self, plugin, input_=None, button_value=None):
@@ -522,24 +529,28 @@ class ArgusScriptingPlugin(QThread):
         Return all current values
         This can be used to enumerate what can be set
         """
+        assert 0, "FIXME: https://github.com/Labsmore/pyuscope/issues/441"
         self.imager().get_properties()
 
     def imager_get_disp_property(self, name):
         """
         Get an imager configuration as displayed in the GUI
         """
+        assert 0, "FIXME: https://github.com/Labsmore/pyuscope/issues/441"
         self.imager().get_property(name)
 
     def imager_set_disp_property(self, name, value):
         """
         Set an imager configuration as displayed in the GUI
         """
+        assert 0, "FIXME: https://github.com/Labsmore/pyuscope/issues/441"
         self.imager().set_property(name, value)
 
     def imager_set_disp_properties(self, properties):
         """
         Set an imager configuration as displayed in the GUI
         """
+        assert 0, "FIXME: https://github.com/Labsmore/pyuscope/issues/441"
         self.imager().set_properties(properties)
 
     """

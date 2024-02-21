@@ -110,7 +110,7 @@ class Imager:
     def get_property(self, name, default=None):
         return self.get_properties().get(name, default)
 
-    def system_status_ts(self, status):
+    def system_status_ts(self, root_status, status):
         pass
 
 

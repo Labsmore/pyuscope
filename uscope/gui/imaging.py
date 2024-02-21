@@ -6,7 +6,7 @@ from uscope.motion import motion_util
 from uscope.benchmark import Benchmark
 from uscope.app.argus.threads import QPlannerThread
 from uscope.microscope import StopEvent, MicroscopeStop
-from uscope import version
+from uscope import version as uscope_version
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -1867,7 +1867,7 @@ class MainTab(ArgusTab):
             aname="imaging",
             parent=self)
 
-        version = version.get_meta()["description"]
+        version = uscope_version.get_meta()["description"]
         self.log(f"pyuscope {version} starting")
         self.log("https://github.com/Labsmore/pyuscope/")
         self.log("For enquiries contact support@labsmore.com")

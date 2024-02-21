@@ -4,6 +4,11 @@ import re
 meta_cache = None
 
 
+def check_output(*args, **kwargs):
+    bs = subprocess.check_output(*args, **kwargs)
+    return bs.decode("ascii")
+
+
 def get_meta():
     """
     {
@@ -23,13 +28,13 @@ def get_meta():
         return meta_cache
 
     ret = {}
-    ret["githash"] = subprocess.check_call(["git", "rev-parse", "HEAD"],
-                                           stderr=subprocess.DEVNULL).strip()
-    tag = subprocess.check_call(["git", "describe", "--tags", "--abbrev=0"],
-                                stderr=subprocess.DEVNULL).strip()
+    ret["githash"] = check_output(["git", "rev-parse", "HEAD"],
+                                  stderr=subprocess.DEVNULL).strip()
+    tag = check_output(["git", "describe", "--tags", "--abbrev=0"],
+                       stderr=subprocess.DEVNULL).strip()
     ret["tag"] = tag
-    tag_githash = subprocess.check_call(["git", "rev-parse", tag],
-                                        stderr=subprocess.DEVNULL).strip()
+    tag_githash = check_output(["git", "rev-parse", tag],
+                               stderr=subprocess.DEVNULL).strip()
     major, minor, patch = tag[1:].split(".")
     ret["ver"] = {
         "major": int(major),
@@ -37,7 +42,7 @@ def get_meta():
         "patch": int(patch),
     }
     # ignore if extra config files
-    ret["dirty"] = subprocess.check_call(
+    ret["dirty"] = check_output(
         ["git", "status", "--untracked-files=no", "--porcelain"],
         stderr=subprocess.DEVNULL).strip().strip() != 0
 

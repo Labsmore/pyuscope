@@ -394,6 +394,7 @@ class ArgusScriptingPlugin(QThread):
         """
         self.check_running()
         status = self.system_status()
+        # Assume idle if not implemented
         imager_idle = not status["imager"].get("active", False)
         motion_idle = not status["motion"].get("active", False)
         planner_idle = status["argus"]["planner"] is None
@@ -482,6 +483,22 @@ class ArgusScriptingPlugin(QThread):
         if cbsync is not None:
             # should be a single JSON object in the callback
             return cbsync.check_return_kw1()
+
+    def subsystem_functions(self):
+        """
+        Return a list of the supported subsystems and associated functions
+        """
+        assert 0, "FIXME"
+
+    def subsystem_function(self, subsystem, function, kwargs):
+        """
+        Send a command to a subsystem / instrument
+        For example
+            subsystem: "quad_relay_illuminator"
+            function: "on"
+            kwargs: {"corner": "top", "brightness": 0.5}
+        """
+        assert 0, "FIXME"
 
     def motion(self):
         """
@@ -580,6 +597,7 @@ class ArgusScriptingPlugin(QThread):
 class ScriptingTab(ArgusTab):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.instrument_script = None
         self.stitcher_thread = None
         self.last_cs_upload = None
         self.filename = None
@@ -596,6 +614,9 @@ class ScriptingTab(ArgusTab):
         self.running = False
         self.active_objective = None
         self.ac.objectiveChanged.connect(self.active_objective_updated)
+
+    def set_instrument_script(self, path):
+        self.instrument_script = path
 
     def _initUI(self):
         layout = QGridLayout()
@@ -797,6 +818,7 @@ class ScriptingTab(ArgusTab):
         self.plugin._input = input_val
         for pb in self.select_pbs.values():
             pb.setEnabled(False)
+        self.run_pb.setEnabled(False)
         self.reload_pb.setEnabled(False)
         self.stop_pb.setEnabled(True)
         self.kill_pb.setEnabled(True)
@@ -898,6 +920,7 @@ class ScriptingTab(ArgusTab):
         self.reload_pb.setEnabled(True)
         self.save_config_pb.setEnabled(True)
         self.save_config_pb.setEnabled(True)
+        self.run_pb.setEnabled(True)
         if self.plugin.succeeded():
             self.log_local("Plugin completed ok")
         else:
@@ -908,7 +931,10 @@ class ScriptingTab(ArgusTab):
         self.running = False
 
     def _post_ui_init(self):
-        pass
+        # Automatically start instruments at load time
+        if self.instrument_script:
+            self.select_script(self.instrument_script)
+            self.run_pb_clicked()
 
     def _shutdown_request(self):
         if self.plugin:
@@ -941,17 +967,19 @@ class ScriptingTab(ArgusTab):
         self.active_objective = data
 
     def _cache_save(self, cachej):
-        j = {}
-        j["filename"] = str(self.fn_le.text())
-        j["config"] = self.input.getValues()
-        cachej["scripting"] = j
+        if self.instrument_script is None:
+            j = {}
+            j["filename"] = str(self.fn_le.text())
+            j["config"] = self.input.getValues()
+            cachej["scripting"] = j
 
     def _cache_load(self, cachej):
-        j = cachej.get("scripting", {})
-        self.set_filename(j.get("filename", ""))
-        config = j.get("config", None)
-        if config is not None:
-            self.set_config(config)
+        if self.instrument_script is None:
+            j = cachej.get("scripting", {})
+            self.set_filename(j.get("filename", ""))
+            config = j.get("config", None)
+            if config is not None:
+                self.set_config(config)
 
     def is_running(self):
         return self.running

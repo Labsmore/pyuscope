@@ -1422,8 +1422,7 @@ class ImagingTaskWidget(AWidget):
                 "remaining_time"] = self.bench.remaining_time(
                     cur_time=cur_time)
             bench_str = self.bench.__str__(cur_time=cur_time)
-            self.planner_progress_cache["eta_message"] = state[
-                "images_captured"]
+            self.planner_progress_cache["eta_message"] = bench_str
             self.ac.log('%s' % (bench_str))
             self.progress_bar.setValue(state["images_captured"])
         else:

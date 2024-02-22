@@ -231,6 +231,13 @@ class MainWindow(AMainWindow):
         self.measureTab = self.add_tab(MeasureTab, "Measure")
         self.batchTab = self.add_tab(BatchImageTab, "Batch")
         self.scriptingTab = self.add_tab(ScriptingTab, "Scripting")
+        self.instrumentTabs = {}
+        for name, configj in self.ac.bc.instruments().items():
+            tab_name = configj.get("tab_name", f"Instrument: {name}")
+            tab = self.add_tab(ScriptingTab, tab_name)
+            tab.set_instrument_script(configj["plugin_path"])
+            tab.setVisible(configj.get("visible", True))
+            self.instrumentTabs[name] = tab
         self.advancedTab = self.add_tab(AdvancedTab, "Advanced")
         self.stitchingTab = self.add_tab(StitchingTab, "CloudStitch")
 

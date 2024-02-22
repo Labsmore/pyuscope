@@ -156,7 +156,7 @@ class ACSubsystem(Subsystem):
             "running": self.ac.scriptingTab.is_running(),
         }
         root_status[
-            "autofocusing"] = self.ac.image_processing_thread.autofocus_running,
+            "autofocusing"] = self.ac.image_processing_thread.autofocus_running
 
 
 class ArgusCommon(QObject):

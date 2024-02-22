@@ -407,7 +407,13 @@ class Microscope:
         '''
         subsystemsj = cachej.setdefault("subsystems", {})
         for name, subsystem in self.subsystems.items():
-            subsystem.cache_save(cachej, subsystemsj.setdefault(name, {}))
+            subj = subsystemsj.get(name, {})
+            subsystem.cache_save(cachej, subj)
+            if len(subj) == 0:
+                if name in subsystemsj:
+                    del subsystemsj[name]
+            else:
+                self.subsystems[name] = subj
         self._last_cachej = cachej
 
     def cache_load(self, cachej):
@@ -441,7 +447,15 @@ class Microscope:
         '''
         subsystemsj = cachej.setdefault("subsystems", {})
         for name, subsystem in self.subsystems.items():
-            subsystem.cache_sn_save(cachej, subsystemsj.setdefault(name, {}))
+            # Only add to JSON if actually used
+            # Keeps structure lean but API easy to use
+            subj = subsystemsj.get(name, {})
+            subsystem.cache_sn_save(cachej, subj)
+            if len(subj) == 0:
+                if name in subsystemsj:
+                    del subsystemsj[name]
+            else:
+                self.subsystems[name] = subj
         self._last_cachej = cachej
 
     def cache_sn_load(self, cachej):
@@ -468,8 +482,8 @@ class Microscope:
         Thread safe
         """
         ret = {}
-        self.imager().system_status(ret, ret.setdefault("imager", {}))
-        self.motion().system_status(ret, ret.setdefault("motion", {}))
+        self.imager.system_status_ts(ret, ret.setdefault("imager", {}))
+        self.motion.system_status_ts(ret, ret.setdefault("motion", {}))
 
         # maybe instruments as subsystem would make more sense?
         '''
@@ -479,11 +493,15 @@ class Microscope:
         '''
 
         # Notably argus subsystem
-        subsystems_j = ret.setdefault("subsystems")
-        for subsystem in self.subsystems.values():
-            subsystem.system_status_ts(
-                ret, subsystems_j.setdefault(subsystem.name(), {}))
-
+        subsystemsj = ret.setdefault("subsystems", {})
+        for name, subsystem in self.subsystems.items():
+            subj = subsystemsj.get(name, {})
+            subsystem.system_status_ts(ret, subj)
+            if len(subj) == 0:
+                if name in subsystemsj:
+                    del subsystemsj[name]
+            else:
+                self.subsystems[name] = subj
         return ret
 
 

@@ -119,6 +119,9 @@ class MockImager(Imager):
         Imager.__init__(self, verbose=verbose)
         self.width = width
         self.height = height
+        self.loopback_int = 123
+        self.loopback_float = 456.7
+        self.loopback_str = "hello, world!"
 
     def wh(self):
         return self.width, self.height
@@ -126,6 +129,24 @@ class MockImager(Imager):
     def get(self):
         # Small test image
         return {"0": Image.new("RGB", (self.width, self.height), 'white')}
+
+    def _set_properties(self, vals):
+        for k, v in vals.items():
+            if k == "loopback_int":
+                self.loopback_int = int(v)
+            elif k == "loopback_float":
+                self.loopback_float = float(v)
+            elif k == "loopback_str":
+                self.loopback_str = str(v)
+            else:
+                raise ValueError(f"bad property {k}")
+
+    def _get_properties(self):
+        return {
+            "loopback_int": self.loopback_int,
+            "loopback_float": self.loopback_float,
+            "loopback_str": self.loopback_str,
+        }
 
 
 """

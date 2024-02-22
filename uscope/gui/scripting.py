@@ -565,28 +565,25 @@ class ArgusScriptingPlugin(QThread):
         Return all current values
         This can be used to enumerate what can be set
         """
-        assert 0, "FIXME: https://github.com/Labsmore/pyuscope/issues/441"
-        self.imager().get_properties()
+        # assert 0, "FIXME: https://github.com/Labsmore/pyuscope/issues/441"
+        return self.imager().get_properties()
 
     def imager_get_disp_property(self, name):
         """
         Get an imager configuration as displayed in the GUI
         """
-        assert 0, "FIXME: https://github.com/Labsmore/pyuscope/issues/441"
-        self.imager().get_property(name)
+        return self.imager().get_property(name)
 
     def imager_set_disp_property(self, name, value):
         """
         Set an imager configuration as displayed in the GUI
         """
-        assert 0, "FIXME: https://github.com/Labsmore/pyuscope/issues/441"
         self.imager().set_property(name, value)
 
     def imager_set_disp_properties(self, properties):
         """
         Set an imager configuration as displayed in the GUI
         """
-        assert 0, "FIXME: https://github.com/Labsmore/pyuscope/issues/441"
         self.imager().set_properties(properties)
 
     """

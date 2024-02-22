@@ -200,6 +200,8 @@ High level notes:
 
 
 class ImagerControlScroll(QScrollArea):
+    setDispProperties = pyqtSignal(dict)
+
     def __init__(self, groups, ac, verbose=False, parent=None):
         QScrollArea.__init__(self, parent=parent)
         self.ac = ac
@@ -227,6 +229,7 @@ class ImagerControlScroll(QScrollArea):
         # (or maybe save on exit)
         self.raw_cache = {}
         self.disp_cache = {}
+        self.setDispProperties.connect(self.set_disp_properties)
 
     def post_imager_ready(self):
         """
@@ -382,6 +385,14 @@ class ImagerControlScroll(QScrollArea):
             # If GUI driven it will trigger the prop write
             # Otherwise update for quicker response and in case read back fails
             element.disp_property_set_widgets(val)
+
+    def get_disp_properties_ts(self):
+        # should force an update?
+        return dict(self.disp_cache)
+
+    def set_disp_properties_ts(self, vals):
+        # return dict(self.disp_cache)
+        self.setDispProperties.emit(vals)
 
     """
     def raw_prop_default(self, name):

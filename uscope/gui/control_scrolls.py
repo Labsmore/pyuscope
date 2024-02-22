@@ -1,5 +1,6 @@
 from uscope.gui.control_scroll import MockControlScroll, GstControlScroll
 from uscope.imager.plugins.gst_toupcamsrc.widgets import TTControlScroll
+from uscope.imager.plugins.gst_testsrc.widgets import TestSrcScroll
 from uscope.imager.plugins.gst_v4l2src.widgets import V4L2GstControlScrollTest
 from uscope.imager.plugins.gst_v4l2src_mu800.widgets import V4L2MU800ControlScroll
 from uscope.imager.plugins.gst_v4l2src_yw500.widgets import V4L2YW500ControlScroll
@@ -28,7 +29,7 @@ class DummyGstControlScroll(GstControlScroll):
 def get_control_scroll(vidpip, ac):
     # Need to hide this when not needed
     if vidpip.source_name == "gst-videotestsrc":
-        return MockControlScroll(vidpip, ac=ac)
+        return TestSrcScroll(vidpip, ac=ac)
     elif vidpip.source_name == "gst-toupcamsrc":
         return TTControlScroll(vidpip, ac=ac)
     elif vidpip.source_name == "gst-v4l2src":

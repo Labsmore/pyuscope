@@ -33,32 +33,37 @@ def make_app(app):
 
         return wrap()
 
-    @app.route('/set/position', methods=['GET', 'POST'])
-    def position_set():
+    @app.route('/run/move_absolute', methods=['GET', 'POST'])
+    def move_absolute():
         @except_wrap
         def wrap():
-            # Validate values - default bool value is to handle
-            # excluding null values for absolute movement
-            x = request.args.get("x", default=False, type=float)
-            y = request.args.get("y", default=False, type=float)
-            z = request.args.get("z", default=False, type=float)
+            block = bool(request.args.get("block", default=True, type=int))
             data = {}
-            if x is not False:
-                data["x"] = x
-            if y is not False:
-                data["y"] = y
-            if z is not False:
-                data["z"] = z
-            move_relative = request.args.get("relative", default=0, type=int)
-            # Do not need to move if all axes are zero
-            if move_relative == 1 and (data.get("x") or data.get("y")
-                                       or data.get("z")):
-                plugin.move_relative(data)
-            else:
-                plugin.move_absolute(data)
+            for axis in "xyz":
+                this_pos = request.args.get("axis." + axis,
+                                            default=None,
+                                            type=float)
+                if this_pos is not None:
+                    data[axis] = this_pos
+            plugin.move_absolute(data, block=block)
+            return {'status': HTTPStatus.OK}
+
+        return wrap()
+
+    @app.route('/run/move_relative', methods=['GET', 'POST'])
+    def move_relative():
+        @except_wrap
+        def wrap():
+            block = bool(request.args.get("block", default=True, type=int))
             data = {}
-            data.update(plugin.pos())
-            return {'status': HTTPStatus.OK, 'data': plugin.pos()}
+            for axis in "xyz":
+                this_pos = request.args.get("axis." + axis,
+                                            default=None,
+                                            type=float)
+                if this_pos is not None:
+                    data[axis] = this_pos
+            plugin.move_relative(data, block=block)
+            return {'status': HTTPStatus.OK}
 
         return wrap()
 

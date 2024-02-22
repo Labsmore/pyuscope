@@ -35,16 +35,13 @@ is not strictly speaking related to the GUI. Hmm
 
 
 class GstGUIImager(Imager):
-    class Emitter(QObject):
-        change_properties = pyqtSignal(dict)
-
     def __init__(self, ac, usc):
         Imager.__init__(self)
         self.ac = ac
         self.usc = usc
         self.image_ready = threading.Event()
         self.image_id = None
-        self.emitter = GstGUIImager.Emitter()
+        # self.emitter = GstGUIImager.Emitter()
         self.width, self.height = self.usc.imager.final_wh()
         self.factor = self.usc.imager.scalar()
         self.videoflip_method = self.usc.imager.videoflip_method()
@@ -171,16 +168,41 @@ class GstGUIImager(Imager):
         return self.ac.control_scroll.get_disp_properties()
 
 
+# Thread safe Imager
+# Ex: called from scripting context
+class GstGUIImagerTS(Imager):
+    def __init__(self, imager, verbose=False):
+        Imager.__init__(self, verbose=verbose)
+        self.imager = imager
+
+    def get(self, *args, **kwargs):
+        return self.imager.get(*args, **kwargs)
+
+    def get_processed(self, *args, **kwargs):
+        return self.imager.get_processed(*args, **kwargs)
+
+    def _set_properties(self, vals):
+        # self.ac.control_scroll.set_disp_properties(vals)
+        # self.imager.change_properties.emit(vals)
+        self.imager.ac.control_scroll.set_disp_properties_ts(vals)
+
+    def _get_properties(self):
+        # return self.ac.control_scroll.get_disp_properties()
+        # assert 0, "FIXME"
+        return self.imager.ac.control_scroll.get_disp_properties_ts()
+
+
+class MockGUIImager(MockImager):
+    pass
+
+
 def get_gui_imager(source, gui):
     # WARNING: only gst- sources are supported
     # This indirection may be eliminated
     if source == 'mock':
-        return MockImager()
+        ret = MockGUIImager()
     elif source.find("gst-") == 0:
         ret = GstGUIImager(gui, usc=gui.usc)
-        # For HDR which needs in situ control
-        ret.emitter.change_properties.connect(
-            gui.control_scroll.set_disp_properties)
-        return ret
     else:
         raise Exception('Invalid imager type %s' % source)
+    return ret

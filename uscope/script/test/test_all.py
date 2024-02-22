@@ -50,6 +50,13 @@ class Plugin(ArgusScriptingPlugin):
                     "move_absolute_current": "move_absolute_current",
                 },
             },
+            "imager": {
+                "widget": "QPushButtons",
+                "buttons": {
+                    "imager_get_disp_properties": "imager_get_disp_properties",
+                    "imager_set_disp_properties": "imager_set_disp_properties",
+                },
+            },
             "subsystems": {
                 "widget": "QPushButtons",
                 "buttons": {
@@ -134,6 +141,12 @@ class Plugin(ArgusScriptingPlugin):
         elif test == "move_absolute_current":
             position = self.position()
             self.move_absolute(position)
+        elif test == "imager_get_disp_properties":
+            self.log("properties: " + str(self.imager_get_disp_properties()))
+        elif test == "imager_set_disp_properties":
+            for k, v in self.imager_get_disp_properties().items():
+                self.log(f"setting {k} => {v}")
+                self.imager_set_disp_property(k, v)
         elif test == "subsystem_functions":
             self.log("subsystem_functions: " +
                      json.dumps(self.subsystem_functions(), cls=SetEncoder))

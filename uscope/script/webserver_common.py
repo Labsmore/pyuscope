@@ -33,8 +33,10 @@ def make_app(app):
                 'status': HTTPStatus.OK,
             })
 
+        return wrap()
+
     @app.route('/set/position', methods=['GET', 'POST'])
-    def pos_set():
+    def position_set():
         @except_wrap
         def wrap():
             # Validate values - default bool value is to handle

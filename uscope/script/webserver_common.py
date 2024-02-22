@@ -74,7 +74,7 @@ def make_app(app):
 
     @app.route('/get/pyuscope_version', methods=['GET'])
     def pyuscope_version():
-        pyuscope_version = plugin.is_idle()
+        pyuscope_version = plugin.pyuscope_version()
         plugin.log_verbose(f"/get/pyuscope_version")
         return json.dumps({
             'data': {
@@ -154,6 +154,20 @@ def make_app(app):
             # Validate objective name before sending request
             plugin.log_verbose(f"/set/imager/disp_property/<name>/<value>")
             plugin.imager_set_disp_properties(properties)
+            return json.dumps({'status': HTTPStatus.OK})
+        except Exception as e:
+            print(e)
+            return json.dumps({
+                'status': HTTPStatus.INTERNAL_SERVER_ERROR,
+                'error': f"{type(e)}: {e}"
+            })
+
+    @app.route('/run/autofocus', methods=['GET', 'POST'])
+    def autofocus():
+        try:
+            block = bool(request.args.get("block", default=True, type=int))
+            plugin.log_verbose(f"/run/autofocus block={block}")
+            plugin.autofocus(block=block)
             return json.dumps({'status': HTTPStatus.OK})
         except Exception as e:
             print(e)

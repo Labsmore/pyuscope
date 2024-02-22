@@ -292,14 +292,14 @@ class ArgusScriptingPlugin(QThread):
         """
         return self._ac.microscope.image_save_extension()
 
-    def autofocus(self):
+    def autofocus(self, block=True):
         """
         Autofocus at the current location
         Suggest to call is_idle() if you aren't sure a previous operation is done
         """
         self.check_running()
         self._ac.image_processing_thread.auto_focus(
-            objective_config=self._ac.objective_config(), block=True)
+            objective_config=self._ac.objective_config(), block=block)
 
     def message_box_yes_cancel(self, title, message):
         # quick hack: run as subprocess?
@@ -399,8 +399,8 @@ class ArgusScriptingPlugin(QThread):
         # Assume idle if not implemented
         imager_idle = not status["imager"].get("active", False)
         motion_idle = not status["motion"].get("active", False)
-        planner_idle = status["argus"]["planner"] is None
-        autofocus_idle = not status["argus"]["autofocusing"]
+        planner_idle = status["planner"] is None
+        autofocus_idle = not status["autofocusing"]
         return imager_idle and motion_idle and planner_idle and autofocus_idle
 
     def pyuscope_version(self):

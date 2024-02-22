@@ -122,7 +122,7 @@ class Plugin(ArgusScriptingPlugin):
             self.log("pyuscope_version: " +
                      json.dumps(self.pyuscope_version()))
         elif test == "is_idle":
-            self.log("is idle: " + self.is_idle())
+            self.log("is idle: " + str(self.is_idle()))
         elif test == "autofocus":
             assert self.is_idle()
             self.autofocus()

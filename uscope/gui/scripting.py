@@ -5,6 +5,7 @@ from uscope.microscope import StopEvent, MicroscopeStop
 from uscope.util import readj, writej, time_str_1dec
 from uscope.threads import CBSync
 from uscope import version
+from uscope.subsystem import Subsystem
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -18,6 +19,7 @@ import threading
 import time
 import traceback
 import json
+import queue
 
 
 class TestFailed(Exception):
@@ -488,9 +490,9 @@ class ArgusScriptingPlugin(QThread):
         """
         Return a list of the supported subsystems and associated functions
         """
-        assert 0, "FIXME"
+        return self._ac.microscope.subsystem_functions()
 
-    def subsystem_function(self, subsystem, function, kwargs):
+    def subsystem_function(self, subsystem_, function_, **kwargs):
         """
         Send a command to a subsystem / instrument
         For example
@@ -498,7 +500,8 @@ class ArgusScriptingPlugin(QThread):
             function: "on"
             kwargs: {"corner": "top", "brightness": 0.5}
         """
-        assert 0, "FIXME"
+        self._ac.microscope.subsystem_function_ts(subsystem_, function_,
+                                                  kwargs)
 
     def motion(self):
         """
@@ -594,10 +597,65 @@ class ArgusScriptingPlugin(QThread):
         return True
 
 
+"""
+Support instrument functions by passing function calls via a queue
+The plugin should be polling the queue
+"""
+
+
+class InstrumentScriptSS(Subsystem):
+    def __init__(self, ac, plugin, name):
+        super().__init__(ac.microscope)
+        self._name = name
+        self.ac = ac
+        self.plugin = plugin
+        self.queue_in = queue.Queue()
+        for name in self.functions():
+            # Sanity check it exists before passing IPC
+            assert getattr(self.plugin, name) is not None
+
+    def function_ts(self, name, kwargs):
+        # Make sure its an intended function
+        assert name in self.functions(), f"Invalid function {name}"
+        self.queue_in.put((name, kwargs))
+
+    def functions(self):
+        return self.plugin.functions()
+
+    def name(self):
+        return self._name
+
+    def poll_functions(self):
+        while True:
+            try:
+                name, kwargs = self.queue_in.get(timeout=None)
+            except queue.Empty:
+                return
+            # Lookup by name and add arguments
+            getattr(self.plugin, name)(**kwargs)
+
+
+class InstrumentScriptPlugin(ArgusScriptingPlugin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.subsystem = None
+
+    def functions(self):
+        return {}
+
+    def set_subsystem(self, subsystem):
+        self.subsystem = subsystem
+
+    def run_test(self):
+        assert self.subsystem
+        while True:
+            self.subsystem.poll_functions()
+
+
 class ScriptingTab(ArgusTab):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.instrument_script = None
+        self.instrument_config = None
         self.stitcher_thread = None
         self.last_cs_upload = None
         self.filename = None
@@ -615,8 +673,8 @@ class ScriptingTab(ArgusTab):
         self.active_objective = None
         self.ac.objectiveChanged.connect(self.active_objective_updated)
 
-    def set_instrument_script(self, path):
-        self.instrument_script = path
+    def set_instrument_config(self, config):
+        self.instrument_config = config
 
     def _initUI(self):
         layout = QGridLayout()
@@ -932,9 +990,14 @@ class ScriptingTab(ArgusTab):
 
     def _post_ui_init(self):
         # Automatically start instruments at load time
-        if self.instrument_script:
-            self.select_script(self.instrument_script)
-            self.run_pb_clicked()
+        if self.instrument_config:
+            self.select_script(self.instrument_config["plugin_path"])
+            subsystem = InstrumentScriptSS(ac=self.ac,
+                                           plugin=self.plugin,
+                                           name=self.instrument_config["name"])
+            self.ac.microscope.add_subsystem(subsystem)
+            self.plugin.set_subsystem(subsystem)
+            self.run_pb_clicked(input_val={"init": True})
 
     def _shutdown_request(self):
         if self.plugin:
@@ -967,14 +1030,14 @@ class ScriptingTab(ArgusTab):
         self.active_objective = data
 
     def _cache_save(self, cachej):
-        if self.instrument_script is None:
+        if self.instrument_config is None:
             j = {}
             j["filename"] = str(self.fn_le.text())
             j["config"] = self.input.getValues()
             cachej["scripting"] = j
 
     def _cache_load(self, cachej):
-        if self.instrument_script is None:
+        if self.instrument_config is None:
             j = cachej.get("scripting", {})
             self.set_filename(j.get("filename", ""))
             config = j.get("config", None)

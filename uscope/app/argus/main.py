@@ -233,9 +233,10 @@ class MainWindow(AMainWindow):
         self.scriptingTab = self.add_tab(ScriptingTab, "Scripting")
         self.instrumentTabs = {}
         for name, configj in self.ac.bc.instruments().items():
+            configj.setdefault("name", name)
             tab_name = configj.get("tab_name", f"Instrument: {name}")
             tab = self.add_tab(ScriptingTab, tab_name)
-            tab.set_instrument_script(configj["plugin_path"])
+            tab.set_instrument_config(configj)
             tab.setVisible(configj.get("visible", True))
             self.instrumentTabs[name] = tab
         self.advancedTab = self.add_tab(AdvancedTab, "Advanced")

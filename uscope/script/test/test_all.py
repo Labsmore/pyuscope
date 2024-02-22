@@ -11,6 +11,14 @@ from uscope.gui.scripting import ArgusScriptingPlugin
 import json
 
 
+# https://stackoverflow.com/questions/8230315/how-to-json-serialize-sets
+class SetEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, set):
+            return list(obj)
+        return json.JSONEncoder.default(self, obj)
+
+
 class Plugin(ArgusScriptingPlugin):
     def input_config(self):
         return {
@@ -40,6 +48,13 @@ class Plugin(ArgusScriptingPlugin):
                 "buttons": {
                     "autofocus": "autofocus",
                     "move_absolute_current": "move_absolute_current",
+                },
+            },
+            "subsystems": {
+                "widget": "QPushButtons",
+                "buttons": {
+                    "subsystem_functions": "subsystem_functions",
+                    "subsystem_function": "subsystem_function",
                 },
             },
         }
@@ -115,5 +130,24 @@ class Plugin(ArgusScriptingPlugin):
         elif test == "move_absolute_current":
             position = self.position()
             self.move_absolute(position)
+        elif test == "subsystem_functions":
+            self.log("subsystem_functions: " +
+                     json.dumps(self.subsystem_functions(), cls=SetEncoder))
+        elif test == "subsystem_function":
+            """
+            "instruments": {
+                "itest_simple": {
+                    "tab_name": "ITest: simple",
+                    "visible": true,
+                    "plugin_path": "/home/mcmaster/doc/ext/pyuscope/uscope/script/test/instrument_simple.py",
+                },
+                "itest_function": {
+                    "tab_name": "ITest: function",
+                    "visible": true,
+                    "plugin_path": "/home/mcmaster/doc/ext/pyuscope/uscope/script/test/instrument_function.py",
+                },
+            },
+            """
+            self.subsystem_function("itest_function", "shout", n=3)
 
         self.log("Done")

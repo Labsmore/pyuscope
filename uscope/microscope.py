@@ -393,6 +393,15 @@ class Microscope:
             subsystemsj = self._last_cachej.get("subsystems", {})
             subsystem.cache_load(subsystemsj.get(name, {}))
 
+    def subsystem_functions(self):
+        ret = {}
+        for name, subsystem in self.subsystems.items():
+            ret[name] = subsystem.functions()
+        return ret
+
+    def subsystem_function_ts(self, subsystem, function, kwargs):
+        self.subsystems[subsystem].function_ts(function, kwargs)
+
     def cache_save(self, cachej):
         """
         Argus hook to save configuration cache

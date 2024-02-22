@@ -1,4 +1,8 @@
+#!/usr/bin/env python3
 import requests
+import base64
+from PIL import Image
+import io
 
 
 class PyuscopeHTTPClient:
@@ -39,6 +43,14 @@ class PyuscopeHTTPClient:
             qargs["axis." + k] = v
         self.request("/run/move_relative", pos, qargs)
 
+    def image(self, wait_imaging_ok=True, raw=False):
+        response = self.request("/get/image", {
+            "wait_imaging_ok": int(wait_imaging_ok),
+            "raw": int(raw)
+        })
+        buf = base64.b64decode(response["data"]["base64"])
+        return Image.open(io.BytesIO(buf))
+
 
 def main():
     import argparse
@@ -60,6 +72,8 @@ def main():
     client.move_absolute(pos)
     pos = client.get_position()
     print(f"Middle position: {pos}")
+    im = client.image()
+    print(f"Got image w/ size {im.size}, mode: {im.mode}")
     print("Moving left")
     pos["x"] -= delta
     client.move_absolute(pos)

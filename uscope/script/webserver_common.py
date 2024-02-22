@@ -1,6 +1,8 @@
 from flask import current_app, request
 from http import HTTPStatus
 import json
+import base64
+from io import BytesIO
 
 plugin = None
 
@@ -210,5 +212,38 @@ def make_app(app):
                                                  function_=function,
                                                  **kwargs)
             return {'status': HTTPStatus.OK}
+
+        return wrap()
+
+    @app.route('/run/wait_imaging_ok', methods=['GET'])
+    def wait_imaging_ok():
+        @except_wrap
+        def wrap():
+            plugin.wait_imaging_ok()
+            return {
+                'status': HTTPStatus.OK,
+            }
+
+        return wrap()
+
+    @app.route('/get/image', methods=['GET'])
+    def get_image():
+        @except_wrap
+        def wrap():
+            wait_imaging_ok = bool(
+                request.args.get("wait_imaging_ok", default=True, type=int))
+            raw = bool(request.args.get("raw", default=False, type=int))
+            format_ = request.args.get("format", default="JPEG", type=str)
+            pil_image = plugin.image(wait_imaging_ok=wait_imaging_ok, raw=raw)
+            buffered = BytesIO()
+            pil_image.save(buffered, format=format_)
+            img_str = base64.b64encode(buffered.getvalue()).decode('ascii')
+            return {
+                'status': HTTPStatus.OK,
+                'data': {
+                    "format": format_,
+                    "base64": img_str,
+                }
+            }
 
         return wrap()

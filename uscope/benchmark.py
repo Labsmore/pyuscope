@@ -50,11 +50,27 @@ class Benchmark:
         else:
             return time.time() - self.start_time
 
-    def __str__(self):
+    def remaining_time(self, cur_time=None):
+        if self.end_time:
+            return 0.0
+        elif self.max_items:
+            if cur_time is None:
+                cur_time = time.time()
+            delta_t = cur_time - self.start_time
+            if delta_t < 0.000001:
+                return None
+            rate = self.cur_items / (delta_t)
+            if rate == 0:
+                return None
+            else:
+                return (self.max_items - self.cur_items) / rate
+
+    def __str__(self, cur_time=None):
         if self.end_time:
             return time_str(self.end_time - self.start_time)
         elif self.max_items:
-            cur_time = time.time()
+            if cur_time is None:
+                cur_time = time.time()
             delta_t = cur_time - self.start_time
             rate_s = 'N/A'
             if delta_t > 0.000001:

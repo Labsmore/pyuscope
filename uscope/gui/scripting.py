@@ -3,6 +3,9 @@ from uscope.gui.input_widget import InputWidget
 from uscope.motion import motion_util
 from uscope.microscope import StopEvent, MicroscopeStop
 from uscope.util import readj, writej, time_str_1dec
+from uscope.threads import CBSync
+from uscope import version
+from uscope.subsystem import Subsystem
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -15,6 +18,8 @@ import ctypes
 import threading
 import time
 import traceback
+import json
+import queue
 
 
 class TestFailed(Exception):
@@ -48,6 +53,7 @@ class QVLine(QFrame):
 class ArgusScriptingPlugin(QThread):
     log_msg = pyqtSignal(str)
     done = pyqtSignal()
+    runPlannerHConfigs = pyqtSignal(dict)
 
     def __init__(self, ac):
         super().__init__()
@@ -190,20 +196,7 @@ class ArgusScriptingPlugin(QThread):
     Main API
     """
 
-    def run_scan(self, scanj):
-        assert 0, "fixme"
-
-    def snap_image(self, filename=None):
-        assert 0, "fixme"
-
-    def autofocus(self):
-        """
-        Autofocus at the current location
-        """
-        self._ac.image_processing_thread.auto_focus(
-            objective_config=self._ac.objective_config(), block=True)
-
-    def pos(self):
+    def position(self):
         """
         Get current stage position
         Returns a dictionary like:
@@ -211,6 +204,10 @@ class ArgusScriptingPlugin(QThread):
         """
         self.check_running()
         return self._ac.motion_thread.pos_cache
+
+    # deprecated, don't use
+    def pos(self):
+        return self.position()
 
     def move_absolute(self, pos, block=True):
         """
@@ -269,6 +266,7 @@ class ArgusScriptingPlugin(QThread):
         FIXME: this is an unprocessed image
         Should be returning like snapshot
         """
+        self.check_running()
         if wait_imaging_ok:
             self.wait_imaging_ok()
         imager = self.imager()
@@ -285,6 +283,7 @@ class ArgusScriptingPlugin(QThread):
         After this a picture can be snapped with acceptable quality
         """
 
+        self.check_running()
         self._ac.microscope.kinematics.wait_imaging_ok()
 
     def image_save_extension(self):
@@ -292,6 +291,15 @@ class ArgusScriptingPlugin(QThread):
         Return currently selected filename postfix such as .jpg or .tif
         """
         return self._ac.microscope.image_save_extension()
+
+    def autofocus(self, block=True):
+        """
+        Autofocus at the current location
+        Suggest to call is_idle() if you aren't sure a previous operation is done
+        """
+        self.check_running()
+        self._ac.image_processing_thread.auto_focus(
+            objective_config=self._ac.objective_config(), block=block)
 
     def message_box_yes_cancel(self, title, message):
         # quick hack: run as subprocess?
@@ -305,6 +313,7 @@ class ArgusScriptingPlugin(QThread):
         """
         Returns the entire objective DB structure
         """
+        self.check_running()
         return self._ac.microscope.objectives.get_full_config()
 
     def get_objective_config(self):
@@ -352,9 +361,74 @@ class ArgusScriptingPlugin(QThread):
         """
         return self._ac.microscope.serial()
 
+    def system_status(self):
+        """
+        Query some high level system info
+        Sample entry:
+        {
+            "imager": {
+                "active": true,
+            },
+            "motion": {
+                "active": false,
+            },
+            "taking_snapshot": false,
+            "autofocusing": false,
+            # none if not running
+            "planner": {
+                # In seconds
+                "remaining_time": 123.45,
+                "images_captured": 1,
+                "images_to_capture": 120,
+                # The log message printed to the screen
+                "eta_message": "1 / 120, 00:01:23"
+            },
+        }
+        """
+        return self._ac.microscope.system_status_ts()
+
+    def is_idle(self):
+        """
+        Is the system idle with the exception of the script engine running
+        No movements in progress
+        Planner not running
+        No pictures being snapped
+        """
+        self.check_running()
+        status = self.system_status()
+        # Assume idle if not implemented
+        imager_idle = not status["imager"].get("active", False)
+        motion_idle = not status["motion"].get("active", False)
+        planner_idle = status["planner"] is None
+        autofocus_idle = not status["autofocusing"]
+        return imager_idle and motion_idle and planner_idle and autofocus_idle
+
+    def pyuscope_version(self):
+        """
+        Return misc version info
+
+        {
+            "tag": "v4.5.0",
+            "ver": {
+                "major": 4,
+                "minor": 5,
+                "patch": 0,
+            },
+            "githash": "ae2b9d253755a11771fd08514fb8369c5fbf2141",
+            "dirty": true,
+            "description": "v4.5.0-ae2b9d25-dirty" 
+        }
+        """
+        self.check_running()
+        return version.get_meta()
+
     """
     Advanced API
     Try to use the higher level functions first if possible
+    These functions:
+    -Will change more frequently
+    -Be more model dependent
+    -Require more advanced software concepts
     """
 
     def run_plugin(self, plugin, input_=None, button_value=None):
@@ -371,8 +445,63 @@ class ArgusScriptingPlugin(QThread):
         p.check_running = self.check_running
         p.run(input_=input_, button_value=button_value, top_level=False)
 
-    def run_planner(self, pconfig):
-        assert 0, "FIXME"
+    def run_planner_hconfig(self, hconfig, cbsync=None):
+        """
+        Run motion planner engine
+        This required advanced configuration and is currently intended for expert use only
+        A planner job may run 24 hours
+        So blocking / status primitives are provided with a few options
+
+        You can also use system_status() to check if its done
+
+        hconfig["pconfig"]: planner config
+        hconfig["done_callback"]: callback
+        hconfig["out_dir_config"] out_dir_config
+            dt_prefix
+                Prefix with datetime string
+                Default: True
+            user_basename
+                User supplied file name
+            extension
+                Output file names
+                Default: take from GUI? Might not do that right now...
+        """
+
+        if hconfig.get("callback") is None:
+            if cbsync is None:
+                cbsync = CBSync(block=True)
+            # TODO: pass CBSync instead
+            hconfig["callback_done"] = cbsync.callback
+        # Token validation
+        try:
+            # hack: make sure it serializes
+            json.dumps(hconfig["pconfig"])
+            json.dumps(hconfig.get("out_dir_config", {}))
+            #assert "extension" in hconfig, "FIXME"
+        except Exception as e:
+            raise Exception(f"hconfig failed to validate: {e}")
+        self.runPlannerHConfigs.emit([hconfig])
+
+        if cbsync is not None:
+            # should be a single JSON object in the callback
+            return cbsync.check_return_kw1()
+
+    def subsystem_functions(self):
+        """
+        Return a list of the supported subsystems and associated functions
+        """
+        return self._ac.microscope.subsystem_functions()
+
+    def subsystem_function(self, subsystem_, function_, **kwargs):
+        """
+        Send a command to a subsystem / instrument
+        For example
+            subsystem: "quad_relay_illuminator"
+            function: "on"
+            kwargs: {"corner": "top", "brightness": 0.5}
+        """
+        self._ac.microscope.subsystem_function_ts(subsystem_, function_,
+                                                  kwargs)
 
     def motion(self):
         """
@@ -414,6 +543,36 @@ class ArgusScriptingPlugin(QThread):
         """
         self._ac.mainTab.objective_widget.setUmPerPixelRaw1x.emit(val)
 
+    def imager_get_disp_properties(self):
+        """
+        Get imager configuration as displayed in the GUI
+        Return all current values
+        This can be used to enumerate what can be set
+        """
+        assert 0, "FIXME: https://github.com/Labsmore/pyuscope/issues/441"
+        self.imager().get_properties()
+
+    def imager_get_disp_property(self, name):
+        """
+        Get an imager configuration as displayed in the GUI
+        """
+        assert 0, "FIXME: https://github.com/Labsmore/pyuscope/issues/441"
+        self.imager().get_property(name)
+
+    def imager_set_disp_property(self, name, value):
+        """
+        Set an imager configuration as displayed in the GUI
+        """
+        assert 0, "FIXME: https://github.com/Labsmore/pyuscope/issues/441"
+        self.imager().set_property(name, value)
+
+    def imager_set_disp_properties(self, properties):
+        """
+        Set an imager configuration as displayed in the GUI
+        """
+        assert 0, "FIXME: https://github.com/Labsmore/pyuscope/issues/441"
+        self.imager().set_properties(properties)
+
     """
     Plugin defined functions
     """
@@ -438,9 +597,65 @@ class ArgusScriptingPlugin(QThread):
         return True
 
 
+"""
+Support instrument functions by passing function calls via a queue
+The plugin should be polling the queue
+"""
+
+
+class InstrumentScriptSS(Subsystem):
+    def __init__(self, ac, plugin, name):
+        super().__init__(ac.microscope)
+        self._name = name
+        self.ac = ac
+        self.plugin = plugin
+        self.queue_in = queue.Queue()
+        for name in self.functions():
+            # Sanity check it exists before passing IPC
+            assert getattr(self.plugin, name) is not None
+
+    def function_ts(self, name, kwargs):
+        # Make sure its an intended function
+        assert name in self.functions(), f"Invalid function {name}"
+        self.queue_in.put((name, kwargs))
+
+    def functions(self):
+        return self.plugin.functions()
+
+    def name(self):
+        return self._name
+
+    def poll_functions(self):
+        while True:
+            try:
+                name, kwargs = self.queue_in.get(timeout=None)
+            except queue.Empty:
+                return
+            # Lookup by name and add arguments
+            getattr(self.plugin, name)(**kwargs)
+
+
+class InstrumentScriptPlugin(ArgusScriptingPlugin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.subsystem = None
+
+    def functions(self):
+        return {}
+
+    def set_subsystem(self, subsystem):
+        self.subsystem = subsystem
+
+    def run_test(self):
+        assert self.subsystem
+        while True:
+            self.subsystem.poll_functions()
+
+
 class ScriptingTab(ArgusTab):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.instrument_config = None
         self.stitcher_thread = None
         self.last_cs_upload = None
         self.filename = None
@@ -457,6 +672,9 @@ class ScriptingTab(ArgusTab):
         self.running = False
         self.active_objective = None
         self.ac.objectiveChanged.connect(self.active_objective_updated)
+
+    def set_instrument_config(self, config):
+        self.instrument_config = config
 
     def _initUI(self):
         layout = QGridLayout()
@@ -605,6 +823,8 @@ class ScriptingTab(ArgusTab):
 
             self.plugin.log_msg.connect(self.log_local)
             self.plugin.done.connect(self.plugin_done)
+            self.plugin.runPlannerHConfigs.connect(
+                self.ac.mainTab.imaging_widget.go_planner_hconfigs)
 
             self.status_le.setText("Status: idle")
             self.run_pb.setEnabled(True)
@@ -656,6 +876,7 @@ class ScriptingTab(ArgusTab):
         self.plugin._input = input_val
         for pb in self.select_pbs.values():
             pb.setEnabled(False)
+        self.run_pb.setEnabled(False)
         self.reload_pb.setEnabled(False)
         self.stop_pb.setEnabled(True)
         self.kill_pb.setEnabled(True)
@@ -757,6 +978,7 @@ class ScriptingTab(ArgusTab):
         self.reload_pb.setEnabled(True)
         self.save_config_pb.setEnabled(True)
         self.save_config_pb.setEnabled(True)
+        self.run_pb.setEnabled(True)
         if self.plugin.succeeded():
             self.log_local("Plugin completed ok")
         else:
@@ -767,7 +989,15 @@ class ScriptingTab(ArgusTab):
         self.running = False
 
     def _post_ui_init(self):
-        pass
+        # Automatically start instruments at load time
+        if self.instrument_config:
+            self.select_script(self.instrument_config["plugin_path"])
+            subsystem = InstrumentScriptSS(ac=self.ac,
+                                           plugin=self.plugin,
+                                           name=self.instrument_config["name"])
+            self.ac.microscope.add_subsystem(subsystem)
+            self.plugin.set_subsystem(subsystem)
+            self.run_pb_clicked(input_val={"init": True})
 
     def _shutdown_request(self):
         if self.plugin:
@@ -800,14 +1030,19 @@ class ScriptingTab(ArgusTab):
         self.active_objective = data
 
     def _cache_save(self, cachej):
-        j = {}
-        j["filename"] = str(self.fn_le.text())
-        j["config"] = self.input.getValues()
-        cachej["scripting"] = j
+        if self.instrument_config is None:
+            j = {}
+            j["filename"] = str(self.fn_le.text())
+            j["config"] = self.input.getValues()
+            cachej["scripting"] = j
 
     def _cache_load(self, cachej):
-        j = cachej.get("scripting", {})
-        self.set_filename(j.get("filename", ""))
-        config = j.get("config", None)
-        if config is not None:
-            self.set_config(config)
+        if self.instrument_config is None:
+            j = cachej.get("scripting", {})
+            self.set_filename(j.get("filename", ""))
+            config = j.get("config", None)
+            if config is not None:
+                self.set_config(config)
+
+    def is_running(self):
+        return self.running

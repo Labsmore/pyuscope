@@ -1294,6 +1294,7 @@ class GrblHal(MotionHAL):
         self._soft_maxs = None
         self._max_acelerations = None
         self._wcs_offsets_cache = None
+        self.last_qstatus = None
 
         MotionHAL.__init__(self, verbose=verbose, **kwargs)
         self._axes = self.microscope.usc.motion.axes()
@@ -1519,6 +1520,7 @@ class GrblHal(MotionHAL):
         self.set_is_homed()
 
     def qstatus_updated(self, status):
+        self.last_qstatus = dict(status)
         # careful this will get modified up the stack
         pos = dict(status["MPos"])
         self._mpos_adjust_wcs(pos)
@@ -1666,6 +1668,10 @@ class GrblHal(MotionHAL):
     def set_is_homed(self, is_homed=True):
         flags = int(is_homed)
         self.grbl.gs.txrxs("T%u" % flags)
+
+    def system_status_ts(self, root_status, status):
+        # status["last_qstatus"] = dict(self.last_qstatus)
+        status["active"] = self.last_qstatus["status"] != "Idle"
 
 
 class NoGRBLMeta(Exception):

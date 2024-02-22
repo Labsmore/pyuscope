@@ -6,6 +6,7 @@ from uscope.motion import motion_util
 from uscope.benchmark import Benchmark
 from uscope.app.argus.threads import QPlannerThread
 from uscope.microscope import StopEvent, MicroscopeStop
+from uscope import version as uscope_version
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -16,6 +17,7 @@ import os.path
 import datetime
 from io import StringIO
 import threading
+import time
 
 
 def snapshot_fn(user, extension, parent):
@@ -844,7 +846,7 @@ class XYPlanner2PWidget(PlannerWidget):
 
         return ret
 
-    def get_current_scan_config(self):
+    def get_current_planner_hconfig(self):
         contour_json = self.mk_contour_json()
         if not contour_json:
             return
@@ -1102,7 +1104,7 @@ class XYPlanner3PWidget(PlannerWidget):
 
         return corners
 
-    def get_current_scan_config(self):
+    def get_current_planner_hconfig(self):
         corner_json = self.mk_corner_json()
         if not corner_json:
             return
@@ -1321,10 +1323,12 @@ class ImagingTaskWidget(AWidget):
         self.snapshotCaptured.connect(self.captureSnapshot)
         self.go_current_pconfig = go_current_pconfig
         self.setControlsEnabled = setControlsEnabled
-        self.current_scan_config = None
+        self.current_planner_hconfig = None
         self.restore_properties = None
         self.log_fd_scan = None
         self._save_extension = None
+        self.taking_snapshot = False
+        self.planner_progress_cache = None
 
     def _initUI(self):
         def getNameLayout():
@@ -1398,16 +1402,28 @@ class ImagingTaskWidget(AWidget):
         """
         pictures_to_take, pictures_taken, image, first
         """
+        if self.planner_progress_cache is None:
+            self.planner_progress_cache = {}
         if state["type"] == "begin":
+            self.planner_progress_cache["images_to_capture"] = state[
+                "images_to_capture"]
             self.progress_bar.setMinimum(0)
             self.progress_bar.setMaximum(state["images_to_capture"])
             self.progress_bar.setValue(0)
             self.bench = Benchmark(state["images_to_capture"])
         elif state["type"] == "image":
+            cur_time = time.time()
             #self.ac.log('took %s at %d / %d' % (image, pictures_taken, pictures_to_take))
+            self.planner_progress_cache["images_captured"] = state[
+                "images_captured"]
             self.bench.set_cur_items(state["images_captured"])
             self.ac.log('Captured: %s' % (state["image_filename_rel"], ))
-            self.ac.log('%s' % (str(self.bench)))
+            self.planner_progress_cache[
+                "remaining_time"] = self.bench.remaining_time(
+                    cur_time=cur_time)
+            bench_str = self.bench.__str__(cur_time=cur_time)
+            self.planner_progress_cache["eta_message"] = bench_str
+            self.ac.log('%s' % (bench_str))
             self.progress_bar.setValue(state["images_captured"])
         else:
             pass
@@ -1423,8 +1439,9 @@ class ImagingTaskWidget(AWidget):
         self.log_fd_scan = None
 
         self.ac.planner_thread = None
-        last_scan_config = self.current_scan_config
-        self.current_scan_config = None
+        last_scan_config = self.current_planner_hconfig
+        self.current_planner_hconfig = None
+        self.planner_progress_cache = None
 
         # Restore defaults between each run
         # Ex: if HDR doesn't clean up simplifies things
@@ -1434,17 +1451,17 @@ class ImagingTaskWidget(AWidget):
         if result["result"] == "ok":
             self.ac.stitchingTab.scan_completed(last_scan_config, result)
 
-        callback = last_scan_config.get("callback")
+        callback = last_scan_config.get("callback_done")
         if callback:
-            callback(result)
+            callback(result=result)
 
         run_next = result["result"] == "ok" or (
             not self.ac.batchTab.abort_on_failure())
         # More scans?
-        if run_next and self.scan_configs and not result.get("hard_fail"):
+        if run_next and self.planner_hconfigs and not result.get("hard_fail"):
             self.run_next_scan_config()
         else:
-            self.scan_configs = None
+            self.planner_hconfigs = None
             self.restore_properties = None
             self.setControlsEnabled(True)
             self.ac.motion_thread.jog_enable(True)
@@ -1455,19 +1472,19 @@ class ImagingTaskWidget(AWidget):
         try:
             self.ac.motion_thread.jog_enable(False)
             # self.ac.joystick_disable()
-            self.current_scan_config = self.scan_configs[0]
-            assert self.current_scan_config
-            del self.scan_configs[0]
+            self.current_planner_hconfig = self.planner_hconfigs[0]
+            assert self.current_planner_hconfig
+            del self.planner_hconfigs[0]
 
             dry = self.dry()
-            self.current_scan_config["dry"] = dry
+            self.current_planner_hconfig["dry"] = dry
 
-            out_dir_config = self.current_scan_config["out_dir_config"]
+            out_dir_config = self.current_planner_hconfig["out_dir_config"]
             out_dir = out_dir_config_to_dir(
                 out_dir_config,
                 self.ac.usc.app("argus").scan_dir())
-            self.current_scan_config["out_dir"] = out_dir
-            pconfig = self.current_scan_config["pconfig"]
+            self.current_planner_hconfig["out_dir"] = out_dir
+            pconfig = self.current_planner_hconfig["pconfig"]
 
             if os.path.exists(out_dir):
                 self.ac.log("Run aborted: directory already exists")
@@ -1534,11 +1551,16 @@ class ImagingTaskWidget(AWidget):
             self.plannerDone({"result": "init_failure", "hard_fail": True})
             raise
 
-    def go_scan_configs(self, scan_configs):
-        if not scan_configs:
+    def go_planner_hconfigs(self, scan_hconfigs):
+        """
+        scan_config["pconfig"]: planner config
+        scan_config["done_callback"]: callback
+        scan_config["out_dir_config"] out_dir_config
+        """
+        if not scan_hconfigs:
             return
 
-        self.scan_configs = list(scan_configs)
+        self.planner_hconfigs = list(scan_hconfigs)
         if not self.ac.is_idle():
             return
 
@@ -1668,6 +1690,7 @@ class ImagingTaskWidget(AWidget):
         # self.ac.log('Requesting snapshot')
         # Disable until snapshot is completed
         self.snapshot_pb.setEnabled(False)
+        self.taking_snapshot = True
 
         def emitSnapshotCaptured(image_id):
             # self.ac.microscope.log('Image captured: %s' % image_id)
@@ -1739,6 +1762,7 @@ class ImagingTaskWidget(AWidget):
         self.ac.image_processing_thread.process_image(options=options,
                                                       callback=callback)
         self.snapshot_pb.setEnabled(True)
+        self.taking_snapshot = False
 
     def _post_ui_init(self):
         self.update_save_extension()
@@ -1842,7 +1866,8 @@ class MainTab(ArgusTab):
             aname="imaging",
             parent=self)
 
-        self.log("pyuscope starting")
+        version = uscope_version.get_meta()["description"]
+        self.log(f"pyuscope starting (version {version})")
         self.log("https://github.com/Labsmore/pyuscope/")
         self.log("For enquiries contact support@labsmore.com")
         self.log("")
@@ -1926,24 +1951,25 @@ class MainTab(ArgusTab):
     def clear_log(self):
         self.log_widget.clear()
 
-    def go_current_pconfig(self, callback=None):
-        scan_config = self.active_planner_widget().get_current_scan_config()
-        if scan_config is None:
+    def go_current_pconfig(self, callback_done=None):
+        planner_hconfig = self.active_planner_widget(
+        ).get_current_planner_hconfig()
+        if planner_hconfig is None:
             self.ac.log("Failed to get scan config :(")
             return
         # Leave image controls at current value when not batching?
         # Should be a nop but better to just leave alone
-        del scan_config["pconfig"]["imager"]["properties"]
-        if callback:
-            scan_config["callback"] = callback
-        self.imaging_widget.go_scan_configs([scan_config])
+        del planner_hconfig["pconfig"]["imager"]["properties"]
+        if callback_done:
+            planner_hconfig["callback_done"] = callback_done
+        self.imaging_widget.go_planner_hconfigs([planner_hconfig])
 
-    def emit_go_current_pconfig(self, callback=None):
-        self.go_current_pconfig_signal.emit((callback, ))
+    def emit_go_current_pconfig(self, callback_done=None):
+        self.go_current_pconfig_signal.emit((callback_done, ))
 
     def go_current_pconfig_slot(self, args):
-        callback, = args
-        self.go_current_pconfig(callback=callback)
+        callback_done, = args
+        self.go_current_pconfig(callback_done=callback_done)
 
     def setControlsEnabled(self, yes):
         self.imaging_widget.snapshot_pb.setEnabled(yes)

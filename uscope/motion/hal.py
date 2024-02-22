@@ -1285,6 +1285,14 @@ class MotionHAL:
         self.jog_estimated_end = None
         self.last_jog_time = None
 
+    def idle(self):
+        """
+        Return true of a jog or other movement has not yet completed
+        XXX: currently JogController makes sure a cancel is sent
+        But jog might actually finish before
+        """
+        return self.last_jog_time is not None
+
     def on(self):
         '''Call at start of MDI phase, before planner starts'''
         pass
@@ -1348,6 +1356,9 @@ class MotionHAL:
     def _apply_damper(self, damper):
         raise NotSupported("")
 
+    def system_status_ts(self, root_status, status):
+        pass
+
 
 '''
 Has no actual hardware associated with it
@@ -1380,9 +1391,6 @@ class MockHal(MotionHAL):
         for axis in self._axes:
             self._pos_cache[axis] = 0.0
 
-    def take_picture(self, file_name):
-        self._log('taking picture to %s' % file_name)
-
     def _move_absolute(self, pos):
         for axis, apos in pos.items():
             self._pos_cache[axis] = apos
@@ -1402,9 +1410,6 @@ class MockHal(MotionHAL):
 
     def settle(self):
         # No hardware to let settle
-        pass
-
-    def ar_stop(self):
         pass
 
     def log_info(self):
@@ -1452,9 +1457,6 @@ class DryHal(MotionHAL):
         for axis in self._axes:
             self._posd[axis] = 0.0
 
-    def take_picture(self, file_name):
-        self._log('taking picture to %s' % file_name)
-
     def _move_absolute(self, pos):
         for axis, apos in pos.items():
             self._posd[axis] = apos
@@ -1474,9 +1476,6 @@ class DryHal(MotionHAL):
 
     def settle(self):
         # No hardware to let settle
-        pass
-
-    def ar_stop(self):
         pass
 
     def _get_max_velocities(self):

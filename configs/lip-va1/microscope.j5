@@ -141,7 +141,8 @@ Camera: see VM1B config ifle
         */
         "plugins": {
             "stack-enfuse": {
-                "align": true,
+                "align_xy": true,
+                "align_zoom": true,
             },
         },
     },

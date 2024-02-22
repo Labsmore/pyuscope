@@ -94,6 +94,9 @@ class Imager:
         self.last_properties_change = time.time()
         self._set_properties(vals)
 
+    def set_property(self, name, value):
+        self.set_properties({name: value})
+
     def _set_properties(self, vals):
         pass
 
@@ -106,6 +109,9 @@ class Imager:
 
     def get_property(self, name, default=None):
         return self.get_properties().get(name, default)
+
+    def system_status_ts(self, root_status, status):
+        pass
 
 
 class MockImager(Imager):

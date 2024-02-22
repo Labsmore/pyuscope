@@ -138,8 +138,10 @@ class StackEnfusePlugin(IPPlugin):
                          need_tmp_dir=True)
         # X1 has "perfect" axes
         # Other systems have a lot of jitter
-        self.align = self.usc.ipp.get_plugin("stack-enfuse").get(
-            "align", False)
+        self.align_xy = self.usc.ipp.get_plugin("stack-enfuse").get(
+            "align_xy", False)
+        self.align_zoom = self.usc.ipp.get_plugin("stack-enfuse").get(
+            "align_zoom", False)
         self.enfuse = config.get_bc().enfuse_cli()
         self.align_image_stack = config.get_bc().align_image_stack_cli()
 
@@ -178,17 +180,19 @@ class StackEnfusePlugin(IPPlugin):
         """
 
         prefix = "aligned_"
-        if self.align:
+        if self.align_xy or self.align_zoom:
             # Always output as .tif
             args = list(self.align_image_stack) + [
                 # is there a reason to use -i vs -x -y?
                 # -x -y is more explicit, let's do that for now
                 "-l",
-                "-x",
-                "-y",
-                "-v",
-                "--use-given-order",
-                "-a",
+            ]
+            if self.aign_xy:
+                args += ["-x", "-y"]
+            if self.aign_zoom:
+                args += ["-m"]
+            args += [
+                "-v", "--use-given-order", "-a",
                 os.path.join(self.get_tmp_dir(), prefix)
             ]
             for image_in in data_in["images"]:

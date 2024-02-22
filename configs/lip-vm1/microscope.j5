@@ -211,7 +211,8 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         ],
         "plugins": {
             "stack-enfuse": {
-                "align": true,
+                "align_xy": true,
+                "align_zoom": true,
             },
         },
     },

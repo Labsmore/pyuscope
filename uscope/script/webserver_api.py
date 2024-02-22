@@ -43,14 +43,12 @@ from threading import Thread
 from werkzeug.serving import make_server
 
 app = Flask(__name__)
-SERVER_PORT = 8080
-HOST = '127.0.0.1'
 
 
 class ServerThread(Thread):
-    def __init__(self):
+    def __init__(self, port=8080):
         super().__init__()
-        self.server = make_server(host=HOST, port=SERVER_PORT, app=app)
+        self.server = make_server(host='127.0.0.1', port=port, app=app)
         self.ctx = app.app_context()
         self.ctx.push()
 
@@ -67,16 +65,28 @@ class Plugin(ArgusScriptingPlugin):
         super().__init__(*args, **kwargs)
         self.verbose = True
 
+    def input_config(self):
+        return {
+            "Port": {
+                "widget": "QLineEdit",
+                "type": int,
+                "key": "port",
+                "default": "8080"
+            },
+        }
+
     def log_verbose(self, msg):
         if self.verbose:
             self.log(msg)
 
     def run_test(self):
-        self.log(f"Running Pyuscope Webserver Plugin on port: {SERVER_PORT}")
+        vals = self.get_input()
+        port = vals["port"]
+        self.log(f"Running Pyuscope Webserver Plugin on port: {port}")
         self.objectives = self._ac.microscope.get_objectives()
         # Keep a reference to this plugin
         app.plugin = self
-        self.server = ServerThread()
+        self.server = ServerThread(port=port)
         self.server.start()
         # Keep plugin alive while server is running
         while self.server and self.server.is_alive():

@@ -9,7 +9,7 @@ def except_wrap(func):
     def wrapper():
         try:
             plugin.log_verbose(f"{request.url}")
-            return func()
+            return json.dumps(func())
         except Exception as e:
             print(e)
             return json.dumps({
@@ -26,12 +26,10 @@ def make_app(app):
         @except_wrap
         def wrap():
             position = plugin.position()
-            return json.dumps({
-                'data': {
-                    'position': position
-                },
+            return {
+                'data': position,
                 'status': HTTPStatus.OK,
-            })
+            }
 
         return wrap()
 
@@ -60,7 +58,7 @@ def make_app(app):
                 plugin.move_absolute(data)
             data = {}
             data.update(plugin.pos())
-            return json.dumps({'status': HTTPStatus.OK, 'data': plugin.pos()})
+            return {'status': HTTPStatus.OK, 'data': plugin.pos()}
 
         return wrap()
 
@@ -69,12 +67,10 @@ def make_app(app):
         @except_wrap
         def wrap():
             system_status = plugin.system_status()
-            return json.dumps({
-                'data': {
-                    'system_status': system_status
-                },
+            return {
+                'data': system_status,
                 'status': HTTPStatus.OK,
-            })
+            }
 
         return wrap()
 
@@ -83,12 +79,10 @@ def make_app(app):
         @except_wrap
         def wrap():
             is_idle = plugin.is_idle()
-            return json.dumps({
-                'data': {
-                    'is_idle': is_idle
-                },
+            return {
+                'data': is_idle,
                 'status': HTTPStatus.OK,
-            })
+            }
 
         return wrap()
 
@@ -97,12 +91,10 @@ def make_app(app):
         @except_wrap
         def wrap():
             pyuscope_version = plugin.pyuscope_version()
-            return json.dumps({
-                'data': {
-                    'pyuscope_version': pyuscope_version
-                },
+            return {
+                'data': pyuscope_version,
                 'status': HTTPStatus.OK,
-            })
+            }
 
         return wrap()
 
@@ -111,12 +103,10 @@ def make_app(app):
         @except_wrap
         def wrap():
             objectives = plugin.get_objectives_config()
-            return json.dumps({
-                'data': {
-                    'objectives': objectives
-                },
+            return {
+                'data': objectives,
                 'status': HTTPStatus.OK,
-            })
+            }
 
         return wrap()
 
@@ -125,12 +115,10 @@ def make_app(app):
         @except_wrap
         def wrap():
             objective = plugin.get_active_objective()
-            return json.dumps({
-                'data': {
-                    'objective': objective
-                },
+            return {
+                'data': objective,
                 'status': HTTPStatus.OK,
-            })
+            }
 
         return wrap()
 
@@ -141,9 +129,9 @@ def make_app(app):
             # Validate objective name before sending request
             if objective not in plugin.objectives.names():
                 plugin.log(f"WARNING: objective '{objective}' not found")
-                return json.dumps({'status': HTTPStatus.BAD_REQUEST})
+                return {'status': HTTPStatus.BAD_REQUEST}
             plugin.set_active_objective(objective)
-            return json.dumps({'status': HTTPStatus.OK})
+            return {'status': HTTPStatus.OK}
 
         return wrap()
 
@@ -152,12 +140,10 @@ def make_app(app):
         @except_wrap
         def wrap():
             properties = plugin.imager_get_disp_properties()
-            return json.dumps({
-                'data': {
-                    'properties': properties
-                },
+            return {
+                'data': properties,
                 'status': HTTPStatus.OK,
-            })
+            }
 
         return wrap()
 
@@ -166,12 +152,10 @@ def make_app(app):
         @except_wrap
         def wrap():
             val = plugin.imager_get_disp_property(name)
-            return json.dumps({
-                'data': {
-                    'value': val
-                },
+            return {
+                'data': val,
                 'status': HTTPStatus.OK,
-            })
+            }
 
         return wrap()
 
@@ -185,7 +169,7 @@ def make_app(app):
                 properties[k] = float(v)
             # Validate objective name before sending request
             plugin.imager_set_disp_properties(properties)
-            return json.dumps({'status': HTTPStatus.OK})
+            return {'status': HTTPStatus.OK}
 
         return wrap()
 
@@ -195,6 +179,31 @@ def make_app(app):
         def wrap():
             block = bool(request.args.get("block", default=True, type=int))
             plugin.autofocus(block=block)
-            return json.dumps({'status': HTTPStatus.OK})
+            return {'status': HTTPStatus.OK}
+
+        return wrap()
+
+    @app.route('/get/subsystem_functions', methods=['GET'])
+    def subsystem_functions():
+        @except_wrap
+        def wrap():
+            return {
+                'data': plugin.subsystem_functions_serialized(),
+                'status': HTTPStatus.OK,
+            }
+
+        return wrap()
+
+    @app.route('/run/subsystem/<subsystem>/<function>',
+               methods=['GET', 'POST'])
+    def subsystem_function(subsystem, function):
+        @except_wrap
+        def wrap():
+            kwargs = dict(request.args.items())
+            print("debug", subsystem, function, kwargs)
+            plugin.subsystem_function_serialized(subsystem_=subsystem,
+                                                 function_=function,
+                                                 **kwargs)
+            return {'status': HTTPStatus.OK}
 
         return wrap()

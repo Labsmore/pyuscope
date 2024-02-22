@@ -61,10 +61,19 @@ class Subsystem:
         Return a list of supported functions
         Thread safe
             Called from misc contexts (ex: scripting)
+
+        return {"shout": {"n": {"type": int}}}
         """
         return {}
 
-    def function_ts(self, name_, kwargs):
+    def functions_serialized(self):
+        ret = dict(self.functions())
+        for v in ret.values():
+            if "type" in v:
+                v["type"] = str(v["type"])
+        return ret
+
+    def function_ts(self, name, kwargs):
         """
         Execute a generic subsystem / instrument function
         Intended to interface to external serialized commands
@@ -74,4 +83,16 @@ class Subsystem:
             Called from misc contexts (ex: scripting)
         """
         # Default has no supported funtions
-        raise NoSuchFunction(f"Unsupported function: {name_}")
+        raise NoSuchFunction(f"Unsupported function: {name}")
+
+    def function_parse_serialized(self, name, kwargs):
+        """
+        Convert kwargs into correct types
+        """
+        params = self.functions()[name]
+        for k in list(kwargs.keys()):
+            param = params[k]
+            if "type" in param:
+                kwargs[k] = param["type"](kwargs[k])
+        # For convenience
+        return kwargs

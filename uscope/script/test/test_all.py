@@ -53,8 +53,12 @@ class Plugin(ArgusScriptingPlugin):
             "subsystems": {
                 "widget": "QPushButtons",
                 "buttons": {
-                    "subsystem_functions": "subsystem_functions",
-                    "subsystem_function": "subsystem_function",
+                    "subsystem_functions":
+                    "subsystem_functions",
+                    "subsystem_function":
+                    "subsystem_function",
+                    "subsystem_function_serialized":
+                    "subsystem_function_serialized",
                 },
             },
         }
@@ -149,5 +153,10 @@ class Plugin(ArgusScriptingPlugin):
             },
             """
             self.subsystem_function("itest_function", "shout", n=3)
+
+        elif test == "subsystem_function_serialized":
+            self.subsystem_function_serialized("itest_function",
+                                               "shout",
+                                               n="3")
 
         self.log("Done")

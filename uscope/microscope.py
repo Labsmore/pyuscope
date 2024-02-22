@@ -399,6 +399,12 @@ class Microscope:
             ret[name] = subsystem.functions()
         return ret
 
+    def subsystem_functions_serialized(self):
+        ret = {}
+        for name, subsystem in self.subsystems.items():
+            ret[name] = subsystem.functions_serialized()
+        return ret
+
     def subsystem_function_ts(self, subsystem, function, kwargs):
         self.subsystems[subsystem].function_ts(function, kwargs)
 

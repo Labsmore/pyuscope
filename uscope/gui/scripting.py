@@ -492,6 +492,12 @@ class ArgusScriptingPlugin(QThread):
         """
         return self._ac.microscope.subsystem_functions()
 
+    def subsystem_functions_serialized(self):
+        """
+        Return a list of the supported subsystems and associated functions
+        """
+        return self._ac.microscope.subsystem_functions_serialized()
+
     def subsystem_function(self, subsystem_, function_, **kwargs):
         """
         Send a command to a subsystem / instrument
@@ -502,6 +508,16 @@ class ArgusScriptingPlugin(QThread):
         """
         self._ac.microscope.subsystem_function_ts(subsystem_, function_,
                                                   kwargs)
+
+    def subsystem_function_serialized(self, subsystem_, function_, **kwargs):
+        """
+        Like above, but all values are strings
+        Need to be converted to native types
+        """
+        kwargs = dict(kwargs)
+        subsystem = self._ac.microscope.subsystems[subsystem_]
+        subsystem.function_parse_serialized(function_, kwargs)
+        subsystem.function_ts(function_, kwargs)
 
     def motion(self):
         """

@@ -19,17 +19,18 @@ if [ "$linux_distribution" = "Debian GNU/Linux 12 (bookworm)" ] ; then
     pip_args="--break-system-packages"
     sleep 3
 fi
+PIP_CMD="pip3 install --user ${pip_args}"
 
 sudo apt-get update
 sudo apt-get install -y python3-pip
 
 install_pyuscope() {
-    sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb python3-opencv python3-serial python3-numpy python3-scipy imagemagick python3-distro python3-zbar
+    sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb python3-opencv python3-serial python3-numpy python3-scipy imagemagick python3-distro python3-pyzbar
     # 2024-01-03: dev seems to be required, not just base
     # Some people suggest gir1.2-gst-rtsp-server-1.0
     # Install all for now
     sudo apt-get install -y libgstrtspserver-1.0-0 libgstrtspserver-1.0-dev gir1.2-gst-rtsp-server-1.0
-    pip3 install --user ${pip_args} json5 boto3 pygame psutil bitarray
+    $PIP_CMD json5 boto3 pygame psutil bitarray
 
 
     # Package removed
@@ -47,13 +48,13 @@ install_pyuscope() {
 
     # For webserver
     sudo apt-get install -y python3-werkzeug
-    pip3 install --user ${pip_args} 'Flask>=2.2.2'
+    $PIP_CMD 'Flask>=2.2.2'
 
     sudo python3 setup.py develop
 }
 
 install_pyrav4l2() {
-    pip3 install --user ${pip_args} git+https://github.com/antmicro/pyrav4l2.git
+    $PIP_CMD git+https://github.com/antmicro/pyrav4l2.git
 }
 
 # For GRBL etc serial port
@@ -81,6 +82,12 @@ if [ "$linux_distribution" = "Debian GNU/Linux 12 (bookworm)" ] ; then
 else
     install_gst_plugin_toupcam
 fi
+
+# Intended for rpi camera
+if [ "$linux_distribution" = "Debian GNU/Linux 12 (bookworm)" ] ; then
+    sudo apt-get install -y libcamera-apps libcamera-tools gstreamer1.0-libcamera
+fi
+
 
 install_pyuscope
 # Deprecated, use pyrav4l2

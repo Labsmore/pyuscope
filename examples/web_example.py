@@ -74,6 +74,7 @@ def main():
     print(f"Middle position: {pos}")
     im = client.image()
     print(f"Got image w/ size {im.size}, mode: {im.mode}")
+    im.save('out.jpg')
     print("Moving left")
     pos["x"] -= delta
     client.move_absolute(pos)

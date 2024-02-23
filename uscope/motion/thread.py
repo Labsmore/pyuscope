@@ -181,7 +181,7 @@ class MotionThreadBase(CommandThreadBase):
         self.lock = threading.Event()
         # Let main gui get the last position from a different thread
         # It can request updates
-        self.pos_cache = None
+        self._pos_cache = None
         self._stop = False
         self._estop = False
         # XXX: add config directive
@@ -347,6 +347,9 @@ class MotionThreadBase(CommandThreadBase):
         else:
             self.log("WARNING: jog disabled, dropping jog cancel")
 
+    def get_pos_cache(self):
+        return self._pos_cache
+
     def run(self):
         if self.microscope.bc.check_threads():
             print("Motion thread started: %s" % (threading.get_ident(), ))
@@ -358,7 +361,7 @@ class MotionThreadBase(CommandThreadBase):
 
         def motion_status(status):
             # print("register_status_cb: via motion-status: %s" % (status,))
-            self.pos_cache = status["pos"]
+            self._pos_cache = status["pos"]
 
         self.motion.register_status_cb(motion_status)
 
@@ -427,7 +430,7 @@ class MotionThreadBase(CommandThreadBase):
 
                 def update_pos_cache():
                     pos = self.motion.pos()
-                    self.pos_cache = pos
+                    self._pos_cache = pos
                     # print("register_status_cb: via update_pos_cache: %s" % (pos,))
 
                 self.verbose and print("")

@@ -1463,7 +1463,7 @@ class TopWidget(AWidget):
         self.ac.image_processing_thread.auto_focus(self.ac.objective_config())
 
     def _poll_misc(self):
-        last_pos = self.ac.motion_thread.pos_cache
+        last_pos = self.ac.motion_thread.get_pos_cache()
         if last_pos is not None:
             self.update_pos(last_pos)
 

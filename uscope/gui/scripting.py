@@ -201,9 +201,10 @@ class ArgusScriptingPlugin(QThread):
         Get current stage position
         Returns a dictionary like:
         {"x": 12.345, "y": 2.356, "z": 4.5}
+        TOOD: add a parameter that forces update instead of from cache
         """
         self.check_running()
-        return self._ac.motion_thread.pos_cache
+        return self._ac.motion_thread.get_pos_cache()
 
     # deprecated, don't use
     def pos(self):

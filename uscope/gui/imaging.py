@@ -196,7 +196,7 @@ class MotionWidget(AWidget):
         self.log("Move absolute to %s" %
                  self.ac.usc.motion.format_positions(pos))
         self.log("  From %s" % self.ac.usc.motion.format_positions(
-            self.ac.motion_thread.pos_cache))
+            self.ac.motion_thread.get_pos_cache()))
         self.motion_thread.move_absolute(pos)
 
     def move_rel_le_process(self):
@@ -208,7 +208,7 @@ class MotionWidget(AWidget):
             return
         self.log("Move relative %s" % self.ac.usc.motion.format_positions(pos))
         self.log("  From %s" % self.ac.usc.motion.format_positions(
-            self.ac.motion_thread.pos_cache))
+            self.ac.motion_thread.get_pos_cache()))
         self.motion_thread.move_relative(pos)
 
     def mdi_le_process(self):
@@ -218,7 +218,7 @@ class MotionWidget(AWidget):
             self.motion_thread.mdi(s)
 
     def set_difference_pb_pushed(self):
-        pos = self.ac.motion_thread.pos_cache
+        pos = self.ac.motion_thread.get_pos_cache()
         self.reference_le.setText(self.ac.usc.motion.format_positions(pos))
 
     def reference_moveto_pb_pushed(self):
@@ -231,7 +231,7 @@ class MotionWidget(AWidget):
 
     def update_reference(self):
         def get_str():
-            pos = self.ac.motion_thread.pos_cache
+            pos = self.ac.motion_thread.get_pos_cache()
             if pos is None:
                 return "Invalid"
 
@@ -821,7 +821,7 @@ class XYPlanner2PWidget(PlannerWidget):
         self.plan_y1_le.setText(j.get("y1", ""))
 
     def _poll_misc(self):
-        last_pos = self.ac.motion_thread.pos_cache
+        last_pos = self.ac.motion_thread.get_pos_cache()
         if last_pos:
             self.update_pos(last_pos)
 
@@ -893,7 +893,7 @@ class XYPlanner2PWidget(PlannerWidget):
         '''
         # take as upper left corner of view area
         # this is the current XY position
-        pos = self.ac.motion_thread.pos_cache
+        pos = self.ac.motion_thread.get_pos_cache()
         #self.ac.log("Updating start pos w/ %s" % (str(pos)))
         self.plan_x0_le.setText(
             self.ac.usc.motion.format_position("x", pos["x"]))
@@ -913,7 +913,7 @@ class XYPlanner2PWidget(PlannerWidget):
     def set_end_pos(self):
         # take as lower right corner of view area
         # this is the current XY position + view size
-        pos = self.ac.motion_thread.pos_cache
+        pos = self.ac.motion_thread.get_pos_cache()
         #self.ac.log("Updating end pos from %s" % (str(pos)))
         self.plan_x1_le.setText(
             self.ac.usc.motion.format_position("x", pos["x"]))
@@ -921,7 +921,7 @@ class XYPlanner2PWidget(PlannerWidget):
             self.ac.usc.motion.format_position("y", pos["y"]))
 
     def corner_clicked(self, corner_name):
-        pos_cur = self.ac.motion_thread.pos_cache
+        pos_cur = self.ac.motion_thread.get_pos_cache()
         widgets = self.corner_widgets[corner_name]
 
         widgets["x_le"].setText(
@@ -1082,7 +1082,7 @@ class XYPlanner3PWidget(PlannerWidget):
                 le.setStyleSheet("background-color: rgb(240, 240, 240);")
 
     def _poll_misc(self):
-        last_pos = self.ac.motion_thread.pos_cache
+        last_pos = self.ac.motion_thread.get_pos_cache()
         if last_pos:
             self.update_pos(last_pos)
 
@@ -1143,7 +1143,7 @@ class XYPlanner3PWidget(PlannerWidget):
         return x_view, y_view
 
     def corner_clicked(self, corner_name):
-        pos_cur = self.ac.motion_thread.pos_cache
+        pos_cur = self.ac.motion_thread.get_pos_cache()
         widgets = self.corner_widgets[corner_name]
 
         widgets["x_le"].setText(

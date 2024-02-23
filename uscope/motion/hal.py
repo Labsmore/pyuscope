@@ -1395,15 +1395,18 @@ class MockHal(MotionHAL):
         for axis, apos in pos.items():
             self._pos_cache[axis] = apos
         0 and self._log('absolute move to ' + pos_str(pos))
+        self.update_status({"pos": self._pos_cache})
 
     def _move_relative(self, delta):
         for axis, adelta in delta.items():
             self._pos_cache[axis] += adelta
         0 and self._log('relative move to ' + pos_str(delta))
+        self.update_status({"pos": self._pos_cache})
 
     def _jog(self, axes, rate):
         for axis, adelta in axes.items():
             self._pos_cache[axis] += adelta
+        self.update_status({"pos": self._pos_cache})
 
     def _pos(self):
         return self._pos_cache

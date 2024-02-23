@@ -4,10 +4,13 @@ import json
 import base64
 from io import BytesIO
 
+import functools
+
 plugin = None
 
 
 def except_wrap(func):
+    @functools.wraps(func)
     def wrapper():
         try:
             plugin.log_verbose(f"{request.url}")
@@ -24,16 +27,13 @@ def except_wrap(func):
 
 def make_app(app):
     @app.route('/get/position', methods=['GET'])
+    @except_wrap
     def position():
-        @except_wrap
-        def wrap():
-            position = plugin.position()
-            return {
-                'data': position,
-                'status': HTTPStatus.OK,
-            }
-
-        return wrap()
+        position = plugin.position()
+        return {
+            'data': position,
+            'status': HTTPStatus.OK,
+        }
 
     @app.route('/run/move_absolute', methods=['GET', 'POST'])
     def move_absolute():

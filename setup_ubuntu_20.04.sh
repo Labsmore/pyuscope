@@ -7,7 +7,18 @@ if [ \! -d configs ] ; then
     echo "Must be run from the root dir"
     exit 1
 fi
+# 2024-02-23 rpi install
+# Debian GNU/Linux 12 (bookworm)
 linux_distribution=$(lsb_release -d |cut -d ':' -f2 |xargs)
+
+pip_args=""
+if [ "$linux_distribution" = "Debian GNU/Linux 12 (bookworm)" ] ; then
+    echo "WARNING: your system doesn't like pip. Making a best effort install"
+    # Got to do what we got to do right now
+    # But a friendly reminder to try to sort out packaging better :)
+    pip_args="--break-system-packages"
+    sleep 3
+fi
 
 sudo apt-get update
 sudo apt-get install -y python3-pip
@@ -18,7 +29,7 @@ install_pyuscope() {
     # Some people suggest gir1.2-gst-rtsp-server-1.0
     # Install all for now
     sudo apt-get install -y libgstrtspserver-1.0-0 libgstrtspserver-1.0-dev gir1.2-gst-rtsp-server-1.0
-    pip3 install --user json5 boto3 pygame psutil bitarray
+    pip3 install --user ${pip_args} json5 boto3 pygame psutil bitarray
 
 
     # Package removed
@@ -36,25 +47,13 @@ install_pyuscope() {
 
     # For webserver
     sudo apt-get install -y python3-werkzeug
-    pip3 install --user 'Flask>=2.2.2'
+    pip3 install --user ${pip_args} 'Flask>=2.2.2'
 
     sudo python3 setup.py develop
 }
 
-install_antmicro_v4l2() {
-    # Install from https://github.com/antmicro/python3-v4l2/
-    mkdir tmp-installv4l2
-    pushd tmp-installv4l2
-    git clone https://github.com/antmicro/python3-v4l2.git
-    pushd python3-v4l2
-    sudo python3 ./setup.py install
-    popd
-    popd
-    rm -rf tmp-installv4l2
-}
-
 install_pyrav4l2() {
-    pip3 install --user git+https://github.com/antmicro/pyrav4l2.git
+    pip3 install --user ${pip_args} git+https://github.com/antmicro/pyrav4l2.git
 }
 
 # For GRBL etc serial port
@@ -74,7 +73,15 @@ apply_migrations() {
     ./test/grbl/migrate_meta.py 2>/dev/null || true
 }
 
-install_gst_plugin_toupcam
+if [ "$linux_distribution" = "Debian GNU/Linux 12 (bookworm)" ] ; then
+    # this actually works, there are instructions in the README
+    # but their setup script doesn't work automatically
+    # most rpi users right now are using open flexure which doesn't need this
+    echo "WARNING: not automatically installing touptek plugin"
+else
+    install_gst_plugin_toupcam
+fi
+
 install_pyuscope
 # Deprecated, use pyrav4l2
 # install_antmicro_v4l2

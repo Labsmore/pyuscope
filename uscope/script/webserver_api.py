@@ -46,9 +46,9 @@ app = Flask(__name__)
 
 
 class ServerThread(Thread):
-    def __init__(self, port=8080):
+    def __init__(self, host='127.0.0.1', port=8080):
         super().__init__()
-        self.server = make_server(host='127.0.0.1', port=port, app=app)
+        self.server = make_server(host=host, port=port, app=app)
         self.ctx = app.app_context()
         self.ctx.push()
 
@@ -73,20 +73,40 @@ class Plugin(ArgusScriptingPlugin):
                 "key": "port",
                 "default": "8080"
             },
+            "Start localhost only": {
+                "widget": "QPushButton",
+                "value": "localhost",
+            },
+            "Start network accessible": {
+                "widget": "QPushButton",
+                "value": "network",
+            },
         }
 
     def log_verbose(self, msg):
         if self.verbose:
             self.log(msg)
 
+    def show_run_button(self):
+        return False
+
     def run_test(self):
+        mode = self.get_input().get("button", {}).get("value")
+
+        if mode == "localhost":
+            host = "127.0.0.1"
+        elif mode == "network":
+            host = "0.0.0.0"
+        else:
+            assert 0, f"bad mode {host}"
+
         vals = self.get_input()
         port = vals["port"]
-        self.log(f"Running Pyuscope Webserver Plugin on port: {port}")
+        self.log(f"Running pyuscope webserver (bind: {host}) on port {port}")
         self.objectives = self._ac.microscope.get_objectives()
         # Keep a reference to this plugin
         app.plugin = self
-        self.server = ServerThread(port=port)
+        self.server = ServerThread(host=host, port=port)
         self.server.start()
         # Keep plugin alive while server is running
         while self.server and self.server.is_alive():

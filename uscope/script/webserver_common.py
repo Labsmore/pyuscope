@@ -1,4 +1,4 @@
-from flask import current_app, request
+from flask import current_app, request, send_file
 from http import HTTPStatus
 import json
 import base64
@@ -228,22 +228,45 @@ def make_app(app):
 
     @app.route('/get/image', methods=['GET'])
     def get_image():
-        @except_wrap
-        def wrap():
-            wait_imaging_ok = bool(
-                request.args.get("wait_imaging_ok", default=True, type=int))
-            raw = bool(request.args.get("raw", default=False, type=int))
+        wait_imaging_ok = bool(
+            request.args.get("wait_imaging_ok", default=True, type=int))
+        raw = bool(request.args.get("raw", default=False, type=int))
+
+        format_ = 'text/json'
+        if request.accept_mimetypes:
+            format_ = request.accept_mimetypes[0][0]
+
+        if 'json' in format_:
+            return_type = 'json'
             format_ = request.args.get("format", default="JPEG", type=str)
-            pil_image = plugin.image(wait_imaging_ok=wait_imaging_ok, raw=raw)
-            buffered = BytesIO()
-            pil_image.save(buffered, format=format_)
+        else:
+            return_type = 'binary'
+
+        if format_.startswith('image/'):
+            pil_format_ = format_[6:]
+        else:
+            pil_format_ = format_
+
+        print('Output format:', format_, pil_format_)
+
+        pil_image = plugin.image(wait_imaging_ok=wait_imaging_ok, raw=raw)
+        buffered = BytesIO()
+        pil_image.save(buffered, format=pil_format_)
+        buffered.seek(0)
+
+        if return_type == 'json':
             img_str = base64.b64encode(buffered.getvalue()).decode('ascii')
-            return {
+            return json.dumps({
                 'status': HTTPStatus.OK,
                 'data': {
                     "format": format_,
                     "base64": img_str,
                 }
-            }
-
-        return wrap()
+            })
+        else:
+            return send_file(
+                buffered,
+                mimetype=format_,
+                as_attachment=True,
+                download_name='image.jpg',
+            )

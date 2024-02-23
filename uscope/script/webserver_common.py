@@ -23,8 +23,49 @@ def except_wrap(func):
 
 
 def make_app(app):
-    @app.route('/get/position', methods=['GET'])
+    @app.route('/position', methods=['GET', 'POST'])
+    @except_wrap
     def position():
+        # If this is POST request, change the state of position
+        if request.method == 'POST':
+            # Get the values either from POST URL encoded data
+            ct = request.headers["Content-Type"]
+            if ct == 'application/x-www-form-urlencoded':
+                # curl -d "axis.x=5.000&block=1" -X POST "http://${SCOPE_IP}:8080/position"
+                args_src = request.form
+
+                data = {}
+                data['block'] = bool(args_src.get("block", default=True, type=int))
+                data['axis'] = {}
+                for axis in "xyz":
+                   this_pos = args_src.get(
+                       "axis." + axis,
+                       default=None,
+                       type=float,
+                   )
+                   if this_pos is not None:
+                       data['axis'][axis] = this_pos
+            # Or the raw JSON
+            elif ct == 'application/json':
+                # curl -d '{"axis":{"x": 5.000}, "block": 1}' -H "Content-Type: application/json" -X POST "http://${SCOPE_IP}:8080/position"
+                data = request.json
+
+            print('data', data)
+            # FIXME: Do the validation of the data object here...
+
+            plugin.move_absolute(data['axis'], block=data['block'])
+        else:
+            assert request.method == 'GET', request.method
+
+        # Return the info of the current position.
+        position = plugin.position()
+        return {
+            'data': position,
+            'status': HTTPStatus.OK,
+        }
+
+    @app.route('/get/position', methods=['GET'])
+    def get_position():
         @except_wrap
         def wrap():
             position = plugin.position()

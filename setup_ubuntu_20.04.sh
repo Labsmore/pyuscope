@@ -36,7 +36,7 @@ install_pyuscope() {
 
     # For webserver
     sudo apt-get install -y python3-werkzeug
-    pip3 install --user Flask>=2.2.2
+    pip3 install --user 'Flask>=2.2.2'
 
     sudo python3 setup.py develop
 }

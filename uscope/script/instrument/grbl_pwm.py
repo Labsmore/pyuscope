@@ -25,6 +25,18 @@ class Plugin(InstrumentScriptPlugin):
         self.max_rpm = 10000
         self.parameters = {}
 
+    def input_config(self):
+        return {
+            "On": {
+                "widget": "QPushButton",
+                "value": "on"
+            },
+            "Off": {
+                "widget": "QPushButton",
+                "value": "off"
+            },
+        }
+
     def functions(self):
         return {
             "set_duty_cycle": {
@@ -66,6 +78,14 @@ class Plugin(InstrumentScriptPlugin):
         self.log(f"Initial state: {set_on}")
         if set_on is not None:
             self.set_on(bool(set_on))
+
+    def instrument_button(self, button):
+        if button == "on":
+            self.set_on(True)
+        elif button == "off":
+            self.set_on(False)
+        else:
+            assert 0, f"bad value {button}"
 
     def cleanup(self):
         # XXX: not sure how reliable this sequence is for window close

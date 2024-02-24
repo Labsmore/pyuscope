@@ -671,12 +671,20 @@ class InstrumentScriptPlugin(ArgusScriptingPlugin):
     def instrument_init(self, parameters):
         pass
 
+    def instrument_button(self, button):
+        pass
+
     def run_test(self):
         assert self.subsystem
         self.instrument_init(self.subsystem.parameters())
-        while True:
-            self.check_running()
-            self.subsystem.poll_functions()
+
+        button = self.get_input().get("button")
+        if button:
+            self.instrument_button(button["value"])
+        else:
+            while True:
+                self.check_running()
+                self.subsystem.poll_functions()
 
 
 class ScriptingTab(ArgusTab):

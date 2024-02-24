@@ -618,10 +618,11 @@ The plugin should be polling the queue
 
 
 class InstrumentScriptSS(Subsystem):
-    def __init__(self, ac, plugin, name):
+    def __init__(self, ac, plugin, configj):
         super().__init__(ac.microscope)
-        self._name = name
+        self._configj = configj
         self.ac = ac
+        assert plugin is not None
         self.plugin = plugin
         self.queue_in = queue.Queue()
         for name in self.functions():
@@ -637,12 +638,19 @@ class InstrumentScriptSS(Subsystem):
         return self.plugin.functions()
 
     def name(self):
-        return self._name
+        # NOTE: this will be added if not specified as JSON key
+        return self._configj["name"]
+
+    def parameters(self):
+        """
+        Passed to instrument_init()
+        """
+        return self._configj.get("parameters", {})
 
     def poll_functions(self):
         while True:
             try:
-                name, kwargs = self.queue_in.get(timeout=None)
+                name, kwargs = self.queue_in.get(timeout=0.1)
             except queue.Empty:
                 return
             # Lookup by name and add arguments
@@ -660,9 +668,14 @@ class InstrumentScriptPlugin(ArgusScriptingPlugin):
     def set_subsystem(self, subsystem):
         self.subsystem = subsystem
 
+    def instrument_init(self, parameters):
+        pass
+
     def run_test(self):
         assert self.subsystem
+        self.instrument_init(self.subsystem.parameters())
         while True:
+            self.check_running()
             self.subsystem.poll_functions()
 
 
@@ -1006,9 +1019,12 @@ class ScriptingTab(ArgusTab):
         # Automatically start instruments at load time
         if self.instrument_config:
             self.select_script(self.instrument_config["plugin_path"])
+            if self.plugin is None:
+                self.log_local("Plugin failed to load :(")
+                return
             subsystem = InstrumentScriptSS(ac=self.ac,
                                            plugin=self.plugin,
-                                           name=self.instrument_config["name"])
+                                           configj=self.instrument_config)
             self.ac.microscope.add_subsystem(subsystem)
             self.plugin.set_subsystem(subsystem)
             self.run_pb_clicked(input_val={"init": True})

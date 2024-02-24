@@ -687,7 +687,11 @@ class InstrumentScriptPlugin(ArgusScriptingPlugin):
         else:
             while True:
                 self.check_running()
-                self.subsystem.poll_functions()
+                try:
+                    self.subsystem.poll_functions()
+                except Exception as e:
+                    self.log(f"Subsystem got exception: {e}")
+                    self.sleep(0.1)
 
 
 class ScriptingTab(ArgusTab):

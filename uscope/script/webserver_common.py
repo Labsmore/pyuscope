@@ -11,10 +11,10 @@ plugin = None
 
 def except_wrap(func):
     @functools.wraps(func)
-    def wrapper():
+    def wrapper(**kwargs):
         try:
             plugin.log_verbose(f"{request.url}")
-            return json.dumps(func())
+            return json.dumps(func(**kwargs))
         except Exception as e:
             print(e)
             return json.dumps({

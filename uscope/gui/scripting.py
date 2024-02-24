@@ -671,6 +671,9 @@ class InstrumentScriptPlugin(ArgusScriptingPlugin):
     def instrument_init(self, parameters):
         pass
 
+    def is_button(self):
+        return self.get_input().get("button") is not None
+
     def instrument_button(self, button):
         pass
 

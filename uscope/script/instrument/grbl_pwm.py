@@ -88,8 +88,9 @@ class Plugin(InstrumentScriptPlugin):
             assert 0, f"bad value {button}"
 
     def cleanup(self):
-        # XXX: not sure how reliable this sequence is for window close
-        set_on = self.parameters.get("shutdown_onoff")
-        self.log(f"Final state: {set_on}")
-        if set_on is not None:
-            self.set_on(bool(set_on))
+        if not self.is_button():
+            # XXX: not sure how reliable this sequence is for window close
+            set_on = self.parameters.get("shutdown_onoff")
+            self.log(f"Final state: {set_on}")
+            if set_on is not None:
+                self.set_on(bool(set_on))

@@ -147,7 +147,7 @@ class StackEnfusePlugin(IPPlugin):
 
     def _run(self, data_in, data_out, options={}):
         assert self.enfuse, "Requires enfuse"
-        if self.align:
+        if self.align_xy or self.align_zoom:
             assert self.align_image_stack, "Requires align_image_stack"
         best_effort = options.get("best_effort", False)
 

@@ -1,3 +1,54 @@
+/*
+https://www.photomacrography.net/forum/viewtopic.php?t=11710
+
+0.8" x 36tpi         RMS microscope objectives Includes many Finite objectives &#40;except eg Nikon  BDs;,
+                     and some Nikon Infinites including CF and BE.
+24mm x 0.75mm       Zeiss Epiplan HD, also  non HD with INKO (DIC) prism and quick mounting, but the older INKO version without quick mount are RMS
+25mm x 0.5mm         Schneider enlarging lenses
+25mm x 0.75mm        Nikon CFI60 Infinite microscope objectives, some Leica infinite objectives
+1" x 32tpi           C mount &#40;32 tpi = 0.794mm&#41;
+1.035" x 40tpi       &#40;40 tpi = 0.635 mm&#41; ThorLabs SM1 lens tube system for 1" diameter optics. Many adapters available, to objective etc, threads.
+26mm x 36tpi         Mitutoyo infinity microscope objectives &#40;36 tpi = 0.706mm&#41;
+26mm x 36tpi         Olympus neo splan/dplan infinity metallurgical objectives
+26mm x 0.75mm        Nikon BD 210mm finite objectives
+26mm x 0.75mm        Nikon Measurement Microscopes &#40;MM40 and others&#41;
+27mm x 0.75mm        Nikon BD infinity objectives
+27mm x 0.75mm       Some modern Zeiss Infinity Microscope Objectives
+28mm x 0.5mm         Schneider enlarging lenses
+28mm x 0.75mm        Some Reichert Microscope Objectives
+29.5mm x 0.5mm       Schneider M-Componon 28mm f/4, M-Componon 50mm f/4, M-Componon 80mm f/4                  &#40;?&#41;
+30mm x 0.5mm         Schneider enlarging lenses
+30.5mm x 0.5mm       Schneider enlarging lenses
+32mm x 0.75mm        Nikon LU BD Plan series of large industrial objectives
+32.5mm x 0.5mm       Some Enlarger lenses eg Schneider &#40;eg135mm f/5.6&#41; Rodenstock, early Nikon EL &#40;eg 80, 105&#41;.
+                     Some Nikon EL came with adapter to 39mm
+35mm x 0.5mm         Schneider enlarging lenses
+39.0mm x 0.75mm      Schneider MAKRO-SYMMAR HM 180mm f/5.6
+39mm x 26tpi         Leica lens mount. The Enlarger lens standard. Often quoted as 1mm &#40;26 tpi = 0.977mm&#41;
+40mm x 36TPI         Mitutoyo BD Plan APO Microscope Objectives &#40;36 tpi = 0.706mm&#41;
+40mm x 0.75mm        Leitz eg Photar Symmar eg 50mm f/2.8
+42mm x 0.75mm        T2 standard mount
+42mm x 1mm           "M42" Pentax/Praktika lens mount, a common standard
+43mm x 0.75mm        Schneider enlarging lenses
+45mm x 0.75mm        mount for 75mm, 95mm, and 105mm Printing-Nikkors,
+                     also used on the adapters and extensions for the Rodenstock Modular Focus Unit.
+50mm x 0.75mm        Schneider enlarging lenses
+50mm x 1.0mm           Leica / Wild Heerbrugg M3B, M3C, M3Z, MS5, MZ6, MZ7.5, MZ9.5
+52mm x 1.0mm            Leica Stereo Zoom S4E, S6, S6D, S6E, S6T, S8APO
+55mm x 0.75mm        Schneider enlarging lenses
+66mm x 0.75mm        Schneider enlarging lenses
+77mm x 0.75mm        Schneider enlarging lenses
+90mm x 1mm           Schneider enlarging lenses
+
+
+
+
+M26 (36 TPI vs 0.7 mm)
+Mitutoyo 36TPI: 25.4 / 36 = 0.706 mm
+Sometimes listed as 0.7 mm
+https://www.photomacrography.net/forum/viewtopic.php?t=12404
+In practice these are mechanically compatible
+*/
 {
     "objectives": [
 
@@ -18,7 +69,7 @@
             "series": "M Plan Apo",
             "magnification": 5,
             "na": 0.225,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
         },
         {
             //https://www.edmundoptics.com/p/10x-eo-hr-infinity-corrected-objective/15252/
@@ -27,7 +78,7 @@
             "series": "M Plan Apo",
             "magnification": 10,
             "na": 0.45,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
         },
         {
             "vendor": "Edmund Optics",
@@ -35,7 +86,7 @@
             "series": "M Plan Apo",
             "magnification": 20,
             "na": 0.60,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
         },
 
         /******************************************************************
@@ -49,7 +100,7 @@
             "series": "Achrovid",
             "magnification": 10,
             "na": 0.21,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
         },
 
         /******************************************************************
@@ -104,7 +155,7 @@
             "na": 0.025,
             "fl": 200.0,
             "wd": 11.0,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
             "infinity_tube_length": 200,
         },
         {
@@ -115,7 +166,7 @@
             "na": 0.055,
             "fl": 100.0,
             "wd": 34.0,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
             "infinity_tube_length": 200,
         },
         //Common 5X
@@ -127,7 +178,7 @@
             "na": 0.14,
             "fl": 40.0,
             "wd": 34.0,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
             "infinity_tube_length": 200,
         },
         //Common 10X
@@ -139,7 +190,7 @@
             "na": 0.28,
             "fl": 20.0,
             "wd": 34.0,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
             "infinity_tube_length": 200,
         },
         //Common 20X
@@ -151,7 +202,7 @@
             "na": 0.42,
             "fl": 10.0,
             "wd": 20.0,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
             "infinity_tube_length": 200,
         },
         //Common 100X
@@ -163,7 +214,7 @@
             "na": 0.70,
             "fl": 2.0,
             "wd": 6.0,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
             "infinity_tube_length": 200,
         },
 
@@ -208,7 +259,7 @@
             "series": "NeoDPlan",
             "magnification": 5,
             "na": 0.10,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
             "infinity_tube_length": 180,
         },
         {
@@ -217,7 +268,7 @@
             "series": "NeoDPlan",
             "magnification": 10,
             "na": 0.25,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
             "infinity_tube_length": 180,
         },
         {
@@ -226,7 +277,7 @@
             "series": "NeoDPlan",
             "magnification": 50,
             "na": 0.75,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
             "infinity_tube_length": 180,
         },
         /*
@@ -238,7 +289,7 @@
             "series": "NeoSPlan",
             "magnification": 5,
             "na": 0.13,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
             "infinity_tube_length": 180,
         },
         {
@@ -247,7 +298,7 @@
             "series": "NeoSPlan",
             "magnification": 10,
             "na": 0.30,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
             "infinity_tube_length": 180,
         },
         {
@@ -256,7 +307,7 @@
             "series": "NeoSPlan",
             "magnification": 20,
             "na": 0.46,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
             "infinity_tube_length": 180,
         },
         {
@@ -265,7 +316,7 @@
             "series": "NeoSPlan",
             "magnification": 100,
             "na": 0.90,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
             "infinity_tube_length": 180,
         },
 
@@ -282,7 +333,7 @@
             "magnification": 10,
             "na": 0.30,
             "wd": 16.5,
-            "thread": "M27",
+            "thread": "M27 x 0.75mm",
             "infinity_tube_length": 200,
         },
         {
@@ -292,7 +343,7 @@
             "magnification": 20,
             "na": 0.46,
             "wd": 3.1,
-            "thread": "M27",
+            "thread": "M27 x 0.75mm",
             "infinity_tube_length": 200,
         },
         {
@@ -302,7 +353,7 @@
             "magnification": 50,
             "na": 0.80,
             "wd": 0.54,
-            "thread": "M27",
+            "thread": "M27 x 0.75mm",
             "infinity_tube_length": 200,
         },
         {
@@ -312,7 +363,7 @@
             "magnification": 100,
             "na": 0.95,
             "wd": 0.3,
-            "thread": "M27",
+            "thread": "M27 x 0.75mm",
             "infinity_tube_length": 200,
         },
 
@@ -325,7 +376,7 @@
             "series": "VC",
             "magnification": 60,
             "na": 1.40,
-            "thread": "M26",
+            "thread": "M25 x 0.75mm",
             "infinity_tube_length": 200,
         },
 
@@ -346,7 +397,7 @@
             "series": "M Plan APO SL",
             "magnification": 20,
             "na": 0.29,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
         },
         //Silver with medium knurling
         {
@@ -355,7 +406,7 @@
             "series": "M Plan Apo SL",
             "magnification": 20,
             "na": 0.34,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
         },
         //Silver with slightly higher knurling
         //"new version"
@@ -365,7 +416,7 @@
             "series": "M Plan Apo SL",
             "magnification": 20,
             "na": 0.45,
-            "thread": "M26",
+            "thread": "M26 x 36TPI",
         },
 
         /******************************************************************
@@ -377,7 +428,7 @@
             "series": "Epiplan-NEOFLUAR",
             "magnification": 50,
             "na": 0.75,
-            "thread": "M27",
+            "thread": "M27 x 0.75mm",
         },
     ],
 }

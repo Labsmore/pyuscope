@@ -1241,7 +1241,7 @@ class JogSlider(QWidget):
         new_range = self.slider_max - self.slider_min
         new_value = ((
             (val - val_min) * new_range) / old_range) + self.slider_min
-        self.slider.setValue(new_value)
+        self.slider.setValue(int(new_value))
 
 
 class TopMotionWidget(AWidget):

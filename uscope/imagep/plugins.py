@@ -187,9 +187,9 @@ class StackEnfusePlugin(IPPlugin):
                 # -x -y is more explicit, let's do that for now
                 "-l",
             ]
-            if self.aign_xy:
+            if self.align_xy:
                 args += ["-x", "-y"]
-            if self.aign_zoom:
+            if self.align_zoom:
                 args += ["-m"]
             args += [
                 "-v", "--use-given-order", "-a",

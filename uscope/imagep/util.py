@@ -1,11 +1,16 @@
 import time
 import os
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import subprocess
 import tempfile
 import shutil
 import re
-from pyzbar.pyzbar import decode as pyzbar_decode
+# 2024-02-29: this package keeps being problematic
+try:
+    import pyzbar
+except ImportError:
+    pyzbar = None
+    print("WARNING: failed to import pyzbar")
 
 # Rayleigh criterion
 # https://oeis.org/A245461
@@ -225,7 +230,10 @@ def find_qr_code_match(image, expr):
     """
     Scan image for QR code(s) and return first match
     """
-    decode_results = pyzbar_decode(image)
+    if not pyzbar:
+        raise ImportError("Failed to import pyzbar")
+
+    decode_results = pyzbar.pyzbar.decode(image)
     for decoded in decode_results:
         data = decoded.data
         try:
@@ -239,3 +247,28 @@ def find_qr_code_match(image, expr):
 
     # No detected match
     return None
+
+
+def check_valid_image_dir(iindex, quick=False):
+    """
+    Quick: check for 0 size only
+    Slow: actually parse the image header
+    """
+    errors = 0
+    image_dir = iindex["dir"]
+    for fn_base in iindex["images"]:
+        fn = os.path.join(image_dir, fn_base)
+        if os.stat(fn).st_size == 0:
+            errors += 1
+            print(f"ERROR: bad file {fn}")
+        if not quick:
+            try:
+                with Image.open(fn) as _im:
+                    pass
+            except UnidentifiedImageError as e:
+                errors += 1
+                print(f"ERROR: bad file {e}")
+
+    if errors:
+        raise ValueError(
+            f"Directory contains invalid image files: {image_dir}")

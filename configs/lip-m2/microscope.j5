@@ -133,12 +133,14 @@ A minimal configuration to do basic testing
         "source_properties": {
             "esize": 0
         },
+        /*
         "source_properties_mod": {
             //In us. Can go up to 15 sec which is impractical for typical usage
             "expotime": {
                 "max": 200000
             },
         },
+        */
         //2023-11-16: is this actually needed?
         "scalar": 0.5,
         //400 looked ok
@@ -155,6 +157,7 @@ A minimal configuration to do basic testing
     "optics": {
         "um_per_pixel_raw_1x": 2.3364486,
         "infinity_tube_length": 200,
+        "telecentric": true,
     },
 
     "systems": [

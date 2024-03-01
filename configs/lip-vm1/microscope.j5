@@ -197,6 +197,7 @@ In this format each four bytes is two pixels. Each four bytes is two Y's, a Cb a
         //2023-12-18: move from 1.5x to 2.0x
         //2.0x is still a lot more even until can add diffusor and/or improve FF correction
         "image_width_1x_mm": 6.6,
+        "telecentric": false,
 
         //Quick guess, not calibrated
         "diffusion": {

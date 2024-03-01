@@ -155,6 +155,7 @@ A minimal configuration to do basic testing
         12400 / 2848 = 
         */
         "um_per_pixel_raw_1x": 4.353932584,
+        "telecentric": false,
     },
     "ipp": {
         "plugins": {

@@ -51,6 +51,9 @@ AMA100 relay lens
         },
         "scalar": 0.5
     },
+    "optics": {
+        "telecentric": false,
+    },
 
 
     "systems": [

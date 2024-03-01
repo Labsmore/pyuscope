@@ -87,6 +87,7 @@ But not buggy like original intended camera
     },
     "optics": {
         "um_per_pixel_raw_1x": 1.321752266,
+        "telecentric": false,
     },
     "systems": [
         //Default configuration

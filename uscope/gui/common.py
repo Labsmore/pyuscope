@@ -425,7 +425,7 @@ class ArgusCommon(QObject):
         self.log('Loading imager %s...' % source)
         # Gst is pretty ingrained for the GUI
         #
-        self.imager = imager.get_gui_imager(source, self)
+        self.imager = self.vidpip.imager_aplugin.get_imager()
         # gst pipeline already created / should be ready to go
         self.imager.device_restarted()
 

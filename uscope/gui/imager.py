@@ -35,10 +35,10 @@ is not strictly speaking related to the GUI. Hmm
 
 
 class GstGUIImager(Imager):
-    def __init__(self, ac, usc):
+    def __init__(self, ac):
         Imager.__init__(self)
         self.ac = ac
-        self.usc = usc
+        self.usc = self.ac.microscope.usc
         self.image_ready = threading.Event()
         self.image_id = None
         # self.emitter = GstGUIImager.Emitter()
@@ -192,17 +192,7 @@ class GstGUIImagerTS(Imager):
         return self.imager.ac.control_scroll.get_disp_properties_ts()
 
 
+'''
 class MockGUIImager(MockImager):
     pass
-
-
-def get_gui_imager(source, gui):
-    # WARNING: only gst- sources are supported
-    # This indirection may be eliminated
-    if source == 'mock':
-        ret = MockGUIImager()
-    elif source.find("gst-") == 0:
-        ret = GstGUIImager(gui, usc=gui.usc)
-    else:
-        raise Exception('Invalid imager type %s' % source)
-    return ret
+'''

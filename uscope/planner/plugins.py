@@ -1117,6 +1117,7 @@ class PlannerCaptureImage(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
         self.images_captured = 0
+        self.get_mode = self.pc.j["imager"].get("get_mode", "processed")
 
     def scan_begin(self, state):
         properties = self.pc.j["imager"].get("properties")
@@ -1137,7 +1138,9 @@ class PlannerCaptureImage(PlannerPlugin):
                 self.planner.imager.take()
             else:
                 tstart = time.time()
-                im = self.planner.imager.get_processed()
+                capseq = self.planner.imager.get_by_mode(mode=self.get_mode)
+                capim = capseq.captured_image()
+                im = capim.image()
                 tend = time.time()
                 self.verbose and self.log(
                     "FIXME TMP: actual capture took %0.3f" % (tend - tstart, ))
@@ -1152,6 +1155,9 @@ class PlannerCaptureImage(PlannerPlugin):
         self.images_captured += 1
         modifiers = {}
         replace_keys = {
+            "captured_sequence": capseq,
+            "captured_image": capim,
+            # compatibility to ease transition
             "image": im,
             "images_captured": self.images_captured,
         }
@@ -1183,7 +1189,8 @@ class PlannerSaveImage(PlannerPlugin):
         self.log("Output extension: %s" % self.extension)
 
     def iterate(self, state):
-        im = state.get("image")
+        capim = state.get("captured_image")
+        im = capim.image()
         if not self.planner.dry:
             assert im, "Asked to save image without image given"
 
@@ -1192,10 +1199,11 @@ class PlannerSaveImage(PlannerPlugin):
         fn_full = img_prefix + self.extension
         if not self.planner.dry:
             # PIL object
+            kwargs = {}
             if self.extension == ".jpg" or self.extension == ".jpeg":
-                im.save(fn_full, quality=self.quality)
-            else:
-                im.save(fn_full)
+                kwargs["quality"] = self.quality
+            # Includes EXIF
+            capim.save(fn_full, **kwargs)
             meta = {
                 "position": self.motion.pos(),
             }

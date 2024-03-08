@@ -651,6 +651,7 @@ class AdvancedTab(ArgusTab):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self._stacker_pconfig = None
         layout = QGridLayout()
         row = 0
 
@@ -767,15 +768,25 @@ class AdvancedTab(ArgusTab):
         images_pm = int(str(self.stacker_number_le.text()))
         distance_pm = float(self.stacker_distance_le.text())
         if not images_pm or distance_pm == 0.0:
+            self._stacker_pconfig = None
             return
         # +/- but always add the center plane
         images_per_stack = 1 + 2 * images_pm
-        pconfig["points-stacker"] = {
+        stacker_pconfig = {
+            #"relative": "center",
             "number": images_per_stack,
             "distance": 2 * distance_pm,
         }
+        pconfig["points-stacker"] = stacker_pconfig
+        self._stacker_pconfig = stacker_pconfig
         if self.stack_drift_cb.isChecked():
             pconfig["stacker-drift"] = {}
+
+    def stacker_pconfig(self):
+        return self._stacker_pconfig
+
+    def image_stabilization_pconfig(self):
+        return self._stabilization_pconfig
 
     def get_image_stablization(self):
         return self.image_stabilization_cb_map[
@@ -783,10 +794,13 @@ class AdvancedTab(ArgusTab):
 
     def _update_pconfig(self, pconfig):
         image_stabilization = self.get_image_stablization()
+        stabilization_pconfig = None
         if image_stabilization > 1:
-            pconfig["image-stabilization"] = {
+            stabilization_pconfig = {
                 "n": image_stabilization,
             }
+            pconfig["image-stabilization"] = stabilization_pconfig
+        self._stabilization_pconfig = stabilization_pconfig
 
         if self.ac.microscope.has_z():
             self.update_pconfig_stack(pconfig)

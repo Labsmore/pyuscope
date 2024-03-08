@@ -117,18 +117,18 @@ Setup typical planner pipeline given configuration
 """
 
 
-def get_planner(pconfig,
-                motion,
-                imager,
-                out_dir,
+def get_planner(microscope,
+                pconfig,
+                out_dir=None,
                 dry,
                 meta_base=None,
                 log=None,
                 progress_callback=None,
-                microscope=None,
                 verbosity=None):
     pipeline_names = []
 
+    imager = microscope.imager_ts()
+    motion = microscope.motion_ts()
     if "points-xy2p" in pconfig:
         pipeline_names.append("points-xy2p")
     if "points-xy3p" in pconfig:

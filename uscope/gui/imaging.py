@@ -1999,6 +1999,7 @@ class MainTab(ArgusTab):
 class ImagerTab(ArgusTab):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._hdr_pconfig = None
 
     def _initUI(self):
         # Most of the layout is filled in from the ControlScroll
@@ -2043,35 +2044,41 @@ class ImagerTab(ArgusTab):
         auto = self.hdr_auto.isChecked()
         self.hdr_auto_stops.setReadOnly(not auto)
         self.hdr_auto_stops_per.setReadOnly(not auto)
-        if not auto:
-            return
+        if auto:
+            # val = self.ac.imager.get_property(self.exposure_property)
+            val = self.ac.get_exposure()
+            if val is None:
+                return None
+            pm_stops = int(self.hdr_auto_stops.text())
+            stops_per = int(self.hdr_auto_stops_per.text())
 
-        # val = self.ac.imager.get_property(self.exposure_property)
-        val = self.ac.get_exposure()
-        if val is None:
-            return None
-        pm_stops = int(self.hdr_auto_stops.text())
-        stops_per = int(self.hdr_auto_stops_per.text())
+            hdr_seq = []
+            # add in reverse then reverse list
+            val_tmp = val
+            for _stopi in range(pm_stops):
+                val_tmp /= 2**stops_per
+                hdr_seq.append(val_tmp)
+            hdr_seq.reverse()
+            hdr_seq.append(val)
+            val_tmp = val
+            for _stopi in range(pm_stops):
+                val_tmp *= 2**stops_per
+                hdr_seq.append(val_tmp)
 
-        hdr_seq = []
-        # add in reverse then reverse list
-        val_tmp = val
-        for _stopi in range(pm_stops):
-            val_tmp /= 2**stops_per
-            hdr_seq.append(val_tmp)
-        hdr_seq.reverse()
-        hdr_seq.append(val)
-        val_tmp = val
-        for _stopi in range(pm_stops):
-            val_tmp *= 2**stops_per
-            hdr_seq.append(val_tmp)
+            le_str = ",".join(["%u" % x for x in hdr_seq])
+            self.hdr_le.setText(le_str)
+            self.hdr_seq = hdr_seq
 
-        le_str = ",".join(["%u" % x for x in hdr_seq])
-        self.hdr_le.setText(le_str)
+        # Update cache for snapshot engine
+        self._update_pconfig({})
+
+    def hdr_pconfig(self):
+        return self._hdr_pconfig
 
     def update_pconfig_hdr(self, pconfig):
         raw = str(self.hdr_le.text()).strip()
         if not raw:
+            self._hdr_pconfig = None
             return
 
         try:
@@ -2088,6 +2095,7 @@ class ImagerTab(ArgusTab):
             # this is probably a good approximation for now
             "tsettle": self.ac.usc.kinematics.tsettle_hdr()
         }
+        self._hdr_pconfig = ret
         pconfig.setdefault("imager", {})["hdr"] = ret
 
     def _update_pconfig(self, pconfig):

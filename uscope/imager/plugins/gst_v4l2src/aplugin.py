@@ -4,6 +4,9 @@ from uscope.v4l2_util import find_device
 
 import glob
 import gi
+import cv2
+import numpy as np
+from PIL import Image
 
 DEFAULT_V4L2_DEVICE = "/dev/video0"
 
@@ -59,3 +62,17 @@ class Plugin(ArgusGstImagerPlugin):
             verbose and print("ADS: found /dev/video device")
             return "gst-v4l2src"
         '''
+
+    def gst_decode_image(self, image_dict):
+        buf = image_dict["buf"]
+        width = image_dict["width"]
+        height = image_dict["height"]
+
+        w = width
+        h = height
+        shape = (h, w, 2)
+        yuv = np.frombuffer(buf, dtype=np.uint8)
+        yuv = yuv.reshape(shape)
+        rgba = cv2.cvtColor(yuv, cv2.COLOR_YUV2RGBA_YUYV)
+        rgb = cv2.cvtColor(rgba, cv2.COLOR_RGBA2RGB)
+        return {"image": Image.fromarray(rgb)}

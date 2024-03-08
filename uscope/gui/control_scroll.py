@@ -4,6 +4,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
 import os
+import piexif
 
 from collections import OrderedDict
 """
@@ -390,6 +391,10 @@ class ImagerControlScroll(QScrollArea):
         # should force an update?
         return dict(self.disp_cache)
 
+    def get_disp_property_ts(self, k):
+        # should force an update?
+        return self.disp_cache[k]
+
     def set_disp_properties_ts(self, vals):
         # return dict(self.disp_cache)
         self.setDispProperties.emit(vals)
@@ -541,6 +546,18 @@ class ImagerControlScroll(QScrollArea):
     def auto_color_enabled(self):
         raise Exception("Required")
 
+    def set_exposure(self, n):
+        assert 0, "Required"
+
+    def get_exposure(self):
+        assert 0, "Required"
+
+    def get_auto_exposure_disp_property(self):
+        assert 0, "Required"
+
+    def get_exposure_disp_property(self):
+        assert 0, "Required"
+
     def cal_load(self, load_data_dir=True):
         try:
             # source=self.vidpip.source_name
@@ -616,6 +633,36 @@ class ImagerControlScroll(QScrollArea):
 
     def is_disp_prop_optional(self, disp_prop):
         return disp_prop in self.optional_disp_props
+
+    def get_meta_exposure_seconds(self, meta):
+        """
+        FIXME: adjust this for toupcamsrc and v4l2src
+        I think both report in us though?
+        """
+        return meta["disp_properties"][self.get_exposure_disp_property()] / 1e6
+
+    def make_exif_bytes(self, meta):
+        """
+        Thread safe
+        Called from image processing thread
+        """
+        exif = {}
+        # exif["Exif"] = {33434: (16660, 1000000)}
+        # XXX: are there defines we can use instead of hard coding constants?
+        exif["Exif"] = {
+            # manual exposure
+            34850: 1,
+            # exposure time as rational
+            33434: (int(self.get_meta_exposure_seconds(meta) * 1e6), int(1e6)),
+            # ISO
+            #34855: 118,
+            34855: 1,
+            # f number
+            #33437: 2.2,
+            # 33437: (22, 100),
+            33437: (1, 1),
+        }
+        return piexif.dump(exif)
 
 
 """

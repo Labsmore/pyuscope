@@ -36,6 +36,7 @@ class ArgusImagerPlugin:
         return SinkxZoomableWidget
 
 
+# Intended to be used with GstGUIImager
 class ArgusGstImagerPlugin(ArgusImagerPlugin):
     def name(self):
         return self.source_name()
@@ -54,3 +55,6 @@ class ArgusGstImagerPlugin(ArgusImagerPlugin):
 
     def get_imager(self):
         return GstGUIImager(self.ac)
+
+    def gst_decode_image(self, image_dict):
+        assert 0, "Required"

@@ -478,6 +478,10 @@ class SnapshotCSIP:
 
         assert len(current_images) == 1
         current_image = current_images[0]
+        meta_image = options["meta_image"]
+        if "properties" in meta_image:
+            # fixme
+            pass
 
         ipp = config.get_usc().ipp.snapshot_correction()
         current_plugins = [p["plugin"] for p in ipp]

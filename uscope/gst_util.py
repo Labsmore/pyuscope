@@ -74,9 +74,10 @@ class CaptureSink(CbSink):
     """
 
     # FIXME: get width/height from stream
-    def __init__(self, width, height, source_type):
+    def __init__(self, ac, width, height, source_type):
         CbSink.__init__(self)
 
+        self.ac = ac
         self.image_requested = threading.Event()
         self.next_image_id = 0
         self.images_actual = {}
@@ -114,8 +115,9 @@ class CaptureSink(CbSink):
         image_dict = self.images_actual[image_id]
         del self.images_actual[image_id]
         #self.verbose and print("bytes", len(buf), 'w', width, 'h', height)
-        return CapturedImage(im=self.ac.vidpip.gst_decode_image(image_dict),
-                             meta=image_dict["meta"])
+        return CapturedImage(
+            image=self.ac.vidpip.imager_aplugin.gst_decode_image(image_dict),
+            meta=image_dict["meta"])
 
     '''
     gstreamer plugin core methods

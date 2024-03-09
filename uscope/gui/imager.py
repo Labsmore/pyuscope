@@ -8,7 +8,6 @@ Control Scroll (imager GUI controls)
 
 from uscope.imager.imager import Imager, MockImager
 from uscope.util import LogTimer
-from uscope.imager.image_sequence import ImageSequence
 from uscope.planner.planner_util import get_planner
 
 from PyQt5 import Qt
@@ -91,8 +90,8 @@ class GstGUIImager(Imager):
             #"exposure": self.get_exposure_cache(),
             "disp_properties":
             dict(self.ac.control_scroll.get_disp_properties_ts()),
-            "raw_properties":
-            dict(self.ac.control_scroll.get_raw_properties_ts()),
+            #"raw_properties":
+            #dict(self.ac.control_scroll.get_raw_properties_ts()),
         }
         capim.set_meta(meta)
         return capim
@@ -104,8 +103,7 @@ class GstGUIImager(Imager):
                 # 2023-11-16: we used to do scaling / etc here
                 # Now its done in image processing thread
                 # This also allows getting "raw" image if needed
-                return ImageSequence(captured_image=self.next_captured_image(
-                    timeout=timeout))
+                return self.next_captured_image(timeout=timeout)
             except Exception as e:
                 if not recover_errors:
                     raise
@@ -118,6 +116,7 @@ class GstGUIImager(Imager):
                     self.ac.microscope.kinematics.tsettle_video_pipeline * 2)
 
     def get_processed(self,
+                      processing_options={},
                       recover_errors=True,
                       snapshot_timeout=None,
                       processing_timeout=None):
@@ -130,8 +129,8 @@ class GstGUIImager(Imager):
             # Get relatively unprocessed snapshot
             with LogTimer("get_processed: raw",
                           variable="PYUSCOPE_PROFILE_TIMAGE"):
-                meta_image = self.get(timeout=snapshot_timeout,
-                                      recover_errors=recover_errors)["0"]
+                capim = self.get(timeout=snapshot_timeout,
+                                 recover_errors=recover_errors)
 
             processed = {}
             ready = threading.Event()
@@ -140,13 +139,12 @@ class GstGUIImager(Imager):
                 if type(ret_e) is Exception:
                     processed["exception"] = ret_e
                 else:
-                    processed["image"] = ret_e
+                    processed["captured_image"] = ret_e
                 ready.set()
 
             options = {}
-            options["image"] = meta_image["image"]
-            meta_image["type"] = "snapshot"
-            options["meta_image"] = meta_image
+            options["image"] = capim.image
+            options["captured_image"] = capim
             options["objective_config"] = self.ac.objective_config()
             options["scale_factor"] = self.ac.usc.imager.scalar()
             options["scale_expected_wh"] = self.ac.usc.imager.final_wh()
@@ -154,6 +152,7 @@ class GstGUIImager(Imager):
                 options[
                     "videoflip_method"] = self.ac.usc.imager.videoflip_method(
                     )
+            options.update(processing_options)
 
             self.ac.image_processing_thread.process_image(options=options,
                                                           callback=callback)
@@ -166,7 +165,9 @@ class GstGUIImager(Imager):
             if "exception" in processed:
                 raise Exception(
                     f"failed to process image: {processed['exception']}")
-            return processed["image"]
+            capim = processed["captured_image"]
+            capim.meta["objective_config"] = options["objective_config"]
+            return capim
 
     def get_composite(self, **kwargs):
         self.composite_grabber.get_composite(**kwargs)
@@ -210,8 +211,8 @@ class GstGUIImager(Imager):
         return self.ac.control_scroll.get_disp_property_ts(disp_prop)
     '''
 
-    def make_exif_bytes(self, meta):
-        return self.ac.control_scroll.make_exif_bytes(meta)
+    def prepare_exif_bytes(self, captured_image):
+        self.ac.control_scroll.prepare_exif_bytes(captured_image)
 
 
 # TODO: consider doing this in memory

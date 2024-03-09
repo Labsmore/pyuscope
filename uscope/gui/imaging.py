@@ -1309,7 +1309,7 @@ class ImagingOptionsWindow(QWidget):
 
 # 2023-11-15: combined ScanWidget + SnapshotWidget
 class ImagingTaskWidget(AWidget):
-    snapshotCaptured = pyqtSignal(int)
+    snapshotDone = pyqtSignal()
 
     def __init__(self,
                  ac,
@@ -1320,7 +1320,6 @@ class ImagingTaskWidget(AWidget):
         super().__init__(ac=ac, aname=aname, parent=parent)
         # self.pos.connect(self.update_pos)
         self.imaging_config = None
-        self.snapshotCaptured.connect(self.captureSnapshot)
         self.go_current_pconfig = go_current_pconfig
         self.setControlsEnabled = setControlsEnabled
         self.current_planner_hconfig = None
@@ -1329,6 +1328,7 @@ class ImagingTaskWidget(AWidget):
         self._save_extension = None
         self.taking_snapshot = False
         self.planner_progress_cache = None
+        self.snapshotDone.connect(self.snapshot_done)
 
     def _initUI(self):
         def getNameLayout():
@@ -1692,11 +1692,43 @@ class ImagingTaskWidget(AWidget):
         self.snapshot_pb.setEnabled(False)
         self.taking_snapshot = True
 
-        def emitSnapshotCaptured(image_id):
-            # self.ac.microscope.log('Image captured: %s' % image_id)
-            self.snapshotCaptured.emit(image_id)
+        options = {}
+        options["save_filename"] = self.snapshot_fn()
+        extension = self.save_extension()
+        if extension == ".jpg":
+            options["save_quality"] = self.ac.usc.imager.save_quality()
+        options["scale_factor"] = self.ac.usc.imager.scalar()
 
-        self.ac.capture_sink.request_image(emitSnapshotCaptured)
+        imaging_config = self.ac.imaging_config()
+        plugins = {}
+        if imaging_config.get("add_scalebar", False):
+            plugins["annotate-scalebar"] = {}
+        options["plugins"] = plugins
+        qr_regex = config.bc.qr_regex()
+        if qr_regex:
+            options["qr_regex"] = qr_regex
+
+        def offload(ac):
+            try:
+                capim = self.ac.microscope.imager_ts().get_processed(
+                    processing_options=options)
+                filename = capim.meta["save_filename"]
+                self.ac.microscope.log(f"Snapshot: saved to {filename}")
+
+                data = {
+                    "image": capim.image,
+                    "captured_image": capim,
+                    "objective_config": capim.meta["objective_config"]
+                }
+                self.ac.snapshotCaptured.emit(data)
+            finally:
+                self.snapshotDone.emit()
+
+        self.ac.task_thread.offload(offload)
+
+    def snapshot_done(self):
+        self.snapshot_pb.setEnabled(True)
+        self.taking_snapshot = False
 
     def save_extension(self):
         # ex: .jpg, .tif
@@ -1710,59 +1742,6 @@ class ImagingTaskWidget(AWidget):
         return snapshot_fn(user=str(self.job_name_le.text()),
                            extension=self.save_extension(),
                            parent=self.ac.usc.app("argus").snapshot_dir())
-
-    def captureSnapshot(self, image_id):
-        # self.ac.log('RX image for saving')
-
-        image = self.ac.capture_sink.pop_image(image_id)
-        """
-        # FIXME: should unify this with Imager better
-        # For now assertion guards help make sure pipeline is correct
-        factor = self.ac.usc.imager.scalar()
-        image = get_scaled(image, factor, filt=Image.NEAREST)
-        expected_wh = self.ac.usc.imager.final_wh()
-        assert expected_wh[0] == image.size[0] and expected_wh[
-            1] == image.size[
-                1], "Unexpected image size: expected %s, got %s" % (
-                    expected_wh, image.size)
-        fn_full = self.snapshot_fn()
-        """
-
-        self.ac.log(f"Snapshot: image received, post-processing")
-
-        options = {}
-        options["is_snapshot"] = True
-        options["image"] = image
-        options["objective_config"] = self.ac.objective_config()
-        options["save_filename"] = self.snapshot_fn()
-        extension = self.save_extension()
-        if extension == ".jpg":
-            options["save_quality"] = self.ac.usc.imager.save_quality()
-        options["scale_factor"] = self.ac.usc.imager.scalar()
-        options["scale_expected_wh"] = self.ac.usc.imager.final_wh()
-        if self.ac.usc.imager.videoflip_method():
-            options["videoflip_method"] = self.ac.usc.imager.videoflip_method()
-
-        imaging_config = self.ac.imaging_config()
-        plugins = {}
-        if imaging_config.get("add_scalebar", False):
-            plugins["annotate-scalebar"] = {}
-        options["plugins"] = plugins
-        qr_regex = config.bc.qr_regex()
-        if qr_regex:
-            options["qr_regex"] = qr_regex
-
-        def callback(command, args, ret_e):
-            if type(ret_e) is Exception:
-                self.ac.microscope.log(f"Snapshot: save failed")
-            else:
-                filename = args[0]["options"]["save_filename"]
-                self.ac.microscope.log(f"Snapshot: saved to {filename}")
-
-        self.ac.image_processing_thread.process_image(options=options,
-                                                      callback=callback)
-        self.snapshot_pb.setEnabled(True)
-        self.taking_snapshot = False
 
     def _post_ui_init(self):
         self.update_save_extension()

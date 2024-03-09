@@ -641,7 +641,7 @@ class ImagerControlScroll(QScrollArea):
         """
         return meta["disp_properties"][self.get_exposure_disp_property()] / 1e6
 
-    def make_exif_bytes(self, meta):
+    def prepare_exif_bytes(self, captured_image):
         """
         Thread safe
         Called from image processing thread
@@ -651,18 +651,22 @@ class ImagerControlScroll(QScrollArea):
         # XXX: are there defines we can use instead of hard coding constants?
         exif["Exif"] = {
             # manual exposure
-            34850: 1,
+            34850:
+            1,
             # exposure time as rational
-            33434: (int(self.get_meta_exposure_seconds(meta) * 1e6), int(1e6)),
+            33434:
+            (int(self.get_meta_exposure_seconds(captured_image.meta) * 1e6),
+             int(1e6)),
             # ISO
             #34855: 118,
-            34855: 1,
+            34855:
+            1,
             # f number
             #33437: 2.2,
             # 33437: (22, 100),
             33437: (1, 1),
         }
-        return piexif.dump(exif)
+        captured_image.set_exif_bytes(piexif.dump(exif))
 
 
 """
@@ -680,8 +684,11 @@ def template_property(vidpip, ac, prop_entry):
     else:
         assert 0, type(prop_entry)
 
-    ps = vidpip.source.find_property(prop_name)
+    if defaults.get("virtual"):
+        return defaults
+
     ret = {}
+    ps = vidpip.source.find_property(prop_name)
     ret["prop_name"] = prop_name
     ret["default"] = ps.default_value
 
@@ -763,6 +770,18 @@ class MockControlScroll(ImagerControlScroll):
         return False
 
 
+class VirtualProperty:
+    def __init__(self, name=None, value=None):
+        self.name = name
+        self.value = value
+
+    def read(self):
+        return self.value
+
+    def write(self, value):
+        self.value = value
+
+
 class GstControlScroll(ImagerControlScroll):
     """
     Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
@@ -779,17 +798,27 @@ class GstControlScroll(ImagerControlScroll):
 
         layout = QVBoxLayout()
         layout.addLayout(self.buttonLayout())
+        self.virtual_properties = {}
+
+    def add_virtual_property(self, vp):
+        self.virtual_properties[vp.name] = vp
 
     def flatten_hack(self, val):
         pass
 
     def _raw_prop_write(self, name, val):
-        source = self.vidpip.source
-        source.set_property(name, val)
+        if name in self.virtual_properties:
+            self.virtual_properties[name].write(val)
+        else:
+            source = self.vidpip.source
+            source.set_property(name, val)
 
     def _raw_prop_read(self, name):
-        source = self.vidpip.source
-        return source.get_property(name)
+        if name in self.virtual_properties:
+            return self.virtual_properties[name].read()
+        else:
+            source = self.vidpip.source
+            return source.get_property(name)
 
     """
     def raw_prop_default(self, name):

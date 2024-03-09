@@ -64,7 +64,7 @@ class Plugin(ArgusGstImagerPlugin):
         '''
 
     def gst_decode_image(self, image_dict):
-        buf = image_dict["buf"]
+        buf = image_dict["bytes"]
         width = image_dict["width"]
         height = image_dict["height"]
 
@@ -75,4 +75,4 @@ class Plugin(ArgusGstImagerPlugin):
         yuv = yuv.reshape(shape)
         rgba = cv2.cvtColor(yuv, cv2.COLOR_YUV2RGBA_YUYV)
         rgb = cv2.cvtColor(rgba, cv2.COLOR_RGBA2RGB)
-        return {"image": Image.fromarray(rgb)}
+        return Image.fromarray(rgb)

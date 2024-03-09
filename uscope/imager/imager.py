@@ -1,6 +1,6 @@
 import time
 from PIL import Image
-from uscope.imager.image_sequence import CapturedImage, ImageSequence
+from uscope.imager.image_sequence import CapturedImage
 '''
 R:127
 G:103
@@ -129,8 +129,8 @@ class MockImager(Imager):
 
     def get(self):
         # Small test image
-        return ImageSequence(captured_image=CapturedImage(
-            im=Image.new("RGB", (self.width, self.height), 'white')))
+        return CapturedImage(
+            im=Image.new("RGB", (self.width, self.height), 'white'))
 
     def _set_properties(self, vals):
         for k, v in vals.items():

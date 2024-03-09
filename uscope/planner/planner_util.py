@@ -119,7 +119,7 @@ Setup typical planner pipeline given configuration
 
 def get_planner(microscope,
                 pconfig,
-                out_dir=None,
+                out_dir,
                 dry,
                 meta_base=None,
                 log=None,

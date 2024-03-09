@@ -31,7 +31,7 @@ class Plugin(ArgusGstImagerPlugin):
         return Gst.ElementFactory.make('videotestsrc', name)
 
     def gst_decode_image(self, image_dict):
-        buf = image_dict["buf"]
+        buf = image_dict["bytes"]
         width = image_dict["width"]
         height = image_dict["height"]
         w = width
@@ -40,4 +40,4 @@ class Plugin(ArgusGstImagerPlugin):
         rgba = np.frombuffer(buf, dtype=np.uint8)
         rgba = rgba.reshape(shape)
         rgb = cv2.cvtColor(rgba, cv2.COLOR_BGRA2RGB)
-        return {"image": Image.fromarray(rgb)}
+        return Image.fromarray(rgb)

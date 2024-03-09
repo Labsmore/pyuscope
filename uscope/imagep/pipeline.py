@@ -386,7 +386,7 @@ class CSImageProcessor(threading.Thread):
     def process_stream(self, *args, **kwargs):
         StreamCSIP(self, *args, microscope=self.microscope, **kwargs).run()
 
-    def process_snapshots(self, *args, **kwargs):
+    def process_snapshot(self, *args, **kwargs):
         options = kwargs.pop("options", {})
         return SnapshotCSIP(self, *args, microscope=self.microscope,
                             **kwargs).run(options)

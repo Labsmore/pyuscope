@@ -275,17 +275,6 @@ class QImageProcessingThread(ImageProcessingThreadBase, ArgusThread):
     def log(self, msg=""):
         self.log_msg.emit(msg)
 
-    def _do_process_image(self, j):
-        image = super()._do_process_image(j)
-        data = {
-            "image": image,
-            "objective_config": j["options"]["objective_config"]
-        }
-        # Don't emit when scripting collects a snapshot
-        if j["options"].get("is_snapshot", False):
-            self.ac.snapshotCaptured.emit(data)
-        return image
-
 
 class QJoystickThread(JoystickThreadBase, ArgusThread):
     log_msg = pyqtSignal(str)

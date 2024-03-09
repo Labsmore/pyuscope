@@ -61,7 +61,7 @@ class Plugin(ArgusGstImagerPlugin):
         '''
 
     def gst_decode_image(self, image_dict):
-        buf = image_dict["buf"]
+        buf = image_dict["bytes"]
         width = image_dict["width"]
         height = image_dict["height"]
         # xxx: sometimes get too much data...is this the right fix?
@@ -71,7 +71,5 @@ class Plugin(ArgusGstImagerPlugin):
             (width * height * 3, len(buf), width, height))
         # Need 59535360 bytes, got 59535360
         # print("Need %u bytes, got %u" % (3 * width * height, len(buf)))
-        return {
-            "image":
-            Image.frombytes('RGB', (width, height), bytes(buf), 'raw', 'RGB')
-        }
+        return Image.frombytes('RGB', (width, height), bytes(buf), 'raw',
+                               'RGB')

@@ -234,7 +234,8 @@ class ArgusCommon(QObject):
         # TODO: some pipelines output jpeg directly
         # May need to tweak this
         cropped_width, cropped_height = self.usc.imager.cropped_wh()
-        self.capture_sink = CaptureSink(width=cropped_width,
+        self.capture_sink = CaptureSink(ac=self,
+                                        width=cropped_width,
                                         height=cropped_height,
                                         source_type=self.vidpip.source_name)
         assert self.capture_sink

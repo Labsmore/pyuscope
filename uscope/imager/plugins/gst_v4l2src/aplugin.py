@@ -2,7 +2,7 @@ from uscope.imager.plugins.aplugin import ArgusGstImagerPlugin
 from .widgets import V4L2GstControlScroll
 from uscope.v4l2_util import find_device
 
-import glob
+import os
 import gi
 import cv2
 import numpy as np
@@ -38,20 +38,16 @@ class Plugin(ArgusGstImagerPlugin):
         source = Gst.ElementFactory.make('v4l2src', name)
         assert source is not None
 
-        assert 0, 'fixme: device name'
-        '''
         # Set default v4l2 device, if not given
-        if not properties.get("device"):
-            properties["device"] = DEFAULT_V4L2_DEVICE
-            # TODO: scrape info one way or the other to identify preferred device
-            name = self.usc.imager.j.get("v4l2_name")
-            if name:
-                device = find_device(name)
-                print(f"Camera '{name}': selected {device}")
-                properties["device"] = device
+        # TODO: scrape info one way or the other to identify preferred device
+        device = DEFAULT_V4L2_DEVICE
+        name = self.ac.usc.imager.j.get("v4l2_name")
+        if name:
+            device = find_device(name)
+            print(f"Camera '{name}': selected {device}")
+        source.set_property("device", device)
 
         return source
-        '''
 
     def detect_sources(self):
         print("FIXME")

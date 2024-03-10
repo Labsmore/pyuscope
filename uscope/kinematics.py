@@ -115,11 +115,10 @@ class Kinematics:
 
         tstart = time.time()
         imager = self.microscope.imager_ts()
-        images = imager.get()
+        _image = imager.get()
         tend = time.time()
         self.verbose and self.log("FIXME TMP: flush image took %0.3f" %
                                   (tend - tstart, ))
-        assert len(images) == 1, "Expecting single image"
         self.last_frame_sync = time.time()
 
     def wait_imaging_ok(self, flush_image=True):

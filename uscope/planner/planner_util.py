@@ -67,7 +67,8 @@ def microscope_to_planner_config(microscope,
         ret["points-xy3p"] = {
             "corners": corners,
         }
-    assert "points-xy2p" in ret or "points-xy3p" in ret, (contour, corners)
+    # stacker, hdr, etc don't use these
+    # assert "points-xy2p" in ret or "points-xy3p" in ret, (contour, corners)
 
     # GstGUIImager does actual scaling
     # But needed to make prints nice

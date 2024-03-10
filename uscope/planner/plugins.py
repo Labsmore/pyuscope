@@ -1138,9 +1138,8 @@ class PlannerCaptureImage(PlannerPlugin):
                 self.planner.imager.take()
             else:
                 tstart = time.time()
-                capseq = self.planner.imager.get_by_mode(mode=self.get_mode)
-                capim = capseq.captured_image()
-                im = capim.image()
+                capim = self.planner.imager.get_by_mode(mode=self.get_mode)
+                im = capim.image
                 tend = time.time()
                 self.verbose and self.log(
                     "FIXME TMP: actual capture took %0.3f" % (tend - tstart, ))
@@ -1155,7 +1154,6 @@ class PlannerCaptureImage(PlannerPlugin):
         self.images_captured += 1
         modifiers = {}
         replace_keys = {
-            "captured_sequence": capseq,
             "captured_image": capim,
             # compatibility to ease transition
             "image": im,
@@ -1190,7 +1188,7 @@ class PlannerSaveImage(PlannerPlugin):
 
     def iterate(self, state):
         capim = state.get("captured_image")
-        im = capim.image()
+        im = capim.image
         if not self.planner.dry:
             assert im, "Asked to save image without image given"
 

@@ -27,13 +27,17 @@ def reduce_iindex_filename(filename, remove_key):
 
 
 def unkey_fn_prefix(filev, remove_key):
-    ret = f"{filev['col_str']}_{filev['row_str']}"
+    ret = ""
+    if "col" in filev:
+        ret += f"{filev['col_str']}_{filev['row_str']}"
     if "stack" in filev and remove_key != "stack":
         ret += f"_{filev['stack_str']}"
     if "hdr" in filev and remove_key != "hdr":
         ret += f"_{filev['hdr_str']}"
     if "stabilization" in filev and remove_key != "stabilization":
         ret += f"_{filev['stabilization_str']}"
+    if not ret:
+        ret = "image"
     return ret
 
 
@@ -59,6 +63,12 @@ def iindex_parse_fn(basename):
     ret["basename"] = basename
     parts, extension = basename.split(".")
     ret["extension"] = "." + extension
+
+    # dummy part for image.jpg type name
+    if parts == "image":
+        ret["singleton"] = True
+        return
+
     for part in parts.split("_"):
         m = re.match(r"c([0-9]+)", part)
         if m:
@@ -94,8 +104,9 @@ def iindex_parse_fn(basename):
         # return None
         assert 0, f"Unrecognized part {part} in basename {basename}"
 
-    assert "row" in ret, basename
-    assert "col" in ret, basename
+    # HDR: no longer true
+    #assert "row" in ret, basename
+    #assert "col" in ret, basename
 
     return ret
 
@@ -146,8 +157,8 @@ def index_scan_images(dir_in):
         stabilization = max(stabilization, v.get("stabilization", -1) + 1)
         hdrs = max(hdrs, v.get("hdr", -1) + 1)
         stacks = max(stacks, v.get("stack", -1) + 1)
-        rows = max(rows, v.get("row") + 1)
-        cols = max(cols, v.get("col") + 1)
+        rows = max(rows, v.get("row", 0) + 1)
+        cols = max(cols, v.get("col", 0) + 1)
 
     # xxx: maybe this removes /
     # yes

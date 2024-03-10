@@ -8,7 +8,8 @@ Control Scroll (imager GUI controls)
 
 from uscope.imager.imager import Imager, MockImager
 from uscope.util import LogTimer
-from uscope.planner.planner_util import get_planner
+from uscope.planner.planner_util import get_planner, microscope_to_planner_config
+from uscope.imager.image_sequence import CapturedImage
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -170,7 +171,7 @@ class GstGUIImager(Imager):
             return capim
 
     def get_composite(self, **kwargs):
-        self.composite_grabber.get_composite(**kwargs)
+        return self.composite_grabber.get_composite(**kwargs)
 
     def get_by_mode(self, mode=None, **kwargs):
         if mode == "raw":
@@ -224,6 +225,7 @@ class CompositeImageGrabber:
 
     # FIXME: timeouts aren't being respected
     def get_composite(self,
+                      processing_options={},
                       recover_errors=True,
                       snapshot_timeout=None,
                       processing_timeout=None):
@@ -231,63 +233,75 @@ class CompositeImageGrabber:
         Ideally would like this to do focus stacking, HDR, etc
         Whatever is active
         """
-        hdr_pconfig = self.ac.imagerTab.hdr_pconfig()
-        stacker_pconfig = self.ac.advancedtab.stacker_pconfig()
-        image_stabilization_pconfig = self.ac.advancedtab.image_stabilization_pconfig(
+        hdr_pconfig = self.ac.mw.imagerTab.hdr_pconfig()
+        stacker_pconfig = self.ac.mw.advancedTab.stacker_pconfig()
+        image_stabilization_pconfig = self.ac.advancedTab.image_stabilization_pconfig(
         )
 
         # No advanced options?
         # Just do a simple capture
         if hdr_pconfig is None and stacker_pconfig is None and image_stabilization_pconfig is None:
             return self.imager.get_processed(
+                processing_options=processing_options,
                 recover_errors=recover_errors,
                 snapshot_timeout=snapshot_timeout,
                 processing_timeout=processing_timeout)
 
-        if hdr_pconfig is not None or stacker_pconfig is not None or image_stabilization_pconfig is not None:
-            #if self.ac.auto_exposure_enabled():
-            pconfig = {
-                "points-stacker": stacker_pconfig,
-                "image-stabilization": image_stabilization_pconfig,
-                "imager": {
-                    # prevent recursion
-                    "get_mode": "processed",
-                    # Temp file
-                    # Run lossless
-                    "save_extension": ".tif",
-                    "hdr": hdr_pconfig,
-                }
+        objective = self.ac.mw.mainTab.objective_widget.get_objective_meta_cache(
+        )
+        pconfig = microscope_to_planner_config(microscope=self.ac.microscope,
+                                               objective=objective)
+
+        pconfig["imager"].update({
+            "imager": {
+                # prevent recursion
+                "get_mode": "processed",
+                # Temp file
+                # Run lossless
+                "save_extension": ".tif",
             }
-            with tempfile.TemporaryDirectory() as out_dir_temp:
-                # Collect images but running a lightweight planner
-                planner = get_planner(microscope=self.ac.microscope,
-                                      pconfig=pconfig,
-                                      out_dir=out_dir_temp,
-                                      dry=False)
-                _meta = planner.run()
+        })
+        if hdr_pconfig is not None:
+            pconfig["imager"]["hdr"] = hdr_pconfig
+        if stacker_pconfig is not None:
+            pconfig["points-stacker"] = stacker_pconfig
+        if image_stabilization_pconfig is not None:
+            pconfig["image-stabilization"] = image_stabilization_pconfig
 
-                # Now process them with minimal settings
-                ippj = {
-                    "cloud_stitch": False,
-                    "write_html_viewer": False,
-                    "write_quick_pano": False,
-                    "write_snapshot_grid": False,
-                    "keep_intermediates": False,
-                }
-                self.ac.stitchingTab.stitcher_thread.imagep_add(
-                    directory=out_dir_temp,
-                    ippj=ippj,
-                )
+        with tempfile.TemporaryDirectory() as out_dir_temp:
+            # Collect images but running a lightweight planner
+            planner = get_planner(microscope=self.ac.microscope,
+                                  pconfig=pconfig,
+                                  out_dir=out_dir_temp,
+                                  dry=False)
+            _meta = planner.run()
 
-                # Scrape the output image
-                out_fn = glob.glob(out_dir_temp + "/*.tif")
-                if len(out_fn) != 1:
-                    raise Exception(
-                        "Expected exactly one image (image processing failed?)"
-                    )
-                with open(out_fn[0], "rb") as f:
-                    im_out = Image.open(f)
-                    im_out.load()
+            # Now process them with minimal settings
+            ippj = {
+                "cloud_stitch": False,
+                "write_html_viewer": False,
+                "write_quick_pano": False,
+                "write_snapshot_grid": False,
+                "keep_intermediates": False,
+            }
+            self.ac.stitchingTab.stitcher_thread.imagep_add(
+                directory=out_dir_temp, ippj=ippj, block=True)
+
+            # Scrape the output image
+            out_fn = glob.glob(out_dir_temp +
+                               "/*.tif") + glob.glob(out_dir_temp + "/*.jpg")
+            if len(out_fn) != 1:
+                raise Exception(
+                    "Expected exactly one image (image processing failed?)")
+            capim = CapturedImage.load(out_fn)
+            # Now save it and/or return it
+            save_filename = processing_options.get("save_filename")
+            if save_filename is not None:
+                # XXX: might re-compress things
+                capim.save(save_filename)
+                capim.set_meta_kv("save_filename", save_filename)
+            capim.set_meta_kv("objective_config", self.ac.objective_config())
+            return capim
 
 
 # Thread safe Imager

@@ -485,20 +485,23 @@ class ObjectiveWidget(AWidget):
         self.selected_objective_name = str(self.obj_cb.currentText())
         if not self.selected_objective_name:
             self.selected_objective_name = self.objectives.default_name()
-        self.obj_config = self.objectives.get_config(
-            self.selected_objective_name)
-        self.ac.log('Selected objective %s' % self.obj_config['name'])
+        obj_config = self.objectives.get_config(self.selected_objective_name)
+        self.ac.log('Selected objective %s' % obj_config['name'])
 
         im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
-        im_w_um = self.obj_config["x_view"]
+        im_w_um = obj_config["x_view"]
         im_h_um = im_w_um * im_h_pix / im_w_pix
         self.obj_view.setText('View : %0.3fx %0.3fy' % (im_w_um, im_h_um))
         if self.objective_name_le:
-            suffix = self.obj_config.get("suffix")
+            suffix = obj_config.get("suffix")
             if not suffix:
-                suffix = self.obj_config.get("name")
+                suffix = obj_config.get("name")
             self.objective_name_le.setText(suffix)
+        self.obj_config = obj_config
         self.ac.objectiveChanged.emit(self.obj_config)
+
+    def get_objective_meta_cache(self):
+        return self.obj_config
 
     def reset_objectives_clicked(self):
         self.reload_obj_cb()
@@ -587,8 +590,8 @@ class PlannerWidget(AWidget):
             return None
         return j
 
-    def get_objective(self):
-        return self.objective_widget.obj_config
+    def get_objective_meta_cache(self):
+        return self.objective_widget.get_objective_meta_cache()
 
     def show_minmax(self, visible):
         self.showing_minmax = visible
@@ -1329,6 +1332,7 @@ class ImagingTaskWidget(AWidget):
         self.taking_snapshot = False
         self.planner_progress_cache = None
         self.snapshotDone.connect(self.snapshot_done)
+        self.capture_mode = "composite"
 
     def _initUI(self):
         def getNameLayout():
@@ -1710,8 +1714,8 @@ class ImagingTaskWidget(AWidget):
 
         def offload(ac):
             try:
-                capim = self.ac.microscope.imager_ts().get_processed(
-                    processing_options=options)
+                capim = self.ac.microscope.imager_ts().get_by_mode(
+                    mode=self.capture_mode, processing_options=options)
                 filename = capim.meta["save_filename"]
                 self.ac.microscope.log(f"Snapshot: saved to {filename}")
 

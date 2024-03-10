@@ -102,12 +102,7 @@ class StitcherThread(CommandThreadBase, ArgusThread):
         self.log(f"Stitch CLI: finished job")
         print(f"Stitch CLI: finished job")
 
-    def imagep_add(
-        self,
-        directory,
-        cs_info=None,
-        ippj={},
-    ):
+    def imagep_add(self, directory, cs_info=None, ippj={}, block=False):
         j = {
             #"type": "imagep",
             "directory": directory,
@@ -115,7 +110,7 @@ class StitcherThread(CommandThreadBase, ArgusThread):
         }
         if cs_info is not None:
             j["cs_info"] = cs_info
-        self.command("imagep", j)
+        self.command("imagep", j, block=block)
 
     def process_run(self, args, variant, directory_comment):
         print("")

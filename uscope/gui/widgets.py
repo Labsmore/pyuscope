@@ -652,6 +652,7 @@ class AdvancedTab(ArgusTab):
         super().__init__(*args, **kwargs)
 
         self._stacker_pconfig = None
+        self._stabilization_pconfig = None
         layout = QGridLayout()
         row = 0
 
@@ -898,6 +899,11 @@ class AdvancedTab(ArgusTab):
             setup_die_step(1, 2)
         else:
             assert 0, "unknown mode"
+
+    def _poll_misc(self):
+        # Update caches for snapshot configuration
+        tmp_pconfig = {}
+        self._update_pconfig(tmp_pconfig)
 
 
 class StitchingTab(ArgusTab):

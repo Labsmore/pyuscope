@@ -244,6 +244,13 @@ class DirCSIP:
         print("Microscope: %s" % (self.microscope.name, ))
         print("Serial: %s" % (self.microscope.serial(), ))
         print("Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
+        print("Options")
+        print("  Keep intermediates:", self.ipp_config.keep_intermediates())
+        print("  Write HTML viewer:", self.ipp_config.write_html_viewer())
+        print("  Write snapshot grid:", self.ipp_config.write_snapshot_grid())
+        print("  Write quick pano:", self.ipp_config.write_quick_pano())
+        print("  Snapshot correction:", self.ipp_config.snapshot_correction())
+        print("  Cloud stitch:", self.ipp_config.cloud_stitch())
 
         self.log("")
 
@@ -380,6 +387,7 @@ class DirCSIP:
         if not self.ipp_config.keep_intermediates():
             remove_intermediate_directories(self.directory,
                                             working_iindex["dir"])
+            print(f"Clean up intermediates: {next_dir} => {self.directory}")
             next_dir = self.directory
             working_iindex = index_scan_images(next_dir)
 

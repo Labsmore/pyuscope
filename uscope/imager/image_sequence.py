@@ -1,4 +1,5 @@
 import threading
+from PIL import Image
 """
 PIL im objects are core
 However EXIF and stuff isn't written until end in some API contexts
@@ -12,13 +13,27 @@ class CapturedImage:
         self.exif_bytes = exif_bytes
 
     def save(self, fn, **kwargs):
-        self.image.save(fn, exif=self.exif_bytes, **kwargs)
+        if self.exif_bytes is not None:
+            kwargs["exif"] = self.exif_bytes
+        self.image.save(fn, **kwargs)
 
     def set_meta(self, meta):
         self.meta = meta
 
+    def set_meta_kv(self, k, v):
+        if self.meta is None:
+            self.meta = {}
+        self.meta[k] = v
+
     def set_exif_bytes(self, exif_bytes):
         self.exif_bytes = exif_bytes
+
+    @staticmethod
+    def load(fn):
+        with open(fn[0], "rb") as f:
+            im_out = Image.open(f)
+            im_out.load()
+            return CapturedImage(image=im_out)
 
 
 """

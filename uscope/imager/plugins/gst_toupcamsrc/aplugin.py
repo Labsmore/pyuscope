@@ -35,8 +35,7 @@ class Plugin(ArgusGstImagerPlugin):
 
     def get_gst_source(self, name=None):
         source = Gst.ElementFactory.make('toupcamsrc', name)
-        assert self.source is not None, "Failed to load toupcamsrc. Is it in the path?"
-        assert 0, 'fixme: esize'
+        assert source is not None, "Failed to load toupcamsrc. Is it in the path?"
         return source
 
     def detect_sources(self):

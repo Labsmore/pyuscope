@@ -485,20 +485,23 @@ class ObjectiveWidget(AWidget):
         self.selected_objective_name = str(self.obj_cb.currentText())
         if not self.selected_objective_name:
             self.selected_objective_name = self.objectives.default_name()
-        self.obj_config = self.objectives.get_config(
-            self.selected_objective_name)
-        self.ac.log('Selected objective %s' % self.obj_config['name'])
+        obj_config = self.objectives.get_config(self.selected_objective_name)
+        self.ac.log('Selected objective %s' % obj_config['name'])
 
         im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
-        im_w_um = self.obj_config["x_view"]
+        im_w_um = obj_config["x_view"]
         im_h_um = im_w_um * im_h_pix / im_w_pix
         self.obj_view.setText('View : %0.3fx %0.3fy' % (im_w_um, im_h_um))
         if self.objective_name_le:
-            suffix = self.obj_config.get("suffix")
+            suffix = obj_config.get("suffix")
             if not suffix:
-                suffix = self.obj_config.get("name")
+                suffix = obj_config.get("name")
             self.objective_name_le.setText(suffix)
+        self.obj_config = obj_config
         self.ac.objectiveChanged.emit(self.obj_config)
+
+    def get_objective_meta_cache(self):
+        return self.obj_config
 
     def reset_objectives_clicked(self):
         self.reload_obj_cb()
@@ -587,8 +590,8 @@ class PlannerWidget(AWidget):
             return None
         return j
 
-    def get_objective(self):
-        return self.objective_widget.obj_config
+    def get_objective_meta_cache(self):
+        return self.objective_widget.get_objective_meta_cache()
 
     def show_minmax(self, visible):
         self.showing_minmax = visible
@@ -851,7 +854,7 @@ class XYPlanner2PWidget(PlannerWidget):
         if not contour_json:
             return
 
-        objective = self.get_objective()
+        objective = self.get_objective_meta_cache()
         pconfig = microscope_to_planner_config(microscope=self.ac.microscope,
                                                objective=objective,
                                                contour=contour_json)
@@ -1109,7 +1112,7 @@ class XYPlanner3PWidget(PlannerWidget):
         if not corner_json:
             return
 
-        objective = self.get_objective()
+        objective = self.get_objective_meta_cache()
         pconfig = microscope_to_planner_config(microscope=self.ac.microscope,
                                                objective=objective,
                                                corners=corner_json)
@@ -1309,7 +1312,7 @@ class ImagingOptionsWindow(QWidget):
 
 # 2023-11-15: combined ScanWidget + SnapshotWidget
 class ImagingTaskWidget(AWidget):
-    snapshotCaptured = pyqtSignal(int)
+    snapshotDone = pyqtSignal()
 
     def __init__(self,
                  ac,
@@ -1320,7 +1323,6 @@ class ImagingTaskWidget(AWidget):
         super().__init__(ac=ac, aname=aname, parent=parent)
         # self.pos.connect(self.update_pos)
         self.imaging_config = None
-        self.snapshotCaptured.connect(self.captureSnapshot)
         self.go_current_pconfig = go_current_pconfig
         self.setControlsEnabled = setControlsEnabled
         self.current_planner_hconfig = None
@@ -1329,6 +1331,8 @@ class ImagingTaskWidget(AWidget):
         self._save_extension = None
         self.taking_snapshot = False
         self.planner_progress_cache = None
+        self.snapshotDone.connect(self.snapshot_done)
+        self.capture_mode = "composite"
 
     def _initUI(self):
         def getNameLayout():
@@ -1511,14 +1515,7 @@ class ImagingTaskWidget(AWidget):
             planner_args = {
                 # Simple settings written to disk, no objects
                 "pconfig": pconfig,
-                "motion": self.ac.motion_thread.get_planner_motion(),
                 "microscope": self.ac.microscope,
-
-                # Typically GstGUIImager
-                # Will be offloaded to its own thread
-                # Operations must be blocking
-                # We enforce that nothing is running and disable all CNC GUI controls
-                "imager": self.ac.imager,
                 "out_dir": out_dir,
 
                 # Includes microscope.json in the output
@@ -1692,11 +1689,43 @@ class ImagingTaskWidget(AWidget):
         self.snapshot_pb.setEnabled(False)
         self.taking_snapshot = True
 
-        def emitSnapshotCaptured(image_id):
-            # self.ac.microscope.log('Image captured: %s' % image_id)
-            self.snapshotCaptured.emit(image_id)
+        options = {}
+        options["save_filename"] = self.snapshot_fn()
+        extension = self.save_extension()
+        if extension == ".jpg":
+            options["save_quality"] = self.ac.usc.imager.save_quality()
+        options["scale_factor"] = self.ac.usc.imager.scalar()
 
-        self.ac.capture_sink.request_image(emitSnapshotCaptured)
+        imaging_config = self.ac.imaging_config()
+        plugins = {}
+        if imaging_config.get("add_scalebar", False):
+            plugins["annotate-scalebar"] = {}
+        options["plugins"] = plugins
+        qr_regex = config.bc.qr_regex()
+        if qr_regex:
+            options["qr_regex"] = qr_regex
+
+        def offload(ac):
+            try:
+                capim = self.ac.microscope.imager_ts().get_by_mode(
+                    mode=self.capture_mode, processing_options=options)
+                filename = capim.meta["save_filename"]
+                self.ac.microscope.log(f"Snapshot: saved to {filename}")
+
+                data = {
+                    "image": capim.image,
+                    "captured_image": capim,
+                    "objective_config": capim.meta["objective_config"]
+                }
+                self.ac.snapshotCaptured.emit(data)
+            finally:
+                self.snapshotDone.emit()
+
+        self.ac.task_thread.offload(offload)
+
+    def snapshot_done(self):
+        self.snapshot_pb.setEnabled(True)
+        self.taking_snapshot = False
 
     def save_extension(self):
         # ex: .jpg, .tif
@@ -1710,59 +1739,6 @@ class ImagingTaskWidget(AWidget):
         return snapshot_fn(user=str(self.job_name_le.text()),
                            extension=self.save_extension(),
                            parent=self.ac.usc.app("argus").snapshot_dir())
-
-    def captureSnapshot(self, image_id):
-        # self.ac.log('RX image for saving')
-
-        image = self.ac.capture_sink.pop_image(image_id)
-        """
-        # FIXME: should unify this with Imager better
-        # For now assertion guards help make sure pipeline is correct
-        factor = self.ac.usc.imager.scalar()
-        image = get_scaled(image, factor, filt=Image.NEAREST)
-        expected_wh = self.ac.usc.imager.final_wh()
-        assert expected_wh[0] == image.size[0] and expected_wh[
-            1] == image.size[
-                1], "Unexpected image size: expected %s, got %s" % (
-                    expected_wh, image.size)
-        fn_full = self.snapshot_fn()
-        """
-
-        self.ac.log(f"Snapshot: image received, post-processing")
-
-        options = {}
-        options["is_snapshot"] = True
-        options["image"] = image
-        options["objective_config"] = self.ac.objective_config()
-        options["save_filename"] = self.snapshot_fn()
-        extension = self.save_extension()
-        if extension == ".jpg":
-            options["save_quality"] = self.ac.usc.imager.save_quality()
-        options["scale_factor"] = self.ac.usc.imager.scalar()
-        options["scale_expected_wh"] = self.ac.usc.imager.final_wh()
-        if self.ac.usc.imager.videoflip_method():
-            options["videoflip_method"] = self.ac.usc.imager.videoflip_method()
-
-        imaging_config = self.ac.imaging_config()
-        plugins = {}
-        if imaging_config.get("add_scalebar", False):
-            plugins["annotate-scalebar"] = {}
-        options["plugins"] = plugins
-        qr_regex = config.bc.qr_regex()
-        if qr_regex:
-            options["qr_regex"] = qr_regex
-
-        def callback(command, args, ret_e):
-            if type(ret_e) is Exception:
-                self.ac.microscope.log(f"Snapshot: save failed")
-            else:
-                filename = args[0]["options"]["save_filename"]
-                self.ac.microscope.log(f"Snapshot: saved to {filename}")
-
-        self.ac.image_processing_thread.process_image(options=options,
-                                                      callback=callback)
-        self.snapshot_pb.setEnabled(True)
-        self.taking_snapshot = False
 
     def _post_ui_init(self):
         self.update_save_extension()
@@ -1999,6 +1975,7 @@ class MainTab(ArgusTab):
 class ImagerTab(ArgusTab):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._hdr_pconfig = None
 
     def _initUI(self):
         # Most of the layout is filled in from the ControlScroll
@@ -2043,35 +2020,41 @@ class ImagerTab(ArgusTab):
         auto = self.hdr_auto.isChecked()
         self.hdr_auto_stops.setReadOnly(not auto)
         self.hdr_auto_stops_per.setReadOnly(not auto)
-        if not auto:
-            return
+        if auto:
+            # val = self.ac.imager.get_property(self.exposure_property)
+            val = self.ac.get_exposure()
+            if val is None:
+                return None
+            pm_stops = int(self.hdr_auto_stops.text())
+            stops_per = int(self.hdr_auto_stops_per.text())
 
-        # val = self.ac.imager.get_property(self.exposure_property)
-        val = self.ac.get_exposure()
-        if val is None:
-            return None
-        pm_stops = int(self.hdr_auto_stops.text())
-        stops_per = int(self.hdr_auto_stops_per.text())
+            hdr_seq = []
+            # add in reverse then reverse list
+            val_tmp = val
+            for _stopi in range(pm_stops):
+                val_tmp /= 2**stops_per
+                hdr_seq.append(val_tmp)
+            hdr_seq.reverse()
+            hdr_seq.append(val)
+            val_tmp = val
+            for _stopi in range(pm_stops):
+                val_tmp *= 2**stops_per
+                hdr_seq.append(val_tmp)
 
-        hdr_seq = []
-        # add in reverse then reverse list
-        val_tmp = val
-        for _stopi in range(pm_stops):
-            val_tmp /= 2**stops_per
-            hdr_seq.append(val_tmp)
-        hdr_seq.reverse()
-        hdr_seq.append(val)
-        val_tmp = val
-        for _stopi in range(pm_stops):
-            val_tmp *= 2**stops_per
-            hdr_seq.append(val_tmp)
+            le_str = ",".join(["%u" % x for x in hdr_seq])
+            self.hdr_le.setText(le_str)
+            self.hdr_seq = hdr_seq
 
-        le_str = ",".join(["%u" % x for x in hdr_seq])
-        self.hdr_le.setText(le_str)
+        # Update cache for snapshot engine
+        self._update_pconfig({})
+
+    def hdr_pconfig(self):
+        return self._hdr_pconfig
 
     def update_pconfig_hdr(self, pconfig):
         raw = str(self.hdr_le.text()).strip()
         if not raw:
+            self._hdr_pconfig = None
             return
 
         try:
@@ -2088,6 +2071,7 @@ class ImagerTab(ArgusTab):
             # this is probably a good approximation for now
             "tsettle": self.ac.usc.kinematics.tsettle_hdr()
         }
+        self._hdr_pconfig = ret
         pconfig.setdefault("imager", {})["hdr"] = ret
 
     def _update_pconfig(self, pconfig):

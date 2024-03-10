@@ -67,7 +67,8 @@ def microscope_to_planner_config(microscope,
         ret["points-xy3p"] = {
             "corners": corners,
         }
-    assert "points-xy2p" in ret or "points-xy3p" in ret, (contour, corners)
+    # stacker, hdr, etc don't use these
+    # assert "points-xy2p" in ret or "points-xy3p" in ret, (contour, corners)
 
     # GstGUIImager does actual scaling
     # But needed to make prints nice
@@ -117,18 +118,18 @@ Setup typical planner pipeline given configuration
 """
 
 
-def get_planner(pconfig,
-                motion,
-                imager,
+def get_planner(microscope,
+                pconfig,
                 out_dir,
                 dry,
                 meta_base=None,
                 log=None,
                 progress_callback=None,
-                microscope=None,
                 verbosity=None):
     pipeline_names = []
 
+    imager = microscope.imager_ts()
+    motion = microscope.motion_ts()
     if "points-xy2p" in pconfig:
         pipeline_names.append("points-xy2p")
     if "points-xy3p" in pconfig:

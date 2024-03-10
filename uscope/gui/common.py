@@ -234,7 +234,8 @@ class ArgusCommon(QObject):
         # TODO: some pipelines output jpeg directly
         # May need to tweak this
         cropped_width, cropped_height = self.usc.imager.cropped_wh()
-        self.capture_sink = CaptureSink(width=cropped_width,
+        self.capture_sink = CaptureSink(ac=self,
+                                        width=cropped_width,
                                         height=cropped_height,
                                         source_type=self.vidpip.source_name)
         assert self.capture_sink
@@ -425,7 +426,7 @@ class ArgusCommon(QObject):
         self.log('Loading imager %s...' % source)
         # Gst is pretty ingrained for the GUI
         #
-        self.imager = imager.get_gui_imager(source, self)
+        self.imager = self.vidpip.imager_aplugin.get_imager()
         # gst pipeline already created / should be ready to go
         self.imager.device_restarted()
 

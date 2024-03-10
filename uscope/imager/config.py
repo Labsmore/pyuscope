@@ -1,5 +1,5 @@
-from uscope.imager.imager_util import auto_detect_source
-from uscope.imager.touptek import toupcamsrc_info
+#from uscope.imager.imager_util import auto_detect_source
+#from uscope.imager.touptek import toupcamsrc_info
 from uscope.v4l2_util import find_device
 
 
@@ -7,6 +7,7 @@ def default_usj_imager_config(opts):
     raise Exception("FIXME")
 
 
+'''
 def default_gstimager_config(opts):
     """
     For GstImager
@@ -18,10 +19,13 @@ def default_gstimager_config(opts):
 
     source = opts.get("source", None)
     if source is None:
+        assert 0, "FIXME: auto detect source broken"
+        """
         source = auto_detect_source()
         if source.find("gst-") != 0:
             raise Exception("Did not detect gst source")
         source = source.replace("gst-", "")
+        """
     opts["source"] = source
 
     if source == "toupcamsrc":
@@ -69,3 +73,4 @@ def default_gstimager_config(opts):
                 device = find_device(name)
                 print(f"Camera '{name}': selected {device}")
                 properties["device"] = device
+'''

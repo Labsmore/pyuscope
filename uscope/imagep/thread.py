@@ -78,24 +78,26 @@ class ImageProcessingThreadBase(CommandThreadBase):
     # rotate, scaling
     def _do_process_image(self, j):
         options = j["options"]
-        image = get_scaled(options["image"],
-                           options["scale_factor"],
-                           filt=Image.NEAREST)
+        capim = options["captured_image"]
+        capim.image = get_scaled(capim.image,
+                                 options["scale_factor"],
+                                 filt=Image.NEAREST)
 
         if "scale_expected_wh" in options:
             expected_wh = options["scale_expected_wh"]
-            assert expected_wh[0] == image.size[0] and expected_wh[
-                1] == image.size[
+            assert expected_wh[0] == capim.image.size[0] and expected_wh[
+                1] == capim.image.size[
                     1], "Unexpected image size: expected %s, got %s" % (
-                        expected_wh, image.size)
+                        expected_wh, capim.image.size)
 
         videoflip_method = options.get("videoflip_method")
         if videoflip_method:
             assert videoflip_method == "rotate-180"
-            image = image.rotate(180)
+            capim.image = capim.image.rotate(180)
 
         try:
-            image = self.ip.process_snapshots([image], options=options)
+            capim.image = self.ip.process_snapshot(capim.image,
+                                                   options=options)
         except Exception as e:
             traceback.print_exc()
             self.log(f"WARNING; snapshot processing crashed: {e}")
@@ -103,7 +105,8 @@ class ImageProcessingThreadBase(CommandThreadBase):
 
         if "save_filename" in options:
             if "qr_regex" in options:
-                qr_match = find_qr_code_match(image, options.get("qr_regex"))
+                qr_match = find_qr_code_match(capim.image,
+                                              options.get("qr_regex"))
                 if qr_match:
                     base_name, ext = os.path.splitext(options["save_filename"])
                     save_filename = base_name + "_" + qr_match + ext
@@ -111,9 +114,10 @@ class ImageProcessingThreadBase(CommandThreadBase):
             kwargs = {}
             if "save_quality" in options:
                 kwargs["quality"] = options["save_quality"]
-            image.save(options["save_filename"], **kwargs)
+            capim.save(options["save_filename"], **kwargs)
+            capim.meta["save_filename"] = options["save_filename"]
 
-        return image
+        return capim
 
 
 class SimpleImageProcessingThreadBase(ImageProcessingThreadBase,

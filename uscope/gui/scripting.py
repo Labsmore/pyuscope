@@ -260,23 +260,29 @@ class ArgusScriptingPlugin(QThread):
             time.sleep(min(delta, remain))
         self.check_running()
 
-    def image(self, wait_imaging_ok=True, raw=False):
+    def image(self, wait_imaging_ok=True, mode=None):
         """
         Request and return a snapshot as PIL image
 
         FIXME: this is an unprocessed image
         Should be returning like snapshot
+
+        Modes:
+        -raw2 (future): low level sensor raw data
+            Not supported on all cameras
+        -raw: as the data comes on the USB device
+        -processed: system specific post processing
+            A normal single "snpashot"
+        -composite: include any advanced options active
+            ex: focus stacking, HDR, stabilization, etc
         """
+        if mode is None:
+            mode = "processed"
+        assert mode in ("raw", "processed", "composite")
         self.check_running()
         if wait_imaging_ok:
             self.wait_imaging_ok()
-        imager = self.imager()
-        if raw:
-            images = imager.get()
-            assert len(images) == 1
-            return images["0"]
-        else:
-            return imager.get_processed()
+        return self.imager().get_by_mode(mode=mode).image()
 
     def wait_imaging_ok(self):
         """

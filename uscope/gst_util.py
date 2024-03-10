@@ -1,10 +1,7 @@
 import os
-from PIL import Image
-import io
 import threading
 import traceback
-import cv2
-import numpy as np
+from uscope.imager.image_sequence import CapturedImage
 
 import gi
 
@@ -77,9 +74,10 @@ class CaptureSink(CbSink):
     """
 
     # FIXME: get width/height from stream
-    def __init__(self, width, height, source_type):
+    def __init__(self, ac, width, height, source_type):
         CbSink.__init__(self)
 
+        self.ac = ac
         self.image_requested = threading.Event()
         self.next_image_id = 0
         self.images_actual = {}
@@ -89,8 +87,9 @@ class CaptureSink(CbSink):
         self.height = height
         self.source_type = source_type
         self.verbose = False
+        self.meta = None
 
-    def request_image(self, cb):
+    def request_image(self, cb, meta=None):
         '''
         Request that the next image be saved
         NOTE: callback executes in gstreamer thread context
@@ -100,6 +99,7 @@ class CaptureSink(CbSink):
         if self.image_requested.is_set():
             raise Exception('Image already requested')
         self.user_cb = cb
+        self.meta = meta
         self.image_requested.set()
 
     def get_image(self, image_id):
@@ -110,50 +110,14 @@ class CaptureSink(CbSink):
         '''Delete image in buffer'''
         del self.images_actual[image_id]
 
-    def pop_image(self, image_id):
+    def pop_captured_image(self, image_id):
         '''Fetch the image and delete it form the buffer'''
-        buf, width, height, source_type = self.images_actual[image_id]
+        image_dict = self.images_actual[image_id]
         del self.images_actual[image_id]
-        self.verbose and print("bytes", len(buf), 'w', width, 'h', height)
-        # Arbitrarily convert to PIL here
-        # TODO: should pass rawer/lossless image to PIL instead of jpg?
-        # open("tmp.bin", "wb").write(ret)
-        if source_type == "gst-toupcamsrc":
-            # xxx: sometimes get too much data...is this the right fix?
-            # buf = buf[0:width * height * 3]
-            assert len(buf) == width * height * 3, (
-                "Wanted %u, got %u, w=%u, h=%u" %
-                (width * height * 3, len(buf), width, height))
-            # Need 59535360 bytes, got 59535360
-            # print("Need %u bytes, got %u" % (3 * width * height, len(buf)))
-            return Image.frombytes('RGB', (width, height), bytes(buf), 'raw',
-                                   'RGB')
-
-        # Can we query caps or something to do this more properly?
-        # FIXME: jpg etc
-        # assume raw for now
-        elif source_type.find("gst-v4l2src") == 0:
-            w = width
-            h = height
-            shape = (h, w, 2)
-            yuv = np.frombuffer(buf, dtype=np.uint8)
-            yuv = yuv.reshape(shape)
-            rgba = cv2.cvtColor(yuv, cv2.COLOR_YUV2RGBA_YUYV)
-            rgb = cv2.cvtColor(rgba, cv2.COLOR_RGBA2RGB)
-            return Image.fromarray(rgb)
-        elif source_type.find("gst-videotestsrc") == 0:
-            w = width
-            h = height
-            shape = (h, w, 4)
-            rgba = np.frombuffer(buf, dtype=np.uint8)
-            rgba = rgba.reshape(shape)
-            rgb = cv2.cvtColor(rgba, cv2.COLOR_BGRA2RGB)
-            return Image.fromarray(rgb)
-        # XXX: revisit. some v4l2src will be of type jpg
-        # elif source_type == "jpg":
-        #    return Image.open(io.BytesIO(buf))
-        else:
-            assert 0, source_type
+        #self.verbose and print("bytes", len(buf), 'w', width, 'h', height)
+        return CapturedImage(
+            image=self.ac.vidpip.imager_aplugin.gst_decode_image(image_dict),
+            meta=image_dict["meta"])
 
     '''
     gstreamer plugin core methods
@@ -186,10 +150,13 @@ class CaptureSink(CbSink):
                     assert 0, "FIXME"
                 """
 
-                self.images_actual[self.next_image_id] = (bytearray(buffer),
-                                                          self.width,
-                                                          self.height,
-                                                          self.source_type)
+                self.images_actual[self.next_image_id] = {
+                    "bytes": bytearray(buffer),
+                    "width": self.width,
+                    "height": self.height,
+                    "meta": self.meta
+                }
+                #                                          "source_type": self.source_type}
                 # Clear before emitting signal so that it can be re-requested in response
                 self.image_requested.clear()
                 #print 'Emitting capture event'

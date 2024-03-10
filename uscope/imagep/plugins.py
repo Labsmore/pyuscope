@@ -125,6 +125,35 @@ class HDREnfusePlugin(IPPlugin):
 
 
 """
+luminance-hdr-cli -o lum.jpg -e '-2,0,+2' c005_r006_h00.jpg c005_r006_h01.jpg c005_r006_h02.jpg
+
+The minimum EXIF tags for automated EV is something like:
+-33434 (exposure time)
+-34855 (ISO)
+-33437 (f number)
+"""
+
+
+class HDRLuminancePlugin(IPPlugin):
+    def __init__(self, log, default_options={}, microscope=None):
+        super().__init__(log=log,
+                         microscope=microscope,
+                         default_options=default_options,
+                         need_tmp_dir=True)
+
+    def _run(self, data_in, data_out, options={}):
+        out_fn = data_out["image"].get_filename()
+        args = [
+            "luminance-hdr-cli", "--o", out_fn, "--exposure-weight-function"
+        ]
+        for image_in in data_in["images"]:
+            fn = image_in.get_filename()
+            args.append(fn)
+        self.log(" ".join(args))
+        subprocess.check_call(args)
+
+
+"""
 Stack using enfuse
 Currently skips align
 """
@@ -195,7 +224,7 @@ class StackEnfusePlugin(IPPlugin):
                 "-v", "--use-given-order", "-a",
                 os.path.join(self.get_tmp_dir(), prefix)
             ]
-            for image_in in data_in["images"]:
+            for image_in in sorted(data_in["images"]):
                 args.append(image_in.get_filename())
             # self.log(" ".join(args))
             check_call(args)
@@ -214,7 +243,8 @@ class StackEnfusePlugin(IPPlugin):
         if 0 and ".tif" in out_fn:
             args.append("-d")
             args.append("16")
-        for fn in glob.glob(os.path.join(self.get_tmp_dir(), prefix + "*")):
+        for fn in sorted(
+                glob.glob(os.path.join(self.get_tmp_dir(), prefix + "*"))):
             args.append(fn)
         # self.log(" ".join(args))
         check_call(args)

@@ -1,5 +1,4 @@
-from uscope.imager.imager_util import auto_detect_source
-from uscope.v4l2_util import find_device
+# from uscope.imager.imager_util import auto_detect_source
 
 from PyQt5.Qt import Qt
 from PyQt5.QtGui import *
@@ -13,11 +12,9 @@ import pathlib
 import signal
 from collections import OrderedDict
 import math
+from uscope.imager.plugins.aplugins import get_imager_aplugin
 
 import gi
-
-DEFAULT_TOUPCAMSRC_ESIZE = 0
-DEFAULT_V4L2_DEVICE = "/dev/video0"
 
 gi.require_version('Gst', '1.0')
 gi.require_version('GstBase', '1.0')
@@ -32,8 +29,6 @@ from gi.repository import Gst
 
 Gst.init(None)
 from gi.repository import GstBase, GObject, GstVideo, GstRtspServer
-
-from uscope import config
 
 import platform
 """
@@ -67,24 +62,27 @@ The widget used to render a sinkx winId
 """
 
 
-class SinkxWidget(QWidget):
-    def __init__(self,
-                 gst_name=None,
-                 config=None,
-                 incoming_wh=None,
-                 player=None,
-                 parent=None):
+class ArgusVideoWidget(QWidget):
+    def __init__(self, ac=None, player=None, config={}, parent=None):
         super().__init__(parent=parent)
-
+        self.config = config
         self.player = player
+        # The actual QWidget
+        self.gst_element_name = config["gst_element_name"]
+        self.ac = ac
+
+
+class SinkxZoomableWidget(ArgusVideoWidget):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        incoming_wh = self.config["incoming_wh_hint"]
+
         policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.setSizePolicy(policy)
         self.resize(500, 500)
         # print("after resize", self.width(), self.height())
 
-        # The actual QWidget
-        self.gst_name = gst_name
-        self.config = config
         # gstreamer rendering element
         self.sinkx = None
         # Window ID from the sinkx element
@@ -104,6 +102,10 @@ class SinkxWidget(QWidget):
         # Fixed across a microscope run, not currently configurable after startup
         # XXX: would be nice if we could detect these
         self.incoming_w, self.incoming_h = incoming_wh
+
+        self.zoom = 1.0
+        # The value to restore zoom to when toggling high zoom off
+        self.zoom_out = None
 
     '''
     https://github.com/Labsmore/pyuscope/issues/34
@@ -141,18 +143,6 @@ class SinkxWidget(QWidget):
             self.setParent(parent)
         # Stop paint events from causing flicker on the raw x buffer
         self.setUpdatesEnabled(False)
-
-
-# Use QWidget size policy
-# Crop stream if needed to fit size?
-# Unclear what happens if its not a perfect match
-class SinkxZoomableWidget(SinkxWidget):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.zoom = 1.0
-        # The value to restore zoom to when toggling high zoom off
-        self.zoom_out = None
-        self.videoflip = None
 
     def is_fixed(self):
         return False
@@ -326,21 +316,12 @@ class SinkxZoomableWidget(SinkxWidget):
         assert self.videoscale
         player.add(self.videoscale)
 
-        # Use hardware acceleration if present
-        # Otherwise can soft flip feeds when / if needed
-        # videoflip_method = self.parent.usc.imager.videoflip_method()
-        videoflip_method = config.get_usc().imager.videoflip_method()
-        if videoflip_method:
-            self.videoflip = Gst.ElementFactory.make("videoflip")
-            assert self.videoflip
-            self.videoflip.set_property("method", videoflip_method)
-            player.add(self.videoflip)
-
         self.capsfilter = Gst.ElementFactory.make("capsfilter")
         self.update_crop_scale()
         player.add(self.capsfilter)
 
-        self.sinkx = Gst.ElementFactory.make("ximagesink", self.gst_name)
+        self.sinkx = Gst.ElementFactory.make("ximagesink",
+                                             self.gst_element_name)
         assert self.sinkx
         player.add(self.sinkx)
         src_tee.append(self.videocrop)
@@ -351,11 +332,7 @@ class SinkxZoomableWidget(SinkxWidget):
         # self.update_crop_scale()
 
     def gst_link(self):
-        if self.videoflip:
-            assert self.videocrop.link(self.videoflip)
-            assert self.videoflip.link(self.videoscale)
-        else:
-            assert self.videocrop.link(self.videoscale)
+        assert self.videocrop.link(self.videoscale)
         assert self.videoscale.link(self.capsfilter)
         assert self.capsfilter.link(self.sinkx)
 
@@ -388,16 +365,13 @@ class GstVideoPipeline:
         ac=None,
         log=None):
         self.ac = ac
-        usc = ac.usc
-        if usc is None:
-            usc = config.get_usc(usj=usj)
-        self.usc = usc
         self.source = None
         self.source_name = None
         self.verbose = os.getenv("USCOPE_GSTWIDGET_VERBOSE") == "Y"
+        self.videoflip = None
 
         if widget_configs is None:
-            widget_configs = OrderedDict()
+            widget_configs = set()
             # Main window view
             # Placed next to each other
             # Currently these two are more or less identical
@@ -405,19 +379,13 @@ class GstVideoPipeline:
             # FIXME: now that widget sizing is now based on QWidget,
             # simplify this
             if zoomable:
-                widget_configs["zoomable"] = {
-                    "type": "zoomable",
-                }
+                widget_configs.add("zoomable")
             # For calibrating video feed
             if overview2:
-                widget_configs["overview2"] = {
-                    "type": "zoomable",
-                }
+                widget_configs.add("overview2")
             # Stand alone window
             if overview_full_window:
-                widget_configs["overview_full_window"] = {
-                    "type": "zoomable",
-                }
+                widget_configs.add("overview_full_window")
         # Needs to be done early so elements can be added before main setup
         self.player = Gst.Pipeline.new("player")
         """
@@ -426,17 +394,23 @@ class GstVideoPipeline:
         winid: during ON_SYNC_MESSAGE give the winid to render to
         width/height:
         """
-        self.incoming_w, self.incoming_h = usc.imager.cropped_wh()
-        self.widgets = OrderedDict()
-        for widget_name, widget_config in widget_configs.items():
-            self.create_widget(widget_name, widget_config)
 
         # Must not be initialized until after layout is set
-        source = self.usc.imager.source()
+        source = self.ac.microscope.usc.imager.source()
         if source == "auto":
-            source = auto_detect_source()
+            assert 0, "FIXME: currently not supported"
+            # source = auto_detect_source()
         self.source_name = source
         self.verbose and print("vidpip source %s" % source)
+        # Arbitrates source specific pipeline, GUI rendering, etc
+        self.imager_aplugin = get_imager_aplugin(ac=self.ac,
+                                                 source_name=self.source_name)
+
+        self.incoming_w, self.incoming_h = self.ac.microscope.usc.imager.cropped_wh(
+        )
+        self.widgets = OrderedDict()
+        for widget_name in widget_configs:
+            self.create_widget(widget_name)
         self.size_widgets()
 
         # Clear if anything bad happens and shouldn't be trusted
@@ -454,17 +428,16 @@ class GstVideoPipeline:
         self.rtsp_server = None
         self.rtsp_media_factory = None
 
-    def create_widget(self, widget_name, widget_config):
-        t = {
-            # "full": SinkxWidgetOverviewFixed,
-            # "roi": SinkxWidgetROIFixed,
-            "zoomable": SinkxZoomableWidget,
-        }[widget_config["type"]]
+    def create_widget(self, widget_name):
+        t = self.imager_aplugin.get_widget()
+        config = {
+            "gst_element_name": "sinkx_" + widget_name,
+            "incoming_wh_hint": (self.incoming_w, self.incoming_h),
+        }
         widget = t(
-            gst_name="sinkx_" + widget_name,
-            config=dict(widget_config),
-            incoming_wh=(self.incoming_w, self.incoming_h),
+            ac=self.ac,
             player=self.player,
+            config=config,
         )
         self.widgets[widget_name] = widget
         return widget
@@ -550,12 +523,13 @@ class GstVideoPipeline:
     def remove_full_widget(self):
         assert 0, "FIXME"
 
-    def prepareSource(self, esize=None):
+    def prepareSource(self, properties={}):
         # Must not be initialized until after layout is set
         # print(source)
         # assert 0
-        properties = {}
-
+        #properties = {}
+        properties = dict(properties)
+        """
         is_v4l2 = self.source_name == 'gst-v4l2src' or self.source_name.find(
             'gst-v4l2src-') == 0
         if is_v4l2:
@@ -574,19 +548,12 @@ class GstVideoPipeline:
             self.source = Gst.ElementFactory.make('videotestsrc', None)
         else:
             raise Exception('Unknown source %s' % (self.source_name, ))
+        """
+        self.source = self.imager_aplugin.get_gst_source()
+        assert self.source, f"Failed to load camera source"
 
-        # Override with user specified values
-        properties.update(self.usc.imager.source_properties())
-
-        # Set default v4l2 device, if not given
-        if is_v4l2 and not properties.get("device"):
-            properties["device"] = DEFAULT_V4L2_DEVICE
-            # TODO: scrape info one way or the other to identify preferred device
-            name = self.usc.imager.j.get("v4l2_name")
-            if name:
-                device = find_device(name)
-                print(f"Camera '{name}': selected {device}")
-                properties["device"] = device
+        # Override with microscope.j5 values
+        properties.update(self.ac.microscope.usc.imager.source_properties())
 
         for propk, propv in properties.items():
             self.verbose and print("Set source %s => %s" % (propk, propv))
@@ -646,7 +613,7 @@ class GstVideoPipeline:
                 raise
             # self.verbose and print("tee queue link %s => %s" % (src, dst))
 
-    def setupGst(self, raw_tees=None, vc_tees=None, esize=None):
+    def setupGst(self, raw_tees=None, vc_tees=None):
         """
         TODO: clean up queue architecture
         Probably need to add a seperate (optional) tee before and after videoconvert
@@ -666,9 +633,7 @@ class GstVideoPipeline:
             % (self.overview, self.roi, len(raw_tees), len(vc_tees)))
 
         # FIXME: is this needed? seems broken anyway
-        #if esize is None:
-        #    esize = self.usj["imager"].get("esize", None)
-        self.prepareSource(esize=esize)
+        self.prepareSource()
         self.player.add(self.source)
         """
         observation:
@@ -681,7 +646,7 @@ class GstVideoPipeline:
         self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")
         # Select the correct resolution from the camera
         # This is pre-crop so it must be the actual resolution
-        raw_w, raw_h = self.usc.imager.raw_wh()
+        raw_w, raw_h = self.ac.microscope.usc.imager.raw_wh()
         self.raw_capsfilter.props.caps = Gst.Caps(
             "video/x-raw,width=%u,height=%u" % (raw_w, raw_h))
         self.player.add(self.raw_capsfilter)
@@ -691,7 +656,7 @@ class GstVideoPipeline:
 
         # Hack to use a larger than needed camera sensor
         # Crop out the unused sensor area
-        crop = self.usc.imager.crop_tblr()
+        crop = self.ac.microscope.usc.imager.crop_tblr()
         if crop:
             self.videocrop = Gst.ElementFactory.make("videocrop")
             assert self.videocrop
@@ -705,6 +670,19 @@ class GstVideoPipeline:
         else:
             self.videocrop = None
             raw_element = self.raw_capsfilter
+
+        # Use hardware acceleration if present
+        # Otherwise can soft flip feeds when / if needed
+        # videoflip_method = self.parent.usc.imager.videoflip_method()
+        videoflip_method = self.ac.microscope.usc.imager.videoflip_method()
+        if videoflip_method:
+            self.videoflip = Gst.ElementFactory.make("videoflip")
+            assert self.videoflip
+            self.videoflip.set_property("method", videoflip_method)
+            self.player.add(self.videoflip)
+
+            assert raw_element.link(self.videoflip)
+            raw_element = self.videoflip
 
         # This either will be directly forwarded or put into a queue
         self.videoconvert = Gst.ElementFactory.make('videoconvert')
@@ -767,7 +745,7 @@ class GstVideoPipeline:
 
     def gstreamer_to_winid(self, want_name):
         for widget in self.widgets.values():
-            if widget.gst_name == want_name:
+            if widget.gst_element_name == want_name:
                 return widget.winid
         assert 0, "Failed to match widget winid for ximagesink %s" % want_name
 
@@ -796,7 +774,8 @@ class GstVideoPipeline:
         if enabled:
             self.player.set_state(Gst.State.PAUSED)
             if not self.rtsp_bin:
-                self.rtsp_bin = RtspBin(gst_name="rtsp_bin",
+                self.rtsp_bin = RtspBin(ac=self.ac,
+                                        gst_element_name="rtsp_bin",
                                         incoming_wh=(self.incoming_w,
                                                      self.incoming_h))
                 self.rtsp_bin.create_elements()
@@ -861,16 +840,16 @@ class RtspBin(Gst.Bin):
 
     def __init__(
         self,
-        gst_name=None,
-        config=None,
+        ac=None,
+        gst_element_name=None,
         incoming_wh=None,
         # player=None
     ):
         super().__init__()
 
+        self.ac = ac
         # self.player = player
-        self.gst_name = gst_name
-        self.config = config
+        self.gst_element_name = gst_element_name
         # gstreamer rendering element
         self.udpsink = None
         # Used to fit incoming stream to window
@@ -911,7 +890,7 @@ class RtspBin(Gst.Bin):
         # Use hardware acceleration if present
         # Otherwise can soft flip feeds when / if needed
         # videoflip_method = self.parent.usc.imager.videoflip_method()
-        videoflip_method = config.get_usc().imager.videoflip_method()
+        videoflip_method = self.ac.microscope.usc.imager.videoflip_method()
         if videoflip_method:
             self.videoflip = Gst.ElementFactory.make("videoflip")
             assert self.videoflip

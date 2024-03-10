@@ -28,14 +28,22 @@ def reduce_iindex_filename(filename, remove_key):
 
 def unkey_fn_prefix(filev, remove_key):
     ret = ""
+    sep = ""
     if "col" in filev:
-        ret += f"{filev['col_str']}_{filev['row_str']}"
+        ret += f"{sep}{filev['col_str']}"
+        sep = "_"
+    if "row" in filev:
+        ret += f"{sep}{filev['row_str']}"
+        sep = "_"
     if "stack" in filev and remove_key != "stack":
-        ret += f"_{filev['stack_str']}"
+        ret += f"{sep}{filev['stack_str']}"
+        sep = "_"
     if "hdr" in filev and remove_key != "hdr":
-        ret += f"_{filev['hdr_str']}"
+        ret += f"{sep}{filev['hdr_str']}"
+        sep = "_"
     if "stabilization" in filev and remove_key != "stabilization":
-        ret += f"_{filev['stabilization_str']}"
+        ret += f"{sep}{filev['stabilization_str']}"
+        sep = "_"
     if not ret:
         ret = "image"
     return ret

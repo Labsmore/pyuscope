@@ -224,7 +224,7 @@ class StackEnfusePlugin(IPPlugin):
                 "-v", "--use-given-order", "-a",
                 os.path.join(self.get_tmp_dir(), prefix)
             ]
-            for image_in in data_in["images"]:
+            for image_in in sorted(data_in["images"]):
                 args.append(image_in.get_filename())
             # self.log(" ".join(args))
             check_call(args)
@@ -243,7 +243,8 @@ class StackEnfusePlugin(IPPlugin):
         if 0 and ".tif" in out_fn:
             args.append("-d")
             args.append("16")
-        for fn in glob.glob(os.path.join(self.get_tmp_dir(), prefix + "*")):
+        for fn in sorted(
+                glob.glob(os.path.join(self.get_tmp_dir(), prefix + "*"))):
             args.append(fn)
         # self.log(" ".join(args))
         check_call(args)

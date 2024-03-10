@@ -333,6 +333,9 @@ class GstGUIImagerTS(Imager):
         # assert 0, "FIXME"
         return self.imager.ac.control_scroll.get_disp_properties_ts()
 
+    def wh(self):
+        return self.imager.wh()
+
 
 '''
 class MockGUIImager(MockImager):

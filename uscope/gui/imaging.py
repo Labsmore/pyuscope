@@ -854,7 +854,7 @@ class XYPlanner2PWidget(PlannerWidget):
         if not contour_json:
             return
 
-        objective = self.get_objective()
+        objective = self.get_objective_meta_cache()
         pconfig = microscope_to_planner_config(microscope=self.ac.microscope,
                                                objective=objective,
                                                contour=contour_json)
@@ -1112,7 +1112,7 @@ class XYPlanner3PWidget(PlannerWidget):
         if not corner_json:
             return
 
-        objective = self.get_objective()
+        objective = self.get_objective_meta_cache()
         pconfig = microscope_to_planner_config(microscope=self.ac.microscope,
                                                objective=objective,
                                                corners=corner_json)
@@ -1515,14 +1515,7 @@ class ImagingTaskWidget(AWidget):
             planner_args = {
                 # Simple settings written to disk, no objects
                 "pconfig": pconfig,
-                "motion": self.ac.motion_thread.get_planner_motion(),
                 "microscope": self.ac.microscope,
-
-                # Typically GstGUIImager
-                # Will be offloaded to its own thread
-                # Operations must be blocking
-                # We enforce that nothing is running and disable all CNC GUI controls
-                "imager": self.ac.imager,
                 "out_dir": out_dir,
 
                 # Includes microscope.json in the output

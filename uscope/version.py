@@ -1,5 +1,7 @@
 import subprocess
 import re
+import os
+from shutil import which
 
 meta_cache = None
 
@@ -28,6 +30,10 @@ def get_meta():
         return meta_cache
 
     ret = {}
+    # Not critical
+    # Abort if missing git or not running out of repo
+    if which("git") is None or not os.path.exists(".git"):
+        return {}
     ret["githash"] = check_output(["git", "rev-parse", "HEAD"],
                                   stderr=subprocess.DEVNULL).strip()
     tag = check_output(["git", "describe", "--tags", "--abbrev=0"],

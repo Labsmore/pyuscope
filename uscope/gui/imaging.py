@@ -1842,7 +1842,7 @@ class MainTab(ArgusTab):
             aname="imaging",
             parent=self)
 
-        version = uscope_version.get_meta()["description"]
+        version = uscope_version.get_meta().get("description", "null")
         self.log(f"pyuscope starting (version {version})")
         self.log("https://github.com/Labsmore/pyuscope/")
         self.log("For enquiries contact support@labsmore.com")

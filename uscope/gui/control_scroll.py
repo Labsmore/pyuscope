@@ -231,6 +231,10 @@ class ImagerControlScroll(QScrollArea):
         self.raw_cache = {}
         self.disp_cache = {}
         self.setDispProperties.connect(self.set_disp_properties)
+        self.virtual_properties = {}
+
+    def add_virtual_property(self, vp):
+        self.virtual_properties[vp.name] = vp
 
     def post_imager_ready(self):
         """
@@ -477,7 +481,7 @@ class ImagerControlScroll(QScrollArea):
         Write a property as the raw name
         """
         self.verbose and print(f"raw_prop_write() {name} = {value}")
-        self._raw_prop_write(name, value)
+        self._rawvirt_prop_write(name, value)
         self.raw_prop_written(name, value)
         self.raw_cache[name] = value
 
@@ -485,7 +489,7 @@ class ImagerControlScroll(QScrollArea):
         """
         Read a property as the raw name
         """
-        ret = self._raw_prop_read(name)
+        ret = self._rawvirt_prop_read(name)
         self.verbose and print(f"raw_prop_read() {name} = {ret}")
         self.raw_prop_was_read(name, ret)
         self.raw_cache[name] = ret
@@ -504,6 +508,18 @@ class ImagerControlScroll(QScrollArea):
         In practice this means read a gstreamer property
         """
         raise Exception("Required")
+
+    def _rawvirt_prop_write(self, name, val):
+        if name in self.virtual_properties:
+            self.virtual_properties[name].write(val)
+        else:
+            self._raw_prop_write(name, val)
+
+    def _rawvirt_prop_read(self, name):
+        if name in self.virtual_properties:
+            return self.virtual_properties[name].read()
+        else:
+            return self._raw_prop_read(name)
 
     def disp_prop_read(self, disp_name):
         element = self.disp2element[disp_name]
@@ -782,15 +798,32 @@ class MockControlScroll(ImagerControlScroll):
 
 
 class VirtualProperty:
-    def __init__(self, name=None, value=None):
+    def __init__(self, name=None, value=None, ac=None):
         self.name = name
         self.value = value
+        self.ac = ac
 
     def read(self):
         return self.value
 
     def write(self, value):
         self.value = value
+
+
+class AutoExposureSoftwareVP(VirtualProperty):
+    def read(self):
+        return self.ac.imager_control_thread.auto_exposure()
+
+    def write(self, value):
+        return self.ac.imager_control_thread.set_auto_exposure(value)
+
+
+class AutoExposureSoftwareTargetVP(VirtualProperty):
+    def read(self):
+        return self.ac.imager_control_thread.auto_exposure_target100()
+
+    def write(self, value):
+        return self.ac.imager_control_thread.set_auto_exposure_target100(value)
 
 
 class GstControlScroll(ImagerControlScroll):
@@ -809,27 +842,15 @@ class GstControlScroll(ImagerControlScroll):
 
         layout = QVBoxLayout()
         layout.addLayout(self.buttonLayout())
-        self.virtual_properties = {}
-
-    def add_virtual_property(self, vp):
-        self.virtual_properties[vp.name] = vp
 
     def flatten_hack(self, val):
         pass
 
     def _raw_prop_write(self, name, val):
-        if name in self.virtual_properties:
-            self.virtual_properties[name].write(val)
-        else:
-            source = self.vidpip.source
-            source.set_property(name, val)
+        self.vidpip.source.set_property(name, val)
 
     def _raw_prop_read(self, name):
-        if name in self.virtual_properties:
-            return self.virtual_properties[name].read()
-        else:
-            source = self.vidpip.source
-            return source.get_property(name)
+        return self.vidpip.source.get_property(name)
 
     """
     def raw_prop_default(self, name):

@@ -100,6 +100,7 @@ class V4L2ControlScroll(ImagerControlScroll):
     def run(self):
         self.control_rw = v4l2_util.get_control_rw(self.fd())
         self.all_controls = set(self.control_rw.ctrls())
+        self.all_controls.update(set(self.virtual_properties.keys()))
         super().run()
 
     def fd(self):

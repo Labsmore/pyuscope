@@ -4,7 +4,7 @@ Hopefully works better than the original camera choice
 """
 
 from uscope.gui.v4l_control_scroll import V4L2AutoExposureDisplayer, V4L2ControlScroll
-from uscope.gui.control_scroll import BoolDisplayer
+from uscope.gui.control_scroll import BoolDisplayer, AutoExposureSoftwareVP, AutoExposureSoftwareTargetVP
 from collections import OrderedDict
 """
 this is a "menu"
@@ -36,12 +36,28 @@ groups_gst = OrderedDict([(
         },
         {
             "prop_name": "Exposure, Auto",
-            "disp_name": "Auto Exposure",
+            "disp_name": "Auto Exposure (HW)",
             "default": True,
             "ctor": V4L2AutoExposureDisplayer,
             "type": "ctor",
             "optional": True,
             "visible": False,
+        },
+        {
+            "prop_name": "auto_exposure_sw",
+            "disp_name": "Auto Exposure (SW)",
+            "type": "bool",
+            "default": False,
+            "virtual": True,
+        },
+        {
+            "prop_name": "auto_exposure_sw_target",
+            "disp_name": "Auto Exposure (SW) Target",
+            "min": 1,
+            "max": 100,
+            "default": 40,
+            "type": "int",
+            "virtual": True,
         },
         {
             "prop_name": "Exposure (Absolute)",
@@ -108,3 +124,11 @@ groups_gst = OrderedDict([(
 class V4L2HY800BControlScroll(V4L2ControlScroll):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, groups_gst=groups_gst)
+        self.add_virtual_property(
+            AutoExposureSoftwareVP(name="auto_exposure_sw",
+                                   value=0,
+                                   ac=self.ac))
+        self.add_virtual_property(
+            AutoExposureSoftwareTargetVP(name="auto_exposure_sw_target",
+                                         value=0,
+                                         ac=self.ac))

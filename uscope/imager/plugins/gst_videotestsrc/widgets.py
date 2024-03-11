@@ -3,7 +3,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
-from uscope.gui.control_scroll import GstControlScroll, VirtualProperty
+from uscope.gui.control_scroll import GstControlScroll, VirtualProperty, AutoExposureSoftwareVP
 
 from collections import OrderedDict
 
@@ -40,6 +40,12 @@ groups_gst = OrderedDict([
                 "virtual": True,
             },
             {
+                "prop_name": "auto_exposure_sw",
+                "type": "bool",
+                "default": False,
+                "virtual": True,
+            },
+            {
                 "prop_name": "auto_color",
                 "type": "bool",
                 "default": False,
@@ -60,6 +66,10 @@ class TestSrcScroll(GstControlScroll):
                                                   value=10000))
         self.add_virtual_property(
             VirtualProperty(name="auto_exposure", value=0))
+        self.add_virtual_property(
+            AutoExposureSoftwareVP(name="auto_exposure_sw",
+                                   value=0,
+                                   ac=self.ac))
         self.add_virtual_property(VirtualProperty(name="auto_color", value=0))
 
     def auto_exposure_enabled(self):

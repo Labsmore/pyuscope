@@ -2,7 +2,7 @@
     "configs": {
         "default": {
             "disp_properties": {
-                "Auto Exposure": false,
+                "Auto Exposure (HW)": false,
                 "Auto White Balance Temperature": false,
                 "Exposure": 250,
                 "Gain": 0,

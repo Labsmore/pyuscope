@@ -3,7 +3,7 @@ from uscope.gui.control_scrolls import get_control_scroll
 from uscope.config import get_usc, get_bc
 from uscope.gui import imager
 from uscope.gst_util import Gst, CaptureSink
-from uscope.app.argus.threads import QMotionThread, QImageProcessingThread, QJoystickThread, QTaskThread
+from uscope.app.argus.threads import QMotionThread, QImageProcessingThread, QJoystickThread, QTaskThread, QImagerControlThread
 from uscope.joystick import JoystickNotFound
 from uscope.microscope import Microscope
 from uscope.kinematics import Kinematics
@@ -189,6 +189,7 @@ class ArgusCommon(QObject):
         self.joystick_thread = None
         self.image_processing_thread = None
         self.task_thread = None
+        self.imager_control_thread = None
 
         self.bc = get_bc()
         self.check_threads = self.bc.check_threads()
@@ -273,6 +274,7 @@ class ArgusCommon(QObject):
         self.microscope.joystick_thread = self.joystick_thread
 
         self.task_thread = QTaskThread(ac=self)
+        self.imager_control_thread = QImagerControlThread(ac=self)
 
     def initUI(self):
         self.vidpip.setupWidgets()
@@ -342,6 +344,7 @@ class ArgusCommon(QObject):
         self.image_processing_thread = QImageProcessingThread(ac=self)
 
         self.task_thread.start()
+        self.imager_control_thread.start()
 
         self.kinematics = Kinematics(
             microscope=self.microscope,
@@ -383,6 +386,8 @@ class ArgusCommon(QObject):
             self.joystick_thread.shutdown_request()
         if self.task_thread:
             self.task_thread.shutdown_request()
+        if self.imager_control_thread:
+            self.imager_control_thread.shutdown_request()
 
     def shutdown_join(self):
         if self.motion_thread:
@@ -401,6 +406,8 @@ class ArgusCommon(QObject):
         if self.task_thread:
             self.task_thread.shutdown_join()
             # self.task_thread = None
+        if self.imager_control_thread:
+            self.imager_control_thread.shutdown_join()
 
     def check_thread_safety(self):
         if self.check_threads:

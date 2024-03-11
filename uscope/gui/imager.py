@@ -204,16 +204,21 @@ class GstGUIImager(Imager):
     def _get_properties(self):
         return self.ac.control_scroll.get_disp_properties()
 
-    '''
     def get_exposure_cache(self):
-        # not thread safe
-        # val = self.ac.get_exposure()
         disp_prop = self.ac.control_scroll.get_exposure_disp_property()
         return self.ac.control_scroll.get_disp_property_ts(disp_prop)
-    '''
 
-    def prepare_exif_bytes(self, captured_image):
-        self.ac.control_scroll.prepare_exif_bytes(captured_image)
+    def get_exposure_property(self):
+        return self.ac.control_scroll.get_exposure_disp_property()
+
+    def set_exposure(self, value):
+        return self.ac.control_scroll.set_exposure_disp_property(value)
+
+    def add_captured_image_meta(self, captured_image):
+        self.ac.control_scroll.add_captured_image_meta(captured_image)
+
+    def captured_image_exposure(self, captured_image):
+        return self.ac.control_scroll.captured_image_exposure(captured_image)
 
 
 # TODO: consider doing this in memory
@@ -335,6 +340,10 @@ class GstGUIImagerTS(Imager):
 
     def wh(self):
         return self.imager.wh()
+
+    def set_exposure(self, value):
+        disp_prop = self.imager.ac.control_scroll.get_exposure_disp_property()
+        self.set_property(disp_prop, value)
 
 
 '''

@@ -117,7 +117,8 @@ class CaptureSink(CbSink):
         #self.verbose and print("bytes", len(buf), 'w', width, 'h', height)
         return CapturedImage(
             image=self.ac.vidpip.imager_aplugin.gst_decode_image(image_dict),
-            meta=image_dict["meta"])
+            meta=image_dict["meta"],
+            microscope=self.ac.microscope)
 
     '''
     gstreamer plugin core methods

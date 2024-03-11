@@ -53,8 +53,8 @@ class V4L2AutoExposureDisplayer(ICSDisplayer):
         self.cs.disp_prop_write(self.config["disp_name"], self.cb.isChecked())
 
     def assemble(self, layoutg, row):
-        # print("making cb")
-        layoutg.addWidget(QLabel(self.config["disp_name"]), row, 0)
+        self.label = QLabel(self.config["disp_name"])
+        layoutg.addWidget(self.label, row, 0)
         self.cb = QCheckBox()
         layoutg.addWidget(self.cb, row, 1)
         row += 1
@@ -79,6 +79,7 @@ class V4L2AutoExposureDisplayer(ICSDisplayer):
             return 1
 
     def setVisible(self, val):
+        self.label.setVisible(val)
         self.cb.setVisible(val)
 
 

@@ -12,6 +12,7 @@ class JoystickThreadBase:
         self.queue = queue.Queue()
         self.running = threading.Event()
         self.running.set()
+        self.loop_time = 0.2
         try:
             self.joystick = Joystick(microscope=microscope)
         except JoystickNotFound:
@@ -32,13 +33,17 @@ class JoystickThreadBase:
         self.running.clear()
 
     def run(self):
+        tlast = time.time()
         while self.running:
             try:
-                time.sleep(0.2)
+                tnow = time.time()
+                dt = tnow - tlast
+                time.sleep(max(self.loop_time - dt, 0.0))
                 # It is important to check that the button is both enabled and
                 # active before performing actions. This allows us to preserve
                 # state by disabling and enabling the button only during scans.
                 self.joystick.execute()
+                tlast = tnow
             except Exception as e:
                 self.log('WARNING: joystick thread crashed: %s' % str(e))
                 traceback.print_exc()

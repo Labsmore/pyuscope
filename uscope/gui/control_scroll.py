@@ -641,6 +641,17 @@ class ImagerControlScroll(QScrollArea):
         """
         return meta["disp_properties"][self.get_exposure_disp_property()] / 1e6
 
+    def captured_image_exposure(self, captured_image):
+        return captured_image.meta["disp_properties"][
+            self.get_exposure_disp_property()]
+
+    def add_captured_image_meta(self, captured_image):
+        # Used for auto exposure control loop
+        #exposure = captured_image.meta["disp_properties"][self.get_exposure_disp_property()]
+        #captured_image.meta["exposure"] = exposure
+        # Used for saving image
+        self.prepare_exif_bytes(captured_image)
+
     def prepare_exif_bytes(self, captured_image):
         """
         Thread safe

@@ -6,6 +6,7 @@ from uscope.imagep.thread import ImageProcessingThreadBase
 from uscope.planner.thread import PlannerThreadBase
 from uscope.motion.thread import MotionThreadBase
 from uscope.joystick_thread import JoystickThreadBase
+from uscope.imager.thread import ImagerControlThreadBase
 from uscope.threads import CommandThreadBase
 from uscope.microscope import MicroscopeStop
 from PyQt5.QtCore import QThread, pyqtSignal
@@ -32,6 +33,10 @@ def dbg(*args):
 
 
 class ArgusThread(QThread):
+    #def __init__(self, ac=None, **kwargs):
+    #    QThread.__init__(**kwargs)
+    #    self.ac = ac
+
     def shutdown_join(self, timeout=3.0):
         # seconds = milliseconds
         self.wait(int(timeout * 1000))
@@ -611,3 +616,16 @@ class QTaskThread(CommandThreadBase, ArgusThread):
                 delta = (rss - self.rss_last) / 1e6
                 self.microscope.log("Profile: memory usage delta: %0.1f MB" %
                                     (delta, ))
+
+
+class QImagerControlThread(ImagerControlThreadBase, ArgusThread):
+    log_msg = pyqtSignal(str)
+
+    def __init__(self, ac, parent=None):
+        #ArgusThread.__init__(self, ac=ac, parent=parent)
+        ArgusThread.__init__(self, parent=parent)
+        self.ac = ac
+        ImagerControlThreadBase.__init__(self, microscope=self.ac.microscope)
+
+    def log(self, msg=""):
+        self.log_msg.emit(msg)

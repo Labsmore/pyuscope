@@ -487,7 +487,7 @@ class SnapshotCSIP:
 
         current_image = self.image
         capim = options["captured_image"]
-        self.microscope.imager.prepare_exif_bytes(capim)
+        self.microscope.imager.add_captured_image_meta(capim)
 
         ipp = config.get_usc().ipp.snapshot_correction()
         current_plugins = [p["plugin"] for p in ipp]

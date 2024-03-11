@@ -213,7 +213,7 @@ class DirCSIP:
         tb.wait()
 
     def hdr_run(self, **kwargs):
-        self.run_n_to_1(task_name="hdr-enfuse", bucket_name="hdr", **kwargs)
+        self.run_n_to_1(task_name="hdr-luminance", bucket_name="hdr", **kwargs)
 
     def stack_run(self, **kwargs):
         self.run_n_to_1(task_name="stack-enfuse",
@@ -532,8 +532,7 @@ Constructs a pipeline based on expected input data
 Expects all images to be present
 If it fails you'll need to fall back to DirCSIP
 """
-
-
+'''
 class StreamCSIP:
     def __init__(self, csip, image_stream, microscope=None, upload=False):
         assert 0, "WIP"
@@ -680,3 +679,4 @@ class StreamCSIP:
                                     dst_basename=dst_basename,
                                     verbose=verbose)
             """
+'''

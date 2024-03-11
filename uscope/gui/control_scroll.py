@@ -676,18 +676,15 @@ class ImagerControlScroll(QScrollArea):
         exif = {}
         # exif["Exif"] = {33434: (16660, 1000000)}
         # XXX: are there defines we can use instead of hard coding constants?
+        exposure_seconds = self.get_meta_exposure_seconds(captured_image.meta)
         exif["Exif"] = {
             # manual exposure
-            34850:
-            1,
+            34850: 1,
             # exposure time as rational
-            33434:
-            (int(self.get_meta_exposure_seconds(captured_image.meta) * 1e6),
-             int(1e6)),
+            33434: (int(exposure_seconds * 1e6), int(1e6)),
             # ISO
             #34855: 118,
-            34855:
-            1,
+            34855: 1,
             # f number
             #33437: 2.2,
             # 33437: (22, 100),
@@ -819,6 +816,18 @@ class AutoExposureSoftwareVP(VirtualProperty):
 
 
 class AutoExposureSoftwareTargetVP(VirtualProperty):
+    def read(self):
+        return self.ac.imager_control_thread.auto_exposure_target100()
+
+    def write(self, value):
+        return self.ac.imager_control_thread.set_auto_exposure_target100(value)
+
+
+class WhiteBalanceVP(VirtualProperty):
+    def __init__(self, channel=None, **kwargs):
+        super().__init__(**kwargs)
+        self.channel = channel
+
     def read(self):
         return self.ac.imager_control_thread.auto_exposure_target100()
 

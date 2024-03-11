@@ -1020,8 +1020,11 @@ class PlannerHDR(PlannerPlugin):
         for hdri, hdrv in enumerate(self.properties_list):
             self.log("HDR: setting %s" % (hdrv, ))
             if not self.dry:
+                print("HDR: setting", hdrv)
                 self.imager.set_properties(hdrv)
-                self.sleep(self.tsettle)
+                if self.microscope.usc.kinematics.hdr_closed_loop():
+                    self.sleep(self.tsettle)
+                    self.imager.wait_properties(hdrv)
             modifiers = {
                 "filename_part": "h%02u" % hdri,
             }

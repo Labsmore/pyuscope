@@ -663,6 +663,13 @@ class USCKinematics:
         # Set a semi-reasonable default
         return float(self.j.get("tsettle_hdr", 0.2))
 
+    def hdr_closed_loop(self):
+        """
+        Wait for property to read back before snapping image?
+        Otherwise can run open loop / with timing
+        """
+        return bool(self.j.get("hdr_closed_loop", False))
+
     def frame_sync(self):
         # Recommended for real imagers
         return bool(self.j.get("frame_sync", True))

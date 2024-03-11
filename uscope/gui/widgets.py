@@ -902,8 +902,11 @@ class AdvancedTab(ArgusTab):
 
     def _poll_misc(self):
         # Update caches for snapshot configuration
-        tmp_pconfig = {}
-        self._update_pconfig(tmp_pconfig)
+        try:
+            tmp_pconfig = {}
+            self._update_pconfig(tmp_pconfig)
+        except ValueError:
+            pass
 
 
 class StitchingTab(ArgusTab):

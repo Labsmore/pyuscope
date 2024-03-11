@@ -31,24 +31,28 @@ groups_gst = OrderedDict([
                 "min": 0,
                 "max": 100000,
                 "default": 10000,
+                "gui_driven": True,
                 "virtual": True,
             },
             {
                 "prop_name": "auto_exposure",
                 "type": "bool",
                 "default": False,
+                "gui_driven": True,
                 "virtual": True,
             },
             {
                 "prop_name": "auto_exposure_sw",
                 "type": "bool",
                 "default": False,
+                "gui_driven": True,
                 "virtual": True,
             },
             {
                 "prop_name": "auto_color",
                 "type": "bool",
                 "default": False,
+                "gui_driven": True,
                 "virtual": True,
             },
         ]),
@@ -79,7 +83,7 @@ class TestSrcScroll(GstControlScroll):
         return self.disp_prop_read("auto_color")
 
     def set_exposure(self, n):
-        self.disp_prop_write(self.get_exposure_disp_property())
+        self.disp_prop_write(self.get_exposure_disp_property(), n)
 
     def get_exposure(self):
         return self.disp_prop_read(self.get_exposure_disp_property())

@@ -114,6 +114,25 @@ class Imager:
     def system_status_ts(self, root_status, status):
         pass
 
+    def wait_properties(self, properties, timeout=1.0):
+        """
+        Wait until read_property() returns specified value
+        Intended to better synchronize HDR
+        """
+        remaining = dict(properties)
+        tstart = time.time()
+        while len(remaining):
+            for k, v in dict(remaining).items():
+                got = self.get_property(k)
+                if got == v:
+                    del remaining[k]
+                    continue
+                if time.time() - tstart > timeout:
+                    raise Exception(
+                        f"Timed out waiting for properties to change: {remaining}"
+                    )
+                time.sleep(0.01)
+
 
 class MockImager(Imager):
     def __init__(self, verbose=False, width=640, height=480):

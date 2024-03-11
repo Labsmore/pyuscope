@@ -15,7 +15,7 @@ They generally take one or more images in and produce a single image out
 
 from uscope.scan_util import index_scan_images
 from uscope.imagep.util import EtherealImageR, EtherealImageW
-from uscope.imagep.streams import StreamCSIP, DirCSIP, SnapshotCSIP
+from uscope.imagep.streams import DirCSIP, SnapshotCSIP
 from uscope.imagep.plugins import get_plugins, get_plugin_ctors
 from uscope import config
 from uscope.microscope import get_virtual_microscope, get_mconfig
@@ -304,10 +304,10 @@ class CSImageProcessor(threading.Thread):
         self.queue_task(ip_params=ip_params, block=block)
         return data_out
 
-    def queue_hdr_enfuse(self, **kwargs):
-        self.queue_n_to_1_plugin(task_name="hdr-enfuse", **kwargs)
+    def queue_hdr(self, **kwargs):
+        self.queue_n_to_1_plugin(task_name="hdr-luminance", **kwargs)
 
-    def queue_stack_enfuse(self, **kwargs):
+    def queue_stack(self, **kwargs):
         self.queue_n_to_1_plugin(task_name="stack-enfuse", **kwargs)
 
     def queue_stabilization(self, **kwargs):
@@ -383,8 +383,10 @@ class CSImageProcessor(threading.Thread):
             healthy = False
         return healthy
 
+    '''
     def process_stream(self, *args, **kwargs):
         StreamCSIP(self, *args, microscope=self.microscope, **kwargs).run()
+    '''
 
     def process_snapshot(self, *args, **kwargs):
         options = kwargs.pop("options", {})

@@ -2044,8 +2044,11 @@ class ImagerTab(ArgusTab):
             self.hdr_le.setText(le_str)
             self.hdr_seq = hdr_seq
 
-        # Update cache for snapshot engine
-        self._update_pconfig({})
+        try:
+            # Update cache for snapshot engine
+            self._update_pconfig({})
+        except ValueError:
+            pass
 
     def hdr_pconfig(self):
         return self._hdr_pconfig
@@ -2063,7 +2066,7 @@ class ImagerTab(ArgusTab):
                 properties_list.append(
                     {self.ac.get_exposure_disp_property(): val})
         except ValueError:
-            self.log("Invalid HDR exposure value")
+            self.ac.log("Invalid HDR exposure value")
             raise
         ret = {
             "properties_list": properties_list,

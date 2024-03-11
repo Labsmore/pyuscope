@@ -258,13 +258,11 @@ class CompositeImageGrabber:
                                                objective=objective)
 
         pconfig["imager"].update({
-            "imager": {
-                # prevent recursion
-                "get_mode": "processed",
-                # Temp file
-                # Run lossless
-                "save_extension": ".tif",
-            }
+            # prevent recursion
+            "get_mode": "processed",
+            # Temp file
+            # Run lossless
+            "save_extension": ".tif",
         })
         if hdr_pconfig is not None:
             pconfig["imager"]["hdr"] = hdr_pconfig

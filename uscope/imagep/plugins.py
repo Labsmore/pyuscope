@@ -144,13 +144,28 @@ class HDRLuminancePlugin(IPPlugin):
     def _run(self, data_in, data_out, options={}):
         out_fn = data_out["image"].get_filename()
         args = [
-            "luminance-hdr-cli", "--o", out_fn, "--exposure-weight-function"
+            "luminance-hdr-cli",
+            "--o",
+            out_fn,
         ]
-        for image_in in data_in["images"]:
-            fn = image_in.get_filename()
+        fns_in = [image_in.get_filename() for image_in in data_in["images"]]
+        for fn in sorted(fns_in):
             args.append(fn)
         self.log(" ".join(args))
-        subprocess.check_call(args)
+        p = subprocess.Popen(args,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+        output, error = p.communicate()
+        if p.returncode != 0:
+            print("")
+            print("")
+            print("")
+            print("Subprocess error :(")
+            print(f"{args}")
+            print(f"{output}")
+            print(f"{error}")
+            raise subprocess.SubprocessError(
+                f"luminance-hdr-cli failed w/ code {p.returncode}")
 
 
 """
@@ -650,6 +665,7 @@ def get_plugin_ctors():
     return {
         "stack-enfuse": StackEnfusePlugin,
         "hdr-enfuse": HDREnfusePlugin,
+        "hdr-luminance": HDRLuminancePlugin,
         "stabilization": StabilizationPlugin,
         "correct-ff1": CorrectFF1Plugin,
         "correct-sharp1": CorrectSharp1Plugin,

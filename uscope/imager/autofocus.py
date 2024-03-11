@@ -99,7 +99,7 @@ class Autofocus:
                 0 and self.log("autofocus round %u / %u: try %0.6f" %
                                (focusi + 1, steps, target_pos))
                 self.move_absolute_wait({"z": target_pos})
-                im_pil = self.imager.get()["0"]
+                im_pil = self.imager.get().image
                 yield target_pos, im_pil
 
         se.poll()

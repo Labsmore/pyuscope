@@ -3,9 +3,18 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
-from uscope.gui.control_scroll import GstControlScroll, VirtualProperty, AutoExposureSoftwareVP
+from uscope.gui.control_scroll import GstControlScroll, VirtualProperty, AutoExposureSoftwareVP, IntDisplayer
 
 from collections import OrderedDict
+
+
+class TestPatternDisplayer(IntDisplayer):
+    def val_raw2disp(self, val):
+        return val
+
+    def val_disp2raw(self, val):
+        return val
+
 
 # https://gstreamer.freedesktop.org/documentation/videotestsrc/?gi-language=c
 groups_gst = OrderedDict([
@@ -24,6 +33,14 @@ groups_gst = OrderedDict([
                 "min": 0,
                 # ?
                 "max": 10000,
+            },
+            {
+                "prop_name": "pattern",
+                "min": 0,
+                "max": 25,
+                "type": "int",
+                "fill_type": False,
+                "ctor": TestPatternDisplayer,
             },
             {
                 "prop_name": "exposure",

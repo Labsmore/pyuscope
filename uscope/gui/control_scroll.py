@@ -716,40 +716,41 @@ def template_property(vidpip, ac, prop_entry):
     ret["prop_name"] = prop_name
     ret["default"] = ps.default_value
 
-    if ps.value_type.name == "gint":
+    if defaults.get("fill_type", True):
+        if ps.value_type.name == "gint":
 
-        def override(which, default):
-            if not ac:
-                return default
-            """
-            Ex:
-            prop_name: expotime
-            which: max
+            def override(which, default):
+                if not ac:
+                    return default
+                """
+                Ex:
+                prop_name: expotime
+                which: max
 
-            "source_properties_mod": {
-                //In us. Can go up to 15 sec which is impractical for typical usage
-                "expotime": {
-                    "max": 200000
+                "source_properties_mod": {
+                    //In us. Can go up to 15 sec which is impractical for typical usage
+                    "expotime": {
+                        "max": 200000
+                    },
                 },
-            },
-            """
-            spm = ac.microscope.usc.imager.source_properties_mod()
-            if not spm:
-                return default
-            pconfig = spm.get(prop_name)
-            if not pconfig:
-                return default
-            return pconfig.get(which, default)
+                """
+                spm = ac.microscope.usc.imager.source_properties_mod()
+                if not spm:
+                    return default
+                pconfig = spm.get(prop_name)
+                if not pconfig:
+                    return default
+                return pconfig.get(which, default)
 
-        minimum = override("min", ps.minimum)
-        maximum = override("max", ps.maximum)
-        ret["min"] = minimum
-        ret["max"] = maximum
-        ret["type"] = "int"
-    elif ps.value_type.name == "gboolean":
-        ret["type"] = "bool"
-    else:
-        assert 0, ps.value_type.name
+            minimum = override("min", ps.minimum)
+            maximum = override("max", ps.maximum)
+            ret["min"] = minimum
+            ret["max"] = maximum
+            ret["type"] = "int"
+        elif ps.value_type.name == "gboolean":
+            ret["type"] = "bool"
+        else:
+            assert 0, ps.value_type.name
 
     ret.update(defaults)
     return ret

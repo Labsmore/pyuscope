@@ -823,7 +823,7 @@ class AutoExposureSoftwareTargetVP(VirtualProperty):
         return self.ac.imager_control_thread.set_auto_exposure_target100(value)
 
 
-class WhiteBalanceVP(VirtualProperty):
+class WhiteBalanceSoftwareVP(VirtualProperty):
     def __init__(self, channel=None, **kwargs):
         super().__init__(**kwargs)
         self.channel = channel

@@ -369,6 +369,7 @@ class GstVideoPipeline:
         self.source_name = None
         self.verbose = os.getenv("USCOPE_GSTWIDGET_VERBOSE") == "Y"
         self.videoflip = None
+        self.setting_up = True
 
         if widget_configs is None:
             widget_configs = set()
@@ -402,6 +403,7 @@ class GstVideoPipeline:
             # source = auto_detect_source()
         self.source_name = source
         self.verbose and print("vidpip source %s" % source)
+        self.raw_element = None
         # Arbitrates source specific pipeline, GUI rendering, etc
         self.imager_aplugin = get_imager_aplugin(ac=self.ac,
                                                  source_name=self.source_name)
@@ -511,6 +513,28 @@ class GstVideoPipeline:
         # self.full_restart_pipeline()
         return widget
 
+    def link_next_raw_element(self, element):
+        """
+        Add an element into the pipeline immediately before raw_tee
+        """
+        assert element
+        if not self.setting_up:
+            assert self.tee_vc
+            self.raw_element.unlink(self.tee_vc)
+            self.player.set_state(Gst.State.PAUSED)
+        else:
+            # not strictly true but close
+            assert self.tee_vc is None
+
+        self.player.add(element)
+        assert self.raw_element.link(element)
+        if self.tee_vc:
+            assert element.link(self.tee_vc)
+        self.raw_element = element
+
+        if not self.setting_up:
+            self.player.set_state(Gst.State.PLAYING)
+
     def full_restart_pipeline(self):
         for widget in self.widgets.values():
             widget.winid = widget.winId()
@@ -609,7 +633,7 @@ class GstVideoPipeline:
             try:
                 assert queue.link(dst)
             except:
-                # print("Failed to link %s => %s" % (src, dst))
+                print(f"Failed to link {queue} => {dst}")
                 raise
             # self.verbose and print("tee queue link %s => %s" % (src, dst))
 
@@ -623,6 +647,7 @@ class GstVideoPipeline:
         toupcamsource ! 
         """
 
+        self.tee_vc = None
         if raw_tees is None:
             raw_tees = []
         if vc_tees is None:
@@ -635,6 +660,7 @@ class GstVideoPipeline:
         # FIXME: is this needed? seems broken anyway
         self.prepareSource()
         self.player.add(self.source)
+        self.raw_element = self.source
         """
         observation:
         -adding caps negotation on v4l2src fixed lots of issues (although roi still not working)
@@ -649,14 +675,12 @@ class GstVideoPipeline:
         raw_w, raw_h = self.ac.microscope.usc.imager.raw_wh()
         self.raw_capsfilter.props.caps = Gst.Caps(
             "video/x-raw,width=%u,height=%u" % (raw_w, raw_h))
-        self.player.add(self.raw_capsfilter)
-
-        if not self.source.link(self.raw_capsfilter):
-            raise RuntimeError("Couldn't set capabilities on the source")
+        self.link_next_raw_element(self.raw_capsfilter)
 
         # Hack to use a larger than needed camera sensor
         # Crop out the unused sensor area
         crop = self.ac.microscope.usc.imager.crop_tblr()
+        self.videocrop = None
         if crop:
             self.videocrop = Gst.ElementFactory.make("videocrop")
             assert self.videocrop
@@ -664,12 +688,7 @@ class GstVideoPipeline:
             self.videocrop.set_property("bottom", crop["bottom"])
             self.videocrop.set_property("left", crop["left"])
             self.videocrop.set_property("right", crop["right"])
-            self.player.add(self.videocrop)
-            self.raw_capsfilter.link(self.videocrop)
-            raw_element = self.videocrop
-        else:
-            self.videocrop = None
-            raw_element = self.raw_capsfilter
+            self.link_next_raw_element(self.videocrop)
 
         # Use hardware acceleration if present
         # Otherwise can soft flip feeds when / if needed
@@ -679,12 +698,8 @@ class GstVideoPipeline:
             self.videoflip = Gst.ElementFactory.make("videoflip")
             assert self.videoflip
             self.videoflip.set_property("method", videoflip_method)
-            self.player.add(self.videoflip)
+            self.link_next_raw_element(self.videoflip)
 
-            assert raw_element.link(self.videoflip)
-            raw_element = self.videoflip
-
-        # This either will be directly forwarded or put into a queue
         self.videoconvert = Gst.ElementFactory.make('videoconvert')
         assert self.videoconvert is not None
         self.player.add(self.videoconvert)
@@ -696,7 +711,7 @@ class GstVideoPipeline:
         # Note at least one vc tee is garaunteed (either full or roi)
         self.verbose and print("Link raw...")
         raw_tees = [self.videoconvert] + raw_tees
-        self.tee_raw = self.link_tee(raw_element, raw_tees)
+        self.tee_raw = self.link_tee(self.raw_element, raw_tees)
 
         self.verbose and print("Link vc...")
         self.verbose and print("  our", our_vc_tees)
@@ -713,6 +728,7 @@ class GstVideoPipeline:
         bus.enable_sync_message_emission()
         bus.connect("message", self.on_message)
         bus.connect("sync-message::element", self.on_sync_message)
+        self.setting_up = False
 
     def run(self):
         """

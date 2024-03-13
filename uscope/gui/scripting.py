@@ -283,7 +283,7 @@ class ArgusScriptingPlugin(QThread):
         self.check_running()
         if wait_imaging_ok:
             self.wait_imaging_ok()
-        return self.imager().get_by_mode(mode=mode).image()
+        return self.imager().get_by_mode(mode=mode).image
 
     def wait_imaging_ok(self):
         """

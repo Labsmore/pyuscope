@@ -375,19 +375,19 @@ class ArgusCommon(QObject):
         if self.microscope.bc.stress_test():
             self.log("WARNING: stress test enabled")
 
-    def shutdown_request(self):
+    def shutdown_request(self, phase):
         if self.motion_thread:
-            self.motion_thread.shutdown_request()
+            self.motion_thread.shutdown_request(phase)
         if self.planner_thread:
-            self.planner_thread.shutdown_request()
+            self.planner_thread.shutdown_request(phase)
         if self.image_processing_thread:
-            self.image_processing_thread.shutdown_request()
+            self.image_processing_thread.shutdown_request(phase)
         if self.joystick_thread:
-            self.joystick_thread.shutdown_request()
+            self.joystick_thread.shutdown_request(phase)
         if self.task_thread:
-            self.task_thread.shutdown_request()
+            self.task_thread.shutdown_request(phase)
         if self.imager_control_thread:
-            self.imager_control_thread.shutdown_request()
+            self.imager_control_thread.shutdown_request(phase)
 
     def shutdown_join(self):
         if self.motion_thread:

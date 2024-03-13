@@ -4,6 +4,7 @@ from uscope.imagep.pipeline import CSImageProcessor
 from uscope.imager.autofocus import Autofocus
 from uscope.threads import CommandThreadBase
 from uscope.imagep.util import find_qr_code_match
+from uscope.threads import ShutdownPhase
 
 import threading
 import queue
@@ -28,11 +29,11 @@ class ImageProcessingThreadBase(CommandThreadBase):
         # nothing to process => can try to shutdown before it starts
         self.ip.ready.wait(1.0)
 
-    def shutdown_request(self):
+    def shutdown_request(self, phase):
         # Stop requests first
-        super().shutdown_request()
+        super().shutdown_request(phase)
         # Then lower level engine
-        self.ip.shutdown_request()
+        self.ip.shutdown_request(phase)
 
     def shutdown_join(self, timeout=3.0):
         # Stop requests first

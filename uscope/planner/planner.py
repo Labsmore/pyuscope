@@ -25,6 +25,7 @@ from uscope.motion.hal import DryHal
 from uscope.config import PC
 from uscope.planner.plugin import get_planner_plugin
 from uscope.microscope import StopEvent, MicroscopeStop
+from uscope.threads import ShutdownPhase
 
 
 class PlannerStop(Exception):
@@ -170,7 +171,7 @@ class Planner:
                     break
             self.log('Planner unpaused')
 
-    def shutdown_request(self):
+    def shutdown_request(self, phase):
         self.running = False
 
     def shutdown_join(self):

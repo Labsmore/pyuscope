@@ -1,4 +1,4 @@
-from uscope.threads import CommandThreadBase
+from uscope.threads import ShutdownPhase
 
 import cv2 as cv
 import numpy as np
@@ -7,10 +7,9 @@ import time
 import traceback
 
 
-class ImagerControlThreadBase(CommandThreadBase):
+class ImagerControlThreadBase:
     def __init__(self, microscope):
-        super().__init__(microscope)
-
+        self.microscope = microscope
         self.loop_time = 1.0
 
         self._auto_exposure = False
@@ -22,8 +21,9 @@ class ImagerControlThreadBase(CommandThreadBase):
         self.running = threading.Event()
         self.running.set()
 
-    def shutdown(self):
-        self.running.clear()
+    def shutdown_request(self, phase):
+        if phase == ShutdownPhase.FINAL:
+            self.running.clear()
 
     def log(self, msg=""):
         print(msg)
@@ -87,7 +87,7 @@ class ImagerControlThreadBase(CommandThreadBase):
 
     def run(self):
         tlast = time.time()
-        while self.running:
+        while self.running.is_set():
             tnow = time.time()
             dt = tnow - tlast
             time.sleep(max(self.loop_time - dt, 0.0))

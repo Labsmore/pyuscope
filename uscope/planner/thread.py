@@ -36,9 +36,9 @@ class PlannerThreadBase:
         if self.planner:
             self.planner.unpause()
 
-    def shutdown_request(self):
+    def shutdown_request(self, phase):
         if self.planner:
-            self.planner.shutdown_request()
+            self.planner.shutdown_request(phase)
 
     def shutdown_join(self):
         if self.planner:

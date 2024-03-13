@@ -19,6 +19,7 @@ from uscope.imagep.streams import DirCSIP, SnapshotCSIP
 from uscope.imagep.plugins import get_plugins, get_plugin_ctors
 from uscope import config
 from uscope.microscope import get_virtual_microscope, get_mconfig
+from uscope.threads import ShutdownPhase
 
 import os
 import glob
@@ -202,17 +203,18 @@ class CSImageProcessor(threading.Thread):
         self.shutdown()
 
     def shutdown(self):
-        self.shutdown_request()
+        self.shutdown_request(ShutdownPhase.FINAL)
         self.shutdown_join()
 
-    def shutdown_request(self):
-        self.running.clear()
+    def shutdown_request(self, phase):
+        if phase == ShutdownPhase.FINAL:
+            self.running.clear()
 
-        if self.workers:
-            self.log("Shutting down: requesting")
-            for worker in self.workers.values():
-                worker.stop()
-            self.log("Shutting down: joining")
+            if self.workers:
+                self.log("Shutting down: requesting")
+                for worker in self.workers.values():
+                    worker.stop()
+                self.log("Shutting down: joining")
 
     def shutdown_join(self, timeout=3.0):
         for worker in self.workers.values():

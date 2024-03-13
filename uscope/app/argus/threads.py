@@ -7,7 +7,7 @@ from uscope.planner.thread import PlannerThreadBase
 from uscope.motion.thread import MotionThreadBase
 from uscope.joystick_thread import JoystickThreadBase
 from uscope.imager.thread import ImagerControlThreadBase
-from uscope.threads import CommandThreadBase
+from uscope.threads import CommandThreadBase, ShutdownPhase
 from uscope.microscope import MicroscopeStop
 from PyQt5.QtCore import QThread, pyqtSignal
 import traceback
@@ -297,9 +297,10 @@ class QJoystickThread(JoystickThreadBase, ArgusThread):
         self.enabled = False
         self.ac.microscope.statistics.add_getj(self.statistics_getj)
 
-    def shutdown_request(self):
-        self.running.clear()
-        self.enabled = False
+    def shutdown_request(self, phase):
+        if phase == ShutdownPhase.FINAL:
+            self.running.clear()
+            self.enabled = False
 
     def log(self, msg=""):
         self.log_msg.emit(msg)

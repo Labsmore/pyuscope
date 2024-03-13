@@ -5,6 +5,7 @@ from collections import OrderedDict
 from uscope.cloud_stitch import CSInfo
 from uscope.imager.autofocus import AutoStacker
 from uscope.gui.common import ArgusShutdown
+from uscope.threads import ShutdownPhase
 from uscope.imager.imager_util import format_mm_3dec
 
 from PyQt5 import Qt
@@ -21,9 +22,6 @@ import copy
 import traceback
 import json
 import json5
-"""
-Argus Widget
-"""
 
 
 class AMainWindow(QMainWindow):
@@ -66,7 +64,7 @@ class AMainWindow(QMainWindow):
         for awidget in self.awidgets.values():
             awidget.post_ui_init()
 
-    def _shutdown_request(self):
+    def _shutdown_request(self, phase):
         pass
 
     def _shutdown_join(self):
@@ -83,11 +81,16 @@ class AMainWindow(QMainWindow):
             self.fullscreen_widget.close()
 
         self.cache_save()
-        self._shutdown_request()
-        for awidget in self.awidgets.values():
-            awidget.shutdown_request()
-        if self.ac:
-            self.ac.shutdown_request()
+        for phase in (ShutdownPhase.INITIAL, ShutdownPhase.FINAL):
+            self._shutdown_request(phase=phase)
+            for awidget in self.awidgets.values():
+                awidget.shutdown_request(phase=phase)
+            if self.ac:
+                self.ac.shutdown_request(phase=phase)
+            # Give some token cleanup time
+            # Is there a way we could do this closed loop?
+            if phase != ShutdownPhase.FINAL:
+                time.sleep(0.2)
         self._shutdown_join()
         for awidget in self.awidgets.values():
             awidget.shutdown_join()
@@ -264,16 +267,16 @@ class AWidget(QWidget):
         for awidget in self.awidgets.values():
             awidget.post_ui_init()
 
-    def _shutdown_request(self):
+    def _shutdown_request(self, phase):
         pass
 
-    def shutdown_request(self):
+    def shutdown_request(self, phase):
         """
         Called when GUI is shutting down
         """
-        self._shutdown_request()
+        self._shutdown_request(phase=phase)
         for awidget in self.awidgets.values():
-            awidget.shutdown_request()
+            awidget.shutdown_request(phase=phase)
 
     def _shutdown_join(self):
         pass
@@ -999,9 +1002,10 @@ class StitchingTab(ArgusTab):
         self.stitcher_thread.log_msg.connect(self.ac.log)
         self.stitcher_thread.start()
 
-    def _shutdown_request(self):
-        if self.stitcher_thread:
-            self.stitcher_thread.shutdown_request()
+    def _shutdown_request(self, phase):
+        if phase == ShutdownPhase.FINAL:
+            if self.stitcher_thread:
+                self.stitcher_thread.shutdown_request(phase=phase)
 
     def _shutdown_join(self):
         if self.stitcher_thread:

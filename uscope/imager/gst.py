@@ -370,6 +370,7 @@ class GstError(Exception):
     pass
 
 
+'''
 def apply_imager_cal(imager, verbose=False):
     usj_source = "gst-" + imager.source_name
     properties = config.cal_load(source=usj_source)
@@ -385,3 +386,4 @@ def get_cli_imager_by_config(usj=None, verbose=False, microscope=None):
     imager = GstCLIImager(opts=opts, microscope=microscope)
     apply_imager_cal(imager, verbose=verbose)
     return imager
+'''

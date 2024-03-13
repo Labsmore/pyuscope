@@ -4,6 +4,12 @@ import queue
 import traceback
 import random
 import time
+import enum
+
+
+class ShutdownPhase(enum.Enum):
+    INITIAL = enum.auto()
+    FINAL = enum.auto()
 
 
 class CommandThreadBase:
@@ -20,8 +26,9 @@ class CommandThreadBase:
     def log(self, msg=""):
         print(msg)
 
-    def shutdown_request(self):
-        self.running.clear()
+    def shutdown_request(self, phase):
+        if phase == ShutdownPhase.FINAL:
+            self.running.clear()
 
     '''
     def shutdown_join(self, timeout=3.0):
@@ -30,7 +37,7 @@ class CommandThreadBase:
     '''
 
     def shutdown(self, timeout=3.0):
-        self.shutdown_request()
+        self.shutdown_request(ShutdownPhase.FINAL)
         self.shutdown_join(timeout=timeout)
 
     def command(self, command, *args, block=False, callback=None, done=None):

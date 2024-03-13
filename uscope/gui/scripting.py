@@ -6,6 +6,7 @@ from uscope.util import readj, writej, time_str_1dec
 from uscope.threads import CBSync
 from uscope import version
 from uscope.subsystem import Subsystem
+from uscope.threads import ShutdownPhase
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -1050,9 +1051,11 @@ class ScriptingTab(ArgusTab):
             self.plugin.set_subsystem(subsystem)
             self.run_pb_clicked(input_val={"init": True})
 
-    def _shutdown_request(self):
-        if self.plugin:
-            self.plugin.shutdown()
+    def _shutdown_request(self, phase):
+        # Shutdown plugin before anything else
+        if phase == ShutdownPhase.INITIAL:
+            if self.plugin:
+                self.plugin.shutdown()
 
     def log_local(self, s='', newline=True):
         s = str(s)

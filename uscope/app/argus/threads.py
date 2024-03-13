@@ -151,18 +151,26 @@ class StitcherThread(CommandThreadBase, ArgusThread):
         ok = True
         cs_auto_cli = self.microscope.bc.argus_cs_auto_path()
         simple_cli = self.microscope.bc.argus_stitch_cli()
+        # Plausible stitching configured?
+        cs_info = j.get("cs_info")
+        # Make snapshots quieter since there will be a lot of them
+        ipp = j.get("ipp", {})
+        snapshot = ipp.get("snapshot", False)
+        quiet = ipp.get("quiet", snapshot)
 
-        self.log(f"Process scan: starting {j['directory']}")
+        if not quiet:
+            self.log(f"Process scan: starting {j['directory']}")
 
+        # 2024-03-13: these are doing more harm than good as image processing got more complicated
+        '''
         if not cs_auto_cli and not simple_cli:
             self.log(
                 "Process scan: WARNING: no image processing engines are configured"
             )
-        # Plausible stitching configured?
-        cs_info = j.get("cs_info")
         if not (cs_auto_cli and cs_info or simple_cli):
             self.log(
                 "Process scan: WARNING: no stitching engines are configured")
+        '''
 
         # Run this first in case user wants it to pre-process a scan
         # Originally this only did cloud stitching but now has some other stuff
@@ -183,7 +191,6 @@ class StitcherThread(CommandThreadBase, ArgusThread):
                 ]
 
             args.append(j["directory"])
-            ipp = j["ipp"]
             args.append("--json")
             args.append(json.dumps(ipp))
             ok = ok and self.process_run(args, "cs_auto", j['directory'])
@@ -196,11 +203,13 @@ class StitcherThread(CommandThreadBase, ArgusThread):
             ok = ok and self.process_run(args, "custom CLI", j['directory'])
 
         if ok:
-            if cs_info:
-                self.log(
-                    f"Process scan: processed and uploaded {j['directory']}")
-            else:
-                self.log(f"Process scan: completed {j['directory']}")
+            if not quiet:
+                if cs_info:
+                    self.log(
+                        f"Process scan: processed and uploaded {j['directory']}"
+                    )
+                else:
+                    self.log(f"Process scan: completed {j['directory']}")
         else:
             self.log(f"Process scan: error on {j['directory']}")
 

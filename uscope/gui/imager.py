@@ -264,12 +264,20 @@ class CompositeImageGrabber:
             # Run lossless
             "save_extension": ".tif",
         })
+        modes = []
         if hdr_pconfig is not None:
             pconfig["imager"]["hdr"] = hdr_pconfig
+            modes.append("HDR")
         if stacker_pconfig is not None:
             pconfig["points-stacker"] = stacker_pconfig
+            modes.append("stacker")
         if image_stabilization_pconfig is not None:
             pconfig["image-stabilization"] = image_stabilization_pconfig
+            modes.append("stabilization")
+        modes = ",".join(modes)
+        save_filename = processing_options.get("save_filename")
+        if save_filename:
+            self.ac.log(f"Composite snapshot: requested w/ {modes}")
 
         with tempfile.TemporaryDirectory() as out_dir_temp:
             # Collect images but running a lightweight planner
@@ -279,6 +287,9 @@ class CompositeImageGrabber:
                                   dry=False)
             _meta = planner.run()
 
+            if save_filename and self.ac.bc.dev_mode():
+                self.ac.log("Composite snapshot: processing images")
+
             # Now process them with minimal settings
             ippj = {
                 "cloud_stitch": False,
@@ -286,6 +297,7 @@ class CompositeImageGrabber:
                 "write_quick_pano": False,
                 "write_snapshot_grid": False,
                 "keep_intermediates": False,
+                "snapshot": True,
             }
             self.ac.stitchingTab.stitcher_thread.imagep_add(
                 directory=out_dir_temp, ippj=ippj, block=True)
@@ -298,11 +310,11 @@ class CompositeImageGrabber:
                     "Expected exactly one image (image processing failed?)")
             capim = CapturedImage.load(out_fn)
             # Now save it and/or return it
-            save_filename = processing_options.get("save_filename")
             if save_filename is not None:
                 # XXX: might re-compress things
                 capim.save(save_filename)
                 capim.set_meta_kv("save_filename", save_filename)
+                # self.ac.log(f"Composite snapshot: saved to {save_filename}")
             capim.set_meta_kv("objective_config", self.ac.objective_config())
             return capim
 

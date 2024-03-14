@@ -283,17 +283,23 @@ class StabilizationPlugin(IPPlugin):
         # https://stackoverflow.com/questions/34865765/finding-the-median-of-a-set-of-pictures-using-pil-and-numpy-gives-a-black-and-wh
 
         images_np = []
+        exif = None
         for image_in in data_in["images"]:
             fn = image_in.get_filename()
-            image_matrix = np.array(Image.open(fn))
+            im = Image.open(fn)
+            image_matrix = np.array(im)
             images_np.append(image_matrix)
+            if exif is None:
+                exif = im.info.get('exif')
 
         image_stack = np.concatenate([im[..., None] for im in images_np],
                                      axis=3)
         median_array = np.median(image_stack, axis=3)
         median_array = median_array.astype(np.uint8)
         median_image = Image.fromarray(median_array)
-        median_image.save(data_out["image"].get_filename(), quality=90)
+        median_image.save(data_out["image"].get_filename(),
+                          quality=90,
+                          exif=exif)
 
 
 """

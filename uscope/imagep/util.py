@@ -153,6 +153,10 @@ class EtherealImageW:
         return Image.open(self.want_fn)
 
 
+class SubtaskException(Exception):
+    pass
+
+
 class TaskBarrier:
     """
     Track when all allocated tasks are complete
@@ -161,6 +165,7 @@ class TaskBarrier:
     def __init__(self):
         self.ntasks_allocated = 0
         self.ntasks_completed = 0
+        self.exceptions = 0
 
     def callback(self):
         self.ntasks_completed += 1
@@ -175,9 +180,14 @@ class TaskBarrier:
             if timeout and time.time() - tstart > timeout:
                 raise Exception("Timed out")
             time.sleep(0.1)
+        if self.exceptions:
+            raise SubtaskException("Task(s) completed with exception")
 
     def idle(self):
         return self.ntasks_allocated == self.ntasks_completed
+
+    def add_exception(self):
+        self.exceptions += 1
 
 
 def remove_intermediate_directories(top_dir, nested_dir):

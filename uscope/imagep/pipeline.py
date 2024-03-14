@@ -101,6 +101,8 @@ class CSImageProcessorThread(threading.Thread):
                 out = (ip_params, result, info)
                 # self.queue_out.put(out)
                 if ip_params.tb:
+                    if result != "ok":
+                        ip_params.tb.add_exception()
                     ip_params.tb.callback()
                 if ip_params.callback:
                     ip_params.callback(*out)

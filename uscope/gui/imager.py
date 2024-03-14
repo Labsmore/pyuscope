@@ -227,6 +227,8 @@ class CompositeImageGrabber:
     def __init__(self, ac, imager):
         self.ac = ac
         self.imager = imager
+        # delete on exit
+        self.temp_dirs = []
 
     # FIXME: timeouts aren't being respected
     def get_composite(self,
@@ -279,18 +281,19 @@ class CompositeImageGrabber:
         modes = ",".join(modes)
         save_filename = processing_options.get("save_filename")
         if save_filename:
-            self.ac.log(f"Composite snapshot: requested w/ {modes}")
+            self.ac.microscope.log(f"Composite snapshot: requested w/ {modes}")
 
-        with tempfile.TemporaryDirectory() as out_dir_temp:
+        out_dir_temp = tempfile.TemporaryDirectory()
+        try:
             # Collect images but running a lightweight planner
             planner = get_planner(microscope=self.ac.microscope,
                                   pconfig=pconfig,
-                                  out_dir=out_dir_temp,
+                                  out_dir=out_dir_temp.name,
                                   dry=False)
             _meta = planner.run()
 
             if save_filename and self.ac.bc.dev_mode():
-                self.ac.log("Composite snapshot: processing images")
+                self.ac.microscope.log("Composite snapshot: processing images")
 
             # Now process them with minimal settings
             ippj = {
@@ -302,11 +305,12 @@ class CompositeImageGrabber:
                 "snapshot": True,
             }
             self.ac.stitchingTab.stitcher_thread.imagep_add(
-                directory=out_dir_temp, ippj=ippj, block=True)
+                directory=out_dir_temp.name, ippj=ippj, block=True)
 
             # Scrape the output image
-            out_fn = glob.glob(out_dir_temp +
-                               "/*.tif") + glob.glob(out_dir_temp + "/*.jpg")
+            out_fn = glob.glob(out_dir_temp.name +
+                               "/*.tif") + glob.glob(out_dir_temp.name +
+                                                     "/*.jpg")
             if len(out_fn) != 1:
                 raise Exception(
                     "Expected exactly one image (image processing failed?)")
@@ -316,9 +320,14 @@ class CompositeImageGrabber:
                 # XXX: might re-compress things
                 capim.save(save_filename)
                 capim.set_meta_kv("save_filename", save_filename)
-                # self.ac.log(f"Composite snapshot: saved to {save_filename}")
+                # self.ac.microscope.log(f"Composite snapshot: saved to {save_filename}")
             capim.set_meta_kv("objective_config", self.ac.objective_config())
             return capim
+        finally:
+            if self.ac.microscope.bc.dev_mode():
+                self.temp_dirs.append(out_dir_temp)
+            else:
+                del out_dir_temp
 
 
 # Thread safe Imager
@@ -356,6 +365,9 @@ class GstGUIImagerTS(Imager):
     def set_exposure(self, value):
         disp_prop = self.imager.ac.control_scroll.get_exposure_disp_property()
         self.set_property(disp_prop, value)
+
+    def since_properties_change(self):
+        return self.imager.since_properties_change()
 
 
 '''

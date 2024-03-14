@@ -53,6 +53,10 @@ class Imager:
         """Used for unit identification"""
         return None
 
+    # Hack: control scroll is getting written directly...
+    def properties_changed(self):
+        self.last_properties_change = time.time()
+
     def since_properties_change(self):
         return time.time() - self.last_properties_change
 

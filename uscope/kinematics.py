@@ -126,6 +126,7 @@ class Kinematics:
         Return once its safe to image
         Could be due to vibration, exposure settings, frame sync, etc
         """
+
         with LogTimer("wait video_pipeline",
                       variable="PYUSCOPE_PROFILE_TIMAGE"):
             self.wait_video_pipeline()

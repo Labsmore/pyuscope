@@ -390,6 +390,7 @@ class ImagerControlScroll(QScrollArea):
             # If GUI driven it will trigger the prop write
             # Otherwise update for quicker response and in case read back fails
             element.disp_property_set_widgets(val)
+        self.ac.microscope.imager.properties_changed()
 
     def get_disp_properties_ts(self):
         # should force an update?
@@ -677,11 +678,12 @@ class ImagerControlScroll(QScrollArea):
         # exif["Exif"] = {33434: (16660, 1000000)}
         # XXX: are there defines we can use instead of hard coding constants?
         exposure_seconds = self.get_meta_exposure_seconds(captured_image.meta)
+        exp_tuple = (int(exposure_seconds * 1e6), int(1e6))
         exif["Exif"] = {
             # manual exposure
             34850: 1,
             # exposure time as rational
-            33434: (int(exposure_seconds * 1e6), int(1e6)),
+            33434: exp_tuple,
             # ISO
             #34855: 118,
             34855: 1,

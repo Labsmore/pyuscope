@@ -132,3 +132,6 @@ class V4L2HY800BControlScroll(V4L2ControlScroll):
             AutoExposureSoftwareTargetVP(name="auto_exposure_sw_target",
                                          value=0,
                                          ac=self.ac))
+
+    def auto_exposure_enabled(self):
+        return self.disp_prop_read("Auto Exposure (SW)")

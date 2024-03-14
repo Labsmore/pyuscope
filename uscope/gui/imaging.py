@@ -2020,29 +2020,32 @@ class ImagerTab(ArgusTab):
         self.hdr_auto_stops.setReadOnly(not auto)
         self.hdr_auto_stops_per.setReadOnly(not auto)
         if auto:
-            # val = self.ac.imager.get_property(self.exposure_property)
-            val = self.ac.get_exposure()
-            if val is None:
-                return None
-            pm_stops = int(self.hdr_auto_stops.text())
-            stops_per = int(self.hdr_auto_stops_per.text())
+            try:
+                # val = self.ac.imager.get_property(self.exposure_property)
+                val = self.ac.get_exposure()
+                if val is None:
+                    return None
+                pm_stops = int(self.hdr_auto_stops.text())
+                stops_per = int(self.hdr_auto_stops_per.text())
 
-            hdr_seq = []
-            # add in reverse then reverse list
-            val_tmp = val
-            for _stopi in range(pm_stops):
-                val_tmp /= 2**stops_per
-                hdr_seq.append(val_tmp)
-            hdr_seq.reverse()
-            hdr_seq.append(val)
-            val_tmp = val
-            for _stopi in range(pm_stops):
-                val_tmp *= 2**stops_per
-                hdr_seq.append(val_tmp)
+                hdr_seq = []
+                # add in reverse then reverse list
+                val_tmp = val
+                for _stopi in range(pm_stops):
+                    val_tmp /= 2**stops_per
+                    hdr_seq.append(val_tmp)
+                hdr_seq.reverse()
+                hdr_seq.append(val)
+                val_tmp = val
+                for _stopi in range(pm_stops):
+                    val_tmp *= 2**stops_per
+                    hdr_seq.append(val_tmp)
 
-            le_str = ",".join(["%u" % x for x in hdr_seq])
-            self.hdr_le.setText(le_str)
-            self.hdr_seq = hdr_seq
+                le_str = ",".join(["%u" % x for x in hdr_seq])
+                self.hdr_le.setText(le_str)
+                self.hdr_seq = hdr_seq
+            except ValueError:
+                return
 
         try:
             # Update cache for snapshot engine

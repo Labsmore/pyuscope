@@ -262,7 +262,9 @@ class CompositeImageGrabber:
             "get_mode": "processed",
             # Temp file
             # Run lossless
-            "save_extension": ".tif",
+            # FIXME: https://github.com/Labsmore/pyuscope/issues/464
+            # "save_extension": ".tif",
+            "save_extension": ".jpg",
         })
         modes = []
         if hdr_pconfig is not None:

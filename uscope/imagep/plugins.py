@@ -131,6 +131,8 @@ The minimum EXIF tags for automated EV is something like:
 -33434 (exposure time)
 -34855 (ISO)
 -33437 (f number)
+
+luminance-hdr-cli --tmo ferradans --tmoFerRho 1.0 --tmoFerInvAlpha 0.5 -o out/out4.jpg *.jpg
 """
 
 
@@ -145,7 +147,10 @@ class HDRLuminancePlugin(IPPlugin):
         out_fn = data_out["image"].get_filename()
         args = [
             "luminance-hdr-cli",
-            "--o",
+            # "--tmo", "ferradans",
+            #"--tmoFerRho", "1.0",
+            #"--tmoFerInvAlpha", "0.5",
+            "-o",
             out_fn,
         ]
         fns_in = [image_in.get_filename() for image_in in data_in["images"]]

@@ -1801,7 +1801,7 @@ def meta_data8_to_data9(data8):
 
 
 def meta_data9_to_data8(data9):
-    assert len(data9) == 9
+    assert len(data9) == 9, len(data9)
 
     bits8 = bitarray()
     for wordi in range(3):
@@ -1903,7 +1903,9 @@ def parse_gcode_coords(gcode_coords):
         items = {}
         for wcsn, coords in gcode_coords.items():
             data9 = b""
-            for part in coords.split(","):
+            # some machines have 4 axes
+            # ex: genmitsu big
+            for part in coords.split(",")[0:3]:
                 data9 += struct.pack(">i", int(float(part) * 1000))[1:4]
             items[wcsn] = meta_data9_to_data8(data9)
         if items[WCS_CONFIG][0:len(USCOPE_MAGIC)] != USCOPE_MAGIC:

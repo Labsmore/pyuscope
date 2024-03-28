@@ -147,9 +147,12 @@ class HDRLuminancePlugin(IPPlugin):
         out_fn = data_out["image"].get_filename()
         args = [
             "luminance-hdr-cli",
-             "--tmo", "ferradans",
-            "--tmoFerRho", "1.0",
-            "--tmoFerInvAlpha", "0.5",
+            "--tmo",
+            "ferradans",
+            "--tmoFerRho",
+            "1.0",
+            "--tmoFerInvAlpha",
+            "0.5",
             "-o",
             out_fn,
         ]

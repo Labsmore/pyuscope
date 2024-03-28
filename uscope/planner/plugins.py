@@ -9,6 +9,7 @@ from uscope.motion.hal import pos_str
 from uscope.kinematics import Kinematics
 from scipy import polyfit
 from uscope.imager.autofocus import choose_best_image, Autofocus
+from enum import Enum
 
 
 class PlannerAxis:
@@ -385,6 +386,17 @@ class PointGenerator2P(PlannerPlugin):
         return {"x": self.x.rc_pos(ll_col), "y": self.y.rc_pos(ll_row)}
 
     def gen_pos_ll_ul_serp(self):
+        # 2024-03-27
+        # Should probably just drop the other algorithms at this point
+        # Every major system now uses this
+        if self.pc.motion_origin() == "ll":
+            for x in XYPosGenerator(rows=self.rows,
+                                    cols=self.cols,
+                                    calc_pos=self.calc_pos,
+                                    pc=self.pc).run():
+                yield x
+            return
+
         for ll_row in range(self.rows):
             for ll_col in range(self.cols):
                 if ll_row % 2 == 1:
@@ -511,6 +523,57 @@ TODO: consider leaving Z along if all three points are the same or is omitted en
 """
 
 
+class XYPattern(Enum):
+    # For reach row:
+    # Start at left side and move right
+    # "left right"
+    XM_XP = "x-:x+"
+    # For reach row:
+    # Start at right side and move left
+    XP_XM = "x+:x-"
+    YM_YP = "y-:y+"
+    YP_YM = "y+:y-"
+
+
+class XYPosGenerator:
+    def __init__(self, rows, cols, calc_pos, pc):
+        assert pc.motion_origin() == "ll"
+        self.rows = rows
+        self.cols = cols
+        self.pattern = pc.xy_pattern()
+        # TODO: optimal pattern might depend more on backlash
+        # traditional value is XM_XP but with negative backlash correction XP_XM may be better
+        if self.pattern is None:
+            self.pattern = XYPattern.XM_XP
+        self.pattern = XYPattern(self.pattern)
+        self.serpentine = pc.xy_sepentine()
+        # Faster but less precise
+        if self.serpentine is None:
+            self.serpentine = True
+        print("XYPosGenerator", self.pattern, self.serpentine)
+        self.calc_pos = calc_pos
+
+    def run(self):
+        if self.pattern in (XYPattern.XM_XP, XYPattern.XP_XM):
+            for ll_row in range(self.rows):
+                for ll_col in range(self.cols):
+                    # Start at right instead of left?
+                    if self.pattern == XYPattern.XP_XM:
+                        ll_col = self.cols - 1 - ll_col
+                    if self.serpentine:
+                        if ll_row % 2 == 1:
+                            ll_col = self.cols - 1 - ll_col
+
+                    pos = self.calc_pos(ll_col, ll_row)
+                    ul_col = ll_col
+                    ul_row = self.rows - 1 - ll_row
+                    yield (pos, (ll_col, ll_row), (ul_col, ul_row))
+        elif self.pattern in (XYPattern.YM_YP, XYPattern.YP_YM):
+            assert 0, "FIXME"
+        else:
+            assert 0, self.pattern
+
+
 class PointGenerator3P(PlannerPlugin):
     def __init__(self, planner):
         super().__init__(planner=planner)
@@ -528,6 +591,7 @@ class PointGenerator3P(PlannerPlugin):
         self.calc_per_rc()
         self.itered_xy_points = 0
         assert self.pc.motion_origin() == "ll"
+        self.xy_pattern = self.pc.xy_pattern()
 
     def has_z(self, corners):
         ret = None
@@ -717,16 +781,12 @@ class PointGenerator3P(PlannerPlugin):
     def filename_part(self, ul_col, ul_row):
         return 'c%03u_r%03u' % (ul_col, ul_row)
 
-    def gen_pos_ll_ul_serp(self):
-        for ll_row in range(self.rows):
-            for ll_col in range(self.cols):
-                if ll_row % 2 == 1:
-                    ll_col = self.cols - 1 - ll_col
-
-                pos = self.calc_pos(ll_col, ll_row)
-                ul_col = ll_col
-                ul_row = self.rows - 1 - ll_row
-                yield (pos, (ll_col, ll_row), (ul_col, ul_row))
+    def gen_pos_ll_ul(self):
+        for x in XYPosGenerator(rows=self.rows,
+                                cols=self.cols,
+                                calc_pos=self.calc_pos,
+                                pc=self.pc).run():
+            yield x
 
     def move_absolute(self, pos):
         pos = dict(pos)
@@ -742,7 +802,7 @@ class PointGenerator3P(PlannerPlugin):
         self.motion.move_absolute(pos)
 
     def iterate(self, state):
-        for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul_serp():
+        for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul():
             self.log('')
             self.itered_xy_points += 1
             if "z" in pos and not self.tracking_z:

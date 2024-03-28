@@ -1171,6 +1171,12 @@ class PC:
         assert ret in ("ll", "ul"), "Invalid coordinate origin"
         return ret
 
+    def xy_pattern(self):
+        return self.j.get("xy-pattern", None)
+
+    def xy_sepentine(self):
+        return self.j.get("xy-serpentine", None)
+
     def x_view(self):
         return float(self.j["imager"]["x_view"])
 

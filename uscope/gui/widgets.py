@@ -656,6 +656,7 @@ class AdvancedTab(ArgusTab):
 
         self._stacker_pconfig = None
         self._stabilization_pconfig = None
+        self.stacker_number_le = None
         layout = QGridLayout()
         row = 0
 
@@ -810,6 +811,9 @@ class AdvancedTab(ArgusTab):
             self.update_pconfig_stack(pconfig)
 
     def image_stacking_enabled(self):
+        if not self.ac.microscope.has_z():
+            return False
+
         images_pm = int(str(self.stacker_number_le.text()))
         distance_pm = float(self.stacker_distance_le.text())
         if not images_pm or distance_pm == 0.0:

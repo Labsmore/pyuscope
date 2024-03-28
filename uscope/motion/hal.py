@@ -144,6 +144,7 @@ class BacklashMM(MotionModifier):
             self.compensated[axis] = False
         self.recursing = False
         self.pending_compensation = None
+        self.wiggle = self.motion.microscope.usc.motion.backlash_wiggle()
 
     def set_enabled(self, axes):
         self.enabled = axes
@@ -211,9 +212,7 @@ class BacklashMM(MotionModifier):
             ret[axis]["delta"] = delta
         return ret
 
-    def move_x_pre(self, dst_abs_pos, options={}):
-        if self.recursing:
-            return
+    def move_x_pre_simple(self, dst_abs_pos, options={}):
         """
         Simple model for now:
         -Assume move completes
@@ -262,6 +261,63 @@ class BacklashMM(MotionModifier):
             self.recursing = False
             for axis in corrections_abs.keys():
                 self.compensated[axis] = True
+
+    def move_x_pre_wiggle(self, dst_abs_pos, options={}):
+        """
+        Vibrate axes into place
+        Can't rely on "auto" compensation
+        Any axis that is getting moved will be compensated into place
+        """
+        cur_pos = self.motion.cur_pos_cache()
+
+        print("")
+        print("wiggle begin")
+        self.recursing = True
+        try:
+            self.pending_compensation = {}
+            # TODO: this will require some experiments how to get nice wiggle
+            # Ex: log vs linear approach, how much back / forth
+            for divisor in (1, 8, 64, 512):
+                next_abs_pos = {}
+                deltas = {}
+                for axis, axis_pos in dst_abs_pos.items():
+                    # Rounding error that a movement won't improve?
+                    if self.motion.equivalent_axis_pos(axis=axis,
+                                                       value1=axis_pos,
+                                                       value2=cur_pos[axis]):
+                        continue
+                    axis_delta = -(self.compensation[axis] *
+                                   self.backlash[axis]) / divisor
+                    deltas[axis] = axis_delta
+                    next_pos = axis_pos + axis_delta
+                    # Delta so small now won't matter?
+                    if self.motion.equivalent_axis_pos(axis=axis,
+                                                       value1=next_pos,
+                                                       value2=cur_pos[axis]):
+                        continue
+                    next_abs_pos[axis] = next_pos
+                # Eventually delta should be small enough not to be significant
+                if not len(next_abs_pos):
+                    return
+                # Move closer
+                print("wiggle phase 1", next_abs_pos)
+                self.motion.move_absolute(next_abs_pos)
+                # Now slight vibrate back to add some shake
+                for k in next_abs_pos.keys():
+                    next_abs_pos[k] -= deltas[k] / 4
+                print("wiggle phase 2", next_abs_pos)
+                self.motion.move_absolute(next_abs_pos)
+        finally:
+            self.recursing = False
+
+    def move_x_pre(self, dst_abs_pos, options={}):
+        if self.recursing:
+            return
+        print("piggly wiggly", self.wiggle)
+        if self.wiggle:
+            self.move_x_pre_wiggle(dst_abs_pos=dst_abs_pos, options=options)
+        else:
+            self.move_x_pre_simple(dst_abs_pos=dst_abs_pos, options=options)
 
     def move_absolute_pre(self, pos, options={}):
         if self.recursing:

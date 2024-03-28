@@ -385,7 +385,7 @@ class PointGenerator2P(PlannerPlugin):
     def calc_pos(self, ll_col, ll_row):
         return {"x": self.x.rc_pos(ll_col), "y": self.y.rc_pos(ll_row)}
 
-    def gen_pos_ll_ul_serp(self):
+    def gen_pos_ll_ul(self):
         # 2024-03-27
         # Should probably just drop the other algorithms at this point
         # Every major system now uses this
@@ -461,7 +461,7 @@ class PointGenerator2P(PlannerPlugin):
 
     def iterate(self, state):
         # columns
-        for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul_serp():
+        for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul():
             self.itered_xy_points += 1
             self.log('')
             self.log(
@@ -498,7 +498,7 @@ class PointGenerator2P(PlannerPlugin):
 
     def gen_meta(self, meta):
         points = OrderedDict()
-        for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul_serp():
+        for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul():
             k = self.filename_part(ul_col, ul_row)
             v = dict(pos)
             v.update({"col": ul_col, "row": ul_row})
@@ -837,7 +837,7 @@ class PointGenerator3P(PlannerPlugin):
 
     def gen_meta(self, meta):
         points = OrderedDict()
-        for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul_serp():
+        for (pos, _ll, (ul_col, ul_row)) in self.gen_pos_ll_ul():
             k = self.filename_part(ul_col, ul_row)
             v = dict(pos)
             v.update({"col": ul_col, "row": ul_row})

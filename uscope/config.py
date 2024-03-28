@@ -517,6 +517,9 @@ class USCMotion:
 
         return ret
 
+    def backlash_wiggle(self):
+        return bool(self.j.get("backlash_wiggle", False))
+
     def origin(self):
         """
         Where the coordinate system starts from

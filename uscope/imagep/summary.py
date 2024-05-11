@@ -268,13 +268,18 @@ class QuickPano:
             }
         return ret
 
-    def get_rotation_cw(self):
+    def get_rotation_ccw(self):
         """
-        Get the amount the image is rotated relative to the expected axis position
+        Get the amount the image needs to be rotated CCW in order to give a square image
+
+        Example
+        If the camera is rotated -3 degrees CCW (3 degrees CW), a +3 degree correction CCW is needed
+        This value will be +3 degrees
+        See Image.rotate()
         """
         return self.uscan["pconfig"].get("calibration",
                                          {}).get("optics",
-                                                 {}).get("rotation_cw")
+                                                 {}).get("rotation_ccw")
 
     def fill_dst_simple(self):
         """
@@ -298,7 +303,7 @@ class QuickPano:
 
     def fill_dst_rotate(self):
         overlaps = self.get_overlaps()
-        rotation_cw = self.get_rotation_cw()
+        rotation_ccw = self.get_rotation_ccw()
         # print("overlaps", overlaps)
         # Half each side of image
         # Need a few percent of overlap to ensure no gaps
@@ -306,7 +311,7 @@ class QuickPano:
         trim_x = int(overlaps["x"]["overlap_pixels"] * 0.48)
         trim_y = int(overlaps["y"]["overlap_pixels"] * 0.48)
         # print("x y", trim_x, trim_y)
-        # print("rotation_cw", rotation_cw)
+        # print("rotation_ccw", rotation_ccw)
         orig_mode = self.dst.mode
         # self.dst.putalpha(255)
         self.dst = self.dst.convert('RGBA')
@@ -331,14 +336,14 @@ class QuickPano:
 
                 im = im_orig.convert('RGBA')
                 # im.putalpha(255)
-                im = im.rotate(rotation_cw, Image.BICUBIC, expand=True)
+                im = im.rotate(rotation_ccw, Image.BICUBIC, expand=True)
                 offset_x = 0
                 offset_y = 0
                 """
-                if rotation_cw > 0:
-                    offset_x = -int(math.sin(rotation_cw * 3.14 / 180) * im_orig.height)
+                if rotation_ccw > 0:
+                    offset_x = -int(math.sin(rotation_ccw * 3.14 / 180) * im_orig.height)
                 else:
-                    offset_y = -int(math.sin(-rotation_cw * 3.14 / 180) * im_orig.width)
+                    offset_y = -int(math.sin(-rotation_ccw * 3.14 / 180) * im_orig.width)
                 print("offsets", offset_x, offset_y)
                 """
 
@@ -364,7 +369,7 @@ class QuickPano:
         self.dst = self.dst.convert(orig_mode)
 
     def fill_dst(self):
-        if self.get_rotation_cw():
+        if self.get_rotation_ccw():
             self.fill_dst_rotate()
         else:
             self.fill_dst_simple()

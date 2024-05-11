@@ -247,8 +247,9 @@ class StackEnfusePlugin(IPPlugin):
                 "-v", "--use-given-order", "-a",
                 os.path.join(self.get_tmp_dir(), prefix)
             ]
-            for image_in in sorted(data_in["images"]):
-                args.append(image_in.get_filename())
+            for image_fn in sorted(
+                [imr.get_filename() for imr in data_in["images"]]):
+                args.append(image_fn)
             # self.log(" ".join(args))
             check_call(args)
         else:

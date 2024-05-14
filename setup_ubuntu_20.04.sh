@@ -30,7 +30,7 @@ install_pyuscope() {
     # Some people suggest gir1.2-gst-rtsp-server-1.0
     # Install all for now
     sudo apt-get install -y libgstrtspserver-1.0-0 libgstrtspserver-1.0-dev gir1.2-gst-rtsp-server-1.0
-    $PIP_CMD json5 boto3 pygame psutil bitarray pyxif
+    $PIP_CMD json5 boto3 pygame psutil bitarray pyexif
 
 
     # Package removed

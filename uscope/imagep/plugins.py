@@ -192,8 +192,16 @@ class StackEnfusePlugin(IPPlugin):
         # Other systems have a lot of jitter
         self.align_xy = self.usc.ipp.get_plugin("stack-enfuse").get(
             "align_xy", False)
+        env_align_xy = os.getenv("PYUSCOPE_ENFUSE_ALIGN_XY")
+        if env_align_xy:
+            self.align_xy = env_align_xy == "Y"
+            print("StackEnfusePlugin: align_xy via environment: %s" % (self.align_xy))
         self.align_zoom = self.usc.ipp.get_plugin("stack-enfuse").get(
             "align_zoom", False)
+        env_align_zoom = os.getenv("PYUSCOPE_ENFUSE_ALIGN_ZOOM")
+        if env_align_zoom:
+            self.align_zoom = env_align_zoom == "Y"
+            print("StackEnfusePlugin: align_zoom via environment: %s" % (self.align_zoom))
         self.enfuse = config.get_bc().enfuse_cli()
         self.align_image_stack = config.get_bc().align_image_stack_cli()
 

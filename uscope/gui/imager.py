@@ -221,6 +221,171 @@ class GstGUIImager(Imager):
         return self.ac.control_scroll.captured_image_exposure(captured_image)
 
 
+class Picam2GUIImager(Imager):
+    """Picamera2 (Raspberry Pi Camera) imager backend"""
+
+    def __init__(self, ac):
+        Imager.__init__(self)
+        self.ac = ac
+        self.usc = self.ac.microscope.usc
+        self.image_ready = threading.Event()
+        self.image_id = None
+        self.width, self.height = self.usc.imager.final_wh()
+        self.factor = self.usc.imager.scalar()
+        self.videoflip_method = self.usc.imager.videoflip_method()
+        self.composite_grabber = CompositeImageGrabber(self.ac, self)
+
+    def get_sn(self):
+        # Picamera2 has no serial number
+        return None
+
+    def wh(self):
+        return self.width, self.height
+
+    def next_captured_image(self, timeout=None):
+        """Capture an image using Picamera2's still capture mode"""
+        if timeout is None:
+            timeout = self.ac.microscope.usc.imager.snapshot_timeout()
+
+        def got_image(job):
+            self.image_req = self.ac.capture_pc2.wait(job)
+            self.image_ready.set()
+
+        self.image_ready.clear()
+        capture_config = self.ac.capture_pc2.create_still_configuration(display=None)
+        self.ac.capture_pc2.switch_mode_and_capture_request(capture_config, signal_function=got_image)
+
+        if not self.image_ready.wait(timeout=timeout):
+            raise ImageTimeout(
+                "Failed to get raw image within timeout %0.1f sec" %
+                (timeout, ))
+        image = self.image_req.make_image("main")
+        del self.image_req
+
+        capim = CapturedImage(image=image)
+        meta = {
+            "disp_properties":
+            dict(self.ac.control_scroll.get_disp_properties_ts()),
+        }
+        capim.set_meta(meta)
+        return capim
+
+    def get(self, recover_errors=True, timeout=None):
+        # WARNING: this must be thread safe / may be called from any context
+        while True:
+            try:
+                return self.next_captured_image(timeout=timeout)
+            except Exception as e:
+                if not recover_errors:
+                    raise
+                self.ac.microscope.log(
+                    f"WARNING: failed to get image ({type(e)}: {e}). Sleeping then retrying"
+                )
+                print(traceback.format_exc())
+                time.sleep(
+                    self.ac.microscope.kinematics.tsettle_video_pipeline * 2)
+
+    def get_processed(self,
+                      processing_options={},
+                      recover_errors=True,
+                      snapshot_timeout=None,
+                      processing_timeout=None):
+
+        if processing_timeout is None:
+            processing_timeout = self.ac.microscope.usc.imager.processing_timeout(
+            )
+        with LogTimer("get_processed: net",
+                      variable="PYUSCOPE_PROFILE_TIMAGE"):
+            with LogTimer("get_processed: raw",
+                          variable="PYUSCOPE_PROFILE_TIMAGE"):
+                capim = self.get(timeout=snapshot_timeout,
+                                 recover_errors=recover_errors)
+
+            processed = {}
+            ready = threading.Event()
+
+            def callback(command, args, ret_e):
+                if type(ret_e) is Exception:
+                    processed["exception"] = ret_e
+                else:
+                    processed["captured_image"] = ret_e
+                ready.set()
+
+            options = {}
+            options["image"] = capim.image
+            options["captured_image"] = capim
+            options["objective_config"] = self.ac.objective_config()
+            options["scale_factor"] = self.ac.usc.imager.scalar()
+            options["scale_expected_wh"] = self.ac.usc.imager.final_wh()
+            if self.ac.usc.imager.videoflip_method():
+                options[
+                    "videoflip_method"] = self.ac.usc.imager.videoflip_method(
+                    )
+            options.update(processing_options)
+
+            self.ac.image_processing_thread.process_image(options=options,
+                                                          callback=callback)
+            with LogTimer("get_processed: waiting",
+                          variable="PYUSCOPE_PROFILE_TIMAGE"):
+                if not ready.wait(timeout=processing_timeout):
+                    raise ImageTimeout(
+                        "Failed to get image within processing timeout %0.1f sec"
+                        % (processing_timeout, ))
+            if "exception" in processed:
+                raise Exception(
+                    f"failed to process image: {processed['exception']}")
+            capim = processed["captured_image"]
+            capim.meta["objective_config"] = options["objective_config"]
+            return capim
+
+    def get_composite(self, **kwargs):
+        return self.composite_grabber.get_composite(**kwargs)
+
+    def get_by_mode(self, mode=None, **kwargs):
+        if mode == "raw":
+            return self.get(**kwargs)
+        elif mode == "processed":
+            return self.get_processed(**kwargs)
+        elif mode == "composite":
+            return self.get_composite(**kwargs)
+        else:
+            assert 0, f"bad mode {mode}"
+
+    def log_planner_header(self, log):
+        log("Imager config")
+        log("  Image size")
+        log("    Raw sensor size: %uw x %uh" % (self.usc.imager.raw_wh()))
+        cropw, croph = self.usc.imager.cropped_wh()
+        log("    Cropped sensor size: %uw x %uh" %
+            (self.usc.imager.cropped_wh()))
+        scalar = self.usc.imager.scalar()
+        log("    Output scale factor: %0.1f" % scalar)
+        log("    Final scaled image: %uw x %uh" %
+            (cropw * scalar, croph * scalar))
+
+    def _set_properties(self, vals):
+        self.ac.control_scroll.set_disp_properties(vals)
+
+    def _get_properties(self):
+        return self.ac.control_scroll.get_disp_properties()
+
+    def get_exposure_cache(self):
+        disp_prop = self.ac.control_scroll.get_exposure_disp_property()
+        return self.ac.control_scroll.get_disp_property_ts(disp_prop)
+
+    def get_exposure_property(self):
+        return self.ac.control_scroll.get_exposure_disp_property()
+
+    def set_exposure(self, value):
+        return self.ac.control_scroll.set_exposure_disp_property(value)
+
+    def add_captured_image_meta(self, captured_image):
+        self.ac.control_scroll.add_captured_image_meta(captured_image)
+
+    def captured_image_exposure(self, captured_image):
+        return self.ac.control_scroll.captured_image_exposure(captured_image)
+
+
 # TODO: consider doing this in memory
 # a bit of a hack to write to filesystem
 class CompositeImageGrabber:

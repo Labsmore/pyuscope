@@ -572,7 +572,13 @@ class GRBLSer:
         if timeout is None:
             timeout = 240
 
-        lines = self.txrxs("$H", trim_data=False, timeout=timeout)
+        try:
+            lines = self.txrxs("$H", trim_data=False, timeout=timeout)
+        except GrblError as e:
+            if e.args[0].startswith("error 5 "):
+                # "error 5, homing not enabled in settings" - so ignore it
+                return
+
         for line in lines:
             if line.find("ALARM") >= 0:
                 raise HomingFailed()

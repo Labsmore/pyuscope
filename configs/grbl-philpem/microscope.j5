@@ -1,0 +1,89 @@
+/*
+A minimal configuration to do basic testing
+*/
+{
+    "motion": {
+        "hal": "grbl-ser",
+        "grbl": {
+            "port": "/dev/ttyUSB0",
+        },
+        "backlash": {
+            // X has a square coupler with lots of lovely backlash
+            // raw: 0.045
+            "x": 1.290,
+            
+            // Y has a spline coupler with less backlash
+            // raw: 0.024
+            "y": 0.050,
+
+            // Z is direct drive with almost no backlash
+            // raw: 0.005
+            "z": 0.025,
+        },
+        /* 
+         * from config.py:
+         *   +1: move negative along axis then positive to final position
+         *   0 => none
+         *   -1: move positive along axis then negative to final position
+         */
+        "backlash_compensation": 1,
+    },
+    "imager": {
+        "source":"picam2src",
+
+        // Raspberry Pi High Quality Camera, Sony IMX477 sensor, 4056x3040 native resolution
+        "width": 4056,
+        "height": 3040,
+
+        // There is an Olympus U-PMTVC 0.3x C-mount adapter between the camera
+        // and the projection eyepiece.
+        // The eyepiece is an NFK 2.5x LD.
+        //
+        // There's also a crop factor involved because the NFK 2.5x + 0.3x relay
+        // combination gives an image circle suitable for C-mount, i.e. 16mm
+        // diagonal. The Sony IMX477 on the Pi HQ camera has an active area of:
+        //   1.55um * 4056 = 6.2868 mm (X)
+        //   1.55um * 3040 = 4.7182 mm (Y)
+        //   = ~7.86 mm diagonal
+        //  Therefore: 16 mm / 7.86 mm = 2.036x crop factor
+        //
+        // To put it another way, the camera field of view is about half
+        // (diagonally) the viewfinder's FOV.
+
+
+        // I haven't been able to work out how the relay and projection lens
+        // fit into this scaling factor, but it works.
+        //
+        // It was derived by picking a feature on an IC in the X and Y axes
+        // and measuring the stage travel to move it from one side of the
+        // image to the other.
+        // This was then divided by the sensor's active area, divided by
+        // the magnification of the objective.
+        //
+        // See https://github.com/Labsmore/pyuscope/issues/475 for the full
+        // workings-out.
+        //"scalar": 0.39,
+    },
+    "optics": {
+        // Raspberry Pi High Quality Camera, Sony IMX477 sensor, 1.55um pixel size (was 5.0um)
+        //  Times camera crop factor of 2.037x as we have a 
+        //"um_per_pixel_raw_1x": 1.55,
+        
+        // Annoyingly Pyuscope seems to ignore the "scalar" value
+        // so this is the 1.55um with the optical scaling applied
+        "um_per_pixel_raw_1x": 1.86,
+    },
+    "systems": [
+        //Default configuration
+        {
+            "camera_sn": null,
+            "objectives_db": [
+                "vendor: Olympus, model: NeoDPlan 5X",
+                "vendor: Olympus, model: NeoDPlan 10X",
+                "vendor: Olympus, model: NeoSPlan 20X",
+                "vendor: Olympus, model: NeoDPlan 50X",
+                "vendor: Olympus, model: NeoSPlan 10X",
+            ],
+        },
+    ],
+}

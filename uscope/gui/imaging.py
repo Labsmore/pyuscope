@@ -1628,7 +1628,6 @@ class ImagingTaskWidget(AWidget):
             autofocus = self.iow.autofocus_cb.isChecked()
             auto_exposure = self.ac.auto_exposure_enabled()
             auto_color = self.ac.auto_color_enabled()
-            auto_color = False
             mb_type = QMessageBox.question
 
             warning = ""

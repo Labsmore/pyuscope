@@ -1,4 +1,5 @@
 from uscope.gui.gstwidget import GstVideoPipeline
+from uscope.gui.picam2widget import PiCam2VideoPipeline
 from uscope.gui.control_scrolls import get_control_scroll
 from uscope.config import get_usc, get_bc
 from uscope.gui import imager
@@ -226,30 +227,39 @@ class ArgusCommon(QObject):
         self.kinematics = None
         self.motion = None
         self.subsystem = None
-        self.vidpip = GstVideoPipeline(ac=self, zoomable=True, log=self.log)
 
-        # FIXME: review sizing
-        # self.vidpip.size_widgets()
-        # self.capture_sink = Gst.ElementFactory.make("capturesink")
+        if self.usc.imager.source() == "picam2src":
+            self.log("VIDSRC: Using Picamera2 source")
+            from picamera2 import Picamera2
+            self.capture_pc2 = Picamera2()
+            self.vidpip = PiCam2VideoPipeline(ac=self, zoomable=True, log=self.log)
 
-        # TODO: some pipelines output jpeg directly
-        # May need to tweak this
-        cropped_width, cropped_height = self.usc.imager.cropped_wh()
-        self.capture_sink = CaptureSink(ac=self,
-                                        width=cropped_width,
-                                        height=cropped_height,
-                                        source_type=self.vidpip.source_name)
-        assert self.capture_sink
-        self.vidpip.player.add(self.capture_sink)
-        # jpegenc is probably obsolete here
-        # Now data is normalized in CaptureSink to do jpeg conversion etc
-        if 1:
-            self.vidpip.setupGst(raw_tees=[self.capture_sink])
         else:
-            self.jpegenc = Gst.ElementFactory.make("jpegenc")
-            self.vidpip.player.add(self.jpegenc)
-            self.vidpip.setupGst(raw_tees=[self.jpegenc])
-            self.jpegenc.link(self.capture_sink)
+            self.log("VIDSRC: Using Gstreamer source")
+            self.vidpip = GstVideoPipeline(ac=self, zoomable=True, log=self.log)
+
+            # FIXME: review sizing
+            # self.vidpip.size_widgets()
+            # self.capture_sink = Gst.ElementFactory.make("capturesink")
+
+            # TODO: some pipelines output jpeg directly
+            # May need to tweak this
+            cropped_width, cropped_height = self.usc.imager.cropped_wh()
+            self.capture_sink = CaptureSink(ac=self,
+                                            width=cropped_width,
+                                            height=cropped_height,
+                                            source_type=self.vidpip.source_name)
+            assert self.capture_sink
+            self.vidpip.player.add(self.capture_sink)
+            # jpegenc is probably obsolete here
+            # Now data is normalized in CaptureSink to do jpeg conversion etc
+            if 1:
+                self.vidpip.setupGst(raw_tees=[self.capture_sink])
+            else:
+                self.jpegenc = Gst.ElementFactory.make("jpegenc")
+                self.vidpip.player.add(self.jpegenc)
+                self.vidpip.setupGst(raw_tees=[self.jpegenc])
+                self.jpegenc.link(self.capture_sink)
 
         # Special UI initialization
         # Requires video pipeline already setup

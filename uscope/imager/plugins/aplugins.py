@@ -54,6 +54,12 @@ def register_plugins():
 
     register_plugin("gst-v4l2src-yw500u3m", gst_v4l2src_yw500u3m)
 
+    def picam2src(ac):
+        from uscope.imager.plugins.picam2src.aplugin import Plugin
+        return Plugin(ac)
+
+    register_plugin("picam2src", picam2src)
+
 
 register_plugins()
 

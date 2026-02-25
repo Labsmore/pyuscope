@@ -91,14 +91,14 @@ class PiCam2VideoPipeline:
     def run(self):
         self.picam2.start()
 
-        # Now that the camera is running, grab the full sensor size and the
-        # default ScalerCrop rectangle.  ScalerCrop coordinates are always in
-        # full-sensor-pixel units regardless of binning/scaling mode.
-        self.full_res = self.picam2.camera_properties['PixelArraySize']
-        md = self.picam2.capture_metadata()
-        sc = md['ScalerCrop']
-        # (offset_x, offset_y, width, height)
-        self.default_crop = (sc[0], sc[1], sc[2], sc[3])
+        # Derive the full sensor size and default ScalerCrop rectangle from
+        # camera_properties.  ScalerCrop coordinates are always in full-sensor-
+        # pixel units regardless of binning/scaling.  We avoid capture_metadata()
+        # here because QGlPicamera2 has already registered frame callbacks and
+        # a concurrent metadata capture can deadlock on some versions.
+        full_w, full_h = self.picam2.camera_properties['PixelArraySize']
+        self.full_res = (full_w, full_h)
+        self.default_crop = (0, 0, full_w, full_h)
 
     # ---- Digital zoom via picamera2 ScalerCrop ----
 

@@ -370,7 +370,7 @@ class ArgusCommon(QObject):
         self.microscope.set_motion_ts(self.motion_thread.get_planner_motion())
         # emits events + uses queue => already thread safe
         self.microscope.set_imager_ts(
-            imager.GUIImagerTS(imager=self.microscope.imager))
+            imager.GstGUIImagerTS(imager=self.microscope.imager))
 
         self.subsystem = ACSubsystem(self)
         self.microscope.add_subsystem(self.subsystem)

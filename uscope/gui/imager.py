@@ -497,7 +497,7 @@ class CompositeImageGrabber:
 
 # Thread safe Imager
 # Ex: called from scripting context
-class GUIImagerTS(Imager):
+class GstGUIImagerTS(Imager):
     def __init__(self, imager, verbose=False):
         Imager.__init__(self, verbose=verbose)
         self.imager = imager

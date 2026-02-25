@@ -68,6 +68,13 @@ class PiCam2VideoPipeline:
         # Clear if anything bad happens and shouldn't be trusted
         self.ok = True
 
+        # Zoom state (ScalerCrop-based digital zoom)
+        self.zoom = 1.0
+        # The value to restore zoom to when toggling high zoom off
+        self.zoom_out = None
+        # Populated in run() after the camera has started
+        self.full_res = None
+        self.default_crop = None
 
     def get_widget(self, name):
         """
@@ -82,25 +89,71 @@ class PiCam2VideoPipeline:
         pass
 
     def run(self):
-        #for widget in self.widgets.values():
-        #    widget.setupWidget()
         self.picam2.start()
 
-    # No-op stubs for GstVideoPipeline interface methods that are not
-    # applicable to the picamera2 backend.  These are called unconditionally
-    # from main.py keybindings, menus, and common.py health checks.
+        # Now that the camera is running, grab the full sensor size and the
+        # default ScalerCrop rectangle.  ScalerCrop coordinates are always in
+        # full-sensor-pixel units regardless of binning/scaling mode.
+        self.full_res = self.picam2.camera_properties['PixelArraySize']
+        md = self.picam2.capture_metadata()
+        sc = md['ScalerCrop']
+        # (offset_x, offset_y, width, height)
+        self.default_crop = (sc[0], sc[1], sc[2], sc[3])
+
+    # ---- Digital zoom via picamera2 ScalerCrop ----
+
+    def _apply_zoom(self):
+        """Recompute and apply the ScalerCrop rectangle for the current zoom."""
+        if self.default_crop is None:
+            return
+        _, _, def_w, def_h = self.default_crop
+        crop_w = int(def_w / self.zoom)
+        crop_h = int(def_h / self.zoom)
+        # Centre the crop within the full sensor area
+        offset_x = (self.full_res[0] - crop_w) // 2
+        offset_y = (self.full_res[1] - crop_h) // 2
+        self.picam2.set_controls({"ScalerCrop": (offset_x, offset_y, crop_w, crop_h)})
 
     def zoomable_plus(self):
-        pass
+        zoom = self.zoom * 2
+        if zoom >= 32.0:
+            zoom = 32.0
+        self.change_roi_zoom(zoom)
 
     def zoomable_minus(self):
-        pass
+        zoom = self.zoom // 2
+        if zoom <= 1.0:
+            zoom = 1.0
+        self.change_roi_zoom(zoom)
 
     def zoomable_high_toggle(self):
-        pass
+        if self.zoom_out:
+            self.change_roi_zoom(self.zoom_out)
+            self.zoom_out = None
+        else:
+            self.zoom_out = self.zoom
+            self.change_roi_zoom(self._calc_zoom_magnified())
 
     def change_roi_zoom(self, zoom):
-        pass
+        assert zoom >= 1.0
+        self.zoom = zoom
+        self._apply_zoom()
+
+    def _calc_zoom_magnified(self):
+        """Return the zoom level that shows camera pixels at ~2x screen pixels."""
+        widget_width = self.preview_widget.width()
+        if widget_width <= 0:
+            return 1.0
+        factor = 4.0
+        incoming_used_w = int(widget_width / factor)
+        if incoming_used_w <= 0:
+            return 1.0
+        if self.default_crop is None:
+            return 1.0
+        _, _, def_w, _ = self.default_crop
+        return max(1.0, def_w / incoming_used_w)
+
+    # ---- Stubs for GstVideoPipeline methods not applicable to picamera2 ----
 
     def add_full_widget(self):
         return None

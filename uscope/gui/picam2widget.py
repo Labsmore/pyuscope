@@ -85,3 +85,34 @@ class PiCam2VideoPipeline:
         #for widget in self.widgets.values():
         #    widget.setupWidget()
         self.picam2.start()
+
+    # No-op stubs for GstVideoPipeline interface methods that are not
+    # applicable to the picamera2 backend.  These are called unconditionally
+    # from main.py keybindings, menus, and common.py health checks.
+
+    def zoomable_plus(self):
+        pass
+
+    def zoomable_minus(self):
+        pass
+
+    def zoomable_high_toggle(self):
+        pass
+
+    def change_roi_zoom(self, zoom):
+        pass
+
+    def add_full_widget(self):
+        return None
+
+    def full_restart_pipeline(self):
+        pass
+
+    def remove_full_widget(self):
+        pass
+
+    def recover_video_crash(self):
+        pass
+
+    def enable_rtsp_server(self, enabled):
+        pass

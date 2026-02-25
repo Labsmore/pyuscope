@@ -350,6 +350,8 @@ class MainWindow(AMainWindow):
         # for now just let it float
         # self.ac.vidpip.player.set_state(Gst.State.PAUSED)
         widget = self.ac.vidpip.add_full_widget()
+        if widget is None:
+            return
         self.fullscreen_widget = FullscreenVideo(widget)
         self.fullscreen_widget.show()
         self.ac.vidpip.full_restart_pipeline()

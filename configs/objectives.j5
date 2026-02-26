@@ -320,6 +320,81 @@ In practice these are mechanically compatible
             "infinity_tube_length": 180,
         },
 
+        /*
+        MDPlan
+        */
+        {
+            "vendor": "Olympus",
+            "model": "MDPlan 5X",
+            "series": "MDPlan",
+            "magnification": 5,
+            "na": 0.10,
+            "thread": "RMS",
+            "infinity_tube_length": 180,
+        },
+
+        /*
+        MSPlan
+        */
+        {
+            "vendor": "Olympus",
+            "model": "MSPlan 10X",
+            "series": "MSPlan",
+            "magnification": 10,
+            "na": 0.30,
+            "thread": "RMS",
+            "infinity_tube_length": 180,
+        },
+        {
+            "vendor": "Olympus",
+            "model": "MSPlan 20X",
+            "series": "MSPlan",
+            "magnification": 20,
+            "na": 0.46,
+            "thread": "RMS",
+            "infinity_tube_length": 180,
+        },
+        {
+            "vendor": "Olympus",
+            "model": "MSPlan 50X",
+            "series": "MSPlan",
+            "magnification": 50,
+            "na": 0.80,
+            "thread": "RMS",
+            "infinity_tube_length": 180,
+        },
+        {
+            "vendor": "Olympus",
+            "model": "MSPlan 100X",
+            "series": "MSPlan",
+            "magnification": 100,
+            "na": 0.95,
+            "thread": "RMS",
+            "infinity_tube_length": 180,
+        },
+
+        /*
+        Plan
+        */
+        {
+            "vendor": "Olympus",
+            "model": "Plan 100X Oil",
+            "series": "Plan Oil",
+            "magnification": 100,
+            "na": 1.25,
+            "thread": "RMS",
+            "infinity_tube_length": 180,
+        },
+        {
+            "vendor": "Olympus",
+            "model": "PlanCN 100X Oil UIS2",
+            "series": "PlanCN Oil",
+            "magnification": 100,
+            "na": 1.25,
+            "thread": "RMS",
+            "infinity_tube_length": 180,
+        },
+        
         /******************************************************************
         Nikon
         ******************************************************************/

@@ -35,54 +35,70 @@ A minimal configuration to do basic testing
         "width": 4056,
         "height": 3040,
 
-        // There is an Olympus U-PMTVC 0.3x C-mount adapter between the camera
-        // and the projection eyepiece.
-        // The eyepiece is an NFK 2.5x LD.
-        //
-        // There's also a crop factor involved because the NFK 2.5x + 0.3x relay
-        // combination gives an image circle suitable for C-mount, i.e. 16mm
-        // diagonal. The Sony IMX477 on the Pi HQ camera has an active area of:
-        //   1.55um * 4056 = 6.2868 mm (X)
-        //   1.55um * 3040 = 4.7182 mm (Y)
-        //   = ~7.86 mm diagonal
-        //  Therefore: 16 mm / 7.86 mm = 2.036x crop factor
+        // The NFK 2.5x + 0.3x relay combination gives an image circle
+        // of 16mm (suitable for C-mount).
+        //   7.86 mm sensor diagonal / 16 mm circle = 49.1% linear coverage
+        //                                  0.491^2 = 24.1% by area
         //
         // To put it another way, the camera field of view is about half
-        // (diagonally) the viewfinder's FOV.
-
-
-        // I haven't been able to work out how the relay and projection lens
-        // fit into this scaling factor, but it works.
+        // (diagonally) the viewfinder's FOV. Conveniently, for most microscope
+        // objectives, that's the image portion which gives the best quality.
         //
-        // It was derived by picking a feature on an IC in the X and Y axes
-        // and measuring the stage travel to move it from one side of the
-        // image to the other.
-        // This was then divided by the sensor's active area, divided by
-        // the magnification of the objective.
+        // We also need to factor in NA limits and not go below Nyquist; we
+        // can work that out via the Abbe criterion (d=(0.61 * lambda) / NA).
+        //
+        // Best and worst, 0.2NA to 1.45NA gives about 7 to 14x oversampling.
+        // By Nyquist we want at least 2 pixels per feature.
+        //
+        // So scale down by 2x as we're not getting any useful info from
+        // those pixels, and the downscale might even get rid of artefacts
+        // from the sensor's Bayer pattern.
         //
         // See https://github.com/Labsmore/pyuscope/issues/475 for the full
         // workings-out.
-        //"scalar": 0.39,
+
+        // Scalar is how much we scale the image before saving to disk
+        "scalar": 0.50,
     },
     "optics": {
-        // Raspberry Pi High Quality Camera, Sony IMX477 sensor, 1.55um pixel size (was 5.0um)
-        //  Times camera crop factor of 2.037x as we have a 
-        //"um_per_pixel_raw_1x": 1.55,
-        
-        // Annoyingly Pyuscope seems to ignore the "scalar" value
-        // so this is the 1.55um with the optical scaling applied
-        "um_per_pixel_raw_1x": 1.86,
+        // There is an Olympus U-PMTVC 0.33x C-mount adapter between the
+        // camera and the projection eyepiece.
+        // The eyepiece is an NFK 2.5x LD.
+        //
+        // The Sony IMX477 on the Pi HQ camera has an active area of:
+        //   1.55um * 4056 = 6.2868 mm (X)
+        //   1.55um * 3040 = 4.7182 mm (Y)
+        //   = ~7.86 mm diagonal
+        //
+        // Discounting the objective, this is:
+        //   2.5x * 0.33x = 0.825x optical magnification
+        //   1.55 um / 0.825 = ~1.8788 um per pixel (theoretically)
+        //
+        // See https://github.com/Labsmore/pyuscope/issues/475 for the full
+        // workings-out.
+
+        "um_per_pixel_raw_1x": 1.8788,
     },
     "systems": [
         //Default configuration
         {
             "camera_sn": null,
             "objectives_db": [
-                "vendor: Olympus, model: NeoDPlan 5X",
-                "vendor: Olympus, model: NeoDPlan 10X",
-                "vendor: Olympus, model: NeoSPlan 20X",
-                "vendor: Olympus, model: NeoDPlan 50X",
-                "vendor: Olympus, model: NeoSPlan 10X",
+                // Neo objectives only work on a BH2 with the UMA lightbox.
+                //"vendor: Olympus, model: NeoDPlan 5X",
+                //"vendor: Olympus, model: NeoDPlan 10X",
+                //"vendor: Olympus, model: NeoSPlan 20X",
+                //"vendor: Olympus, model: NeoDPlan 50X",
+                //"vendor: Olympus, model: NeoSPlan 10X",
+
+                // These work brightfield-only with the UMA and the basic brightfield lightbox
+                "vendor: Olympus, model: MDPlan 5X",
+                "vendor: Olympus, model: MSPlan 10X",
+                "vendor: Olympus, model: MSPlan 20X",
+                "vendor: Olympus, model: MSPlan 50X",
+                "vendor: Olympus, model: MSPlan 100X",
+                "vendor: Olympus, model: Plan 100X Oil",
+                "vendor: Olympus, model: PlanCN 100X Oil UIS2",
             ],
         },
     ],

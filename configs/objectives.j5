@@ -338,6 +338,15 @@ In practice these are mechanically compatible
         */
         {
             "vendor": "Olympus",
+            "model": "MSPlan 5X",
+            "series": "MSPlan",
+            "magnification": 5,
+            "na": 0.13,
+            "thread": "RMS",
+            "infinity_tube_length": 180,
+        },
+        {
+            "vendor": "Olympus",
             "model": "MSPlan 10X",
             "series": "MSPlan",
             "magnification": 10,

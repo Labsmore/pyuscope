@@ -1,4 +1,4 @@
-/*
+3/*
 A minimal configuration to do basic testing
 */
 {
@@ -93,6 +93,7 @@ A minimal configuration to do basic testing
 
                 // These work brightfield-only with the UMA and the basic brightfield lightbox
                 "vendor: Olympus, model: MDPlan 5X",
+                "vendor: Olympus, model: MSPlan 5X",
                 "vendor: Olympus, model: MSPlan 10X",
                 "vendor: Olympus, model: MSPlan 20X",
                 "vendor: Olympus, model: MSPlan 50X",

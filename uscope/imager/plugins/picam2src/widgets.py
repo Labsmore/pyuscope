@@ -242,11 +242,13 @@ class Picam2ControlScroll(ImagerControlScroll):
         return 0
 
     def get_auto_exposure_disp_property(self):
-        return "AeEnable"
+        # Note: this matches against `disp_name`, see `control_scroll.py`
+        return "Auto exposure"
 
     def get_exposure_disp_property(self):
         self.log("> get_exposure_disp_property")
-        return "ExposureTime"
+        # Note: this matches against `disp_name`, see `control_scroll.py`
+        return "Exposure time"
 
     def template_property(self, prop_entry):
         prop_name = prop_entry["prop_name"]

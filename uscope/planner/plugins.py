@@ -7,7 +7,7 @@ from PIL import Image
 from uscope.imager.imager_util import get_scaled
 from uscope.motion.hal import pos_str
 from uscope.kinematics import Kinematics
-from scipy import polyfit
+from numpy import polyfit
 from uscope.imager.autofocus import choose_best_image, Autofocus
 from enum import Enum
 

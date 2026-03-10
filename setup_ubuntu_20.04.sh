@@ -12,7 +12,9 @@ fi
 linux_distribution=$(lsb_release -d |cut -d ':' -f2 |xargs)
 
 pip_args=""
-if [ "$linux_distribution" = "Debian GNU/Linux 12 (bookworm)" ] ; then
+if [ "$linux_distribution" = "Debian GNU/Linux 12 (bookworm)" ] || \
+   [ "$linux_distribution" = "Debian GNU/Linux 13 (trixie)" ] || \
+   [ -n "$FORCE_BREAK_SYSTEM_PACKAGES" ] ; then
     echo "WARNING: your system doesn't like pip. Making a best effort install"
     # Got to do what we got to do right now
     # But a friendly reminder to try to sort out packaging better :)

@@ -9,7 +9,8 @@ A minimal configuration to do basic testing
         "tsettle_motion_na1": 0.1,
         //2023-09-04: 0.1 seems tight w/o real tuning, increase 0.1 => 0.2
         //suspect NA delay is actually helping us here, lower it in favor of fixed delay here
-        "tsettle_motion_base": 0.3,
+        //2026-03-10: azonenberg request more conservative base value (0.3 => 0.5)
+        "tsettle_motion_base": 0.5,
         //2023-09-04: saw miss at 0.2
         "tsettle_hdr": 0.3,
     },

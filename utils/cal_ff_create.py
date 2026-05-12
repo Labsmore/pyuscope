@@ -46,8 +46,10 @@ def average_imgs(imgs, scalar=None):
 def average_dir(din, images=0, verbose=1, scalar=None):
     imgs = []
 
-    files = list(glob.glob(os.path.join(din, "*.jpg")))
+    files = sorted(glob.glob(os.path.join(din, "*.jpg")))
     verbose and print('Reading %s w/ %u images' % (din, len(files)))
+    if not files:
+        raise ValueError("No .jpg images found in %s" % din)
 
     for fni, fn in enumerate(files):
         imgs.append(Image.open(fn))
@@ -142,20 +144,18 @@ def main():
         assert config.USC.has_default_microscope_name(
         ), "Need microscope name to auto place cal files or explicit output dir"
         dir_out = config.get_microscope_data_dir()
-    if not os.path.exists(dir_out):
-        os.mkdir(dir_out)
+    os.makedirs(dir_out, exist_ok=True)
 
     _fff, ffi = average_dir(args.dir_in, images=args.images)
     print(f"Saving images to {dir_out}")
-    fn_out_ff = dir_out + '/imager_calibration_ff.tif'
-    fn_out_ffe = dir_out + '/imager_calibration_ffe.tif'
+    fn_out_ff = os.path.join(dir_out, 'imager_calibration_ff.tif')
+    fn_out_ffe = os.path.join(dir_out, 'imager_calibration_ffe.tif')
     print(f"Saving {fn_out_ff}")
     ffi.save(fn_out_ff)
     # FIXME: find some way to generate this by CLI
     print(f"Saving {fn_out_ffe}")
     # histeq_im(ffi).save(dir_out + '/ffe.tif')
-    subprocess.check_call(f"convert {fn_out_ff} -equalize {fn_out_ffe}",
-                          shell=True)
+    subprocess.check_call(["convert", fn_out_ff, "-equalize", fn_out_ffe])
 
     if 0:
         ((ffi_rmin, ffi_rmax), (ffi_gmin, ffi_gmax),

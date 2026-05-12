@@ -98,7 +98,7 @@ class Plugin(ArgusScriptingPlugin):
         elif mode == "network":
             host = "0.0.0.0"
         else:
-            assert 0, f"bad mode {host}"
+            raise ValueError(f"bad mode {mode}")
 
         vals = self.get_input()
         port = vals["port"]
@@ -113,8 +113,10 @@ class Plugin(ArgusScriptingPlugin):
             self.sleep(0.1)
 
     def cleanup(self):
-        self.server.shutdown()
-        self.server.join()
+        if getattr(self, "server", None):
+            self.server.shutdown()
+            self.server.join()
+            self.server = None
 
 
 webserver_common.make_app(app)

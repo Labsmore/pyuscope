@@ -94,10 +94,12 @@ def main():
     parser.add_argument("dirs_in", nargs="*")
     args = parser.parse_args()
 
-    cs_info = CSInfo(access_key=args.access_key,
-                     secret_key=args.secret_key,
-                     id_key=args.id_key,
-                     notification_email=args.notification_email)
+    cs_info = CSInfo(
+        access_key=args.access_key or os.environ.get("PYUSCOPE_CS_ACCESS_KEY"),
+        secret_key=args.secret_key or os.environ.get("PYUSCOPE_CS_SECRET_KEY"),
+        id_key=args.id_key or os.environ.get("PYUSCOPE_CS_ID_KEY"),
+        notification_email=args.notification_email
+        or os.environ.get("PYUSCOPE_CS_NOTIFICATION_EMAIL"))
 
     j = {}
     if args.json:

@@ -14,15 +14,25 @@ except:
     print("FIXME WARNING: paramiko import failed")
     paramiko = None
 import select
+import socket
 import sys
 import threading
 import time
-import subprocess
 
-DEVNULL = open(os.devnull, 'wb')
 RSH_PORT = 5007
 
 # http://stackoverflow.com/questions/4409502/directory-transfers-on-paramiko
+
+
+def write_channel_output(channel):
+    data = channel.recv(1024)
+    if hasattr(sys.stdout, "buffer"):
+        out = sys.stdout.buffer
+        out.write(data)
+        out.flush()
+    else:
+        sys.stdout.write(data.decode(errors="replace"))
+        sys.stdout.flush()
 
 
 class LcncPyHalAr(LcncPyHal):
@@ -167,12 +177,13 @@ class LcncPyHalAr(LcncPyHal):
         LcncPyHal.__init__(self, linuxcnc=linuxcnc, **kwargs)
 
     def local_port_up(self, port):
-        rc = subprocess.call('exec 6<>/dev/tcp/127.0.0.1/%s' % port,
-                             shell=True,
-                             stdout=DEVNULL,
-                             stderr=DEVNULL,
-                             executable='/bin/bash')
-        return rc == 0
+        try:
+            sock = socket.create_connection(('127.0.0.1', int(port)),
+                                            timeout=0.5)
+            sock.close()
+            return True
+        except OSError:
+            return False
 
     def wait_local_port(self, port):
         print('Checking local port %d' % port)
@@ -202,7 +213,9 @@ class LcncPyHalAr(LcncPyHal):
         if self.tunnel:
             # ForwardServer
             self.tunnel.shutdown()
-        self.ssh.close()
+        ssh = getattr(self, "ssh", None)
+        if ssh:
+            ssh.close()
 
     def run_linuxcnc(self):
         '''
@@ -217,8 +230,7 @@ class LcncPyHalAr(LcncPyHal):
                                                     [], [])
             if len(rdy_r):
                 # TODO: consider log file instead
-                sys.stdout.write(self.linuxcnc_channel.recv(1024))
-                sys.stdout.flush()
+                write_channel_output(self.linuxcnc_channel)
 
         print('linuxcnc thread exiting')
 
@@ -243,8 +255,7 @@ class LcncPyHalAr(LcncPyHal):
                                                     [])
             if len(rdy_r):
                 # TODO: consider log file instead
-                sys.stdout.write(self.server_channel.recv(1024))
-                sys.stdout.flush()
+                write_channel_output(self.server_channel)
 
         # http://sebastiandahlgren.se/2012/10/11/using-paramiko-to-send-ssh-commands/
         # weird they didn't conform to the file api at all with fds

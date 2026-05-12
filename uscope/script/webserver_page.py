@@ -44,16 +44,15 @@ from uscope.script import webserver_common
 
 from flask import Flask, current_app, request, render_template, send_from_directory
 import json
+import os
 from werkzeug.serving import make_server
-from flask_cors import CORS
 import cv2
 from flask_socketio import SocketIO
 import base64
 import numpy as np
 
-FLUTTER_WEB_DIR = "web"
+FLUTTER_WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
 app = Flask(__name__, template_folder=FLUTTER_WEB_DIR)
-CORS(app)
 SERVER_PORT = 8080
 HOST = '127.0.0.1'
 
@@ -69,35 +68,37 @@ def image_to_base64(p_img):
 
 class MySocket(SocketIO):
     def __init__(self, *args, **kwargs):
-        webserver_common.plugin = self
         super().__init__(*args, **kwargs)
         self.clients = set()
         self.on_event('connect', self.on_connection)
         self.on_event('disconnect', self.on_disconnection)
 
     def on_connection(self):
-        if not self.clients:
-            self.start_background_task(self.video_feed, current_app.plugin)
+        first_client = not self.clients
         self.clients.add(request.sid)
         plugin = current_app.plugin
+        if first_client:
+            self.start_background_task(self.video_feed, plugin)
         plugin.log_verbose(
             f"Client connected: connections = {len(self.clients)}")
         self.emit('client_connected')
 
     def on_disconnection(self):
-        self.clients.remove(request.sid)
+        self.clients.discard(request.sid)
         plugin = current_app.plugin
         plugin.log_verbose(
             f"Client disconnected: connections = {len(self.clients)}")
 
     def video_feed(self, plugin):
-        while plugin.server:
+        while plugin.server and self.clients:
             image = plugin.image()
             string_data = image_to_base64(image)
             self.emit('video_feed_back', string_data)
+            self.sleep(0.1)
 
     def disconnect_clients(self):
         self.emit("disconnect")
+        self.clients.clear()
 
 
 class Plugin(ArgusScriptingPlugin):
@@ -115,10 +116,11 @@ class Plugin(ArgusScriptingPlugin):
         self.log(f"Running Pyuscope Webserver Plugin on port: {SERVER_PORT}")
         self.objectives = self._ac.microscope.get_objectives()
         if not self.socket:
-            self.socket = MySocket(app, cors_allowed_origins="*")
+            self.socket = MySocket(app)
 
         # Keep a reference to this plugin
         app.plugin = self
+        webserver_common.plugin = self
         self.server = make_server(host=HOST,
                                   port=SERVER_PORT,
                                   app=app,
@@ -149,9 +151,4 @@ def return_flutter_doc(name):
     """
     Required to serve flutter web docs
     """
-    data_list = str(name).split('/')
-    dir_name = FLUTTER_WEB_DIR
-    if len(data_list) > 1:
-        for i in range(0, len(data_list) - 1):
-            dir_name += '/' + data_list[i]
-    return send_from_directory(dir_name, data_list[-1])
+    return send_from_directory(FLUTTER_WEB_DIR, name)

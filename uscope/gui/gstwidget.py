@@ -291,7 +291,7 @@ class SinkxZoomableWidget(ArgusVideoWidget):
         if 0:
             # Set to full widget size (as opposed to usable widget area) so that border is added to center view
             # see caps filter add-borders=true
-            self.capsfilter.props.caps = Gst.Caps(
+            self.capsfilter.props.caps = Gst.Caps.from_string(
                 "video/x-raw,width=%u,height=%u" %
                 (widget_width, widget_height))
             # New caps => must reconfigure
@@ -673,7 +673,7 @@ class GstVideoPipeline:
         # Select the correct resolution from the camera
         # This is pre-crop so it must be the actual resolution
         raw_w, raw_h = self.ac.microscope.usc.imager.raw_wh()
-        self.raw_capsfilter.props.caps = Gst.Caps(
+        self.raw_capsfilter.props.caps = Gst.Caps.from_string(
             "video/x-raw,width=%u,height=%u" % (raw_w, raw_h))
         self.link_next_raw_element(self.raw_capsfilter)
 

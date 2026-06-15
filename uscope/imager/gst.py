@@ -58,7 +58,7 @@ class GstCLIImager(Imager):
 
         self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")
         assert self.raw_capsfilter is not None
-        self.raw_capsfilter.props.caps = Gst.Caps(
+        self.raw_capsfilter.props.caps = Gst.Caps.from_string(
             "video/x-raw,width=%u,height=%u" % (self.width, self.height))
         self.player.add(self.raw_capsfilter)
         if not self.source.link(self.raw_capsfilter):

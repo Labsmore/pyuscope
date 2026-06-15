@@ -462,7 +462,7 @@ class GstVideoPipeline:
 
         For now this needs to be called early
         But with some tweaks it can be made dynamic
-        
+
         w/h: total canvas area available for all widgets we need to create
         """
 
@@ -642,9 +642,9 @@ class GstVideoPipeline:
         TODO: clean up queue architecture
         Probably need to add a seperate (optional) tee before and after videoconvert
         This will allow raw imaging but also share encoding for main + ROI
-        
-        
-        toupcamsource ! 
+
+
+        toupcamsource !
         """
 
         self.tee_vc = None

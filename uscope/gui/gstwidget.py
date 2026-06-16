@@ -291,7 +291,7 @@ class SinkxZoomableWidget(ArgusVideoWidget):
         if 0:
             # Set to full widget size (as opposed to usable widget area) so that border is added to center view
             # see caps filter add-borders=true
-            self.capsfilter.props.caps = Gst.Caps(
+            self.capsfilter.props.caps = Gst.Caps.from_string(
                 "video/x-raw,width=%u,height=%u" %
                 (widget_width, widget_height))
             # New caps => must reconfigure
@@ -462,7 +462,7 @@ class GstVideoPipeline:
 
         For now this needs to be called early
         But with some tweaks it can be made dynamic
-        
+
         w/h: total canvas area available for all widgets we need to create
         """
 
@@ -642,9 +642,9 @@ class GstVideoPipeline:
         TODO: clean up queue architecture
         Probably need to add a seperate (optional) tee before and after videoconvert
         This will allow raw imaging but also share encoding for main + ROI
-        
-        
-        toupcamsource ! 
+
+
+        toupcamsource !
         """
 
         self.tee_vc = None
@@ -673,7 +673,7 @@ class GstVideoPipeline:
         # Select the correct resolution from the camera
         # This is pre-crop so it must be the actual resolution
         raw_w, raw_h = self.ac.microscope.usc.imager.raw_wh()
-        self.raw_capsfilter.props.caps = Gst.Caps(
+        self.raw_capsfilter.props.caps = Gst.Caps.from_string(
             "video/x-raw,width=%u,height=%u" % (raw_w, raw_h))
         self.link_next_raw_element(self.raw_capsfilter)
 

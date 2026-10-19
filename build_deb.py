@@ -140,6 +140,7 @@ def copy_release_sources(destination):
             "--",
             "app",
             "configs",
+            "fonts",
             "uscope",
             "utils",
             "README.md",

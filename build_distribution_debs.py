@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-CONTAINERFILE = ROOT / "Containerfile.deb"
+CONTAINERFILE = ROOT / "deb.containerfile"
 GST_PLUGIN_ROOT = ROOT / "gst-plugin-toupcam"
 
 DISTRIBUTIONS = {
@@ -290,6 +290,30 @@ def create_release_bundle(output_dir, distribution, architecture):
     if bundle_path.exists():
         bundle_path.unlink()
     bundle_directory = bundle_path.name[: -len(".tar.gz")]
+    install_script = """#!/usr/bin/env bash
+set -euo pipefail
+
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+
+shopt -s nullglob
+packages=(./*.deb)
+if ((${#packages[@]} == 0)); then
+    echo "No .deb packages found next to install.sh" >&2
+    exit 1
+fi
+
+if ((EUID == 0)); then
+    sudo_command=()
+elif command -v sudo >/dev/null 2>&1; then
+    sudo_command=(sudo)
+else
+    echo "Run this script as root or install sudo" >&2
+    exit 1
+fi
+
+"${sudo_command[@]}" apt-get update
+"${sudo_command[@]}" apt-get install -y "${packages[@]}"
+"""
     readme = f"""# pyuscope {pyuscope_deb.name}
 
 This release bundle contains pyuscope, the Toupcam SDK, and the matching
@@ -297,8 +321,11 @@ GStreamer Toupcam plugin for {distribution} ({architecture}).
 
 ## Installation
 
-Extract this archive, enter the extracted directory, and install all packages
-with APT:
+Extract this archive, enter the extracted directory, and run:
+
+    ./install.sh
+
+Alternatively, install all packages manually with APT:
 
     sudo apt update
     sudo apt install ./*.deb
@@ -323,6 +350,11 @@ dependencies.
         readme_info.size = len(readme_bytes)
         readme_info.mode = 0o644
         archive.addfile(readme_info, io.BytesIO(readme_bytes))
+        install_bytes = install_script.encode()
+        install_info = tarfile.TarInfo(f"{bundle_directory}/install.sh")
+        install_info.size = len(install_bytes)
+        install_info.mode = 0o755
+        archive.addfile(install_info, io.BytesIO(install_bytes))
         archive.add(
             ROOT / "VERSION.md",
             arcname=f"{bundle_directory}/VERSION.md",

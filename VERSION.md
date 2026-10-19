@@ -254,3 +254,11 @@
  * Bug fixes
    * Misc Qt / memory corruption fixes
    * Fix image processing memory leak
+
+## 4.6.0
+  * uv flow
+  * .deb packaging flow
+  * Instrument scripting
+  * Web API tweaks
+  * HDR flow improvements
+  * Mock microscope improvements

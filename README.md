@@ -47,7 +47,7 @@ The package installs pyuscope and its private Python environment under
 `/opt/pyuscope`. It provides `pyuscope`, `pyuscope-argus`,
 `pyuscope-planner`, `pyuscope-planner-ngc`, and `pyuscope-gst-cli` commands.
 Package versions include the build distribution, for example
-`pyuscope_4.5.0+ubuntu24.04_amd64.deb`.
+`pyuscope_4.6.0+ubuntu24.04_amd64.deb`.
 
 Podman or Docker can build the complete supported distribution matrix:
 

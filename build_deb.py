@@ -141,6 +141,7 @@ def copy_release_sources(destination):
             "app",
             "configs",
             "fonts",
+            "cal",
             "uscope",
             "utils",
             "README.md",
@@ -232,7 +233,6 @@ def main():
         run(
             "uv",
             "venv",
-            "--system-site-packages",
             virtual_environment,
         )
         sync_environment = os.environ.copy()
@@ -249,6 +249,11 @@ def main():
             "pygame",
             cwd=application_root,
             env=sync_environment,
+        )
+        run(
+            "/usr/bin/python3",
+            application_root / "utils" / "uv_system_bindings.py",
+            virtual_environment,
         )
 
         bin_dir = package_root / "usr" / "bin"

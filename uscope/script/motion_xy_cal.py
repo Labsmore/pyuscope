@@ -10,6 +10,8 @@ Need the fllowing:
     Largely model dependent
 """
 
+import matplotlib.pyplot as plt
+
 from uscope.gui.scripting import ArgusScriptingPlugin
 from uscope.util import add_bool_arg, datetime_file_str, LogToFile
 
@@ -19,7 +21,6 @@ import datetime
 import glob
 import json
 import os
-import matplotlib.pyplot as plt
 import random
 import time
 
@@ -258,14 +259,6 @@ class Plugin(ArgusScriptingPlugin):
                 "values": ["Yes", "No"],
                 "default": "No"
             },
-        }
-
-    def license(self):
-        return {
-            "license": "proprietary",
-            "features": [
-                "pyuscope-rhodium",
-            ],
         }
 
     def show_run_button(self):

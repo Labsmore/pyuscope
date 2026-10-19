@@ -30,7 +30,6 @@ Please email support@labsmore.com for credentials
 
     {
         "script_dirs":{
-            "rhodium": "/home/labsmore/pyuscope-rhodium/script",
             "kitchen": "/home/labsmore/pyuscope-kitchen/script",
         },
     }

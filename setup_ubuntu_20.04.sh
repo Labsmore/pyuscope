@@ -66,10 +66,12 @@ install_pyuscope() {
     # For webserver
     sudo apt-get install -y python3-werkzeug
 
-    # GObject/GStreamer and several camera bindings are supplied by apt. Keep
-    # those packages visible while uv manages the shared workspace environment.
-    "$UV" venv --system-site-packages
+    # Keep the uv environment isolated from unrelated distribution packages.
+    # GObject/GStreamer, Qt, and optional hardware bindings are selectively
+    # linked below because they are supplied by apt rather than PyPI.
+    "$UV" venv
     "$UV" sync
+    /usr/bin/python3 utils/uv_system_bindings.py .venv
 }
 
 # For GRBL etc serial port

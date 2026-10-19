@@ -1347,7 +1347,7 @@ class BaseConfig:
     def script_dirs(self):
         """
         The path to the secondary script dir
-        Allows quick access to pyuscope-kitchen, pyuscope-rhodium, your plugins
+        Allows quick access to pyuscope-kitchen or your own plugins
         """
         return self.j.get("script_dirs", {})
 

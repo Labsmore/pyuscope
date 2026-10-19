@@ -1,5 +1,10 @@
 #!/usr/bin/env -S uv run
 
+# Load Matplotlib before Qt and GStreamer. Mixing uv-managed Matplotlib with
+# distribution-provided native GUI bindings is sensitive to initialization
+# order and can otherwise abort while importing pyplot.
+import matplotlib.pyplot as plt  # noqa: F401
+
 from uscope.gui.gstwidget import gstwidget_main
 from uscope.util import add_bool_arg
 from uscope.gui.widgets import AMainWindow

@@ -1,6 +1,5 @@
 from uscope.imager.plugins.gst_v4l2src.aplugin import Plugin as V4l2Plugin
 from .widgets import V4L2MU800ControlScroll
-from uscope.v4l2_util import find_device
 
 import gi
 
@@ -26,16 +25,10 @@ class Plugin(V4l2Plugin):
         return V4L2MU800ControlScroll
 
     def detect_sources(self):
-        print("FIXME")
+        """
+        Auto detection is not supported for this legacy source
+
+        Historically this checked for the modified touptek kernel module
+        (lsmod) + a matching USB VID, but that flow is obsolete
+        """
         return []
-        # FIXME: this is probably obsolete now
-        # Way to detect if it is a modifed driver w/ direct gain control?
-        # Takes about 20 ms, leave in
-        if b"touptek" in subprocess.check_output("lsmod"):
-            for dev in usb.core.find(find_all=True):
-                if dev.idVendor != VID_TOUPTEK:
-                    continue
-                verbose and print(
-                    "ADS: found ToupTek kernel module + camera (MU800?)")
-                assert glob.glob("/dev/video*"), "Camera not found???"
-                return "gst-v4l2src-mu800"

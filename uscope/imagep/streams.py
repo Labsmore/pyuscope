@@ -1,7 +1,7 @@
 from uscope import cloud_stitch
-from uscope.scan_util import index_scan_images, bucket_group, reduce_iindex_filename, is_tif_scan
+from uscope.scan_util import index_scan_images, bucket_group, is_tif_scan
 from uscope import config
-from uscope.imagep.util import TaskBarrier, EtherealImageR, EtherealImageW, remove_intermediate_directories, find_qr_code_match, check_valid_image_dir
+from uscope.imagep.util import TaskBarrier, EtherealImageR, remove_intermediate_directories, find_qr_code_match, check_valid_image_dir
 from uscope.imagep.summary import write_html_viewer, write_snapshot_grid, write_quick_pano
 from uscope.util import writej
 import glob

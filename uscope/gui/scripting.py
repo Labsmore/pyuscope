@@ -8,7 +8,6 @@ from uscope import version
 from uscope.subsystem import Subsystem
 from uscope.threads import ShutdownPhase
 
-from PyQt5 import Qt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *

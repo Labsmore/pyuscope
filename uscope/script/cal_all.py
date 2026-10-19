@@ -8,7 +8,7 @@ from uscope.script import motion_repeat_xy
 from uscope.script import imager_scale
 from uscope.script import imager_ff
 from uscope.calibration import find_centroid
-from PIL import Image, ImageStat
+from PIL import ImageStat
 
 
 def analyze(log=None, microscope=None):

@@ -3,8 +3,7 @@
 from pynput import keyboard
 import serial
 import time
-import sys
-from threading import Thread, Lock
+from threading import Lock
 
 
 def on_press(key):

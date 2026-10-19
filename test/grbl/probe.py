@@ -5,13 +5,6 @@ How to tell if power is applied?
 
 from uscope.motion.grbl import GRBL
 from uscope.util import add_bool_arg
-from uscope.imager import gst
-import uscope.planner
-import shutil
-import os
-import json
-import threading
-import time
 
 
 def main():

@@ -1,6 +1,5 @@
 from uscope.imager.plugins.gst_v4l2src.aplugin import Plugin as V4l2Plugin
 from .widgets import V4L2YW500U3MControlScroll
-from uscope.v4l2_util import find_device
 
 import gi
 

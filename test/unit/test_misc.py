@@ -9,14 +9,12 @@ Running the full suite:
 
 import unittest
 import os
-import json5
 from uscope.motion.hal import MockHal
 from uscope.imager.imager import MockImager
 from uscope.imager import gst
 from uscope.imager.util import have_touptek_camera, have_v4l2_camera
 import uscope.planner
 from uscope.config import get_usj
-from uscope.util import printj
 from uscope.planner import microscope_to_planner
 import shutil
 import time

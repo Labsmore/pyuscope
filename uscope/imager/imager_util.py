@@ -1,8 +1,4 @@
 from PIL import Image
-import glob
-import os
-import subprocess
-from uscope.util import tostr
 
 
 def get_scaled(image, factor, filt=Image.NEAREST):

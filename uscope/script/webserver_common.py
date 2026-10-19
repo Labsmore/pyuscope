@@ -1,4 +1,4 @@
-from flask import current_app, request
+from flask import request
 from http import HTTPStatus
 import json
 import base64

@@ -1,4 +1,3 @@
-from PyQt5 import Qt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
@@ -6,7 +5,6 @@ from PyQt5.QtWidgets import *
 from collections import OrderedDict
 
 from uscope.gui.control_scroll import GstControlScroll
-from uscope import config
 
 PROP_DISP_AUTO_EXPOSURE = "auto-exposure"
 PROP_DISP_EXPOSURE_TIME = "expotime"

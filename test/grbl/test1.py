@@ -6,10 +6,8 @@ ok
 Case insensitive best I can tell
 """
 
-from uscope import util
 import serial
 import time
-import os
 
 
 class Timeout(Exception):

@@ -9,10 +9,7 @@ Running the full suite:
 
 import unittest
 import os
-import json5
 import shutil
-import time
-import glob
 import subprocess
 
 

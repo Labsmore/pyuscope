@@ -18,7 +18,7 @@ from uscope.imagep.util import EtherealImageR, EtherealImageW
 from uscope.imagep.streams import DirCSIP, SnapshotCSIP
 from uscope.imagep.plugins import get_plugins, get_plugin_ctors
 from uscope import config
-from uscope.microscope import get_virtual_microscope, get_mconfig
+from uscope.microscope import get_virtual_microscope
 from uscope.threads import ShutdownPhase
 
 import os

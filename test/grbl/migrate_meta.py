@@ -1,7 +1,6 @@
 #!/usr/bin/env -S uv run
-from uscope.motion.grbl import GRBL, grbl_write_meta, grbl_read_meta, NoGRBLMeta, microscope_name_hash, grbl_delete_meta
+from uscope.motion.grbl import GRBL, grbl_write_meta, grbl_read_meta, NoGRBLMeta
 from uscope.util import add_bool_arg
-import os
 
 
 def main():

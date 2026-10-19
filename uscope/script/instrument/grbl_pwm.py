@@ -62,7 +62,7 @@ class Plugin(InstrumentScriptPlugin):
             self.log(f"Set PWM RPM: {rpm} / {self.max_rpm}")
             self.motion().command(f"M3 S{rpm}")
         else:
-            self.log(f"Set PWM off")
+            self.log("Set PWM off")
             self.motion().command("M5")
 
     def set_on(self, on=True):

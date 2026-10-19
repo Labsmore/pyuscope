@@ -1,5 +1,4 @@
 import gi
-import copy
 
 gi.require_version('Gst', '1.0')
 
@@ -16,7 +15,6 @@ Gst.init(None)
 #from uscope.imager.config import default_gstimager_config
 #from uscope.gst_util import CaptureSink
 from uscope.util import add_bool_arg
-from uscope import config
 #import threading
 #import time
 

@@ -51,3 +51,23 @@ namespaces = true
 # packages added below it.
 [tool.uv.workspace]
 members = []
+
+# Lint baseline: pyflakes class errors only (undefined names, unused
+# imports/variables, syntax errors). Run with:
+#   uvx ruff check
+[tool.ruff]
+include = ["uscope/**/*.py", "app/**/*.py", "utils/**/*.py", "test/**/*.py"]
+extend-exclude = ["archive", "build", "dist", "gst-plugin-toupcam", "rhodium"]
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["F", "E9"]
+ignore = [
+    # Qt code relies heavily on star imports
+    "F403",
+    "F405",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Intentionally malformed script used to test the scripting error path
+"uscope/script/test/test_malformed.py" = ["F821"]

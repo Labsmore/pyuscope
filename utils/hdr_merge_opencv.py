@@ -4,7 +4,6 @@ import numpy as np
 import glob
 import re
 import os
-import subprocess
 
 
 # https://docs.opencv.org/3.4/d2/df0/tutorial_py_hdr.html

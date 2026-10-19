@@ -5,7 +5,7 @@
 try:
     import socketserver
 except ImportError:
-    import socketserver as SocketServer
+    pass
 import select
 import os
 
@@ -85,7 +85,7 @@ def sftp_mkdir(sftp, remotepath, mode=0o777, intermediate=False):
     if intermediate:
         try:
             sftp.mkdir(remotepath, mode=mode)
-        except IOError as e:
+        except IOError:
             sftp_mkdir(sftp,
                        remotepath.rsplit("/", 1)[0],
                        mode=mode,
@@ -109,7 +109,7 @@ def sftp_putdir(sftp, localpath, remotepath, preserve_perm=True):
         remotesuffix = remotepath.rsplit("/", 1)[1]
         if localsuffix != remotesuffix:
             remotepath = os.path.join(remotepath, localsuffix)
-    except IOError as e:
+    except IOError:
         pass
 
     for root, dirs, fls in os.walk(localpath):
@@ -122,7 +122,7 @@ def sftp_putdir(sftp, localpath, remotepath, preserve_perm=True):
 
         try:
             sftp.chdir(remroot)
-        except IOError as e:
+        except IOError:
             if preserve_perm:
                 mode = os.stat(root).st_mode & 0o777
             else:

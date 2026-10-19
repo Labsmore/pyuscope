@@ -1,17 +1,13 @@
 #!/usr/bin/env -S uv run
 
 from uscope.util import add_bool_arg
-from uscope.imager import gst
-import uscope.planner
 from uscope.config import get_usc
 from uscope.planner.planner_util import microscope_to_planner_config, get_planner
-from uscope.motion.plugins import get_motion_hal
 from uscope.util import default_date_dir
 import os
 from collections import OrderedDict
 from uscope.motion.hal import Imager, MotionHAL
 from uscope.microscope import Microscope
-from uscope.util import tostr
 import time
 
 

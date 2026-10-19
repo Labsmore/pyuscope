@@ -1,6 +1,5 @@
 #from uscope.imager.imager_util import auto_detect_source
 #from uscope.imager.touptek import toupcamsrc_info
-from uscope.v4l2_util import find_device
 
 
 def default_usj_imager_config(opts):

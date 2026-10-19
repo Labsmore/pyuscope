@@ -1,5 +1,4 @@
 import os
-import threading
 from PIL import Image
 """
 PIL im objects are core

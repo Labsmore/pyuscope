@@ -109,9 +109,9 @@ class Plugin(ArgusScriptingPlugin):
             self.autofocus()
             assert self.is_idle()
 
-            motion = self.motion()
-            imager = self.imager()
-            kinematics = self.kinematics()
+            assert self.motion() is not None
+            assert self.imager() is not None
+            assert self.kinematics() is not None
             self.backlash_disable()
             self.backlash_enable()
 

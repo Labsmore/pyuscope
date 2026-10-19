@@ -251,10 +251,8 @@ class Picam2ControlScroll(ImagerControlScroll):
         return "Exposure time"
 
     def template_property(self, prop_entry):
-        prop_name = prop_entry["prop_name"]
-
         ret = {}
-        # self.raw_prop_read(prop_name)
+        # self.raw_prop_read(prop_entry["prop_name"])
         ret["default"] = None
         ret["type"] = "int"
 

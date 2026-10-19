@@ -1,6 +1,5 @@
 import time
 
-from uscope.calibration import find_centroid, find_centroid_fn
 
 
 def move_str(moves):

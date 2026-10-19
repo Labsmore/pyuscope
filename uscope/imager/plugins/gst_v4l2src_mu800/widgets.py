@@ -1,4 +1,3 @@
-from PyQt5 import Qt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
@@ -77,10 +76,8 @@ class V4L2MU800ControlScroll(ImagerControlScroll):
         return v4l2_util.ctrl_get(fd, name)
 
     def template_property(self, prop_entry):
-        prop_name = prop_entry["prop_name"]
-
         ret = {}
-        # self.raw_prop_read(prop_name)
+        # self.raw_prop_read(prop_entry["prop_name"])
         ret["default"] = None
         ret["type"] = "int"
 

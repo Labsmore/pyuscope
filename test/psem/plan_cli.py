@@ -9,14 +9,11 @@ About 4 seconds
 import uscope.planner
 from uscope.hal.img.imager import Imager
 from uscope.hal.cnc.hal import MotionHAL
-from uscope.util import add_bool_arg
 
 import argparse
 import json
 import os
 import shutil
-import time
-import sys
 
 
 class CsvImager(Imager):

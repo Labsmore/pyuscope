@@ -35,10 +35,7 @@ $ curl 'http://localhost:8080/set/active_objective/1000X'; echo
 from uscope.gui.scripting import ArgusScriptingPlugin
 from uscope.script import webserver_common
 
-from multiprocessing import Process
-from flask import Flask, request, current_app
-from http import HTTPStatus
-import json
+from flask import Flask
 from threading import Thread
 from werkzeug.serving import make_server
 

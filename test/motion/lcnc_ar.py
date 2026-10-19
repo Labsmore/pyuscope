@@ -3,7 +3,6 @@
 from uscope.hal.cnc import lcnc_ar
 
 import argparse
-import time
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

@@ -2,7 +2,6 @@
 
 from uscope.util import add_bool_arg
 from uscope.imager import gst
-import uscope.planner
 from uscope.config import get_usc
 from uscope.planner.planner_util import microscope_to_planner_config, get_planner
 from uscope.motion.plugins import get_motion_hal

@@ -319,8 +319,8 @@ class Joystick:
         #     dict(fn_name(dict(fn_args))
         # Call the fn with provided args
 
-        for fn, config in self.config._function_map.items():
-            getattr(self, fn)(**config["args"])
+        for fn, fn_config in self.config._function_map.items():
+            getattr(self, fn)(**fn_config["args"])
         # generic z control may be bound
         self.microscope.motion.only_used_axes(self._jog_queue)
         self.jog_controller.update(self._jog_queue)

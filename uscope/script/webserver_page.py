@@ -43,7 +43,6 @@ from uscope.gui.scripting import ArgusScriptingPlugin
 from uscope.script import webserver_common
 
 from flask import Flask, current_app, request, render_template, send_from_directory
-import json
 from werkzeug.serving import make_server
 from flask_cors import CORS
 import cv2

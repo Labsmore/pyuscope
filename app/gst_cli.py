@@ -58,7 +58,6 @@ ToupTek UCMOS08000KPB / AmScope MU800
 
 from uscope.util import add_bool_arg
 from uscope.imager import gst
-import time
 
 
 def main():

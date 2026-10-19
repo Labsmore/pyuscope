@@ -24,19 +24,10 @@ rea
     echos command, including %
 """
 
-import uscope.planner
-from uscope.hal.img.imager import Imager
-from uscope.hal.cnc.hal import MotionHAL
-from uscope.util import add_bool_arg
 
 import argparse
-import json
-import os
-import shutil
 import time
-import binascii
 import serial
-import time
 
 
 class Timeout(Exception):

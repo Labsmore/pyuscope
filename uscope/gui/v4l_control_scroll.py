@@ -13,7 +13,6 @@ only displays manual or aperature priority mode
 is there a flag that would have indicated which is supported?
 """
 
-from PyQt5 import Qt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *

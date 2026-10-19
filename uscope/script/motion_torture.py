@@ -7,7 +7,7 @@ from uscope.config import get_usc
 from uscope.gui.scripting import ArgusScriptingPlugin
 
 import random
-import datetime
+from uscope.util import utcnow
 import os
 
 
@@ -109,7 +109,7 @@ class Plugin(ArgusScriptingPlugin):
                     break
                 self.log("")
                 self.log("Pass %u" % passi)
-                self.log(datetime.datetime.utcnow().isoformat())
+                self.log(utcnow().isoformat())
 
                 # Do a series of moves
                 for pokei in range(burst_moves):

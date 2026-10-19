@@ -2,12 +2,11 @@
 
 from uscope.motion.plugins import get_motion_hal
 from uscope.config import get_usc
-from uscope.util import add_bool_arg
+from uscope.util import utcnow, add_bool_arg
 from uscope.imager import gst
 import time
 import argparse
 import random
-import datetime
 import os
 
 
@@ -101,7 +100,7 @@ def run(microscope=None,
                 break
             print("")
             print("Pass %u" % passi)
-            print(datetime.datetime.utcnow().isoformat())
+            print(utcnow().isoformat())
 
             # Do a series of moves
             for pokei in range(5):

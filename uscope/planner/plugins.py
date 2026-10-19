@@ -3,9 +3,6 @@ from collections import OrderedDict
 import os
 import time
 from uscope.planner.plugin import PlannerPlugin, register_plugin
-from PIL import Image
-from uscope.imager.imager_util import get_scaled
-from uscope.motion.hal import pos_str
 from uscope.kinematics import Kinematics
 from numpy import polyfit
 from uscope.imager.autofocus import choose_best_image, Autofocus
@@ -484,7 +481,7 @@ class PointGenerator2P(PlannerPlugin):
         # Will be at the end of a stack
         # Put it back where it started
         pos = self.calc_pos(0, 0)
-        self.log(f"XY2P: returning XY at scan end: %s" %
+        self.log("XY2P: returning XY at scan end: %s" %
                  self.microscope.usc.motion.format_positions(pos))
         self.motion.move_absolute(pos)
 
@@ -1192,6 +1189,7 @@ class PlannerCaptureImage(PlannerPlugin):
 
     def iterate(self, state):
         im = None
+        capim = None
         assert state.get("image") is None, "Pipeline already took an image"
         # self.log("Capturing at %s" % pos_str(self.motion.pos()))
         if not self.planner.dry:
@@ -1249,9 +1247,8 @@ class PlannerSaveImage(PlannerPlugin):
 
     def iterate(self, state):
         capim = state.get("captured_image")
-        im = capim.image
         if not self.planner.dry:
-            assert im, "Asked to save image without image given"
+            assert capim is not None and capim.image is not None, "Asked to save image without image given"
 
         self.images_saved += 1
         img_prefix = self.planner.filename_prefix(state)

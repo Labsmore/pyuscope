@@ -89,6 +89,9 @@ class Microscope:
         self.subsystems = {}
         # General purpose data that is passed to Planner and other things
         self.calibration = {}
+        # Registered stop handlers, see stop_register()
+        # Must exist before init() in case something registers early
+        self.stops = {}
 
         if log is None:
             log = print
@@ -97,7 +100,6 @@ class Microscope:
         self.init(**kwargs)
         if configure:
             self.configure()
-        self.stops = {}
 
     def log(self, msg):
         self._log(msg)
@@ -108,7 +110,7 @@ class Microscope:
         usc=None,
         name=None,
         serial=None,
-        mconfig={},
+        mconfig=None,
         imager=None,
         make_imager=True,
         kinematics=None,
@@ -128,8 +130,8 @@ class Microscope:
         # Name may be auto selected from GRBL, etc
         # Must be done early and in special / careful nammer
 
-        if mconfig is None:
-            mconfig = {}
+        # Copy: we mutate it below
+        mconfig = dict(mconfig or {})
         if name:
             mconfig["name"] = name
         if serial:
@@ -149,11 +151,16 @@ class Microscope:
             make_motion = False
             make_imager = False
             make_kinematics = False
-            make_joystick = False
 
         self.statistics = MicroscopeStatistics(self)
 
         if imager is None and imager_cli and make_imager:
+            # 2024-03: GstCLIImager was disabled during the imager plugin
+            # refactor. Fail clearly rather than with an AttributeError
+            if not hasattr(gst, "get_cli_imager_by_config"):
+                raise NotImplementedError(
+                    "CLI (non-GUI) gstreamer imager is not currently supported. "
+                    "Pass imager= explicitly or use make_imager=False")
             imager = gst.get_cli_imager_by_config(usc=self.usc,
                                                   microscope=self)
         self.imager = imager
@@ -174,16 +181,11 @@ class Microscope:
                 log=self.log,
             )
         self.kinematics = kinematics
-        """
-        if joystick is None and make_joystick:
-            try:
-                joystick = Joystick(ac=self.ac)
-            except JoystickNotFound:
-                pass
-        """
+        # Joystick is attached by the GUI (needs Argus context)
+        # make_joystick is accepted for API symmetry
         self.joystick = joystick
 
-    def default_microscope_config(self, mconfig={}, overwrite=False):
+    def default_microscope_config(self, mconfig, overwrite=False):
         if not mconfig.get("name"):
             name = os.getenv("PYUSCOPE_MICROSCOPE")
             if name:
@@ -192,8 +194,8 @@ class Microscope:
         # TODO: put mock flag in config file
         is_mock = mconfig.get("name") in ("mock", "mock-grbl")
         # TODO: if we want to revive touptek s/n here we could
-        if not mconfig.get("name") or not mconfig.get(
-                "serial") and self.hardware and not is_mock:
+        if (not mconfig.get("name") or not mconfig.get("serial")
+            ) and self.hardware and not is_mock:
             # Try to do aggressive GRBL auto-config
             grbl_mconfig(mconfig, overwrite=overwrite)
 
@@ -391,7 +393,7 @@ class Microscope:
         # need to make sure this gets deferred later for early adds
         if self._last_cachej is not None:
             subsystemsj = self._last_cachej.get("subsystems", {})
-            subsystem.cache_load(subsystemsj.get(name, {}))
+            subsystem.cache_load(self._last_cachej, subsystemsj.get(name, {}))
 
     def subsystem_functions(self):
         ret = {}
@@ -424,12 +426,20 @@ class Microscope:
         for name, subsystem in self.subsystems.items():
             subj = subsystemsj.get(name, {})
             subsystem.cache_save(cachej, subj)
-            if len(subj) == 0:
-                if name in subsystemsj:
-                    del subsystemsj[name]
-            else:
-                self.subsystems[name] = subj
+            self._subsystem_j_store(subsystemsj, name, subj)
         self._last_cachej = cachej
+
+    @staticmethod
+    def _subsystem_j_store(subsystemsj, name, subj):
+        """
+        Only add to JSON if actually used
+        Keeps structure lean but API easy to use
+        """
+        if len(subj) == 0:
+            if name in subsystemsj:
+                del subsystemsj[name]
+        else:
+            subsystemsj[name] = subj
 
     def cache_load(self, cachej):
         """
@@ -462,15 +472,9 @@ class Microscope:
         '''
         subsystemsj = cachej.setdefault("subsystems", {})
         for name, subsystem in self.subsystems.items():
-            # Only add to JSON if actually used
-            # Keeps structure lean but API easy to use
             subj = subsystemsj.get(name, {})
             subsystem.cache_sn_save(cachej, subj)
-            if len(subj) == 0:
-                if name in subsystemsj:
-                    del subsystemsj[name]
-            else:
-                self.subsystems[name] = subj
+            self._subsystem_j_store(subsystemsj, name, subj)
         self._last_cachej = cachej
 
     def cache_sn_load(self, cachej):
@@ -497,8 +501,10 @@ class Microscope:
         Thread safe
         """
         ret = {}
-        self.imager.system_status_ts(ret, ret.setdefault("imager", {}))
-        self.motion.system_status_ts(ret, ret.setdefault("motion", {}))
+        if self.imager is not None:
+            self.imager.system_status_ts(ret, ret.setdefault("imager", {}))
+        if self.motion is not None:
+            self.motion.system_status_ts(ret, ret.setdefault("motion", {}))
 
         # maybe instruments as subsystem would make more sense?
         '''
@@ -512,20 +518,12 @@ class Microscope:
         for name, subsystem in self.subsystems.items():
             subj = subsystemsj.get(name, {})
             subsystem.system_status_ts(ret, subj)
-            if len(subj) == 0:
-                if name in subsystemsj:
-                    del subsystemsj[name]
-            else:
-                self.subsystems[name] = subj
+            self._subsystem_j_store(subsystemsj, name, subj)
         return ret
 
 
 def get_cli_microscope(name=None):
     return Microscope(imager_cli=True, name=name)
-
-
-def get_gui_microscope(name=None):
-    return Microscope(imager_gui=True, name=name)
 
 
 def get_mconfig(name=None, serial=None, mconfig=None):

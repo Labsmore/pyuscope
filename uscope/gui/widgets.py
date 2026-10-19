@@ -1,6 +1,6 @@
 from uscope.app.argus.threads import StitcherThread
 from uscope import config
-from uscope.util import readj, writej
+from uscope.util import utcnow, readj, writej
 from collections import OrderedDict
 from uscope.cloud_stitch import CSInfo
 from uscope.imager.autofocus import AutoStacker
@@ -14,7 +14,6 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
 import time
-import datetime
 import os.path
 import math
 from enum import Enum
@@ -615,7 +614,7 @@ class BatchImageTab(ArgusTab):
 
     def save_pb_clicked(self):
         directory = self.ac.bc.batch_data_dir()
-        default_filename = datetime.datetime.utcnow().isoformat().replace(
+        default_filename = utcnow().isoformat().replace(
             'T', '_').replace(':', '-').split('.')[0] + ".batch.json"
         directory = os.path.join(directory, default_filename)
         filename = QFileDialog.getSaveFileName(None,
@@ -753,7 +752,7 @@ class AdvancedTab(ArgusTab):
         try:
             scan_config = self.ac.mainTab.active_planner_widget(
             ).get_current_scan_config()
-        except:
+        except Exception:
             scan_config = {}
             self.ac.log("Exception getting planner config")
 
@@ -1667,10 +1666,10 @@ class AnnotateImage(QLabel):
     def undo(self):
         try:
             self.measurements.pop()
-            self.update()
-        except:
-            pass
-            # print("No more actions to undo")
+        except IndexError:
+            # No more actions to undo
+            return
+        self.update()
 
     def clear_all(self):
         self.measurements = []
@@ -1745,11 +1744,11 @@ class MeasureTab(ArgusTab):
         if self.ruler_pb.isChecked():
             self.annotate_image.set_mode(self.annotate_image.Modes.RULER)
             self.ruler_pb.setStyleSheet(
-                f"color: white; background-color: green;")
+                "color: white; background-color: green;")
         else:
             self.annotate_image.set_mode(self.annotate_image.Modes.SELECT)
             self.ruler_pb.setStyleSheet(
-                f"color: black; background-color: lightgrey;")
+                "color: black; background-color: lightgrey;")
 
     def fitToWindow(self):
         self.scrollArea.setWidgetResizable(True)

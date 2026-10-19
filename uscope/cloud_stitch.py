@@ -2,8 +2,7 @@ import os
 import io
 import boto3
 from uscope import config
-from uscope.util import writej
-import datetime
+from uscope.util import utcnow, writej
 import json
 import glob
 
@@ -90,7 +89,7 @@ def upload_dir(directory,
             print(s)
 
     log(f"CloudStitch uploading: {directory}")
-    time_start = datetime.datetime.utcnow().isoformat()
+    time_start = utcnow().isoformat()
 
     S3BUCKET = 'labsmore-mosaic-service'
     DEST_DIR = cs_info.id_key() + '/' + dst_basename
@@ -129,7 +128,7 @@ def upload_dir(directory,
     s3.upload_fileobj(mosaic_run_json, S3BUCKET,
                       DEST_DIR + '/' + 'mosaic_run.json')
 
-    time_end = datetime.datetime.utcnow().isoformat()
+    time_end = utcnow().isoformat()
     log("CloudStitch uploaded")
 
     outj = {

@@ -4,10 +4,9 @@ import matplotlib.pyplot as plt
 
 from uscope.gui.scripting import ArgusScriptingPlugin
 from uscope.calibration import find_centroid, find_centroid_fn, get_cal
-from uscope.util import add_bool_arg, datetime_file_str, LogToFile
+from uscope.util import utcnow, add_bool_arg, datetime_file_str, LogToFile
 
 import numpy as np
-import datetime
 import glob
 import json
 import os
@@ -281,7 +280,7 @@ class Plugin(ArgusScriptingPlugin):
                     0.0, 1.0)
                 self.log("%s move %u / %u: +%0.3f" %
                          (axis, movei + 1, moves, this_move))
-                self.log(datetime.datetime.utcnow().isoformat())
+                self.log(utcnow().isoformat())
                 # FIXME: assumes negative backlash correction
                 self.move_relative({axis: +this_move})
                 self.move_absolute({axis: self.origin[axis]})

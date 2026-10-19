@@ -1,21 +1,25 @@
 from uscope.planner.planner import Planner
-from uscope.planner.plugins import register_plugins as _register_plugins
-from uscope.config import USC
+# Importing registers the standard plugins (side effect)
+import uscope.planner.plugins  # noqa: F401
 
 
-def get_objective(usc=None, objectivei=None, objectivestr=None):
-    objectives = usc.get_scaled_objectives()
+def get_objective(microscope, objectivei=None, objectivestr=None):
+    """
+    Select an objective configuration (with system calibration applied)
+    by name or by index
+    """
+    objectives = list(microscope.get_objectives().get_full_config().values())
     if objectivestr:
         for objective in objectives:
             if objective["name"] == objectivestr:
                 return objective
-        raise ValueError("Failed to find named objective")
+        raise ValueError("Failed to find named objective %s" % objectivestr)
     if objectivei is not None:
-        return objectives[objectivei]
+        return objectives[int(objectivei)]
     # Only one objective? Default to it
     if len(objectives) == 1:
         return objectives[0]
-    assert 0, "Ambiguous objective, must specify"
+    raise ValueError("Ambiguous objective, must specify")
 
 
 def get_view(pconfig, usc):
@@ -43,7 +47,7 @@ def microscope_to_planner_config(microscope,
     usc = microscope.usc
     usj = usc.usj
     if objective is None:
-        objective = get_objective(usc=usc,
+        objective = get_objective(microscope,
                                   objectivei=objectivei,
                                   objectivestr=objectivestr)
     ret = {

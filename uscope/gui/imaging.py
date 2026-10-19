@@ -8,13 +8,12 @@ from uscope.app.argus.threads import QPlannerThread
 from uscope.microscope import StopEvent, MicroscopeStop
 from uscope import version as uscope_version
 
-from PyQt5 import Qt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
 import os.path
-import datetime
+from uscope.util import utcnow
 from io import StringIO
 import threading
 import time
@@ -25,7 +24,7 @@ def snapshot_fn(user, extension, parent):
     # if self.prefix_date_cb.isChecked():
     if 1:
         # 2020-08-12_06-46-21
-        prefix = datetime.datetime.utcnow().isoformat().replace(
+        prefix = utcnow().isoformat().replace(
             'T', '_').replace(':', '-').split('.')[0] + "_"
 
     mod = None
@@ -63,7 +62,7 @@ def out_dir_config_to_dir(j, parent):
     # if self.prefix_date_cb.isChecked():
     if j.get("dt_prefix"):
         # 2020-08-12_06-46-21
-        prefix = datetime.datetime.utcnow().isoformat().replace(
+        prefix = utcnow().isoformat().replace(
             'T', '_').replace(':', '-').split('.')[0] + "_"
 
     mod = None

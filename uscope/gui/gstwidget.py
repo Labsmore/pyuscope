@@ -1,6 +1,5 @@
 # from uscope.imager.imager_util import auto_detect_source
 
-from PyQt5.Qt import Qt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
@@ -8,10 +7,8 @@ from PyQt5.QtWidgets import *
 import sys
 import traceback
 import os
-import pathlib
 import signal
 from collections import OrderedDict
-import math
 from uscope.imager.plugins.aplugins import get_imager_aplugin
 
 import gi
@@ -28,7 +25,9 @@ gi.require_version('GstRtspServer', '1.0')
 from gi.repository import Gst
 
 Gst.init(None)
-from gi.repository import GstBase, GObject, GstVideo, GstRtspServer
+from gi.repository import GstRtspServer
+# GstVideo must be loaded for the video overlay interface (set_window_handle)
+from gi.repository import GstVideo  # noqa: F401
 
 import platform
 """
@@ -623,7 +622,7 @@ class GstVideoPipeline:
             raise Exception('Unknown source %s' % (self.source_name, ))
         """
         self.source = self.imager_aplugin.get_gst_source()
-        assert self.source, f"Failed to load camera source"
+        assert self.source, "Failed to load camera source"
 
         # Override with microscope.j5 values
         properties.update(self.ac.microscope.usc.imager.source_properties())
@@ -1067,7 +1066,8 @@ def gstwidget_main(AQMainWindow, parse_args=default_parse_args):
     # Exit on ^C instead of ignoring
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    GObject.threads_init()
+    # GObject.threads_init() has been a no-op since PyGObject 3.11
+    # and is removed in newer versions
 
     try:
         app = QApplication(sys.argv)
@@ -1086,7 +1086,7 @@ def gstwidget_main(AQMainWindow, parse_args=default_parse_args):
     # (has to be an error?)
     # so explicitly handle to ensure clean exit
     # notably homing fail
-    except Exception as e:
+    except Exception:
         print("")
         print("main: got exception")
         traceback.print_exc()

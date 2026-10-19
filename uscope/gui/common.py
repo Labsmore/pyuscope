@@ -1,7 +1,7 @@
 from uscope.gui.gstwidget import GstVideoPipeline
 from uscope.gui.picam2widget import PiCam2VideoPipeline
 from uscope.gui.control_scrolls import get_control_scroll
-from uscope.config import get_usc, get_bc
+from uscope.config import get_bc
 from uscope.gui import imager
 from uscope.gst_util import Gst, CaptureSink
 from uscope.app.argus.threads import QMotionThread, QImageProcessingThread, QJoystickThread, QTaskThread, QImagerControlThread
@@ -12,7 +12,6 @@ from uscope.motion.hal import HomingAborted
 from uscope.motion.grbl import LimitSwitchActive, Estop
 from uscope.subsystem import Subsystem
 
-from PyQt5 import Qt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
@@ -119,7 +118,8 @@ class USCArgus:
         """
         val = os.getenv("ARGUS_MDI", None)
         if val is not None:
-            return bool(val)
+            # bool("0") is True: parse as a number
+            return bool(int(val))
         return bool(self.j.get("mdi", 0))
 
     """

@@ -78,7 +78,7 @@ class ManagedTempFile:
                 print_debug("Didn't delete inexistant temp file %s" %
                             self.file_name)
         # Ignore if it was never created
-        except:
+        except OSError:
             print('WARNING: failed to delete temp file: %s' % self.file_name)
 
 
@@ -105,7 +105,7 @@ class ManagedTempDir(ManagedTempFile):
                 print_debug("Didn't delete inexistant temp dir %s" %
                             self.file_name)
         # Ignore if it was never created
-        except:
+        except OSError:
             print('WARNING: failed to delete temp dir: %s' % self.file_name)
 
 

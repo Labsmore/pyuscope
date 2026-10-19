@@ -13,19 +13,17 @@ So everything is represented as mm, but should work for any unit
 
 from collections import OrderedDict
 import json
-import math
 import os
 import threading
 import time
-import datetime
+from uscope.util import utcnow
 
 from uscope.motion.hal import DryHal
 # FIXME: hack, maybe just move the baacklash parsing out
 # at least to stand alone function
 from uscope.config import PC
 from uscope.planner.plugin import get_planner_plugin
-from uscope.microscope import StopEvent, MicroscopeStop
-from uscope.threads import ShutdownPhase
+from uscope.microscope import StopEvent
 
 
 class PlannerStop(Exception):
@@ -342,7 +340,7 @@ class Planner:
         # Running scan
         ret['scan_time'] = self.scan_end_time - self.scan_start_time
         # Including setup / teardown
-        ret["time_end"] = datetime.datetime.utcnow().isoformat()
+        ret["time_end"] = utcnow().isoformat()
 
         for plugin in self.pipeline.values():
             plugin.gen_meta(ret)

@@ -77,8 +77,7 @@ def find_panotools_exe(config, configk, exe_name, flatpak_name):
         if exit_code == 0:
             return ("flatpak", "run", "--filesystem=host",
                     f"--command={flatpak_name}", "net.sourceforge.Hugin")
-    # FIME: catch the specific exception for command not found
-    except:
+    except (OSError, subprocess.SubprocessError):
         pass
     return None
 
@@ -458,7 +457,8 @@ class USCMotion:
         However they are not currently maintained / supported
         """
         ret = self.j["hal"]
-        if ret not in ("mock", "grbl-ser", "lcnc-rpc", "lcnc-arpc", "lcnc-py"):
+        if ret not in ("mock", "grbl-ser", "lcnc-rpc", "lcnc-arpc", "lcnc-py",
+                       "lcnc-rsh"):
             raise ValueError("Invalid hal: %s" % (ret, ))
         return ret
 
@@ -747,7 +747,7 @@ class USCOptics:
             "blue": 4.0,
         }
         """
-        return self.j.get("optics", None)
+        return self.j.get("diffusion", None)
 
 
 class USCImageProcessingPipeline:
@@ -1089,9 +1089,17 @@ def get_configs_dir():
 
 
 def get_usc(usj=None, config_dir=None, microscope=None):
+    """
+    Get the microscope configuration
+
+    The most recently created configuration is cached so that code without
+    a microscope reference (ex: image processing) can find it.
+    A different microscope (by name) gets a fresh configuration
+    """
     global usc
 
-    if usc is None:
+    if usc is None or (microscope is not None and usc.microscope is not None
+                       and usc.microscope.name != microscope.name):
         usc = USC(usj=usj, config_dir=config_dir, microscope=microscope)
     return usc
 
@@ -1220,7 +1228,9 @@ def validate_pconfig(pj, strict=False):
 
 
 class GUI:
-    assets_dir = os.path.join(os.getcwd(), 'uscope', 'gui', 'assets')
+    # Relative to the package, not CWD: argus may be launched from anywhere
+    assets_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                              'gui', 'assets')
     stylesheet_file = os.path.join(assets_dir, 'main.qss')
     icon_files = {}
     icon_files['gamepad'] = os.path.join(

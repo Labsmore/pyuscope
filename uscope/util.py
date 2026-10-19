@@ -146,7 +146,7 @@ class IOTimestamp(object):
             if i == len(parts) - 1 and len(part) == 0:
                 break
             if self.nl:
-                self.fd.write('%s: ' % datetime.datetime.utcnow().isoformat())
+                self.fd.write('%s: ' % utcnow().isoformat())
             self.fd.write(part)
             # Newline results in n + 1 list elements
             # The last element has no newline
@@ -283,9 +283,19 @@ def readj(fn):
         return json5.load(f)
 
 
+def utcnow():
+    """
+    Naive UTC datetime, drop in replacement for the deprecated
+    datetime.datetime.utcnow()
+    Naive so that .isoformat() output (used in file names / metadata)
+    is unchanged
+    """
+    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
+
 def datetime_file_str():
-    return datetime.datetime.utcnow().isoformat().replace('T', '_').replace(
-        ':', '-').split('.')[0]
+    return utcnow().isoformat().replace('T', '_').replace(':',
+                                                          '-').split('.')[0]
 
 
 def default_date_dir(root, prefix, postfix):

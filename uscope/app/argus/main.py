@@ -9,9 +9,6 @@ from uscope.gui.gstwidget import gstwidget_main
 from uscope.util import add_bool_arg
 from uscope.gui.widgets import AMainWindow
 from uscope import config
-import json
-import json5
-from collections import OrderedDict
 from uscope.gui.input_widget import InputWidget
 
 from PyQt5 import Qt
@@ -19,12 +16,10 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
-import os.path
-import sys
 import traceback
 import threading
 
-from uscope.gui.common import ArgusCommon, ArgusShutdown, error
+from uscope.gui.common import ArgusCommon, error
 
 from uscope.gui.widgets import TopWidget, BatchImageTab, AdvancedTab, StitchingTab, MeasureTab
 from uscope.gui.imaging import MainTab, ImagerTab
@@ -406,9 +401,6 @@ class MainWindow(AMainWindow):
         except (ValueError, RuntimeError) as e:
             self.ac.log(f"Failed to restore default capture format: {e}")
         self.captureFormatChanged(self.ac.imager.get_capture_format())
-
-    def close(self):
-        pass
 
     def zoom_plus(self):
         self.ac.vidpip.zoomable_plus()

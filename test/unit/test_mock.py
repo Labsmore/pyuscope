@@ -418,6 +418,17 @@ class MotionThreadTestCase(TestCommon):
         pos = mt.pos()
         self.assertEqual(set(pos.keys()), {"x", "y", "z"})
 
+    def test_soft_limit_propagates(self):
+        """A blocking caller must learn that a move was refused"""
+        _microscope, mt = self.make_thread()
+        mt.move_absolute({"x": 10.0}, block=True)
+        with self.assertRaises(AxisExceeded):
+            mt.move_absolute({"x": 500.0}, block=True)
+        self.assertAlmostEqual(mt.pos()["x"], 10.0, places=3)
+        # Thread still healthy
+        mt.move_absolute({"x": 11.0}, block=True)
+        self.assertAlmostEqual(mt.pos()["x"], 11.0, places=3)
+
     def test_move(self):
         _microscope, mt = self.make_thread()
         mt.move_absolute({"x": 2.0}, block=True)
@@ -430,7 +441,9 @@ class MotionThreadTestCase(TestCommon):
         _microscope, mt = self.make_thread()
         mt.move_absolute({"x": 2.0}, block=True)
         done = threading.Event()
-        mt.move_absolute({"x": 5000.0}, block=True, done=done)
+        with self.assertRaises(AxisExceeded):
+            mt.move_absolute({"x": 5000.0}, block=True, done=done)
+        # done fires even on failure
         self.assertTrue(done.is_set())
         self.assertAlmostEqual(mt.pos()["x"], 2.0, places=3)
 

@@ -455,18 +455,16 @@ class MotionThreadBase(CommandThreadBase):
                 def default(*args):
                     raise Exception("Bad command %s" % (command, ))
 
+                # AxisExceeded (soft limit) is logged below and handed to
+                # the caller. Previously it was swallowed here which made a
+                # blocking caller (ex: planner) believe the move succeeded
+                # and image the wrong location
                 def move_absolute(pos):
-                    try:
-                        self.motion.move_absolute(pos)
-                    except AxisExceeded as e:
-                        self.log(str(e))
+                    self.motion.move_absolute(pos)
                     return self.motion.pos()
 
                 def move_relative(pos):
-                    try:
-                        self.motion.move_relative(pos)
-                    except AxisExceeded as e:
-                        self.log(str(e))
+                    self.motion.move_relative(pos)
                     return self.motion.pos()
 
                 def update_pos_cache():

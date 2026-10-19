@@ -133,42 +133,45 @@ class CaptureSink(CbSink):
         CbSink.__init__(self)
 
         self.ac = ac
-        self.image_requested = threading.Event()
+        # Protects pending requests and the image buffer
+        # Requests come from arbitrary threads (planner, scripting, GUI)
+        # while frames arrive in the gstreamer streaming thread
+        self.lock = threading.Lock()
+        # [(cb, meta), ...] waiting for the next frame
+        self.pending = []
         self.next_image_id = 0
         self.images_actual = {}
         self.cb = self.render_cb
-        self.user_cb = None
         self.width = width
         self.height = height
         self.source_type = source_type
         self.verbose = False
-        self.meta = None
 
     def request_image(self, cb, meta=None):
         '''
         Request that the next image be saved
+        Multiple outstanding requests are allowed: each receives
+        (its own copy of) the next frame
         NOTE: callback executes in gstreamer thread context
         It does not (necessarily) execute in main thread
         '''
-        # Later we might make this multi-image
-        if self.image_requested.is_set():
-            raise Exception('Image already requested')
-        self.user_cb = cb
-        self.meta = meta
-        self.image_requested.set()
+        with self.lock:
+            self.pending.append((cb, meta))
 
     def get_image(self, image_id):
         '''Fetch the image but keep it in the buffer'''
-        return self.images_actual[image_id]
+        with self.lock:
+            return self.images_actual[image_id]
 
     def del_image(self, image_id):
         '''Delete image in buffer'''
-        del self.images_actual[image_id]
+        with self.lock:
+            del self.images_actual[image_id]
 
     def pop_captured_image(self, image_id):
         '''Fetch the image and delete it form the buffer'''
-        image_dict = self.images_actual[image_id]
-        del self.images_actual[image_id]
+        with self.lock:
+            image_dict = self.images_actual.pop(image_id)
         #self.verbose and print("bytes", len(buf), 'w', width, 'h', height)
         aplugin = self.ac.vidpip.imager_aplugin
         # Let the source plugin annotate (ex: sensor bit depth, bayer pattern)
@@ -209,43 +212,41 @@ class CaptureSink(CbSink):
             -Snapshot: want next image
             In either case the GUI should listen to all events and clear out the ones it doesn't want
             '''
-            # print('Got image')
-            if self.image_requested.is_set():
-                self.verbose and print('Processing image request')
-                # Does this need to be locked?
-                # Copy buffer so that even as object is reused we don't lose it
-                # is there a difference between str(buffer) and buffer.data?
-                # type <class 'bytes'>
-                # print("type", type(buffer))
-
-                # FIXME: hack
-                # get width more properly
-                """
-                if len(buffer) == 5440 * 3648 * 3:
-                    width, height = 5440, 3648
-                else:
-                    assert 0, "FIXME"
-                """
-
+            # Grab all outstanding requests
+            # Done before storing so that a callback can re-request
+            # and get the *next* frame rather than this one
+            with self.lock:
+                if not self.pending:
+                    return
+                pending = self.pending
+                self.pending = []
                 # Negotiated caps are authoritative when available
                 vi = self.video_info or {}
-                self.images_actual[self.next_image_id] = {
-                    "bytes": bytearray(buffer),
-                    "width": vi.get("width", self.width),
-                    "height": vi.get("height", self.height),
-                    # None => source plugin's legacy default
-                    "format": vi.get("format"),
-                    "stride": vi.get("stride"),
-                    "meta": self.meta
-                }
-                #                                          "source_type": self.source_type}
-                # Clear before emitting signal so that it can be re-requested in response
-                self.image_requested.clear()
-                #print 'Emitting capture event'
-                self.user_cb(self.next_image_id)
-                #print 'Capture event emitted'
-                self.next_image_id += 1
-        except:
+                # Copy buffer so that even as object is reused we don't lose it
+                # type <class 'bytes'>
+                data = bytearray(buffer)
+                served = []
+                for cb, meta in pending:
+                    image_id = self.next_image_id
+                    self.next_image_id += 1
+                    self.images_actual[image_id] = {
+                        "bytes": data,
+                        "width": vi.get("width", self.width),
+                        "height": vi.get("height", self.height),
+                        # None => source plugin's legacy default
+                        "format": vi.get("format"),
+                        "stride": vi.get("stride"),
+                        "meta": meta,
+                    }
+                    served.append((cb, image_id))
+            self.verbose and print('Processing %u image request(s)' %
+                                   len(served))
+            # Callbacks outside the lock: they may call back into us
+            for cb, image_id in served:
+                cb(image_id)
+        except Exception:
+            # Exceptions here would otherwise be swallowed by gstreamer
+            # and silently stall every capture
             traceback.print_exc()
             os._exit(1)
 

@@ -78,6 +78,37 @@ class Imager:
         '''Take and store to internal storage'''
         raise Exception('Required')
 
+    def get_processed(self, **kwargs):
+        """
+        Capture an image and run it through the image processing pipeline
+        (ex: scaling, correction)
+        Simple imagers have no pipeline and return the raw image
+        """
+        return self.get(**kwargs)
+
+    def get_composite(self, **kwargs):
+        """
+        Capture an image including any compositing (ex: HDR, stacking)
+        Simple imagers have no compositing and return the processed image
+        """
+        return self.get_processed(**kwargs)
+
+    def get_by_mode(self, mode=None, **kwargs):
+        """
+        Capture an image by named mode
+        raw: directly from the sensor
+        processed: raw + image processing pipeline
+        composite: processed + compositing
+        """
+        if mode == "raw":
+            return self.get(**kwargs)
+        elif mode == "processed":
+            return self.get_processed(**kwargs)
+        elif mode == "composite":
+            return self.get_composite(**kwargs)
+        else:
+            raise ValueError(f"bad capture mode {mode}")
+
     def remote(self):
         """Return true if the image is taken remotely and not handled here. Call take() instead of get"""
         return False
@@ -153,7 +184,7 @@ class MockImager(Imager):
     def get(self):
         # Small test image
         return CapturedImage(
-            im=Image.new("RGB", (self.width, self.height), 'white'))
+            image=Image.new("RGB", (self.width, self.height), 'white'))
 
     def _set_properties(self, vals):
         for k, v in vals.items():

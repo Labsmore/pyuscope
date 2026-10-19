@@ -1,13 +1,9 @@
-from uscope.imager.autofocus import choose_best_image
 from uscope.imager.imager_util import get_scaled
 from uscope.imagep.pipeline import CSImageProcessor
 from uscope.imager.autofocus import Autofocus
-from uscope.threads import CommandThreadBase
+from uscope.threads import CommandThreadBase, SimpleThread
 from uscope.imagep.util import find_qr_code_match
-from uscope.threads import ShutdownPhase
 
-import threading
-import queue
 import traceback
 from PIL import Image
 from uscope.microscope import MicroscopeStop
@@ -102,7 +98,9 @@ class ImageProcessingThreadBase(CommandThreadBase):
         except Exception as e:
             traceback.print_exc()
             self.log(f"WARNING; snapshot processing crashed: {e}")
-            return None
+            # Propagate to caller (via callback / block) rather than
+            # returning None which crashes downstream
+            raise
 
         if "save_filename" in options:
             if "qr_regex" in options:
@@ -122,5 +120,7 @@ class ImageProcessingThreadBase(CommandThreadBase):
 
 
 class SimpleImageProcessingThreadBase(ImageProcessingThreadBase,
-                                      threading.Thread):
-    pass
+                                      SimpleThread):
+    def __init__(self, microscope):
+        SimpleThread.__init__(self)
+        ImageProcessingThreadBase.__init__(self, microscope)

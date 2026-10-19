@@ -61,8 +61,11 @@ class Kinematics:
     def wait_video_pipeline(self):
         if self.microscope.imager is None or self.tsettle_video_pipeline <= 0:
             return
-        tsettle = self.tsettle_video_pipeline - self.microscope.imager.since_last_restart(
-        )
+        since_restart = self.microscope.imager.since_last_restart()
+        # Pipeline never restarted (ex: CLI / mock imager)
+        if since_restart is None:
+            return
+        tsettle = self.tsettle_video_pipeline - since_restart
         if tsettle > 0.0:
             self.log(
                 "Kinematics sleeping due to video pipeline restart: %0.3f" %

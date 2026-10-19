@@ -84,6 +84,33 @@ class TTControlScroll(GstControlScroll):
         # self.disp2element["hflip"].setVisible(config.get_bc().dev_mode())
         # self.disp2element["vflip"].setVisible(config.get_bc().dev_mode())
 
+        # White balance is applied by the camera ISP
+        # Doesn't do anything in sensor raw modes
+        self.raw_mode = False
+        if self.ac is not None:
+            self.ac.captureFormatChanged.connect(self.capture_format_changed)
+            fmt = self.ac.vidpip.get_capture_format()
+            if fmt:
+                self.capture_format_changed(fmt)
+
+    def capture_format_changed(self, fmt):
+        from uscope.imager import pixel_format
+        self.raw_mode = pixel_format.is_raw(fmt)
+        self.update_wb_enabled()
+
+    def update_wb_enabled(self):
+        if self.raw_mode:
+            self.set_gui_driven(False,
+                                disp_names=[
+                                    PROP_DISP_AUTO_WB, PROP_DISP_WB_R,
+                                    PROP_DISP_WB_G, PROP_DISP_WB_B
+                                ])
+        else:
+            self.set_gui_driven(True, disp_names=[PROP_DISP_AUTO_WB])
+            self.set_gui_driven(
+                not self.auto_color_enabled(),
+                disp_names=[PROP_DISP_WB_R, PROP_DISP_WB_G, PROP_DISP_WB_B])
+
     def auto_exposure_enabled(self):
         return bool(self.disp_prop_read(PROP_DISP_AUTO_EXPOSURE))
 
@@ -109,7 +136,7 @@ class TTControlScroll(GstControlScroll):
                 disp_names=[PROP_DISP_EXPOSURE_TIME, PROP_DISP_EXPOSURE_GAIN])
         if name == PROP_DISP_AUTO_WB:
             self.set_gui_driven(
-                not value,
+                not value and not getattr(self, "raw_mode", False),
                 disp_names=[PROP_DISP_WB_R, PROP_DISP_WB_G, PROP_DISP_WB_B])
 
     def flatten_hack(self, val):

@@ -61,6 +61,62 @@ class GstGUIImager(Imager):
     def wh(self):
         return self.width, self.height
 
+    """
+    Capture pixel format
+    ex: 8 bit RGB vs 16 bit vs sensor raw
+    Negotiated with the source via gstreamer caps
+    """
+
+    def supported_capture_formats(self):
+        """
+        Formats the current camera can be switched to
+        Empty list if the source doesn't support switching
+        """
+        formats = self.ac.vidpip.imager_aplugin.supported_formats()
+        if not formats:
+            return []
+        # Filter out 16 bit formats on 8 bit cameras
+        max_bit_depth = None
+        source = self.ac.vidpip.source
+        if source is not None and source.find_property("max-bit-depth"):
+            try:
+                max_bit_depth = source.get_property("max-bit-depth")
+            except Exception:
+                max_bit_depth = None
+        if max_bit_depth and max_bit_depth <= 8:
+            from uscope.imager import pixel_format
+            formats = [f for f in formats if not pixel_format.is_16bit(f)]
+        return list(formats)
+
+    def get_capture_format(self):
+        """
+        Currently requested capture format (gstreamer format string)
+        None if the source doesn't support selecting it
+        """
+        return self.ac.vidpip.get_capture_format()
+
+    def set_capture_format(self, fmt):
+        """
+        Switch the capture pixel format
+        The camera is stopped, reconfigured and restarted by the source
+        Not allowed while a scan is running
+        Thread safe
+        """
+        # planner_thread is cleared when a scan completes
+        if self.ac.planner_thread is not None:
+            raise RuntimeError(
+                "Refusing to change capture format while scan is running")
+        if fmt not in self.supported_capture_formats():
+            raise ValueError(
+                f"Capture format {fmt} not supported by this camera. Supported: {self.supported_capture_formats()}"
+            )
+        if fmt == self.get_capture_format():
+            return
+        self.ac.vidpip.set_capture_format(fmt)
+        self.ac.microscope.log(f"Capture format: {fmt}")
+        # Let the GUI (menu, control scroll) follow along
+        self.ac.captureFormatChanged.emit(fmt)
+
     def next_captured_image(self, timeout=None):
         # WARNING: this must be thread safe / may be called from any context
         if timeout is None:
@@ -71,15 +127,31 @@ class GstGUIImager(Imager):
             self.image_id = image_id
             self.image_ready.set()
 
-        self.image_id = None
-        self.image_ready.clear()
-        self.ac.capture_sink.request_image(got_image)
-        # self.ac.emit_log('Waiting for next image...')
-        if not self.image_ready.wait(timeout=timeout):
-            raise ImageTimeout(
-                "Failed to get raw image within timeout %0.1f sec" %
-                (timeout, ))
-        # self.ac.emit_log('Got image %s' % self.image_id)
+        # Format we expect frames to arrive in
+        # None if the source doesn't negotiate formats (legacy sources)
+        want_format = self.get_capture_format()
+        tstart = time.time()
+        while True:
+            self.image_id = None
+            self.image_ready.clear()
+            self.ac.capture_sink.request_image(got_image)
+            # self.ac.emit_log('Waiting for next image...')
+            remaining = timeout - (time.time() - tstart)
+            if remaining <= 0 or not self.image_ready.wait(timeout=remaining):
+                raise ImageTimeout(
+                    "Failed to get raw image within timeout %0.1f sec" %
+                    (timeout, ))
+            # self.ac.emit_log('Got image %s' % self.image_id)
+            if want_format is None:
+                break
+            # After a capture format switch frames already in the pipeline
+            # (queues between the source and us) are still in the old format
+            # Discard them until the camera restarts in the new format
+            got_format = self.ac.capture_sink.get_image(
+                self.image_id).get("format")
+            if got_format is None or got_format == want_format:
+                break
+            self.ac.capture_sink.del_image(self.image_id)
         capim = self.ac.capture_sink.pop_captured_image(self.image_id)
         # best estimate for now
         # Ideally we'd pull this off of the image metadata coming over USB
@@ -513,6 +585,15 @@ class GstGUIImagerTS(Imager):
 
     def get_by_mode(self, *args, **kwargs):
         return self.imager.get_by_mode(*args, **kwargs)
+
+    def supported_capture_formats(self):
+        return self.imager.supported_capture_formats()
+
+    def get_capture_format(self):
+        return self.imager.get_capture_format()
+
+    def set_capture_format(self, *args, **kwargs):
+        return self.imager.set_capture_format(*args, **kwargs)
 
     def _set_properties(self, vals):
         # self.ac.control_scroll.set_disp_properties(vals)

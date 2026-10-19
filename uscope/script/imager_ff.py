@@ -2,6 +2,7 @@
 
 from uscope.gui.scripting import ArgusScriptingPlugin
 from uscope.util import datetime_file_str, LogToFile
+from uscope.imager import pixel_format
 
 import numpy as np
 import time
@@ -128,6 +129,14 @@ class Plugin(ArgusScriptingPlugin):
                 "values": ["Yes", "No"],
                 "default": "Yes"
             },
+            # Camera pixel format to capture in
+            # "Current" uses whatever the GUI has selected
+            # Sensor raw (GRAY16_LE) gives the truest flat field
+            "Capture format": {
+                "widget": "QComboBox",
+                "values": ["Current"] + list(pixel_format.FORMATS.keys()),
+                "default": "Current"
+            },
             "Fast": {
                 "widget": "QComboBox",
                 "values": ["Yes", "No"],
@@ -162,9 +171,50 @@ class Plugin(ArgusScriptingPlugin):
         autofocus=True,
         quick=False,
         fast=False,
+        capture_format=None,
     ):
+        """
+        capture_format: camera pixel format to switch to for the collection
+            None: leave as is
+            ex: "GRAY16_LE" for 16 bit sensor raw
+            Restored when done
+        """
         objective_config = self.get_objective_config()
         self.log(f"imager_ff, quick={quick}")
+
+        format_restore = None
+        if capture_format:
+            format_restore = self.imager_get_capture_format()
+            if capture_format == format_restore:
+                format_restore = None
+            else:
+                self.log(f"Capture format: {capture_format}")
+                self.imager_set_capture_format(capture_format)
+        try:
+            self._collect(output_directory=output_directory,
+                          overwrite=overwrite,
+                          origin=origin,
+                          raw=raw,
+                          autofocus=autofocus,
+                          quick=quick,
+                          fast=fast,
+                          objective_config=objective_config)
+        finally:
+            if format_restore:
+                self.log(f"Capture format: restoring {format_restore}")
+                self.imager_set_capture_format(format_restore)
+
+    def _collect(
+        self,
+        output_directory,
+        overwrite,
+        origin,
+        raw,
+        autofocus,
+        quick,
+        fast,
+        objective_config,
+    ):
         self.log("Using objective %s" % objective_config["name"])
         magnification = objective_config["magnification"]
 
@@ -238,6 +288,7 @@ class Plugin(ArgusScriptingPlugin):
             "objective": objective_config,
             "fast": fast,
             "raw": raw,
+            "capture_format": self.imager_get_capture_format(),
             "save_extension": save_extension,
             "moves": [],
         }
@@ -259,7 +310,9 @@ class Plugin(ArgusScriptingPlugin):
                 basename = "c%03u_r%03u%s" % (col, row, save_extension)
                 filename = os.path.join(image_dir, basename)
                 mode = "raw" if raw else "processed"
-                self.image(mode=mode, wait_imaging_ok=not fast).save(filename)
+                # CapturedImage.save() keeps full bit depth for .tif
+                self.image_captured(mode=mode,
+                                    wait_imaging_ok=not fast).save(filename)
                 self.log(f"Saved {filename}")
                 j["moves"].append({
                     "fn": basename,
@@ -284,6 +337,9 @@ class Plugin(ArgusScriptingPlugin):
         button = vals.get("button")
 
         task = button["value"]
+        capture_format = vals.get("Capture format", "Current")
+        if capture_format == "Current":
+            capture_format = None
         if task == "ff-target":
             # cal = get_cal(self._ac.microscope)
             # cal.fid70_go()
@@ -298,6 +354,7 @@ class Plugin(ArgusScriptingPlugin):
                 autofocus=vals.get("Autofocus") == "Yes",
                 raw=vals.get("Raw") == "Yes",
                 fast=vals.get("Fast") == "Yes",
+                capture_format=capture_format,
             )
         elif task == "collect_quick":
             self.collect(
@@ -306,6 +363,7 @@ class Plugin(ArgusScriptingPlugin):
                 raw=vals.get("Raw") == "Yes",
                 fast=vals.get("Fast") == "Yes",
                 quick=True,
+                capture_format=capture_format,
             )
         elif task == "analyze":
             analyze(in_dir=vals.get("Output directory", ""), log=self.log)

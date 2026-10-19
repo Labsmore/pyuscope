@@ -269,9 +269,10 @@ class ArgusScriptingPlugin(QThread):
         Should be returning like snapshot
 
         Modes:
-        -raw2 (future): low level sensor raw data
-            Not supported on all cameras
         -raw: as the data comes on the USB device
+            Pixel format follows imager_get_capture_format()
+            (8 bit RGB by default; 16 bit / sensor raw if selected)
+            Use image_captured() to get the native depth data
         -processed: system specific post processing
             A normal single "snpashot"
         -composite: include any advanced options active
@@ -593,6 +594,55 @@ class ArgusScriptingPlugin(QThread):
         Set an imager configuration as displayed in the GUI
         """
         self.imager().set_properties(properties)
+
+    def imager_supported_capture_formats(self):
+        """
+        Pixel formats this camera can capture in
+        gstreamer format strings, ex: ["RGB", "ARGB64", "GRAY16_LE", "GRAY8"]
+            RGB: 8 bit RGB (default)
+            ARGB64: 16 bit RGB
+            GRAY16_LE: 16 bit sensor raw (bayer mosaic, not demosaiced)
+            GRAY8: 8 bit sensor raw
+        Empty if the camera doesn't support switching
+        """
+        return self.imager().supported_capture_formats()
+
+    def imager_get_capture_format(self):
+        """
+        Current capture pixel format (see imager_supported_capture_formats)
+        """
+        return self.imager().get_capture_format()
+
+    def imager_set_capture_format(self, fmt, persist=False):
+        """
+        Switch the capture pixel format
+        The camera is briefly stopped and restarted (~1.5 sec). Exposure etc are kept
+        Returns immediately; the next image() waits for a frame in the new format
+
+        persist: also make this the user override (as Video => Capture format menu)
+            Default is a temporary change: wrap in try/finally to restore
+            the previous format when your script is done
+        """
+        self.check_running()
+        if persist:
+            self._ac.apply_capture_format_override(fmt)
+        else:
+            self.imager().set_capture_format(fmt)
+
+    def image_captured(self, wait_imaging_ok=True, mode=None):
+        """
+        Like image() but return the full CapturedImage object
+        Useful for 16 bit / raw captures where .data holds the native
+        depth numpy array, along with .pixel_format, .bit_depth, .bayer_pattern
+        .save(fn) writes full depth to .png / .tif, 8 bit otherwise
+        """
+        if mode is None:
+            mode = "processed"
+        assert mode in ("raw", "processed", "composite")
+        self.check_running()
+        if wait_imaging_ok:
+            self.wait_imaging_ok()
+        return self.imager().get_by_mode(mode=mode)
 
     """
     Plugin defined functions

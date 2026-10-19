@@ -175,6 +175,11 @@ class ArgusCommon(QObject):
     The low level format supported by config file
     """
     objectiveChanged = pyqtSignal(dict)
+    """
+    Capture pixel format was changed (gstreamer format string, ex: "RGB")
+    May be emitted from a non-GUI thread (ex: scripting)
+    """
+    captureFormatChanged = pyqtSignal(str)
 
     # pos = pyqtSignal(int)
 
@@ -184,6 +189,12 @@ class ArgusCommon(QObject):
         self.mw = mw
         self.tabs = {}
         self.logs = []
+        """
+        Capture format override
+        None: use microscope.j5 imager.format
+        str: user selected format (Video => Capture format), persisted per camera S/N
+        """
+        self.capture_format_override = None
 
         self.motion_thread = None
         self.planner_thread = None
@@ -434,9 +445,40 @@ class ArgusCommon(QObject):
     # TODO: refactor these into subsystem interface
     def cache_sn_save(self, cachej):
         self.microscope.cache_sn_save(cachej)
+        imagerj = cachej.setdefault("imager", {})
+        # Only persist an explicit override so that microscope.j5 changes
+        # take effect when the user hasn't picked something
+        if self.capture_format_override:
+            imagerj["format"] = self.capture_format_override
+        else:
+            imagerj.pop("format", None)
 
     def cache_sn_load(self, cachej):
         self.microscope.cache_sn_load(cachej)
+        fmt = cachej.get("imager", {}).get("format")
+        if fmt:
+            self.apply_capture_format_override(fmt, log_invalid=True)
+
+    def apply_capture_format_override(self, fmt, log_invalid=False):
+        """
+        Set (fmt is a format string) or clear (fmt is None) the capture format override
+        Switches the live pipeline accordingly
+        Returns True if applied
+        """
+        if self.imager is None:
+            return False
+        override = fmt
+        if fmt is None:
+            fmt = self.usc.imager.capture_format()
+        try:
+            self.imager.set_capture_format(fmt)
+        except (ValueError, RuntimeError) as e:
+            if log_invalid:
+                self.log(f"WARNING: ignoring capture format {fmt}: {e}")
+                return False
+            raise
+        self.capture_format_override = override
+        return True
 
     def init_imager(self):
         source = self.vidpip.source_name

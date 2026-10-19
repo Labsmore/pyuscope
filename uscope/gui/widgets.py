@@ -135,7 +135,7 @@ class AMainWindow(QMainWindow):
 
         # S/N specific
         cachej_sn = self.cache_get_set_sn_entry(cachej)
-        self.ac.microscope.cache_sn_save(cachej_sn)
+        self.ac.cache_sn_save(cachej_sn)
         self._cache_sn_save(cachej_sn)
         for awidget in self.awidgets.values():
             awidget.cache_sn_save(cachej_sn)
@@ -181,7 +181,7 @@ class AMainWindow(QMainWindow):
 
         # S/N specific
         cachej_sn = self.cache_get_set_sn_entry(cachej)
-        self.ac.microscope.cache_sn_load(cachej_sn)
+        self.ac.cache_sn_load(cachej_sn)
         self._cache_sn_load(cachej_sn)
         for awidget in self.awidgets.values():
             awidget.cache_sn_load(cachej_sn)

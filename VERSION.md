@@ -262,3 +262,16 @@
   * Web API tweaks
   * HDR flow improvements
   * Mock microscope improvements
+
+## 4.7.0
+  * Compatible with
+    * gst-plugin-toupcam: v0.7.0
+  * Calibration suite (cal/, uscope/calibration.py, uscope/script/cal_all.py etc)
+  * Capture pixel format: 8 bit RGB, 16 bit RGB, 8 / 16 bit sensor raw
+    * Negotiated with the camera through gstreamer caps
+    * Config: imager.format sets the default
+    * Argus: Video => Capture format overrides it (saved per camera S/N)
+    * Scripting: imager_set_capture_format(), image_captured() for native depth data
+    * CapturedImage.save() writes full depth .tif / .png
+    * Raw bayer pattern detected from the camera (accounts for crop / videoflip),
+      config imager.bayer_pattern overrides

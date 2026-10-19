@@ -370,6 +370,10 @@ class GstVideoPipeline:
         self.verbose = os.getenv("USCOPE_GSTWIDGET_VERBOSE") == "Y"
         self.videoflip = None
         self.setting_up = True
+        self.raw_capsfilter = None
+        # Requested source pixel format (gstreamer format string)
+        # None => don't constrain (source default)
+        self.capture_format = None
 
         if widget_configs is None:
             widget_configs = set()
@@ -547,6 +551,51 @@ class GstVideoPipeline:
     def remove_full_widget(self):
         assert 0, "FIXME"
 
+    def raw_caps(self):
+        """
+        Caps forced onto the source: resolution and (optionally) pixel format
+        """
+        raw_w, raw_h = self.ac.microscope.usc.imager.raw_wh()
+        s = "video/x-raw,width=%u,height=%u" % (raw_w, raw_h)
+        if self.capture_format:
+            s += ",format=%s" % self.capture_format
+        return Gst.Caps(s)
+
+    def set_capture_format(self, fmt):
+        """
+        Change the pixel format negotiated with the source
+        fmt: gstreamer format string (see uscope.imager.pixel_format)
+
+        Updating the capsfilter triggers renegotiation
+        The source (ex: toupcamsrc) reconfigures + restarts the camera
+        Safe to call from any thread (gstreamer properties are thread safe)
+        but shouldn't be called while a scan is running
+        """
+        from uscope.imager import pixel_format
+        pixel_format.validate(fmt)
+        supported = self.imager_aplugin.supported_formats()
+        if supported is None:
+            raise ValueError(
+                f"Source {self.source_name} does not support selecting pixel format"
+            )
+        if fmt not in supported:
+            raise ValueError(
+                f"Source {self.source_name} does not support format {fmt}")
+        if fmt == self.capture_format:
+            return
+        self.verbose and print("vidpip: capture format %s => %s" %
+                               (self.capture_format, fmt))
+        self.capture_format = fmt
+        if self.raw_capsfilter is not None:
+            self.raw_capsfilter.props.caps = self.raw_caps()
+
+    def get_capture_format(self):
+        """
+        Pixel format requested from the source
+        None if not constrained (source default)
+        """
+        return self.capture_format
+
     def prepareSource(self, properties={}):
         # Must not be initialized until after layout is set
         # print(source)
@@ -672,9 +721,12 @@ class GstVideoPipeline:
         self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")
         # Select the correct resolution from the camera
         # This is pre-crop so it must be the actual resolution
-        raw_w, raw_h = self.ac.microscope.usc.imager.raw_wh()
-        self.raw_capsfilter.props.caps = Gst.Caps(
-            "video/x-raw,width=%u,height=%u" % (raw_w, raw_h))
+        # Also selects the pixel format (8 bit RGB, 16 bit, raw, ...)
+        # if the source supports it
+        if self.imager_aplugin.supported_formats() is not None:
+            self.capture_format = self.ac.microscope.usc.imager.capture_format(
+            )
+        self.raw_capsfilter.props.caps = self.raw_caps()
         self.link_next_raw_element(self.raw_capsfilter)
 
         # Hack to use a larger than needed camera sensor

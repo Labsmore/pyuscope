@@ -16,7 +16,56 @@ gi.require_version('GstVideo', '1.0')
 from gi.repository import Gst
 
 Gst.init(None)
-from gi.repository import GstBase, GObject
+from gi.repository import GstBase, GObject, GstVideo
+
+
+def caps_video_info(caps):
+    """
+    Summarize video/x-raw caps as a dict
+    format: gstreamer format string (ex: "RGB")
+    width, height
+    stride: bytes per row of plane 0
+    size: total frame bytes
+
+    Returns None if caps aren't fixed raw video
+    """
+    if caps is None or not caps.is_fixed():
+        return None
+    s = caps.get_structure(0)
+    if s.get_name() != "video/x-raw":
+        return None
+    fmt = s.get_string("format")
+    ok_w, width = s.get_int("width")
+    ok_h, height = s.get_int("height")
+    if not (fmt and ok_w and ok_h):
+        return None
+    ret = {
+        "format": fmt,
+        "width": width,
+        "height": height,
+        "stride": None,
+        "size": None,
+    }
+    # Prefer letting gstreamer compute padding / strides
+    # Newer pygobject: VideoInfo.new_from_caps() (from_caps() raises NotImplementedError)
+    # Older (ex: Ubuntu 20.04): VideoInfo().from_caps()
+    vinfo = None
+    try:
+        if hasattr(GstVideo.VideoInfo, "new_from_caps"):
+            vinfo = GstVideo.VideoInfo.new_from_caps(caps)
+    except Exception:
+        vinfo = None
+    if vinfo is None:
+        try:
+            vinfo = GstVideo.VideoInfo()
+            if not vinfo.from_caps(caps):
+                vinfo = None
+        except Exception:
+            vinfo = None
+    if vinfo is not None:
+        ret["stride"] = vinfo.stride[0]
+        ret["size"] = vinfo.size
+    return ret
 
 
 class CbSink(GstBase.BaseSink):
@@ -34,9 +83,15 @@ class CbSink(GstBase.BaseSink):
     def __init__(self, *args, **kwargs):
         GstBase.BaseSink.__init__(self, *args, **kwargs)
         self.cb = None
+        # Most recently negotiated input caps summary (see caps_video_info)
+        self.video_info = None
 
     def set_cb(self, cb):
         self.cb = cb
+
+    def do_set_caps(self, caps):
+        self.video_info = caps_video_info(caps)
+        return True
 
     """
         # self.sinkpad.set_chain_function(self.chainfunc)
@@ -115,10 +170,31 @@ class CaptureSink(CbSink):
         image_dict = self.images_actual[image_id]
         del self.images_actual[image_id]
         #self.verbose and print("bytes", len(buf), 'w', width, 'h', height)
-        return CapturedImage(
-            image=self.ac.vidpip.imager_aplugin.gst_decode_image(image_dict),
-            meta=image_dict["meta"],
-            microscope=self.ac.microscope)
+        aplugin = self.ac.vidpip.imager_aplugin
+        # Let the source plugin annotate (ex: sensor bit depth, bayer pattern)
+        aplugin.gst_frame_meta(image_dict)
+        decoded = aplugin.gst_decode_image(image_dict)
+        # Legacy plugins return a bare PIL image
+        if isinstance(decoded, tuple):
+            image, data = decoded
+        else:
+            image, data = decoded, None
+        return CapturedImage(image=image,
+                             meta=image_dict["meta"],
+                             microscope=self.ac.microscope,
+                             data=data,
+                             pixel_format=image_dict.get("format"),
+                             bit_depth=image_dict.get("bit_depth"),
+                             bayer_pattern=image_dict.get("bayer_pattern"))
+
+    def capture_format(self):
+        """
+        gstreamer format string of the most recently negotiated frames
+        None if not yet negotiated
+        """
+        if self.video_info is None:
+            return None
+        return self.video_info["format"]
 
     '''
     gstreamer plugin core methods
@@ -151,10 +227,15 @@ class CaptureSink(CbSink):
                     assert 0, "FIXME"
                 """
 
+                # Negotiated caps are authoritative when available
+                vi = self.video_info or {}
                 self.images_actual[self.next_image_id] = {
                     "bytes": bytearray(buffer),
-                    "width": self.width,
-                    "height": self.height,
+                    "width": vi.get("width", self.width),
+                    "height": vi.get("height", self.height),
+                    # None => source plugin's legacy default
+                    "format": vi.get("format"),
+                    "stride": vi.get("stride"),
                     "meta": self.meta
                 }
                 #                                          "source_type": self.source_type}

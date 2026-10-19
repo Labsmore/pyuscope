@@ -204,5 +204,19 @@ def toupcamsrc_info():
         "BitsPerPixel": BitsPerPixel,
     }
     options["PIXEL_FORMAT"] = j
+    """
+    Plugin 0.7.0+
+      Formats(): { (string)RGB, (string)ARGB64, (string)GRAY16_LE, (string)GRAY8 }
+    gstreamer caps formats the camera can be negotiated to
+    """
+    ret["Formats"] = None
+    for l in lines:
+        m = re.match(r"[ ]+Formats\(\): (.+)", l)
+        if m:
+            # Also tolerate a single non-list value and no type prefix
+            ret["Formats"] = re.findall(
+                r"[A-Za-z][A-Za-z0-9_]*",
+                m.group(1).replace("(string)", ""))
+            break
 
     return ret

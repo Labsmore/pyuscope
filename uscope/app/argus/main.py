@@ -304,6 +304,7 @@ class MainWindow(AMainWindow):
             videoMenu.addAction(self.enableRtspServer)
             self.enableRtspServer.triggered.connect(
                 self.enableRtspServerTriggered)
+        self.createCaptureFormatMenu(videoMenu)
 
         motionMenu = menuBar.addMenu("Motion")
         # Some people prefer perspective of moving camera, some prefer moving stage
@@ -338,6 +339,73 @@ class MainWindow(AMainWindow):
         self.exitAction.triggered.connect(self.close)
         self.helpContentAction.triggered.connect(self.helpContent)
         self.aboutAction.triggered.connect(self.about)
+
+    def createCaptureFormatMenu(self, videoMenu):
+        """
+        Video => Capture format
+        Select the pixel format negotiated with the camera (8 bit RGB, 16 bit, raw)
+        Overrides microscope.j5 imager.format and persists per camera S/N
+        Only shown if the source supports more than one format
+        """
+        from uscope.imager import pixel_format
+
+        self.captureFormatMenu = None
+        self.captureFormatActions = {}
+        formats = self.ac.vidpip.imager_aplugin.supported_formats()
+        if not formats or len(formats) < 2:
+            return
+
+        self.captureFormatMenu = videoMenu.addMenu("Capture format")
+        self.captureFormatGroup = QActionGroup(self)
+        self.captureFormatGroup.setExclusive(True)
+        for fmt in formats:
+            action = QAction(pixel_format.label(fmt), self, checkable=True)
+            action.setData(fmt)
+            self.captureFormatGroup.addAction(action)
+            self.captureFormatMenu.addAction(action)
+            self.captureFormatActions[fmt] = action
+        self.captureFormatGroup.triggered.connect(
+            self.captureFormatTriggered)
+        self.captureFormatMenu.addSeparator()
+        self.captureFormatDefault = QAction("Use microscope default", self)
+        self.captureFormatMenu.addAction(self.captureFormatDefault)
+        self.captureFormatDefault.triggered.connect(
+            self.captureFormatDefaultTriggered)
+
+        self.ac.captureFormatChanged.connect(self.captureFormatChanged)
+
+    def captureFormatPostUiInit(self):
+        """
+        Camera is now running: reflect what it actually supports
+        """
+        if not self.captureFormatMenu:
+            return
+        supported = self.ac.imager.supported_capture_formats()
+        for fmt, action in self.captureFormatActions.items():
+            action.setEnabled(fmt in supported)
+        self.captureFormatChanged(self.ac.imager.get_capture_format())
+
+    def captureFormatChanged(self, fmt):
+        if not self.captureFormatMenu:
+            return
+        for afmt, action in self.captureFormatActions.items():
+            action.setChecked(afmt == fmt)
+
+    def captureFormatTriggered(self, action):
+        fmt = action.data()
+        try:
+            self.ac.apply_capture_format_override(fmt)
+        except (ValueError, RuntimeError) as e:
+            self.ac.log(f"Failed to set capture format {fmt}: {e}")
+            # Snap menu back to reality
+            self.captureFormatChanged(self.ac.imager.get_capture_format())
+
+    def captureFormatDefaultTriggered(self):
+        try:
+            self.ac.apply_capture_format_override(None)
+        except (ValueError, RuntimeError) as e:
+            self.ac.log(f"Failed to restore default capture format: {e}")
+        self.captureFormatChanged(self.ac.imager.get_capture_format())
 
     def close(self):
         pass
@@ -426,6 +494,8 @@ class MainWindow(AMainWindow):
         # Tabs
         for tab in self.awidgets.values():
             tab.post_ui_init()
+
+        self.captureFormatPostUiInit()
 
         self.poll_timer = QTimer()
         self.poll_timer.setSingleShot(False)

@@ -56,5 +56,27 @@ class ArgusGstImagerPlugin(ArgusImagerPlugin):
     def get_imager(self):
         return GstGUIImager(self.ac)
 
+    def supported_formats(self):
+        """
+        gstreamer video/x-raw format strings this source can be negotiated to
+        (see uscope.imager.pixel_format)
+        Return None if the source doesn't support selecting the format,
+        in which case the pipeline won't constrain it
+        """
+        return None
+
+    def gst_frame_meta(self, image_dict):
+        """
+        Optionally annotate a captured frame dict before decoding
+        ex: add "bit_depth" / "bayer_pattern" for raw captures
+        Called in the requesting thread, not the gstreamer streaming thread
+        """
+        pass
+
     def gst_decode_image(self, image_dict):
+        """
+        Decode a captured frame dict (see CaptureSink) into either
+        -a PIL RGB image (legacy)
+        -(PIL RGB image, native depth numpy array or None)
+        """
         assert 0, "Required"

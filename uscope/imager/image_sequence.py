@@ -1,3 +1,4 @@
+import os
 import threading
 from PIL import Image
 """
@@ -7,16 +8,64 @@ However EXIF and stuff isn't written until end in some API contexts
 
 
 class CapturedImage:
-    def __init__(self, image, meta=None, exif_bytes=None, microscope=None):
+    """
+    image: 8 bit RGB PIL image. Always present so legacy consumers work
+    data: optional numpy array holding the native depth / raw pixels when the
+        capture pixel format is something other than 8 bit RGB
+        ex: (h, w, 3) uint16 for 16 bit RGB, (h, w) uint16 for 16 bit sensor raw
+    pixel_format: gstreamer format name the frame was captured as (ex: "RGB", "GRAY16_LE")
+    bit_depth: significant bits per sample in data (ex: 12). None if unknown
+    bayer_pattern: ex "RGGB" for raw captures from a color camera
+    """
+    def __init__(self,
+                 image,
+                 meta=None,
+                 exif_bytes=None,
+                 microscope=None,
+                 data=None,
+                 pixel_format=None,
+                 bit_depth=None,
+                 bayer_pattern=None):
         self.image = image
         self.meta = meta
         self.exif_bytes = exif_bytes
         self.microscope = microscope
+        self.data = data
+        self.pixel_format = pixel_format
+        self.bit_depth = bit_depth
+        self.bayer_pattern = bayer_pattern
+
+    def has_data(self):
+        """
+        True if there is native depth data beyond the 8 bit RGB image
+        """
+        return self.data is not None
 
     def save(self, fn, **kwargs):
+        """
+        Save the image
+        If native depth data is present and the format supports it
+        (.png, .tif, .tiff) the full depth data is written
+        Otherwise the 8 bit RGB image is written
+        """
+        if self.data is not None and self._save_data(fn, **kwargs):
+            return
         if self.exif_bytes is not None:
             kwargs["exif"] = self.exif_bytes
         self.image.save(fn, **kwargs)
+
+    def _save_data(self, fn, **kwargs):
+        ext = os.path.splitext(fn)[1].lower()
+        if ext not in (".png", ".tif", ".tiff"):
+            return False
+        import cv2
+        data = self.data
+        if data.ndim == 3:
+            # OpenCV wants BGR
+            data = data[:, :, ::-1]
+        if not cv2.imwrite(fn, data):
+            raise IOError(f"Failed to write {fn}")
+        return True
 
     def set_meta(self, meta):
         self.meta = meta

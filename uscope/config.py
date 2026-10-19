@@ -226,6 +226,21 @@ class USCImager:
         """
         return self.j.get("source_properties", {})
 
+    def capture_format(self):
+        """
+        Default pixel format to negotiate with the camera
+        gstreamer video/x-raw format string, see uscope.imager.pixel_format
+            RGB: 8 bit RGB (default)
+            ARGB64: 16 bit RGB
+            GRAY16_LE: 16 bit sensor raw (bayer mosaic)
+            GRAY8: 8 bit sensor raw
+        Only supported by some sources (ex: gst-toupcamsrc)
+        Argus can override this at runtime (Video => Capture format)
+        """
+        from uscope.imager import pixel_format
+        return pixel_format.validate(
+            self.j.get("format", pixel_format.DEFAULT_FORMAT))
+
     def source_properties_mod(self):
         """
         A way to change ranges based on application specific environments
@@ -277,6 +292,21 @@ class USCImager:
 
     def videoflip_method(self):
         return self.j.get("videoflip_method", None)
+
+    def bayer_pattern(self):
+        """
+        Optional override of the sensor's raw bayer pattern
+        (row-major, as delivered by the gstreamer source, before crop / flip)
+        One of RGGB, BGGR, GRBG, GBRG
+        Normally detected from the camera; set this if detection is wrong
+        """
+        ret = self.j.get("bayer_pattern", None)
+        if ret is None:
+            return None
+        ret = str(ret).upper()
+        if ret not in ("RGGB", "BGGR", "GRBG", "GBRG"):
+            raise ValueError("Invalid imager.bayer_pattern: %s" % (ret, ))
+        return ret
 
     def cal_fn_data(self):
         return os.path.join(self.microscope.usc.get_microscope_data_dir(),

@@ -8,6 +8,7 @@ import sys
 import traceback
 import os
 import signal
+import faulthandler
 from collections import OrderedDict
 from uscope.imager.plugins.aplugins import get_imager_aplugin
 from uscope import util
@@ -1068,6 +1069,8 @@ def gstwidget_main(AQMainWindow, parse_args=default_parse_args):
     sys.excepthook = excepthook
     # Exit on ^C instead of ignoring
     signal.signal(signal.SIGINT, signal.SIG_DFL)
+    # Debug aid for hangs: kill -USR1 <pid> dumps all Python thread stacks
+    faulthandler.register(signal.SIGUSR1, all_threads=True)
 
     # GObject.threads_init() has been a no-op since PyGObject 3.11
     # and is removed in newer versions

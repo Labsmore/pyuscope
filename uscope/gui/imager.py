@@ -156,7 +156,7 @@ class GUIImagerBase(Imager):
             capim = processed["captured_image"]
             if capim is None:
                 raise Exception("failed to process image: no result")
-            capim.meta["objective_config"] = options["objective_config"]
+            capim.set_meta_kv("objective_config", options["objective_config"])
             return capim
 
     def get_composite(self, **kwargs):
@@ -435,7 +435,8 @@ class CompositeImageGrabber:
             if len(out_fn) != 1:
                 raise Exception(
                     "Expected exactly one image (image processing failed?)")
-            capim = CapturedImage.load(out_fn)
+            capim = CapturedImage.load(out_fn[0],
+                                       microscope=self.ac.microscope)
             # Now save it and/or return it
             if save_filename is not None:
                 # XXX: might re-compress things

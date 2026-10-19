@@ -171,6 +171,8 @@ class Planner:
 
     def shutdown_request(self, phase):
         self.running = False
+        # Don't stay stuck in wait_unpaused()
+        self.unpause()
 
     def shutdown_join(self):
         pass

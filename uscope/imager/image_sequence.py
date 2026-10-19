@@ -85,7 +85,11 @@ class CapturedImage:
 
     @staticmethod
     def load(fn, microscope=None):
-        with open(fn[0], "rb") as f:
+        # Historically took a glob() result
+        if isinstance(fn, (list, tuple)):
+            assert len(fn) == 1, fn
+            fn = fn[0]
+        with open(fn, "rb") as f:
             im_out = Image.open(f)
             im_out.load()
             return CapturedImage(image=im_out, microscope=microscope)

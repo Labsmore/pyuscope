@@ -42,7 +42,6 @@ defaults = {
 """
 
 # microscope.j5
-usj = None
 usc = None
 """
 Calibration broken out into separate file to allow for easier/safer frequent updates
@@ -1031,55 +1030,6 @@ class USC:
         for k, v in scalars_scalar.items():
             scalars[k] = scalars[k] * v
         return scalars
-
-
-def validate_usj(usj):
-    """
-    Load all config parameters and ensure they appear to be valid
-
-    strict
-        True:
-            Error on any keys not matching a valid directive
-            If possible, error on duplicate keys
-        False
-            Allow keys like "!motion" to effectively comment a section out
-    XXX: is there a generic JSON schema system?
-    """
-    # Good approximation for now
-    axes = "xyz"
-    usc = USC(usj=usj)
-
-    # Imager
-    usc.imager.source()
-    usc.imager.raw_wh()
-    usc.imager.cropped_wh()
-    usc.imager.crop_tblr()
-    usc.imager.source_properties()
-    usc.imager.source_properties_mod()
-    usc.imager.scalar()
-    usc.imager.save_extension()
-    usc.imager.save_quality()
-
-    # Motion
-    usc.motion.set_axes_meta(axes)
-    # In case a plugin is registered validate here?
-    usc.motion.hal()
-    usc.motion.scalars()
-    usc.motion.backlash()
-    usc.motion.backlash_compensation()
-    usc.motion.origin()
-    usc.motion.soft_limits()
-
-    # Planner
-    usc.planner.step()
-    usc.planner.border()
-    usc.planner.tsettle_motion()
-    usc.planner.tsettle_hdr()
-
-
-def set_usj(j):
-    global usj
-    usj = j
 
 
 def get_configs_dir():

@@ -6,7 +6,7 @@ plannerj: planner configuration JSON. Written to disk
 """
 
 from uscope.planner.planner_util import get_planner
-import threading
+from uscope.threads import SimpleThread
 
 
 class PlannerThreadBase:
@@ -17,11 +17,6 @@ class PlannerThreadBase:
 
     def log(self, msg=""):
         print(msg)
-
-    def setRunning(self, running):
-        planner = self.planner
-        if planner:
-            planner.setRunning(running)
 
     def is_paused(self):
         if self.planner:
@@ -40,10 +35,11 @@ class PlannerThreadBase:
         if self.planner:
             self.planner.shutdown_request(phase)
 
-    def shutdown_join(self):
+    def shutdown_join(self, timeout=3.0):
         if self.planner:
             self.planner.shutdown_join()
-        super().shutdown_join()
+        # Thread implementation (QThread / threading.Thread mixin)
+        super().shutdown_join(timeout=timeout)
 
     def run(self):
         self.planner = get_planner(log=self.log, **self.planner_args)
@@ -51,5 +47,9 @@ class PlannerThreadBase:
         self.planner.run()
 
 
-class SimplePlannerThread(PlannerThreadBase, threading.Thread):
-    pass
+class SimplePlannerThread(PlannerThreadBase, SimpleThread):
+    def __init__(self, planner_args, progress_cb):
+        SimpleThread.__init__(self)
+        PlannerThreadBase.__init__(self,
+                                   planner_args=planner_args,
+                                   progress_cb=progress_cb)

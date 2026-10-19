@@ -136,7 +136,7 @@ class CaptureSink(CbSink):
         # Protects pending requests and the image buffer
         # Requests come from arbitrary threads (planner, scripting, GUI)
         # while frames arrive in the gstreamer streaming thread
-        self.lock = threading.Lock()
+        self._capture_lock = threading.Lock()
         # [(cb, meta), ...] waiting for the next frame
         self.pending = []
         self.next_image_id = 0
@@ -155,22 +155,22 @@ class CaptureSink(CbSink):
         NOTE: callback executes in gstreamer thread context
         It does not (necessarily) execute in main thread
         '''
-        with self.lock:
+        with self._capture_lock:
             self.pending.append((cb, meta))
 
     def get_image(self, image_id):
         '''Fetch the image but keep it in the buffer'''
-        with self.lock:
+        with self._capture_lock:
             return self.images_actual[image_id]
 
     def del_image(self, image_id):
         '''Delete image in buffer'''
-        with self.lock:
+        with self._capture_lock:
             del self.images_actual[image_id]
 
     def pop_captured_image(self, image_id):
         '''Fetch the image and delete it form the buffer'''
-        with self.lock:
+        with self._capture_lock:
             image_dict = self.images_actual.pop(image_id)
         #self.verbose and print("bytes", len(buf), 'w', width, 'h', height)
         aplugin = self.ac.vidpip.imager_aplugin
@@ -215,7 +215,7 @@ class CaptureSink(CbSink):
             # Grab all outstanding requests
             # Done before storing so that a callback can re-request
             # and get the *next* frame rather than this one
-            with self.lock:
+            with self._capture_lock:
                 if not self.pending:
                     return
                 pending = self.pending

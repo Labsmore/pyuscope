@@ -61,21 +61,26 @@ def host_architecture():
     ).strip()
 
 
+def os_release():
+    values = {}
+    try:
+        lines = Path("/etc/os-release").read_text().splitlines()
+    except OSError as error:
+        raise SystemExit(f"Could not read /etc/os-release: {error}")
+    for line in lines:
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        parsed = shlex.split(value)
+        values[key] = parsed[0] if parsed else ""
+    return values
+
+
 def distribution_tag(override=None):
     if override:
         tag = override
     else:
-        values = {}
-        try:
-            lines = Path("/etc/os-release").read_text().splitlines()
-        except OSError as error:
-            raise SystemExit(f"Could not read /etc/os-release: {error}")
-        for line in lines:
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            parsed = shlex.split(value)
-            values[key] = parsed[0] if parsed else ""
+        values = os_release()
         distribution = values.get("ID")
         release = values.get("VERSION_ID")
         if not distribution or not release:
@@ -100,6 +105,30 @@ def project_version():
     if not match:
         raise SystemExit("Could not determine version from pyproject.toml")
     return match.group(1)
+
+
+def git_build_info():
+    commit = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+    ).strip()
+    branch = subprocess.check_output(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=ROOT,
+        text=True,
+    ).strip()
+    if branch == "HEAD":
+        branch = "(detached)"
+    tags = subprocess.check_output(
+        ["git", "tag", "--points-at", "HEAD"], cwd=ROOT, text=True
+    ).splitlines()
+    dirty = bool(
+        subprocess.check_output(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=ROOT,
+            text=True,
+        ).strip()
+    )
+    return commit, branch, ", ".join(tags) if tags else "none", dirty
 
 
 def copy_release_sources(destination):
@@ -181,6 +210,8 @@ def main():
         )
 
     distribution = distribution_tag(args.distribution_tag)
+    build_os = os_release().get("PRETTY_NAME", "unknown")
+    git_commit, git_branch, git_tag, git_dirty = git_build_info()
     upstream_version = project_version()
     version = f"{upstream_version}+{distribution}"
     output_dir = args.output_dir.expanduser().resolve()
@@ -224,21 +255,6 @@ def main():
         write_text(
             bin_dir / "pyuscope-argus", launcher("app/argus.py"), 0o755
         )
-        write_text(
-            bin_dir / "pyuscope-planner",
-            launcher("app/planner.py"),
-            0o755,
-        )
-        write_text(
-            bin_dir / "pyuscope-planner-ngc",
-            launcher("app/planner_ngc.py"),
-            0o755,
-        )
-        write_text(
-            bin_dir / "pyuscope-gst-cli",
-            launcher("app/gst_cli.py"),
-            0o755,
-        )
 
         write_text(
             package_root / "DEBIAN" / "control",
@@ -247,6 +263,11 @@ Version: {version}
 Section: science
 Priority: optional
 Architecture: {architecture}
+X-Build-OS: {build_os}
+X-Git-Commit: {git_commit}
+X-Git-Tag: {git_tag}
+X-Git-Branch: {git_branch}
+X-Git-Dirty: {"yes" if git_dirty else "no"}
 Depends: python3, python3-gi, python3-gst-1.0, python3-pygame, python3-pyqt5, gir1.2-gstreamer-1.0, gir1.2-gst-plugins-base-1.0, gir1.2-gst-rtsp-server-1.0, libgstrtspserver-1.0-0, libzbar0, gstreamer1.0-tools, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, imagemagick
 Suggests: gstreamer1.0-toupcam
 Maintainer: pyuscope maintainers <john@labsmore.com>

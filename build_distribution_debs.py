@@ -2,6 +2,7 @@
 """Build pyuscope Debian packages for supported distributions."""
 
 import argparse
+import io
 import os
 import platform
 import shutil
@@ -244,6 +245,14 @@ def one_package(pattern, description):
     return matches[0]
 
 
+def package_field(package, field):
+    value = subprocess.check_output(
+        ["dpkg-deb", "--field", package, field],
+        text=True,
+    ).strip()
+    return value or "unknown"
+
+
 def create_release_bundle(output_dir, distribution, architecture):
     pyuscope_deb = one_package(
         output_dir / f"pyuscope_*+{distribution}_{architecture}.deb",
@@ -270,12 +279,54 @@ def create_release_bundle(output_dir, distribution, architecture):
             f"{distribution} {architecture}, found {len(candidates)}"
         )
     gst_deb, sdk_deb = candidates[0]
+    git_commit = package_field(pyuscope_deb, "X-Git-Commit")
+    git_tag = package_field(pyuscope_deb, "X-Git-Tag")
+    git_branch = package_field(pyuscope_deb, "X-Git-Branch")
+    git_dirty = package_field(pyuscope_deb, "X-Git-Dirty")
+    sdk_version = package_field(sdk_deb, "Version")
+    build_os = package_field(pyuscope_deb, "X-Build-OS")
 
     bundle_path = pyuscope_deb.with_suffix(".tar.gz")
     if bundle_path.exists():
         bundle_path.unlink()
     bundle_directory = bundle_path.name[: -len(".tar.gz")]
+    readme = f"""# pyuscope {pyuscope_deb.name}
+
+This release bundle contains pyuscope, the Toupcam SDK, and the matching
+GStreamer Toupcam plugin for {distribution} ({architecture}).
+
+## Installation
+
+Extract this archive, enter the extracted directory, and install all packages
+with APT:
+
+    sudo apt update
+    sudo apt install ./*.deb
+
+APT installs the local packages and downloads their system dependencies.
+Using `dpkg -i` directly is not recommended because dpkg does not resolve
+dependencies.
+
+## Build information
+
+- Git hash: `{git_commit}`
+- Git tag: `{git_tag}`
+- Branch: `{git_branch}`
+- Git dirty: `{git_dirty}`
+- Toupcam SDK version: `{sdk_version}`
+- Architecture: `{architecture}`
+- Build OS: {build_os}
+"""
     with tarfile.open(bundle_path, "w:gz") as archive:
+        readme_bytes = readme.encode()
+        readme_info = tarfile.TarInfo(f"{bundle_directory}/README.md")
+        readme_info.size = len(readme_bytes)
+        readme_info.mode = 0o644
+        archive.addfile(readme_info, io.BytesIO(readme_bytes))
+        archive.add(
+            ROOT / "VERSION.md",
+            arcname=f"{bundle_directory}/VERSION.md",
+        )
         for package in (pyuscope_deb, gst_deb, sdk_deb):
             archive.add(
                 package,

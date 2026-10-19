@@ -44,8 +44,7 @@ Build only a pyuscope package for the current distribution:
     ./build_deb.py
 
 The package installs pyuscope and its private Python environment under
-`/opt/pyuscope`. It provides `pyuscope`, `pyuscope-argus`,
-`pyuscope-planner`, `pyuscope-planner-ngc`, and `pyuscope-gst-cli` commands.
+`/opt/pyuscope`. It provides the `pyuscope` and `pyuscope-argus` commands.
 Package versions include the build distribution, for example
 `pyuscope_4.6.0+ubuntu24.04_amd64.deb`.
 

@@ -312,7 +312,7 @@ else
 fi
 
 "${sudo_command[@]}" apt-get update
-"${sudo_command[@]}" apt-get install -y "${packages[@]}"
+"${sudo_command[@]}" apt-get install -y --reinstall "${packages[@]}"
 """
     readme = f"""# pyuscope {pyuscope_deb.name}
 
@@ -328,7 +328,7 @@ Extract this archive, enter the extracted directory, and run:
 Alternatively, install all packages manually with APT:
 
     sudo apt update
-    sudo apt install ./*.deb
+    sudo apt install --reinstall ./*.deb
 
 APT installs the local packages and downloads their system dependencies.
 Using `dpkg -i` directly is not recommended because dpkg does not resolve

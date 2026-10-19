@@ -1442,7 +1442,8 @@ class ImagingTaskWidget(AWidget):
         self.log_fd_scan = None
 
         self.ac.planner_thread = None
-        last_scan_config = self.current_planner_hconfig
+        # May be None if setup failed before a config was selected
+        last_scan_config = self.current_planner_hconfig or {}
         self.current_planner_hconfig = None
         self.planner_progress_cache = None
 

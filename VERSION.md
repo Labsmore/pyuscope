@@ -275,3 +275,18 @@
     * CapturedImage.save() writes full depth .tif / .png
     * Raw bayer pattern detected from the camera (accounts for crop / videoflip),
       config imager.bayer_pattern overrides
+  * Reliability
+    * Worker threads: exceptions propagate to callers instead of being returned
+      as values, a crashed motion thread fails pending commands instead of
+      hanging them, soft limit violations reach the planner
+    * GRBL: wait_idle() / stop() are bounded and raise GrblAlarm on alarm,
+      retry off by one fixed, emergency stop only sends realtime jog cancel
+    * Planner: scan_abort() plugin hook restores HDR properties on stop / crash,
+      drift clamp fix, dry run path works without hardware
+    * Imager: capture requests serialized (no lost / cross wired images),
+      capture retry capped, auto exposure guards div by zero / runaway steps
+    * Argus: clean exit with secondary windows open, SIGUSR1 dumps all thread
+      stacks (debug hangs), best effort motion stop before hard exit
+    * Misc crash fixes (subsystem cache store, config lookups, mock HAL jogging)
+    * ruff lint config, test/unit/test_mock.py headless suite, hardware tests
+      gated behind TEST_GRBL=Y

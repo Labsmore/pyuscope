@@ -1,6 +1,6 @@
 from uscope.motion.plugins import get_motion_hal
 from uscope.motion.hal import AxisExceeded, MotionHAL, MotionCritical
-from uscope.threads import CommandThreadBase
+from uscope.threads import CommandThreadBase, CommandThreadDead, SimpleThread
 
 import threading
 import queue
@@ -17,12 +17,19 @@ TODO: should block?
 
 
 class MotionThreadMotion(MotionHAL):
+    """
+    MotionHAL that proxies to the real HAL owned by a motion thread
+    Safe to use from any thread (ex: planner)
+
+    The modifier pipeline (scaling, backlash, soft limits) is applied by the
+    real HAL in the motion thread, so none is configured here
+    """
     def __init__(self, mt):
         self.mt = mt
         MotionHAL.__init__(self,
                            log=mt.motion.log,
                            verbose=mt.motion.verbose,
-                           microscope=self.mt.ac.microscope)
+                           microscope=self.mt.microscope)
 
         # Don't re-apply pipeline (scaling, etc)
         self.configure({})
@@ -30,7 +37,21 @@ class MotionThreadMotion(MotionHAL):
     def axes(self):
         return self.mt.motion.axes()
 
-    def home(self, axes):
+    def _get_steps_per_mm(self):
+        # Mirror the real HAL so that epsilon() etc agree
+        return dict(self.mt.motion._steps_per_mm)
+
+    def _get_machine_limits(self):
+        limits = self.mt.motion.get_machine_limits()
+        return {
+            "mins": dict(limits.get("mins", {})),
+            "maxs": dict(limits.get("maxs", {})),
+        }
+
+    def get_soft_limits(self):
+        return self.mt.motion.get_soft_limits()
+
+    def home(self, force=False):
         self.mt.home(block=True)
 
     def _move_absolute(self, pos):
@@ -57,12 +78,13 @@ class MotionThreadMotion(MotionHAL):
         self.mt.backlash_enable(block=True)
 
     def _get_max_velocities(self):
-        return self.mt.motion.get_max_velocities()
+        # Copy: cache_constants() munges the dict in place
+        return dict(self.mt.motion.get_max_velocities())
 
     def _get_max_accelerations(self):
-        return self.mt.motion.get_max_accelerations()
+        return dict(self.mt.motion.get_max_accelerations())
 
-    def jog_rel(self, pos, rate):
+    def jog_rel(self, pos, rate, **kwargs):
         return self.mt.jog_rel(pos, rate)
 
     def jog_cancel(self):
@@ -72,9 +94,9 @@ class MotionThreadMotion(MotionHAL):
         return self.mt.apply_damper(damper)
 
     def command(self, command):
-        return self.mt.mdi(command)
+        return self.mt.mdi(command, block=True)
 
-    def system_status_ts(self, status):
+    def system_status_ts(self, root_status, status):
         # FIXME: this won't handle jogging quite correctly
         status["idle"] = self.mt.idle.is_set()
 
@@ -170,12 +192,7 @@ class MotionThreadBase(CommandThreadBase):
         if self.microscope.bc.check_threads():
             print("Motion thread init (main thread): %s" %
                   (threading.get_ident(), ))
-        self.verbose = False
-        self.queue = queue.Queue()
         self.motion = None
-        self.running = threading.Event()
-        self.idle = threading.Event()
-        self.idle.set()
         self.normal_running = threading.Event()
         self.normal_running.set()
         self.lock = threading.Event()
@@ -195,7 +212,7 @@ class MotionThreadBase(CommandThreadBase):
         print(msg)
 
     def init_motion(self):
-        self.motion = get_motion_hal(usc=self.ac.microscope.usc,
+        self.motion = get_motion_hal(usc=self.microscope.usc,
                                      log=self.log,
                                      microscope=self.microscope)
 
@@ -208,11 +225,18 @@ class MotionThreadBase(CommandThreadBase):
         else:
             self.normal_running.clear()
 
-    def wait_idle(self):
+    def wait_idle(self, timeout=None):
+        """
+        Wait for the command queue to drain
+        Returns False on timeout or if the thread died
+        """
+        tstart = time.time()
         while True:
-            time.sleep(0.15)
-            if self.idle.is_set():
-                break
+            if self.idle.is_set() or self.dead is not None:
+                return self.dead is None
+            if timeout is not None and time.time() - tstart > timeout:
+                return False
+            time.sleep(0.05)
 
     def pos(self):
         # XXX: this caused crashes but I'm not sure why
@@ -225,8 +249,8 @@ class MotionThreadBase(CommandThreadBase):
         else:
             return self.command("pos", block=True)
 
-    def mdi(self, cmd):
-        self.command("mdi", cmd)
+    def mdi(self, cmd, block=False):
+        return self.command("mdi", cmd, block=block)
 
     # Set at beginning / end of scan
     # Silently drops all jog commands while set
@@ -350,6 +374,22 @@ class MotionThreadBase(CommandThreadBase):
     def get_pos_cache(self):
         return self._pos_cache
 
+    def _motion_died(self, e):
+        """
+        The motion controller had an unrecoverable error
+        Fail everything that is waiting on us so nothing hangs
+        """
+        self.log(f"ERROR: motion thread crashed with critical error: {e}")
+        print("")
+        print("ERROR: motion controller crashed w/ critical error")
+        print(traceback.format_exc())
+        try:
+            self.motion.close()
+        except Exception:
+            pass
+        self.motion = None
+        self.fail_pending(CommandThreadDead(f"Motion controller dead: {e}"))
+
     def run(self):
         if self.microscope.bc.check_threads():
             print("Motion thread started: %s" % (threading.get_ident(), ))
@@ -378,6 +418,7 @@ class MotionThreadBase(CommandThreadBase):
                         try:
                             self.init_motion()
                             self.motion.on()
+                            self.dead = None
                         except Exception as e:
                             self.log(
                                 "Failed to reboot motion controller :( %s" %
@@ -397,7 +438,7 @@ class MotionThreadBase(CommandThreadBase):
                     self._stop = False
                     continue
 
-                if not self.normal_running.isSet():
+                if not self.normal_running.is_set():
                     self.normal_running.wait(0.1)
                     continue
                 try:
@@ -435,7 +476,8 @@ class MotionThreadBase(CommandThreadBase):
 
                 self.verbose and print("")
                 self.verbose and print(
-                    "process @ %s" % datetime.datetime.utcnow().isoformat())
+                    "process @ %s" %
+                    datetime.datetime.now(datetime.timezone.utc).isoformat())
                 if 0 and command not in ("update_pos_cache", "pos"):
                     print("running", command, args)
                 #print 'cnc thread: dispatch %s' % command
@@ -460,35 +502,30 @@ class MotionThreadBase(CommandThreadBase):
                     'apply_damper': self.motion.apply_damper,
                 }.get(command, default)
                 tstart = time.time()
+                # Either the return value or the exception that was raised
+                # Always handed to command_done so blocking callers wake up
+                ret = None
                 try:
                     ret = f(*args)
                 # Depending on the motion controller this may be a bad idea
                 # Only some of them retain the old coordinate system / may need re-home
                 except MotionCritical as e:
-                    self.log(
-                        f"ERROR: motion thread crashed with critical error: {e}"
-                    )
-                    print("")
-                    print("ERROR: motion controller crashed w/ critical error")
-                    print(traceback.format_exc())
-                    self.motion.close()
-                    self.motion = None
+                    # Mark dead before waking the caller so that it observes
+                    # a consistent state
+                    self._motion_died(e)
                     if command_done:
                         command_done(command, args, e)
                     continue
                 except AxisExceeded as e:
+                    # Expected / routine: ex soft limit trimmed a jog
                     self.log(f"Motion command failed: {e}")
+                    ret = e
                 except Exception as e:
                     self.log(f"WARNING: motion thread crashed: {e}")
                     print("")
                     print("WARNING: motion thread crashed")
                     print(traceback.format_exc())
-                    if command_done:
-                        command_done(command, args, e)
-                    if self.microscope.bc.dev_mode():
-                        import sys
-                        sys.exit(1)
-                    continue
+                    ret = e
                 # motion command update_pos_cache completed in 0.006439208984375
                 # motion command jog_fractioned completed in 0.021370649337768555
                 # motion command update_pos_cache completed in 0.21372413635253906
@@ -502,9 +539,16 @@ class MotionThreadBase(CommandThreadBase):
 
         finally:
             if self.motion:
-                self.motion.stop()
-                # self.motion.ar_stop()
+                try:
+                    self.motion.stop()
+                except Exception as e:
+                    print(f"WARNING: motion stop at thread exit failed: {e}")
+            # Anything still queued / arriving later must not hang
+            if self.dead is None:
+                self.fail_pending(CommandThreadDead("Motion thread exited"))
 
 
-class SimpleMotionThread(MotionThreadBase, threading.Thread):
-    pass
+class SimpleMotionThread(MotionThreadBase, SimpleThread):
+    def __init__(self, microscope):
+        SimpleThread.__init__(self)
+        MotionThreadBase.__init__(self, microscope)

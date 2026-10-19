@@ -12,6 +12,14 @@ class ShutdownPhase(enum.Enum):
     FINAL = enum.auto()
 
 
+class CommandThreadDead(Exception):
+    """
+    The worker thread is no longer processing commands
+    Ex: the hardware it controls had an unrecoverable error
+    """
+    pass
+
+
 class CommandThreadBase:
     def __init__(self, microscope):
         assert microscope
@@ -22,6 +30,9 @@ class CommandThreadBase:
         self.idle = threading.Event()
         self.idle.set()
         self.command_map = {}
+        # Set once the thread can no longer process commands
+        # Pending and future commands will fail with this exception
+        self.dead = None
 
     def log(self, msg=""):
         print(msg)
@@ -30,11 +41,10 @@ class CommandThreadBase:
         if phase == ShutdownPhase.FINAL:
             self.running.clear()
 
-    '''
-    def shutdown_join(self, timeout=3.0):
-        # self.join(timeout=timeout)
-        assert 0, "required"
-    '''
+    # shutdown_join(timeout) must be provided by the threading implementation
+    # (ex: ArgusThread for QThread, SimpleThread for threading.Thread)
+    # It is intentionally not defined here: this class is listed first in the
+    # MRO and would shadow the implementation
 
     def shutdown(self, timeout=3.0):
         self.shutdown_request(ShutdownPhase.FINAL)
@@ -43,7 +53,8 @@ class CommandThreadBase:
     def command(self, command, *args, block=False, callback=None, done=None):
         """
         block: don't return until offloaded task completes?
-        callback: simple callback taking no args
+            If the command raised an exception, it is re-raised here
+        callback: callback(command, args, ret_or_exception)
         done: threading.Event()
         """
         command_done = None
@@ -59,13 +70,40 @@ class CommandThreadBase:
                 if done:
                     done.set()
 
+        if self.dead is not None:
+            # Fail fast instead of queueing something that will never run
+            if command_done:
+                command_done(command, args, self.dead)
+            if block:
+                raise self.dead
+            return None
+
         self.queue.put((command, args, command_done))
+        # Close the race with the thread dying between the check above and
+        # the put: whoever observes dead drains the queue
+        if self.dead is not None:
+            self.fail_pending(self.dead)
         if block:
             ready.wait()
             ret = ret[0]
-            if type(ret) is Exception:
-                raise Exception("oopsie: %s" % (ret, ))
+            if isinstance(ret, BaseException):
+                raise ret
             return ret
+
+    def fail_pending(self, exception):
+        """
+        Mark the thread as dead and fail all queued commands
+        Blocking callers will raise rather than hang forever
+        """
+        self.dead = exception
+        while True:
+            try:
+                (command, args, command_done) = self.queue.get(block=False)
+            except queue.Empty:
+                break
+            if command_done:
+                command_done(command, args, exception)
+        self.idle.set()
 
     def check_stress(self):
         if self.microscope.bc.stress_test():
@@ -115,6 +153,22 @@ class CommandThreadBase:
                 continue
             if command_done:
                 command_done(command, args, ret)
+
+
+class SimpleThread(threading.Thread):
+    """
+    Plain threading.Thread flavor of the Argus QThread wrappers
+    Mix in after a *ThreadBase class
+
+    Note: __init__ must be called explicitly by the subclass before the
+    base class __init__ as the *ThreadBase classes don't cooperatively init
+    """
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.daemon = True
+
+    def shutdown_join(self, timeout=3.0):
+        self.join(timeout=timeout)
 
 
 # Modeled after queue interface

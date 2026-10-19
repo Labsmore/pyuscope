@@ -3,7 +3,6 @@ from uscope.motion.lcnc import hal as lcnc_hal
 from uscope.motion.lcnc import hal_ar as lcnc_ar
 from uscope.motion.lcnc.client import LCNCRPC
 from uscope.motion.grbl import GrblHal
-from uscope.config import get_usc
 import socket
 
 plugins = {}
@@ -71,7 +70,7 @@ register_plugins()
 def get_motion_hal(usc=None, usc_motion=None, log=None, microscope=None):
     assert microscope
     if usc is None:
-        usc = get_usc(name=microscope)
+        usc = microscope.usc
     if usc_motion is None:
         usc_motion = usc.motion
     if log is None:

@@ -1,10 +1,6 @@
 #!/usr/bin/env -S uv run
 
-from uscope.util import add_bool_arg
-from uscope.motion import motion_util
-from uscope.motion.plugins import get_motion_hal
-from uscope.config import get_usc
-from uscope.motion.grbl import GrblHal
+from uscope.microscope import Microscope
 
 
 def main():
@@ -14,11 +10,16 @@ def main():
     parser.add_argument("--microscope", help="Select configuration directory")
     args = parser.parse_args()
 
-    # grbl = GRBL(verbose=args.verbose)
-    usc = get_usc(name=args.microscope)
-    motion = get_motion_hal(usc=usc)
-    pos = motion.pos()
-    print("X%0.3f Y%0.3f Z%0.3f" % (pos["x"], pos["y"], pos["z"]))
+    # Motion only: no camera needed
+    microscope = Microscope(name=args.microscope,
+                            make_imager=False,
+                            make_kinematics=False)
+    try:
+        pos = microscope.motion.pos()
+        print(" ".join("%s%0.3f" % (axis.upper(), pos[axis])
+                       for axis in sorted(pos)))
+    finally:
+        microscope.motion.close()
 
 
 if __name__ == "__main__":

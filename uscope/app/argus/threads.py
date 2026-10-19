@@ -20,7 +20,7 @@ import platform
 import distro
 import random
 import os
-import datetime
+from uscope.util import utcnow
 
 
 def dbg(*args):
@@ -104,8 +104,8 @@ class StitcherThread(CommandThreadBase, ArgusThread):
         print("")
         print(f"Stitch CLI: kicking off {j['command']} {j['directory']}")
         subprocess.check_call([j['command'], j['directory']])
-        self.log(f"Stitch CLI: finished job")
-        print(f"Stitch CLI: finished job")
+        self.log("Stitch CLI: finished job")
+        print("Stitch CLI: finished job")
 
     def imagep_add(self, directory, cs_info=None, ippj={}, block=False):
         j = {
@@ -261,7 +261,7 @@ class QPlannerThread(PlannerThreadBase, ArgusThread):
             self.log('Planner done!  Took : %s' % str(b))
         except MicroscopeStop:
             ret["result"] = "stopped"
-        except PlannerStop as e:
+        except PlannerStop:
             ret["result"] = "stopped"
         except Exception as e:
             self.log('WARNING: planner thread crashed: %s' % str(e))
@@ -313,7 +313,7 @@ class QJoystickThread(JoystickThreadBase, ArgusThread):
 
     def statistics_getj(self, statj):
         j = statj.setdefault("joystick", {})
-        j["thread_running"] = self.running
+        j["thread_running"] = self.running.is_set()
         j["enabled"] = self.enabled
         j["slow_jogs"] = self.joystick.jog_controller.slow_jogs
 
@@ -336,7 +336,7 @@ class QJoystickThread(JoystickThreadBase, ArgusThread):
                 traceback.print_exc()
             finally:
                 self.joystickDone.emit()
-        self.running = False
+        self.running.clear()
 
 
 """
@@ -417,7 +417,7 @@ class Profiler:
         j = {
             "type": "profile.header",
             "time": time.time(),
-            "utcnow": datetime.datetime.utcnow().isoformat(),
+            "utcnow": utcnow().isoformat(),
             "microscope": {
                 "configuration": self.microscope.config_name(),
                 "sn": self.microscope.serial(),
@@ -426,7 +426,7 @@ class Profiler:
                 "sys.version": str(sys.version),
                 "sys.platform": str(sys.platform),
                 "distro.linux_distribution": distro.linux_distribution(),
-                "platform.machine": str(platform.machine),
+                "platform.machine": str(platform.machine()),
                 "platform.version": str(platform.version()),
                 "platform.platform": str(platform.platform()),
                 "platform.uname": str(platform.uname()),
@@ -454,7 +454,7 @@ class Profiler:
         j = {
             "type": "profile.poll",
             "time": time.time(),
-            "utcnow": datetime.datetime.utcnow().isoformat(),
+            "utcnow": utcnow().isoformat(),
             "host": {
                 "psutil.virtual_memory": self.host_virtual_memory(),
                 "psutil.swap_memory": self.host_swap_memory(),
@@ -577,7 +577,7 @@ class QTaskThread(CommandThreadBase, ArgusThread):
                                sort_keys=True,
                                indent=4,
                                separators=(",", ": ")))
-            except:
+            except Exception:
                 self.log("Exception getting objective database")
             log("")
             log("")

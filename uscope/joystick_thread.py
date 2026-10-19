@@ -1,4 +1,4 @@
-from uscope.joystick import Joystick, JoystickNotFound
+from uscope.joystick import Joystick
 
 import threading
 import time
@@ -13,10 +13,8 @@ class JoystickThreadBase:
         self.running = threading.Event()
         self.running.set()
         self.loop_time = 0.2
-        try:
-            self.joystick = Joystick(microscope=microscope)
-        except JoystickNotFound:
-            raise JoystickNotFound()
+        # Raises JoystickNotFound if none attached
+        self.joystick = Joystick(microscope=microscope)
 
     def log_info(self):
         self.log("Joystick")
@@ -34,7 +32,7 @@ class JoystickThreadBase:
 
     def run(self):
         tlast = time.time()
-        while self.running:
+        while self.running.is_set():
             try:
                 tnow = time.time()
                 dt = tnow - tlast
@@ -50,4 +48,7 @@ class JoystickThreadBase:
 
 
 class SimpleJoystickThread(JoystickThreadBase, threading.Thread):
-    pass
+    def __init__(self, microscope):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        JoystickThreadBase.__init__(self, microscope)

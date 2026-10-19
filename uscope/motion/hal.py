@@ -681,7 +681,7 @@ class MotionHAL:
     def check_thread_safety(self):
         if self.check_threads and self.check_thread_id:
             assert self.check_thread_id == threading.get_ident(), (
-                "GUI thread unsafe access detected", self.main_thread,
+                "Motion thread unsafe access detected", self.check_thread_id,
                 threading.get_ident())
 
     def default_ask_home(self):
@@ -982,8 +982,7 @@ class MotionHAL:
             yield modifier
 
     def unregister_status_cb(self, cb):
-        index = self.status_cbs.find(cb)
-        del self.status_cbs[index]
+        self.status_cbs.remove(cb)
 
     def register_status_cb(self, cb):
         """
@@ -1460,13 +1459,23 @@ class MockHal(MotionHAL):
         0 and self._log('relative move to ' + pos_str(delta))
         self.update_status({"pos": self._pos_cache})
 
-    def _jog(self, axes, rate):
+    def _jog_rel(self, axes, rate):
+        # Jogs complete instantly
         for axis, adelta in axes.items():
             self._pos_cache[axis] += adelta
         self.update_status({"pos": self._pos_cache})
 
+    def _jog_abs(self, axes, rate):
+        for axis, apos in axes.items():
+            self._pos_cache[axis] = apos
+        self.update_status({"pos": self._pos_cache})
+
+    def _jog_cancel(self):
+        pass
+
     def _pos(self):
-        return self._pos_cache
+        # Copy: callers munge the returned dict
+        return dict(self._pos_cache)
 
     def settle(self):
         # No hardware to let settle
@@ -1478,8 +1487,12 @@ class MockHal(MotionHAL):
         """
         self.log("Motion: no additional info")
 
-    def apply_damper(self, damper):
+    def _apply_damper(self, damper):
         pass
+
+    def command(self, s):
+        self._log("MDI: " + s)
+        return ""
 
 
 """
@@ -1491,11 +1504,15 @@ Ex: inherits movement
 class DryHal(MotionHAL):
     def __init__(self, hal, log=None):
         self.hal = hal
-        self.stop_on_del = True
 
-        self._posd = self.hal.pos()
+        # Start from wherever the real system is
+        self._posd = dict(self.hal.pos())
 
-        super().__init__(log=log, verbose=hal.verbose)
+        super().__init__(log=log,
+                         verbose=hal.verbose,
+                         microscope=hal.microscope)
+        # Nothing to stop
+        self.stop_on_del = False
 
         # Don't re-apply pipeline (scaling, etc)
         self.configure({})
@@ -1513,36 +1530,51 @@ class DryHal(MotionHAL):
                 ret[k] = vals[k]
         return ret
 
-    def home(self):
-        for axis in self._axes:
+    def home(self, force=False):
+        for axis in self.axes():
             self._posd[axis] = 0.0
+
+    def _get_steps_per_mm(self):
+        # Mirror the real HAL so that epsilon() etc agree
+        return dict(self.hal._steps_per_mm)
 
     def _move_absolute(self, pos):
         for axis, apos in pos.items():
             self._posd[axis] = apos
-        0 and self._log(
-            'absolute move to ' +
-            ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in pos.items()]))
+        0 and self._log('absolute move to ' + pos_str(pos))
 
     def _move_relative(self, delta):
         for axis, adelta in delta.items():
             self._posd[axis] += adelta
-        0 and self._log(
-            'relative move to ' +
-            ' '.join(['%c%0.3f' % (k.upper(), v) for k, v in delta.items()]))
+        0 and self._log('relative move to ' + pos_str(delta))
 
     def _pos(self):
-        return self._posd
+        return dict(self._posd)
 
     def settle(self):
         # No hardware to let settle
         pass
 
     def _get_max_velocities(self):
-        return self.hal.get_max_velocities()
+        return dict(self.hal.get_max_velocities())
 
     def _get_max_accelerations(self):
-        return self.hal.get_max_accelerations()
+        return dict(self.hal.get_max_accelerations())
+
+    def _jog_rel(self, axes, rate):
+        for axis, adelta in axes.items():
+            self._posd[axis] += adelta
+
+    def _jog_abs(self, axes, rate):
+        for axis, apos in axes.items():
+            self._posd[axis] = apos
+
+    def _jog_cancel(self):
+        pass
+
+    def command(self, s):
+        self._log("MDI: " + s)
+        return ""
 
 
 class GCodeHalImager(Imager):

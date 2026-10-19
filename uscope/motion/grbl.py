@@ -9,7 +9,7 @@ from uscope.motion.hal import MotionHAL, MotionCritical
 from uscope import util
 from uscope.motion.motion_util import parse_move
 from uscope.util import tobytes, tostr
-from uscope.config import get_bc
+from uscope.config import get_bc, get_configs_dir
 
 import termios
 import serial
@@ -43,6 +43,14 @@ class LimitSwitchActive(Estop):
 
 
 class NoGRBL(GrblException):
+    pass
+
+
+class GrblAlarm(GrblException):
+    """
+    Controller is in Alarm (or Door) state and won't move until cleared
+    ex: limit switch hit, homing failed, hard reset
+    """
     pass
 
 
@@ -216,6 +224,14 @@ info_c2s = {
 }
 
 
+def status_is_alarm(status):
+    """
+    Is this a GRBL machine state that blocks motion until cleared?
+    Alarm, Door:0 .. Door:3
+    """
+    return status == "Alarm" or status.startswith("Door")
+
+
 class GrblError(Exception):
     def __init__(self, msg):
         # error:9
@@ -226,7 +242,7 @@ class GrblError(Exception):
                 new_msg = f"error {code} ({human})"
             else:
                 new_msg = f"unknown error {msg}"
-        except:
+        except (ValueError, IndexError, KeyError):
             new_msg = f"unknown error {msg}"
         super().__init__(new_msg)
 
@@ -755,7 +771,12 @@ class MockGRBLSer(GRBLSer):
         time.sleep(0.05)
 
     def txrxs(self, out, nl=True, trim_data=True, timeout=None):
-        return "mock"
+        self.verbose and print("MOCK: txrxs", out)
+        # Command accepted, nothing to report before ok
+        return []
+
+    def g(self):
+        return "GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0"
 
     def hash(self):
         return [
@@ -874,13 +895,27 @@ class GRBL:
     def __del__(self):
         self.close()
 
-    def stop(self):
+    def stop(self, timeout=3.0):
+        """
+        Cancel any jog / motion in progress and wait for the machine to settle
+        Best effort: on Alarm etc there is nothing more we can do
+        """
         # sometimes the stop is ignored
         # seems to happen especially for very low jog amounts
+        tstart = time.time()
         while True:
             self.jog_cancel()
-            if self.qstatus()["status"] == "Idle":
+            status = self.qstatus()["status"]
+            if status == "Idle":
                 break
+            # Won't move anyway and jog cancel can't fix this
+            if status_is_alarm(status):
+                self.verbose and print(
+                    f"WARNING: stop with controller in {status}")
+                break
+            if time.time() - tstart > timeout:
+                raise Timeout(
+                    f"Failed to stop within {timeout} sec (status: {status})")
             time.sleep(0.01)
 
     def reset(self):
@@ -931,11 +966,12 @@ class GRBL:
                 self.qstatus(retry=retry)
                 # Success!
                 return
-            except Exception:
+            except Exception as e:
                 if not retry:
                     raise
-                if tryi == tries - 2:
-                    raise MotionCritical("Unable to recover GRBL comms")
+                if tryi == tries - 1:
+                    raise MotionCritical(
+                        f"Unable to recover GRBL comms: {e}") from e
                 continue
 
     def set_pos_cache(self, pos):
@@ -1015,6 +1051,10 @@ class GRBL:
                 self.gs.j("G90 %s F%u" % (ax_str, f))
                 if blocking:
                     self.wait_idle()
+                return
+            except GrblAlarm:
+                # Retrying won't help and recovery could mask the fault
+                raise
             except Exception:
                 self.verbose and print("WARNING: bad absolute move")
                 if i == tries - 1:
@@ -1049,11 +1089,39 @@ class GRBL:
             if blocking:
                 self.wait_idle()
 
-    def wait_idle(self):
+    def wait_idle(self, timeout=None, stall_timeout=30.0):
+        """
+        Wait for the current motion to complete
+
+        timeout: overall limit in seconds. None => unbounded (long moves)
+        stall_timeout: raise if not Idle and the position hasn't changed
+            for this long. Catches Hold (ex: door / feed hold) and lost
+            motion without putting an arbitrary cap on legitimate long moves
+        Raises GrblAlarm if the controller enters Alarm / Door
+        """
+        tstart = time.time()
+        tlast_change = tstart
+        last_mpos = None
         while True:
             qstatus = self.qstatus()
-            if qstatus["status"] == "Idle":
+            status = qstatus["status"]
+            if status == "Idle":
                 break
+            if status_is_alarm(status):
+                raise GrblAlarm(f"Controller in {status} while waiting for idle")
+            now = time.time()
+            mpos = qstatus.get("MPos")
+            if mpos != last_mpos:
+                last_mpos = mpos
+                tlast_change = now
+            elif stall_timeout is not None and now - tlast_change > stall_timeout:
+                raise Timeout(
+                    f"Motion stalled: status {status}, no position change in {stall_timeout} sec"
+                )
+            if timeout is not None and now - tstart > timeout:
+                raise Timeout(
+                    f"Motion did not complete within {timeout} sec (status: {status})"
+                )
             time.sleep(0.1)
 
     def jog_rel(self, pos, rate):
@@ -1086,8 +1154,6 @@ class GRBL:
                 ["%s%0.3f" % (axis, scalar) for axis, scalar in pos.items()])
             cmd = "G90 %s F%u" % (axes_str, rate)
             self.verbose and print("JOG:", cmd)
-            print("JOG:", cmd)
-            print("  ", self.qstatus()["MPos"])
             # Cancel the previous jog and immediately submit the new jog
             # Clears the queue to make the new command take effect
             # Small window => rotor initeria should make this smooth
@@ -1541,7 +1607,7 @@ class GrblHal(MotionHAL):
                 rx = self.grbl.gs.txrxs(cmd)
                 if "error" in rx:
                     raise Exception("cmd failed: %s => %s" % (cmd, rx))
-            except:
+            except Exception:
                 print("command failed", cmd)
                 raise
 
@@ -1615,7 +1681,7 @@ class GrblHal(MotionHAL):
             self._do_apply_damper(damper)
             # Recalculate constants
             self.reconfigure()
-        except:
+        except Exception:
             print("WARNING: apply damper failed. Restoring default value")
             self._do_apply_damper(1.0)
             self.reconfigure()
@@ -1671,7 +1737,11 @@ class GrblHal(MotionHAL):
 
     def system_status_ts(self, root_status, status):
         # status["last_qstatus"] = dict(self.last_qstatus)
-        status["active"] = self.last_qstatus["status"] != "Idle"
+        # No status poll yet => can't be moving
+        if self.last_qstatus is None:
+            status["active"] = False
+        else:
+            status["active"] = self.last_qstatus["status"] != "Idle"
 
 
 class NoGRBLMeta(Exception):
@@ -1965,7 +2035,8 @@ def microscope_name_hash(microscope):
 
 
 def microscope_hash2name_name2hash():
-    subdirs = [f.path for f in os.scandir("configs") if f.is_dir()]
+    # Not CWD relative: tools get launched from arbitrary directories
+    subdirs = [f.path for f in os.scandir(get_configs_dir()) if f.is_dir()]
     hash2name = {}
     name2hash = {}
     for d in subdirs:
@@ -1997,10 +2068,13 @@ def get_grbl(port=None, gs=None, reset=False, verbose=False):
     return GRBL(port=port, gs=gs, reset=reset, verbose=verbose)
 
 
-def grbl_mconfig(mconfig={}, overwrite=False):
+def grbl_mconfig(mconfig=None, overwrite=False):
     """
     Create a minimal GRBL config to see if it has metadata to configure microscope
+    Returns None if nothing could be learned
     """
+    if mconfig is None:
+        mconfig = {}
     grbl = None
     try:
         grbl = get_grbl()
@@ -2011,6 +2085,11 @@ def grbl_mconfig(mconfig={}, overwrite=False):
         # No metadata => skip sanity check
         # Not all microscopes have this set
         print("WARNING: detected GRBL but no metadata")
+        return
+    except (serial.SerialException, OSError, Timeout) as e:
+        # Port exists but something else has it, unplugged mid probe, etc
+        # Auto config is best effort: let the caller fall back
+        print(f"WARNING: GRBL auto config failed: {type(e).__name__}: {e}")
         return
     finally:
         if grbl:

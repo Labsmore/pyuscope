@@ -46,7 +46,7 @@ Build only a pyuscope package for the current distribution:
 The package installs pyuscope and its private Python environment under
 `/opt/pyuscope`. It provides the `pyuscope` and `pyuscope-argus` commands.
 Package versions include the build distribution, for example
-`pyuscope_4.6.0+ubuntu24.04_amd64.deb`.
+`pyuscope_4.7.0+ubuntu24.04_amd64.deb`.
 
 Podman or Docker can build the complete supported distribution matrix:
 

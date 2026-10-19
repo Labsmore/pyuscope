@@ -98,6 +98,9 @@ class AMainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self.shutdown()
+        # Other top level windows (ex: imaging options popup) would
+        # otherwise keep the event loop alive with all threads shut down
+        QCoreApplication.quit()
 
     def _cache_save(self, cachej):
         pass

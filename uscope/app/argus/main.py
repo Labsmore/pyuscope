@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 
 from uscope.gui.gstwidget import gstwidget_main
 from uscope.util import add_bool_arg

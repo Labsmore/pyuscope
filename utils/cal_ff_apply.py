@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 """
 WARNING: this utility is transient and will soon be replaced with cs_auto algorithm
 """

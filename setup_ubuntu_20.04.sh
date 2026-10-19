@@ -7,24 +7,40 @@ if [ \! -d configs ] ; then
     echo "Must be run from the root dir"
     exit 1
 fi
+
+install_uv_system=false
+while [ "$#" -gt 0 ] ; do
+    case "$1" in
+        --uv-system)
+            install_uv_system=true
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            echo "Usage: $0 [--uv-system]" >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
+
+sudo apt-get update
+sudo apt-get install -y curl
+
+if $install_uv_system ; then
+    curl -LsSf https://astral.sh/uv/install.sh | sudo env UV_INSTALL_DIR=/usr/local/bin sh
+    UV=/usr/local/bin/uv
+else
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    UV="${HOME}/.local/bin/uv"
+fi
+
+if [ ! -x "$UV" ] ; then
+    UV=$(command -v uv)
+fi
+
 # 2024-02-23 rpi install
 # Debian GNU/Linux 12 (bookworm)
 linux_distribution=$(lsb_release -d |cut -d ':' -f2 |xargs)
-
-pip_args=""
-if [ "$linux_distribution" = "Debian GNU/Linux 12 (bookworm)" ] || \
-   [ "$linux_distribution" = "Debian GNU/Linux 13 (trixie)" ] || \
-   [ -n "$FORCE_BREAK_SYSTEM_PACKAGES" ] ; then
-    echo "WARNING: your system doesn't like pip. Making a best effort install"
-    # Got to do what we got to do right now
-    # But a friendly reminder to try to sort out packaging better :)
-    pip_args="--break-system-packages"
-    sleep 3
-fi
-PIP_CMD="pip3 install --user ${pip_args}"
-
-sudo apt-get update
-sudo apt-get install -y python3-pip
 
 install_pyuscope() {
     sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb python3-opencv python3-serial python3-numpy python3-scipy imagemagick python3-distro python3-zbar luminance-hdr
@@ -32,7 +48,6 @@ install_pyuscope() {
     # Some people suggest gir1.2-gst-rtsp-server-1.0
     # Install all for now
     sudo apt-get install -y libgstrtspserver-1.0-0 libgstrtspserver-1.0-dev gir1.2-gst-rtsp-server-1.0
-    $PIP_CMD json5 boto3 pygame psutil bitarray piexif
 
 
     # Package removed
@@ -50,13 +65,11 @@ install_pyuscope() {
 
     # For webserver
     sudo apt-get install -y python3-werkzeug
-    $PIP_CMD 'Flask>=2.2.2'
 
-    sudo python3 setup.py develop
-}
-
-install_pyrav4l2() {
-    $PIP_CMD git+https://github.com/antmicro/pyrav4l2.git
+    # GObject/GStreamer and several camera bindings are supplied by apt. Keep
+    # those packages visible while uv manages the shared workspace environment.
+    "$UV" venv --system-site-packages
+    "$UV" sync
 }
 
 # For GRBL etc serial port
@@ -92,9 +105,6 @@ fi
 
 
 install_pyuscope
-# Deprecated, use pyrav4l2
-# install_antmicro_v4l2
-install_pyrav4l2
 
 apply_migrations
 

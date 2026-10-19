@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 from uscope.imager.config import default_gstimager_config
 import argparse
 from uscope.util import printj

@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 import json5
 import os
 from collections import OrderedDict

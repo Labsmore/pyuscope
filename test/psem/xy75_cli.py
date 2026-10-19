@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 '''
 75 XY Controller serial port interface
 Was used for debugging while upgrading controller firmware

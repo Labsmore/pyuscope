@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 from PyQt5 import Qt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *

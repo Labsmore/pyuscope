@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 '''
 512 x 512
 Scan speed: slightly left of center

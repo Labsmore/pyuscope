@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env -S uv run
 '''
 WARNING: this file is deployed standalone to remote systems
 Do not add uvscada dependencies

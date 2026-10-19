@@ -24,6 +24,11 @@ If you'd like a basic setup:
 
     ./setup_ubuntu_20.04.sh
 
+This installs `uv` for the current user and creates the shared workspace
+environment. To install `uv` in `/usr/local/bin` for all users instead:
+
+    ./setup_ubuntu_20.04.sh --uv-system
+
 After rebooting your system you can launch with (auto detected microscope):
 
     ./app/argus.py

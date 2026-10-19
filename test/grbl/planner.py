@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 """
 3018 CNC panoramic imaging demo
 Uses grbl controller w/ touptek camera

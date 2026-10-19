@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 
 from uscope import cloud_stitch
 from uscope.util import add_bool_arg

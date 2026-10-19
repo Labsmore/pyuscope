@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 # Generate animated GIFs which zoom into a specified location in the input image.
 #
 # Usage:

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run
 """
 Mitutoyo power turret test
 Connect with straight through cable (not null modem)

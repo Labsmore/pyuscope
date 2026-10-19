@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 from uscope.img_util import auto_detect_source
 
 if __name__ == '__main__':

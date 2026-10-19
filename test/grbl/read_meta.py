@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 from uscope.motion.grbl import GRBL, grbl_read_meta, NoGRBLMeta, microscope_hash2name
 from uscope.util import add_bool_arg
 

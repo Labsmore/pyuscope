@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env -S uv run
 
 from uscope.hal.cnc import lcnc_ar
 

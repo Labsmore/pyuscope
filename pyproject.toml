@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyuscope"
+version = "4.5.0"
+description = "Digital microscope controller"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "BSD" }
+authors = [
+    { name = "John McMaster", email = "john@labsmore.com" },
+]
+dependencies = [
+    "bitarray",
+    "boto3",
+    "distro",
+    "flask>=2.2.2",
+    "flask-cors",
+    "flask-socketio",
+    "imageio",
+    "json5",
+    "matplotlib",
+    "numpy",
+    "opencv-python-headless",
+    "paramiko",
+    "pexpect",
+    "piexif",
+    "pillow",
+    "psutil",
+    "pygame",
+    "pynput",
+    "pyrav4l2 @ git+https://github.com/antmicro/pyrav4l2.git",
+    "pyserial",
+    "pyusb",
+    "pyzbar",
+    "requests",
+    "scipy",
+    "werkzeug",
+]
+
+[project.urls]
+Homepage = "https://github.com/Labsmore/pyuscope"
+
+[tool.setuptools.packages.find]
+include = ["uscope*"]
+namespaces = true
+
+# Keep one lock file and one environment for the root package and any future
+# packages added below it.
+[tool.uv.workspace]
+members = []

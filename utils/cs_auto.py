@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 """
 Pre-process files for cloud stitch
 CloudStitch only operates on .jpg right now (bandwidth etc)

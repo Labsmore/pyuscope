@@ -37,6 +37,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.deb-build-cache/
 
 # Installer logs
 pip-log.txt

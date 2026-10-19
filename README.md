@@ -37,6 +37,41 @@ If you want to explicitly specify a microscope:
 
     ./app/argus.py --microscope mock
 
+# Debian packages
+
+Build only a pyuscope package for the current distribution:
+
+    ./build_deb.py
+
+The package installs pyuscope and its private Python environment under
+`/opt/pyuscope`. It provides `pyuscope`, `pyuscope-argus`,
+`pyuscope-planner`, `pyuscope-planner-ngc`, and `pyuscope-gst-cli` commands.
+Package versions include the build distribution, for example
+`pyuscope_4.5.0+ubuntu24.04_amd64.deb`.
+
+Podman or Docker can build the complete supported distribution matrix:
+
+    ./build_distribution_debs.py
+
+The default matrix is Ubuntu 26.04, 24.04, and 22.04 plus Debian 12 and 13.
+Build a subset or select Docker explicitly with:
+
+    ./build_distribution_debs.py --distribution ubuntu24.04
+    ./build_distribution_debs.py --engine docker --distribution debian13
+
+For each distribution, the matrix builder also builds the matching
+`gstreamer1.0-toupcam` package and the host-architecture `toupcamsdk`
+package. It writes a release tarball to `dist/` containing all three `.deb`
+files:
+
+    pyuscope_<version>+<distribution>_<architecture>.deb
+    gstreamer1.0-toupcam_<version>+<distribution>_<architecture>.deb
+    toupcamsdk_<version>_<architecture>.deb
+
+The tarball extracts into a directory matching the tarball filename.
+
+Toolchain images and Python downloads are cached for subsequent builds.
+
 
 # Updating
 

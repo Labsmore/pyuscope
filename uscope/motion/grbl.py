@@ -1642,6 +1642,20 @@ class GrblHal(MotionHAL):
         if self.grbl:
             self.grbl.stop()
 
+    def emergency_stop(self):
+        """
+        Called on unclean GUI exit, possibly while the motion thread is mid
+        transaction. Only send the realtime jog cancel byte: it is handled
+        out of band by GRBL (so interleaving with other traffic is fine),
+        is a no-op when not jogging, and a runaway jog is the realistic
+        hazard when the GUI dies
+        """
+        try:
+            if self.grbl and self.grbl.gs:
+                self.grbl.gs.jog_cancel()
+        except Exception as e:
+            print(f"WARNING: GRBL emergency jog cancel failed: {e}")
+
     def _jog_rel(self, pos, rate):
         self.grbl.jog_rel(pos, rate)
 

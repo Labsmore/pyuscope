@@ -7,6 +7,9 @@ import traceback
 
 
 class ImagerControlThreadBase:
+    # Max exposure change factor per auto exposure iteration
+    AE_MAX_STEP = 4.0
+
     def __init__(self, microscope):
         self.microscope = microscope
         self.loop_time = 1.0
@@ -61,6 +64,10 @@ class ImagerControlThreadBase:
             # Crop the center of the image
             im_pil = capim.image.crop((left, top, right, bottom))
 
+        if exposure_now is None or exposure_now <= 0:
+            # Can't scale an unknown exposure
+            return
+
         im_np = np.array(im_pil)
         """
         If image is half as bright as it should be,
@@ -71,10 +78,19 @@ class ImagerControlThreadBase:
         # exposure 1 to N
         # average 0 to 1
         error = self._ae_target - average_now
-        new_exposure = int(self._ae_target * exposure_now / average_now)
+        # Fully black frame (lens cap, light off): don't divide by zero
+        # Treat as very dark so exposure steps up at the max rate
+        average_now = max(average_now, 1e-3)
+        ratio = self._ae_target / average_now
+        # Sensor response isn't perfectly linear and the camera lags
+        # Limit the per iteration change to avoid large overshoot / oscillation
+        ratio = min(max(ratio, 1.0 / self.AE_MAX_STEP), self.AE_MAX_STEP)
+        new_exposure = max(1, int(round(exposure_now * ratio)))
         0 and print(
             f"EXPOSURE: {exposure_now} => {new_exposure}, w/ target {self._ae_target} currently {average_now}, error {error}"
         )
+        if new_exposure == exposure_now:
+            return
 
         self.microscope.imager_ts().set_exposure(new_exposure)
         #self._exposure_last = exposure_now

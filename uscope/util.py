@@ -283,6 +283,31 @@ def readj(fn):
         return json5.load(f)
 
 
+"""
+Callbacks to run before a hard process exit (ex: os._exit() from an
+uncaught exception handler) to leave hardware in a safe state
+Callbacks must not raise and should return quickly
+"""
+_emergency_stops = []
+
+
+def register_emergency_stop(callback):
+    _emergency_stops.append(callback)
+
+
+def unregister_emergency_stop(callback):
+    if callback in _emergency_stops:
+        _emergency_stops.remove(callback)
+
+
+def run_emergency_stops():
+    for callback in list(_emergency_stops):
+        try:
+            callback()
+        except Exception as e:
+            print(f"WARNING: emergency stop callback failed: {e}")
+
+
 def utcnow():
     """
     Naive UTC datetime, drop in replacement for the deprecated

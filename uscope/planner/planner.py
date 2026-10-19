@@ -293,17 +293,39 @@ class Planner:
                 self.check_yield()
                 yield state3
 
+    def scan_abort(self, e):
+        """
+        Scan terminated early (stop request or error)
+        Give plugins a chance to restore non-motion state (ex: HDR exposure)
+        Must not raise: the original exception is what the caller wants
+        """
+        self.log("")
+        self.log(f"Scan aborted ({type(e).__name__}): cleaning up")
+        state = {
+            "type": "abort",
+            "images_to_capture": self.images_expected(),
+        }
+        for name, plugin in self.pipeline.items():
+            try:
+                plugin.scan_abort(state)
+            except Exception as e2:
+                self.log(f"WARNING: {name} abort cleanup failed: {e2}")
+
     def run(self):
         with StopEvent(self.microscope) as self.se:
             self.check_yield()
             self.full_start_time = time.time()
-            self.scan_begin()
-            self.scan_start_time = time.time()
-            for state in self.run_pipeline():
-                self.emit_progress(state)
-            self.scan_end_time = time.time()
-            self.check_yield()
-            self.scan_end()
+            try:
+                self.scan_begin()
+                self.scan_start_time = time.time()
+                for state in self.run_pipeline():
+                    self.emit_progress(state)
+                self.scan_end_time = time.time()
+                self.check_yield()
+                self.scan_end()
+            except BaseException as e:
+                self.scan_abort(e)
+                raise
             meta = self.write_meta()
             state = {
                 "type": "meta",

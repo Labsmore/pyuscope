@@ -1374,6 +1374,19 @@ class MotionHAL:
         self.jog_estimated_end = None
         self.last_jog_time = None
 
+    def emergency_stop(self):
+        """
+        Best effort halt from an unknown thread context during a crash /
+        unclean process exit (see util.run_emergency_stops())
+        Must not raise and should return quickly
+        Default: regular stop. HALs with a realtime out of band cancel
+        should override to avoid touching shared protocol state
+        """
+        try:
+            self._stop()
+        except Exception as e:
+            print(f"WARNING: emergency stop failed: {e}")
+
     def _estop(self):
         self.stop()
 

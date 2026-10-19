@@ -1022,7 +1022,9 @@ class StackerDrift(PlannerPlugin):
             delta = 0
         else:
             # If it drifts up we need to bring it down
-            delta = -drift2 / abs(drift2) * min(self.stacker.step, drift2)
+            # Compare magnitudes: step and drift can each be negative
+            delta = -drift2 / abs(drift2) * min(abs(self.stacker.step),
+                                                abs(drift2))
         self.stacker.drift_offset += delta
         self.log("stacker drift: delta %0.6f => %0.6f offset" %
                  (delta, self.stacker.drift_offset))
@@ -1064,14 +1066,26 @@ class PlannerHDR(PlannerPlugin):
             ret.update(properties.keys())
         return ret
 
-    def scan_end(self, state):
+    def restore_properties(self):
+        # scan_begin() never ran
+        if self.begin_properties is None:
+            return
         # Only set the ones we touch to reduce the chance of collisions
         properties = {}
         for k in self.properties_used():
-            properties[k] = self.begin_properties[k]
+            # Imager may not report everything we set (ex: mock, disabled
+            # control): nothing to restore then
+            if k in self.begin_properties:
+                properties[k] = self.begin_properties[k]
         self.log("HDR: restoring %u imager properties" % len(properties))
-        if not self.dry:
+        if not self.dry and properties:
             self.imager.set_properties(properties)
+
+    def scan_end(self, state):
+        self.restore_properties()
+
+    def scan_abort(self, state):
+        self.restore_properties()
 
     def iterate(self, state):
         for hdri, hdrv in enumerate(self.properties_list):

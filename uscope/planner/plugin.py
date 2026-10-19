@@ -25,6 +25,15 @@ class PlannerPlugin:
         """
         pass
 
+    def scan_abort(self, state):
+        """
+        Called once if the scan is terminating early (stop or error)
+        instead of scan_end()
+        Best effort cleanup: should not move the stage (the user may have
+        asked for motion to stop) and should not raise
+        """
+        pass
+
     def gen_meta(self, meta):
         """
         Generate final metadata output

@@ -10,6 +10,7 @@ import os
 import signal
 from collections import OrderedDict
 from uscope.imager.plugins.aplugins import get_imager_aplugin
+from uscope import util
 
 import gi
 
@@ -1045,6 +1046,8 @@ def excepthook(excType, excValue, tracebackobj):
     print("excepthook: got exception")
     print("%s: %s" % (excType, excValue))
     traceback.print_tb(tracebackobj)
+    # Don't leave the stage jogging
+    util.run_emergency_stops()
     os._exit(1)
 
 
@@ -1090,4 +1093,5 @@ def gstwidget_main(AQMainWindow, parse_args=default_parse_args):
         print("")
         print("main: got exception")
         traceback.print_exc()
+        util.run_emergency_stops()
         os._exit(1)

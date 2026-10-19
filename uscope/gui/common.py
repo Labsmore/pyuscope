@@ -11,6 +11,7 @@ from uscope.kinematics import Kinematics
 from uscope.motion.hal import HomingAborted
 from uscope.motion.grbl import LimitSwitchActive, Estop
 from uscope.subsystem import Subsystem
+from uscope import util
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -283,6 +284,8 @@ class ArgusCommon(QObject):
         self.motion = self.motion_thread.motion
         self.microscope.set_motion(self.motion)
         self.motion.set_ask_home(gui_ask_home)
+        # If the GUI dies with an uncaught exception, at least cancel jogs
+        util.register_emergency_stop(self.motion.emergency_stop)
 
         self.microscope.motion_thread = self.motion_thread
 

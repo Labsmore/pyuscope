@@ -313,6 +313,40 @@ class PlannerTestCase(TestCommon):
             planner.run()
         self.assertTrue(len(n) < 10)
 
+    def test_hdr_abort_restores(self):
+        """HDR imager properties restored even when the scan dies early"""
+        microscope = self.setup_planner_microscope()
+        imager = microscope.imager
+        imager.set_properties({"loopback_int": 100})
+        pconfig = microscope_to_planner_config(microscope,
+                                               objectivei=0,
+                                               contour=self.contour(
+                                                   5.0, 5.0))
+        pconfig["imager"]["hdr"] = {
+            "properties_list": [{
+                "loopback_int": 10
+            }, {
+                "loopback_int": 20
+            }],
+        }
+        out_dir = os.path.join(self.out_dir, "scan")
+        planner = get_planner(microscope=microscope,
+                              pconfig=pconfig,
+                              out_dir=out_dir,
+                              dry=False,
+                              log=self.log)
+
+        def progress(state):
+            if state["type"] == "image":
+                # Mid HDR bracket
+                self.assertNotEqual(imager.get_property("loopback_int"), 100)
+                raise ValueError("boom")
+
+        planner.register_progress_callback(progress)
+        with self.assertRaises(ValueError):
+            planner.run()
+        self.assertEqual(imager.get_property("loopback_int"), 100)
+
 
 class CommandThreadTestCase(TestCommon):
     class EchoThread(CommandThreadBase, threading.Thread):

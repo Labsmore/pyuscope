@@ -2,10 +2,7 @@
 # Why isn't this functionality part of the paramiko library?
 # maybe should look at paramiko harder
 
-try:
-    import socketserver
-except ImportError:
-    pass
+import socketserver
 import select
 import os
 

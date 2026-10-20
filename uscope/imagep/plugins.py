@@ -2,6 +2,7 @@ from uscope.imager.imager_util import format_mm_3dec
 
 import subprocess
 import shutil
+import threading
 import traceback
 import tempfile
 from PIL import Image, ImageDraw, ImageFont
@@ -104,8 +105,8 @@ class HDREnfusePlugin(IPPlugin):
         ewf = options.get("ewf", "gaussian")
         best_effort = options.get("best_effort", False)
         out_fn = data_out["image"].get_filename()
-        args = [
-            "enfuse", "--output", out_fn, "--exposure-weight-function", ewf
+        args = list(self.enfuse) + [
+            "--output", out_fn, "--exposure-weight-function", ewf
         ]
         # 2023-10-25, quick experiment, didn't seem to work
         if 0 and ".tif" in out_fn:
@@ -166,13 +167,11 @@ class HDRLuminancePlugin(IPPlugin):
                              stderr=subprocess.PIPE)
         output, error = p.communicate()
         if p.returncode != 0:
-            print("")
-            print("")
-            print("")
-            print("Subprocess error :(")
-            print(f"{args}")
-            print(f"{output}")
-            print(f"{error}")
+            self.log("")
+            self.log("luminance-hdr-cli failed")
+            self.log(f"{args}")
+            self.log(f"{output}")
+            self.log(f"{error}")
             raise subprocess.SubprocessError(
                 f"luminance-hdr-cli failed w/ code {p.returncode}")
 
@@ -196,13 +195,15 @@ class StackEnfusePlugin(IPPlugin):
         env_align_xy = os.getenv("PYUSCOPE_ENFUSE_ALIGN_XY")
         if env_align_xy:
             self.align_xy = env_align_xy == "Y"
-            print("StackEnfusePlugin: align_xy via environment: %s" % (self.align_xy))
+            self.log("StackEnfusePlugin: align_xy via environment: %s" %
+                     (self.align_xy))
         self.align_zoom = self.usc.ipp.get_plugin("stack-enfuse").get(
             "align_zoom", False)
         env_align_zoom = os.getenv("PYUSCOPE_ENFUSE_ALIGN_ZOOM")
         if env_align_zoom:
             self.align_zoom = env_align_zoom == "Y"
-            print("StackEnfusePlugin: align_zoom via environment: %s" % (self.align_zoom))
+            self.log("StackEnfusePlugin: align_zoom via environment: %s" %
+                     (self.align_zoom))
         self.enfuse = config.get_bc().enfuse_cli()
         self.align_image_stack = config.get_bc().align_image_stack_cli()
 
@@ -304,15 +305,15 @@ class StabilizationPlugin(IPPlugin):
         exif = None
         for image_in in data_in["images"]:
             fn = image_in.get_filename()
-            im = Image.open(fn)
-            image_matrix = np.array(im)
+            with Image.open(fn) as im:
+                image_matrix = np.array(im)
+                if exif is None:
+                    exif = im.info.get('exif')
             images_np.append(image_matrix)
-            if exif is None:
-                exif = im.info.get('exif')
 
-        image_stack = np.concatenate([im[..., None] for im in images_np],
-                                     axis=3)
-        median_array = np.median(image_stack, axis=3)
+        # Works for both RGB (h, w, 3) and grayscale (h, w)
+        image_stack = np.stack(images_np, axis=-1)
+        median_array = np.median(image_stack, axis=-1)
         median_array = median_array.astype(np.uint8)
         median_image = Image.fromarray(median_array)
         median_image.save(data_out["image"].get_filename(),
@@ -325,6 +326,69 @@ Correct uneven illumination using a flat field mask
 """
 
 
+class FFCal:
+    """
+    Flat field calibration tables
+    Read only after construction, so a single instance is shared by all
+    plugin instances (one per worker thread) that use the same cal file.
+    The float64 scalar tables are large (3 x 8 bytes x pixels) and were
+    previously duplicated per worker.
+    """
+    _cache = {}
+    _cache_lock = threading.Lock()
+
+    @classmethod
+    def get(cls, fn):
+        key = (os.path.realpath(fn), os.path.getmtime(fn))
+        with cls._cache_lock:
+            ret = cls._cache.get(key)
+            if ret is None:
+                ret = cls(fn)
+                cls._cache[key] = ret
+            return ret
+
+    def __init__(self, fn):
+        self.fn = fn
+        with Image.open(fn) as ff_im:
+            ff_im.load()
+            self.size = ff_im.size
+            ff_rband_im, ff_gband_im, ff_bband_im = ff_im.split()
+        ff_rband_np = np.array(ff_rband_im)
+        ff_gband_np = np.array(ff_gband_im)
+        ff_bband_np = np.array(ff_bband_im)
+
+        (self.ff_rmin, self.ff_rmax) = self.bounds_close_band(ff_rband_im)
+        (self.ff_gmin, self.ff_gmax) = self.bounds_close_band(ff_gband_im)
+        (self.ff_bmin, self.ff_bmax) = self.bounds_close_band(ff_bband_im)
+
+        # Boost dim values by scalars in the range 1.0 to near 0.0
+        # The lower the flat field value, the more it needs to be scaled
+        # Values at max flat field value stay the same
+        # Note: dead pixels always 0 not currently handled / will crash
+        self.rband_scalar = self.ff_rmax / ff_rband_np
+        self.gband_scalar = self.ff_gmax / ff_gband_np
+        self.bband_scalar = self.ff_bmax / ff_bband_np
+
+    @staticmethod
+    def bounds_close_band(band):
+        hist = band.histogram()
+        width, height = band.size
+        npixels = width * height
+        thresh = 0.01
+
+        low = None
+        high = None
+        pixels = 0
+        for i, vals in enumerate(hist):
+            pixels += vals
+            if low is None and pixels / npixels >= thresh:
+                low = i
+            if high is None and pixels / npixels >= (1.0 - thresh):
+                high = i
+                break
+        return low, high
+
+
 class CorrectFF1Plugin(IPPlugin):
     def __init__(self, log, default_options={}, microscope=None):
         super().__init__(log=log,
@@ -333,29 +397,17 @@ class CorrectFF1Plugin(IPPlugin):
                          need_tmp_dir=True)
         # Plugin is always registered
         # Maybe should have a mechanism to exclude if it can't actually run?
-        self.ff_im = None
+        self.ff = None
 
         if self.usc.imager.has_ff_cal():
-            self.ff_im = Image.open(self.usc.imager.ff_cal_fn())
-            self.ff_rband_im, self.ff_gband_im, self.ff_bband_im = self.ff_im.split(
-            )
-            self.ff_rband_np = np.array(self.ff_rband_im)
-            self.ff_gband_np = np.array(self.ff_gband_im)
-            self.ff_bband_np = np.array(self.ff_bband_im)
-            self.ff_minmax()
-
-            # Boost dim values by scalars in the range 1.0 to near 0.0
-            # The lower the flat field value, the more it needs to be scaled
-            # Values at max flat field value stay the same
-            # Note: dead pixels always 0 not currently handled / will crash
-            self.rband_scalar = self.ff_rmax / self.ff_rband_np
-            self.gband_scalar = self.ff_gmax / self.ff_gband_np
-            self.bband_scalar = self.ff_bmax / self.ff_bband_np
-
+            self.ff = FFCal.get(self.usc.imager.ff_cal_fn())
             # It's easy to have an outlier that boosts everything
-            self.verbose and print(f"ffi r: {self.ffi_rmin} : {self.ffi_rmax}")
-            self.verbose and print(f"ffi g: {self.ffi_gmin} : {self.ffi_gmax}")
-            self.verbose and print(f"ffi b: {self.ffi_bmin} : {self.ffi_bmax}")
+            self.verbose and self.log(
+                f"ff r: {self.ff.ff_rmin} : {self.ff.ff_rmax}")
+            self.verbose and self.log(
+                f"ff g: {self.ff.ff_gmin} : {self.ff.ff_gmax}")
+            self.verbose and self.log(
+                f"ff b: {self.ff.ff_bmin} : {self.ff.ff_bmax}")
 
     def npf2im(self, statef):
         #return statef, None
@@ -378,44 +430,19 @@ class CorrectFF1Plugin(IPPlugin):
 
         return im
 
-    def ff_minmax(self):
-        def bounds_close_band(band):
-            hist = band.histogram()
-            width, height = band.size
-            npixels = width * height
-            thresh = 0.01
-
-            low = None
-            high = None
-            pixels = 0
-            for i, vals in enumerate(hist):
-                pixels += vals
-                if low is None and pixels / npixels >= thresh:
-                    low = i
-                if high is None and pixels / npixels >= (1.0 - thresh):
-                    high = i
-                    break
-            return low, high
-
-        (self.ff_rmin, self.ff_rmax) = bounds_close_band(self.ff_rband_im)
-        (self.ff_gmin, self.ff_gmax) = bounds_close_band(self.ff_gband_im)
-        (self.ff_bmin, self.ff_bmax) = bounds_close_band(self.ff_bband_im)
-
     def _run(self, data_in, data_out, options={}):
         # Calibration must be loaded
-        assert self.ff_im
+        assert self.ff, "FF correction requested but no calibration loaded"
 
-        print("FF1: run")
-
-        self.verbose and print("")
+        self.verbose and self.log("FF1: run")
 
         image_in = data_in["image"]
         # im_in = "cal/cal06_ff_1.5x/2023-06-20_01-22-25_blue_20x_cal6_1.5x_pic/c000_r001.jpg"
         im = image_in.to_mutable_im()
-        if im.size != self.ff_im.size:
+        if im.size != self.ff.size:
             raise Exception(
                 "Calibration image size %uw x %uh but got image %uw x %uh" %
-                (self.ff_im.width, self.ff_im.height, im.width, im.height))
+                (self.ff.size[0], self.ff.size[1], im.width, im.height))
 
         rband_im, gband_im, bband_im = im.split()
         # fixme = Image.merge("RGB", (rband_im, gband_im, bband_im))
@@ -424,9 +451,9 @@ class CorrectFF1Plugin(IPPlugin):
         bband_np = np.array(bband_im)
 
         # Rescale based on flat field
-        rband_np = np.multiply(rband_np, self.rband_scalar)
-        gband_np = np.multiply(gband_np, self.gband_scalar)
-        bband_np = np.multiply(bband_np, self.bband_scalar)
+        rband_np = np.multiply(rband_np, self.ff.rband_scalar)
+        gband_np = np.multiply(gband_np, self.ff.gband_scalar)
+        bband_np = np.multiply(bband_np, self.ff.bband_scalar)
 
         # floats aren't ideal for images
         rband_np = np.round(rband_np)

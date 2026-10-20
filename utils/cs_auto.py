@@ -11,7 +11,6 @@ from uscope.imagep.pipeline import process_dir, already_uploaded
 from uscope.cloud_stitch import CSInfo
 from uscope.util import add_bool_arg
 from uscope import config
-from uscope import cloud_stitch
 import os
 import time
 import json
@@ -58,9 +57,6 @@ def run(directories, batch_sleep=2400, microscope_name=None, *args, **kwargs):
 def main():
     import argparse
 
-    if cloud_stitch.boto3 is None:
-        raise ImportError("Requires boto3 library")
-
     parser = argparse.ArgumentParser(
         description="Process HDR/stacking / etc + CloudStitch")
     add_bool_arg(parser, "--verbose", default=True)
@@ -77,6 +73,7 @@ def main():
         help="Best effort in lieu of crashing on error (ex: stack failure)")
     add_bool_arg(parser, "--quick-pano", default=None, help="")
     parser.add_argument("--threads", default=None, type=int)
+    # Also accepted via PYUSCOPE_CS_* environment variables (see CSInfo)
     parser.add_argument("--access-key")
     parser.add_argument("--secret-key")
     parser.add_argument("--id-key")

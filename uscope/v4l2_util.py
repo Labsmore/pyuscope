@@ -2,15 +2,13 @@
 https://github.com/antmicro/python3-v4l2/
 '''
 #
+# Legacy engine, not a declared dependency
 try:
     import v4l2
-except:
+except ImportError:
     v4l2 = None
 
-try:
-    import pyrav4l2
-except:
-    pyrav4l2 = None
+import pyrav4l2
 
 import fcntl
 import errno
@@ -250,7 +248,6 @@ dev_name_cache_hack = None
 
 class V4L2ControlRWNew:
     def __init__(self, fd):
-        assert pyrav4l2, "Need pyrav4l2 module to use this engine"
         assert fd is not None
         self.fd = fd
         self.dev_name = dev_name_cache_hack
@@ -299,7 +296,6 @@ class V4L2ControlRWNew:
     @staticmethod
     def find_device(name):
         global dev_name_cache_hack
-        assert pyrav4l2, "Need pyrav4l2 module to use this engine"
         for dev_name in sorted(glob.glob("/dev/video*")):
             dev = pyrav4l2.Device(dev_name)
             found_name = str(dev.device_name)
@@ -322,13 +318,8 @@ Alternate engine?
 
 
 def get_control_rw_class():
-    if pyrav4l2:
-        return V4L2ControlRWNew
-    elif v4l2:
-        assert 0, "Deprecated. Please install pyrav4l2"
-        return V4L2ControlRWOriginal
-    else:
-        assert 0, "Failed to import a V4L2 control engine"
+    # V4L2ControlRWOriginal (v4l2 module) is deprecated
+    return V4L2ControlRWNew
 
 
 def get_control_rw(fd):

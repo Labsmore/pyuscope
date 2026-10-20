@@ -117,7 +117,7 @@ class StitcherThread(CommandThreadBase, ArgusThread):
             j["cs_info"] = cs_info
         self.command("imagep", j, block=block)
 
-    def process_run(self, args, variant, directory_comment):
+    def process_run(self, args, variant, directory_comment, env=None):
         print("")
         print("")
         print("")
@@ -126,7 +126,8 @@ class StitcherThread(CommandThreadBase, ArgusThread):
         popen = subprocess.Popen(args,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT,
-                                 universal_newlines=True)
+                                 universal_newlines=True,
+                                 env=env)
         p = psutil.Process(popen.pid)
         # Lower priority so GUI runs smoothly
         p.nice(10)
@@ -178,22 +179,17 @@ class StitcherThread(CommandThreadBase, ArgusThread):
             args = [
                 cs_auto_cli,
             ]
+            env = None
             if cs_info:
-                args += [
-                    "--access-key",
-                    cs_info.access_key(),
-                    "--secret-key",
-                    cs_info.secret_key(),
-                    "--id-key",
-                    cs_info.id_key(),
-                    "--notification-email",
-                    cs_info.notification_email(),
-                ]
+                # Credentials via environment, not argv (visible in ps)
+                env = dict(os.environ)
+                env.update(cs_info.to_env())
 
             args.append(j["directory"])
             args.append("--json")
             args.append(json.dumps(ipp))
-            ok = ok and self.process_run(args, "cs_auto", j['directory'])
+            ok = ok and self.process_run(
+                args, "cs_auto", j['directory'], env=env)
 
         if ok and simple_cli:
             args = [

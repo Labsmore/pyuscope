@@ -7,12 +7,7 @@ from uscope.motion.lcnc.client import LCNCRPC, PORT
 from uscope import paramiko_util
 
 import os
-try:
-    import paramiko
-except:
-    # quick workaround
-    print("FIXME WARNING: paramiko import failed")
-    paramiko = None
+import paramiko
 import select
 import sys
 import threading

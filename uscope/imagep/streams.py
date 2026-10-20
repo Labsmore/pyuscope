@@ -239,18 +239,21 @@ class DirCSIP:
 
         self.log("Reading metadata...")
         working_iindex = index_scan_images(self.directory)
-        dst_basename = os.path.basename(os.path.abspath(self.directory))
 
-        print("Microscope: %s" % (self.microscope.name, ))
-        print("Serial: %s" % (self.microscope.serial(), ))
-        print("Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
-        print("Options")
-        print("  Keep intermediates:", self.ipp_config.keep_intermediates())
-        print("  Write HTML viewer:", self.ipp_config.write_html_viewer())
-        print("  Write snapshot grid:", self.ipp_config.write_snapshot_grid())
-        print("  Write quick pano:", self.ipp_config.write_quick_pano())
-        print("  Snapshot correction:", self.ipp_config.snapshot_correction())
-        print("  Cloud stitch:", self.ipp_config.cloud_stitch())
+        self.log("Microscope: %s" % (self.microscope.name, ))
+        self.log("Serial: %s" % (self.microscope.serial(), ))
+        self.log("Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
+        self.log("Options")
+        self.log("  Keep intermediates: %s" %
+                 self.ipp_config.keep_intermediates())
+        self.log("  Write HTML viewer: %s" %
+                 self.ipp_config.write_html_viewer())
+        self.log("  Write snapshot grid: %s" %
+                 self.ipp_config.write_snapshot_grid())
+        self.log("  Write quick pano: %s" % self.ipp_config.write_quick_pano())
+        self.log("  Snapshot correction: %s" %
+                 self.ipp_config.snapshot_correction())
+        self.log("  Cloud stitch: %s" % self.ipp_config.cloud_stitch())
 
         self.log("")
 
@@ -265,7 +268,8 @@ class DirCSIP:
                 next_dir = os.path.join(working_iindex["dir"], this_dir)
                 self.correct_plugin_run(pipeline_this,
                                         iindex_in=working_iindex,
-                                        dir_out=next_dir)
+                                        dir_out=next_dir,
+                                        lazy=self.lazy)
                 working_iindex = index_scan_images(next_dir)
 
         if working_iindex["stabilization"]:
@@ -313,7 +317,8 @@ class DirCSIP:
                     next_dir = os.path.join(working_iindex["dir"], this_dir)
                     self.correct_plugin_run(pipeline_this,
                                             iindex_in=working_iindex,
-                                            dir_out=next_dir)
+                                            dir_out=next_dir,
+                                            lazy=self.lazy)
                     working_iindex = index_scan_images(next_dir)
 
         if not config.get_usc().imager.has_ff_cal():
@@ -321,7 +326,9 @@ class DirCSIP:
         else:
             self.verbose and self.log("FF correction: start")
             next_dir = os.path.join(working_iindex["dir"], "ff1")
-            self.correct_ff1_run(iindex_in=working_iindex, dir_out=next_dir)
+            self.correct_ff1_run(iindex_in=working_iindex,
+                                 dir_out=next_dir,
+                                 lazy=self.lazy)
             working_iindex = index_scan_images(next_dir)
 
         self.verbose and self.log("")
@@ -334,7 +341,7 @@ class DirCSIP:
                     "Need to fix data to continue, but --fix not specified")
             self.log("WARNING: data is incomplete but trying to patch")
             next_dir = os.path.join(working_iindex["dir"], "fix")
-            self.fix_dir(working_iindex, next_dir)
+            self.csip.fix_dir(working_iindex, next_dir)
             working_iindex = index_scan_images(next_dir)
             self.verbose and self.log("")
             self.verbose and self.log("re-inspecting new dir")
@@ -346,15 +353,26 @@ class DirCSIP:
         if qr_regex:
             for fn in working_iindex["images"]:
                 fn_full = os.path.join(working_iindex["dir"], fn)
-                image = Image.open(fn_full)
-                qr_match = find_qr_code_match(image, qr_regex)
+                with Image.open(fn_full) as image:
+                    qr_match = find_qr_code_match(image, qr_regex)
                 if qr_match:
-                    next_dir = working_iindex["dir"] + "_" + qr_match
-                    os.rename(working_iindex["dir"], next_dir)
-                    working_iindex = index_scan_images(next_dir)
-                    self.directory = next_dir
-                    # self.log("QR match found, renaming dir")
+                    # Rename the scan directory, not the nested
+                    # processed directory we happen to be in
+                    working_rel = os.path.relpath(working_iindex["dir"],
+                                                  self.directory)
+                    new_directory = self.directory + "_" + qr_match
+                    self.log(
+                        f"QR match {qr_match}: renaming {self.directory} => {new_directory}"
+                    )
+                    os.rename(self.directory, new_directory)
+                    self.directory = new_directory
+                    working_iindex = index_scan_images(
+                        os.path.normpath(
+                            os.path.join(new_directory, working_rel)))
                     break
+        # Name of the output stitch job
+        # After any QR rename so the job gets the meaningful name
+        dst_basename = os.path.basename(os.path.abspath(self.directory))
 
         # https://github.com/Labsmore/pyuscope/issues/416
         # In the future we might make this more error resistant instead of skipping it
@@ -385,11 +403,17 @@ class DirCSIP:
         writej(os.path.join(self.directory, "processing.json"), outj)
 
         if not self.ipp_config.keep_intermediates():
-            remove_intermediate_directories(self.directory,
-                                            working_iindex["dir"])
-            print(f"Clean up intermediates: {next_dir} => {self.directory}")
-            next_dir = self.directory
-            working_iindex = index_scan_images(next_dir)
+            final_dir = working_iindex["dir"]
+            if os.path.realpath(final_dir) == os.path.realpath(
+                    self.directory):
+                self.verbose and self.log(
+                    "Clean up intermediates: nothing to do")
+            else:
+                remove_intermediate_directories(self.directory, final_dir)
+                self.log(
+                    f"Clean up intermediates: {final_dir} => {self.directory}"
+                )
+                working_iindex = index_scan_images(self.directory)
 
         if not self.upload:
             self.log("CloudStitch: skip (requested by CLI)")

@@ -16,15 +16,6 @@ DEFAULT_TOUPCAMSRC_ESIZE = 0
 VID_TOUPTEK = 0x0547
 PID_MU800 = 0x6801
 
-try:
-    import usb
-except ImportError:
-    usb = None
-
-if usb:
-    import usb.core
-    import usb.util
-
 
 class Plugin(ArgusGstImagerPlugin):
     def source_name(self):
@@ -42,14 +33,15 @@ class Plugin(ArgusGstImagerPlugin):
         print("FIXME")
         return []
         '''
-        if usb:
+        import usb.core
+        if 1:
             # find our device
             for dev in usb.core.find(find_all=True):
                 if dev.idVendor != VID_TOUPTEK:
                     continue
                 return True
 
-        if usb:
+        if 1:
             for dev in usb.core.find(find_all=True):
                 if dev.idVendor != VID_TOUPTEK:
                     continue

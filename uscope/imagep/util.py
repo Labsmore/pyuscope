@@ -1,16 +1,12 @@
 import time
 import os
+import threading
 from PIL import Image, UnidentifiedImageError
 import subprocess
-import tempfile
 import shutil
 import re
-# 2024-02-29: this package keeps being problematic
-try:
-    import pyzbar
-except ImportError:
-    pyzbar = None
-    print("WARNING: failed to import pyzbar")
+# Note: must import the submodule, the package __init__ doesn't expose it
+from pyzbar import pyzbar
 
 # Rayleigh criterion
 # https://oeis.org/A245461
@@ -130,8 +126,6 @@ class EtherealImageW:
         self.temp_filename = None
         self.want_im = False
 
-        tempfile.TemporaryDirectory()
-
         if want_fn:
             self.want_fn = want_fn
         elif want_dir and want_basename:
@@ -140,7 +134,7 @@ class EtherealImageW:
             self.want_im = True
             assert temp_dir
             self.temp_filename = os.path.join(
-                temp_dir, "ethereal_%u04u.tif" % EtherealImageW.get_image_id())
+                temp_dir, "ethereal_%04u.tif" % EtherealImageW.get_image_id())
             self.want_fn = self.temp_filename
         else:
             assert 0, "Unknown operating mode"
@@ -150,7 +144,35 @@ class EtherealImageW:
         return self.want_fn
 
     def get_im(self):
-        return Image.open(self.want_fn)
+        """
+        Return the output as a fully loaded PIL image
+        If the output was only wanted in memory (want_im) the backing temp
+        file is deleted: intermediate images would otherwise accumulate in
+        the engine temp dir for the life of the process
+        """
+        if self.im is not None:
+            return self.im
+        with open(self.want_fn, "rb") as f:
+            im = Image.open(f)
+            im.load()
+        if self.want_im:
+            self.im = im
+            self.flush()
+        return im
+
+    def flush(self):
+        """
+        Remove the backing temp file, if any
+        """
+        if self.temp_filename and os.path.exists(self.temp_filename):
+            os.unlink(self.temp_filename)
+
+    def __del__(self):
+        try:
+            self.flush()
+        except Exception:
+            # Interpreter teardown
+            pass
 
 
 class SubtaskException(Exception):
@@ -160,34 +182,45 @@ class SubtaskException(Exception):
 class TaskBarrier:
     """
     Track when all allocated tasks are complete
-    TODO: consider an event to wake up for faster response
+    allocate_callback() is called from the queuing thread,
+    callback() / add_exception() from worker threads
     """
     def __init__(self):
         self.ntasks_allocated = 0
         self.ntasks_completed = 0
         self.exceptions = 0
+        self.cond = threading.Condition()
 
     def callback(self):
-        self.ntasks_completed += 1
+        with self.cond:
+            self.ntasks_completed += 1
+            self.cond.notify_all()
 
     def allocate_callback(self):
-        self.ntasks_allocated += 1
+        with self.cond:
+            self.ntasks_allocated += 1
         return self.callback
 
     def wait(self, timeout=None):
         tstart = time.time()
-        while self.ntasks_allocated > self.ntasks_completed:
-            if timeout and time.time() - tstart > timeout:
-                raise Exception("Timed out")
-            time.sleep(0.1)
-        if self.exceptions:
-            raise SubtaskException("Task(s) completed with exception")
+        with self.cond:
+            while self.ntasks_allocated > self.ntasks_completed:
+                remaining = None
+                if timeout is not None:
+                    remaining = timeout - (time.time() - tstart)
+                    if remaining <= 0:
+                        raise Exception("Timed out")
+                self.cond.wait(remaining)
+            if self.exceptions:
+                raise SubtaskException("Task(s) completed with exception")
 
     def idle(self):
-        return self.ntasks_allocated == self.ntasks_completed
+        with self.cond:
+            return self.ntasks_allocated == self.ntasks_completed
 
     def add_exception(self):
-        self.exceptions += 1
+        with self.cond:
+            self.exceptions += 1
 
 
 def remove_intermediate_directories(top_dir, nested_dir):
@@ -240,10 +273,7 @@ def find_qr_code_match(image, expr):
     """
     Scan image for QR code(s) and return first match
     """
-    if not pyzbar:
-        raise ImportError("Failed to import pyzbar")
-
-    decode_results = pyzbar.pyzbar.decode(image)
+    decode_results = pyzbar.decode(image)
     for decoded in decode_results:
         data = decoded.data
         try:

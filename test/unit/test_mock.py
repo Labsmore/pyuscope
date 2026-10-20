@@ -35,11 +35,14 @@ from uscope.threads import CommandThreadBase
 from uscope.subsystem import Subsystem
 from uscope.planner.planner_util import microscope_to_planner_config, get_planner
 from uscope.imager.image_sequence import CapturedImage
-from uscope.imagep.pipeline import CSImageProcessor
+from uscope.imagep.pipeline import CSImageProcessor, CSIPParams
 from uscope.imagep.plugins import AnnotateScalebarPlugin, nice_scalebar_um
-from uscope.imagep.util import EtherealImageR, EtherealImageW
+from uscope.imagep.util import EtherealImageR, EtherealImageW, TaskBarrier, find_qr_code_match
+from uscope.imagep import streams as ipstreams
 from uscope import config as uconfig
 
+import glob
+from unittest import mock
 from PIL import Image
 
 
@@ -589,6 +592,187 @@ class ImageProcessingTestCase(TestCommon):
 
         im = self.snapshot(ip, microscope, {})
         self.assertEqual(im.size, (self.WIDTH, self.HEIGHT))
+
+    def test_snapshot_temp_files_cleaned(self):
+        """
+        Intermediate images used to accumulate in the engine temp dir
+        for the life of the process
+        """
+        microscope = self.make_microscope("mock-grbl")
+        ip = self.make_csip(microscope)
+        for _i in range(3):
+            im = self.snapshot(ip, microscope, {"annotate-scalebar": {}})
+            self.assertEqual(im.size, (self.WIDTH, self.HEIGHT + self.BAND))
+            # Image must be fully loaded, not lazily backed by the file
+            im.getpixel((0, 0))
+        self.assertEqual(glob.glob(os.path.join(ip.temp_dir, "*")), [])
+
+    def test_worker_survives_callback_exception(self):
+        """
+        A raising user callback must not kill the worker
+        With one worker a dead thread would strand all later tasks
+        """
+        microscope = self.make_microscope("mock-grbl")
+        ip = self.make_csip(microscope)
+
+        def bad_callback(*args):
+            raise ValueError("callback bug")
+
+        tb = TaskBarrier()
+        data_in = {"image": EtherealImageR(im=self.make_image())}
+        data_out = {"image": EtherealImageW(want_im=True, temp_dir=ip.temp_dir)}
+        ip.queue_task(
+            CSIPParams(task_name="annotate-scalebar",
+                       data_in=data_in,
+                       data_out=data_out,
+                       options={"objective_config": {}},
+                       callback=bad_callback,
+                       tb=tb))
+        tb.wait(timeout=10.0)
+        self.assertTrue(all(w.is_alive() for w in ip.workers.values()))
+        # Next task still processed
+        im = self.snapshot(ip, microscope, {})
+        self.assertEqual(im.size, (self.WIDTH, self.HEIGHT))
+
+    def test_invalid_plugin_reports(self):
+        microscope = self.make_microscope("mock-grbl")
+        ip = self.make_csip(microscope)
+        tb = TaskBarrier()
+        ip.queue_task(CSIPParams(task_name="no-such-plugin", tb=tb))
+        with self.assertRaises(Exception):
+            tb.wait(timeout=10.0)
+
+    def test_task_barrier_threaded(self):
+        tb = TaskBarrier()
+        n = 2000
+        for _i in range(n):
+            tb.allocate_callback()
+        self.assertFalse(tb.idle())
+
+        def worker(count):
+            for _i in range(count):
+                tb.callback()
+
+        threads = [threading.Thread(target=worker, args=(n // 4, )) for _i in range(4)]
+        for t in threads:
+            t.start()
+        tb.wait(timeout=10.0)
+        for t in threads:
+            t.join()
+        self.assertTrue(tb.idle())
+        self.assertEqual(tb.ntasks_completed, n)
+
+    def test_task_barrier_timeout(self):
+        tb = TaskBarrier()
+        tb.allocate_callback()
+        tstart = time.time()
+        with self.assertRaises(Exception):
+            tb.wait(timeout=0.2)
+        self.assertLess(time.time() - tstart, 2.0)
+
+    def test_qr_no_match(self):
+        # Exercises the pyzbar import; blank image has no code
+        self.assertIsNone(find_qr_code_match(self.make_image(), ".*"))
+
+
+class DirCSIPTestCase(TestCommon):
+    """
+    Process a tiny completed scan directory
+    mock-grbl has no FF cal or corrections so this is the zero stage path
+    """
+    COLS = 2
+    ROWS = 2
+
+    def make_scan_dir(self, name="scan"):
+        d = os.path.join(self.out_dir, name)
+        os.mkdir(d)
+        for col in range(self.COLS):
+            for row in range(self.ROWS):
+                Image.new("RGB", (64, 48), "gray").save(
+                    os.path.join(d, "c%03u_r%03u.jpg" % (col, row)))
+        return d
+
+    def make_csip(self, microscope):
+        ip = CSImageProcessor(nthreads=1, log=self.log, microscope=microscope)
+        ip.start()
+        self.assertTrue(ip.ready.wait(5.0))
+        self.addCleanup(ip.shutdown)
+        return ip
+
+    def run_dir(self, ip, d, configj):
+        ip.process_dir(d,
+                       upload=False,
+                       configj=configj,
+                       verbose=self.verbose)
+
+    def add_stage(self, microscope):
+        """
+        Make processing go through a nested directory
+        """
+        ipp = uconfig.get_usc(microscope=microscope).ipp
+        old = ipp.j.get("pipeline_first", None)
+        ipp.j["pipeline_first"] = [{
+            "plugin": "annotate-scalebar",
+            "dir": "scalebar"
+        }]
+
+        def restore():
+            if old is None:
+                ipp.j.pop("pipeline_first", None)
+            else:
+                ipp.j["pipeline_first"] = old
+
+        self.addCleanup(restore)
+
+    def test_no_stages_discard_intermediates(self):
+        """
+        Used to UnboundLocalError on next_dir when nothing was processed
+        """
+        microscope = self.make_microscope("mock-grbl")
+        ip = self.make_csip(microscope)
+        d = self.make_scan_dir()
+        self.run_dir(ip, d, {
+            "keep_intermediates": False,
+            "write_html_viewer": False,
+        })
+        self.assertTrue(os.path.exists(os.path.join(d, "processing.json")))
+        self.assertEqual(len(glob.glob(os.path.join(d, "*.jpg"))),
+                         self.COLS * self.ROWS)
+
+    def test_stage_discard_intermediates(self):
+        microscope = self.make_microscope("mock-grbl")
+        self.add_stage(microscope)
+        ip = self.make_csip(microscope)
+        d = self.make_scan_dir()
+        self.run_dir(ip, d, {
+            "keep_intermediates": False,
+            "write_html_viewer": False,
+        })
+        # Processed images moved to the top, nested dir gone
+        self.assertFalse(os.path.exists(os.path.join(d, "scalebar")))
+        fns = glob.glob(os.path.join(d, "*.jpg"))
+        self.assertEqual(len(fns), self.COLS * self.ROWS)
+        with Image.open(fns[0]) as im:
+            # Scalebar band added => taller than the 48 px source
+            self.assertGreater(im.height, 48)
+
+    def test_qr_renames_scan_dir(self):
+        """
+        With a processing stage the QR rename must apply to the scan
+        directory, not the nested processed directory
+        """
+        microscope = self.make_microscope("mock-grbl")
+        self.add_stage(microscope)
+        ip = self.make_csip(microscope)
+        d = self.make_scan_dir()
+        with mock.patch.object(uconfig.bc, "j", dict(uconfig.bc.j, qr_regex=".*")), \
+             mock.patch.object(ipstreams, "find_qr_code_match", return_value="ABC123"):
+            self.run_dir(ip, d, {"write_html_viewer": False})
+        self.assertFalse(os.path.exists(d))
+        renamed = d + "_ABC123"
+        self.assertTrue(os.path.isdir(renamed))
+        self.assertTrue(os.path.isdir(os.path.join(renamed, "scalebar")))
+        self.assertTrue(os.path.exists(os.path.join(renamed, "processing.json")))
 
 
 class GrblMockTestCase(TestCommon):

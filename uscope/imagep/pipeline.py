@@ -54,6 +54,8 @@ class CSImageProcessorThread(threading.Thread):
     """
     A single worker thread that can perform a number of low level corrections
     Intended to be used with CSImageProcessor
+    Workers pull from the shared CSImageProcessor queue so that a task always
+    goes to the next free worker
     """
     def __init__(self, csip, name):
         super().__init__()
@@ -61,13 +63,8 @@ class CSImageProcessorThread(threading.Thread):
         self.log = self.csip.log
         self.name = name
         self.running = threading.Event()
-        # Set for single commands
-        self.simple_idle = threading.Event()
-        self.simple_idle.set()
-        self.queue_in = queue.Queue()
-        # self.queue_out = queue.Queue()
 
-        # Each thrread gets its own set of correction engines
+        # Each thread gets its own set of correction engines
         self.plugins = get_plugins(log=self.log,
                                    microscope=self.csip.microscope)
         self.running.set()
@@ -75,56 +72,51 @@ class CSImageProcessorThread(threading.Thread):
     def stop(self):
         self.running.clear()
 
-    def queue_command(self, ip_params):
-        self.queue_in.put(ip_params)
-
-    """
-    def wait_queue_out(self, command=None, timeout=None):
-        (call_info, result, info) = self.queue_in.get(True, timeout)
-        (name, data_in, data_out, options) = call_info
-        if result != "ok":
-            raise Exception(f"Command {name} failed: {result} {info}")
-        if command:
-            assert name == command
-        return info
-    """
-
     def run(self):
-
         while self.running.is_set():
             try:
-                ip_params = self.queue_in.get(True, 0.1)
+                ip_params = self.csip.queue_in.get(True, 0.1)
             except queue.Empty:
                 continue
-
-            def finish_command(result, info):
-                out = (ip_params, result, info)
-                # self.queue_out.put(out)
-                if ip_params.tb:
-                    if result != "ok":
-                        ip_params.tb.add_exception()
-                    ip_params.tb.callback()
-                if ip_params.callback:
-                    ip_params.callback(*out)
-                self.simple_idle.set()
-
-            plugin = self.plugins.get(ip_params.task_name)
-            if plugin is None:
-                self.log(f"Invalid plugin {ip_params.task_name}")
-                finish_command("error", "invalid command")
-                continue
             try:
-                ret = plugin.run(data_in=ip_params.data_in,
-                                 data_out=ip_params.data_out,
-                                 options=ip_params.options)
-                # self.log("Command done")
-                finish_command("ok", ret)
-            except Exception as e:
-                self.log("")
-                self.log("WARNING: worker thread crashed")
+                self.run_task(ip_params)
+            except Exception:
+                # Should have been handled in run_task
+                # Keep the worker alive regardless
+                self.log("WARNING: worker thread unexpected exception")
                 self.log(traceback.format_exc())
-                finish_command("exception", e)
-                continue
+
+    def run_task(self, ip_params):
+        def finish_command(result, info):
+            out = (ip_params, result, info)
+            # User callback first: the barrier wakes the queuing thread
+            # and the user callback may be what sets the result it reads
+            if ip_params.callback:
+                try:
+                    ip_params.callback(*out)
+                except Exception:
+                    self.log("WARNING: task callback raised")
+                    self.log(traceback.format_exc())
+            if ip_params.tb:
+                if result != "ok":
+                    ip_params.tb.add_exception()
+                ip_params.tb.callback()
+
+        plugin = self.plugins.get(ip_params.task_name)
+        if plugin is None:
+            self.log(f"Invalid plugin {ip_params.task_name}")
+            finish_command("error", "invalid command")
+            return
+        try:
+            ret = plugin.run(data_in=ip_params.data_in,
+                             data_out=ip_params.data_out,
+                             options=ip_params.options)
+            finish_command("ok", ret)
+        except Exception as e:
+            self.log("")
+            self.log(f"WARNING: image processing task {ip_params.task_name} failed")
+            self.log(traceback.format_exc())
+            finish_command("exception", e)
 
 
 """
@@ -184,10 +176,12 @@ class CSImageProcessor(threading.Thread):
                 print(s)
 
         self.log = log
+        # Shared by all workers
         self.queue_in = queue.Queue()
-        # self.queue_out = queue.Queue()
         self.running = threading.Event()
         self.ready = threading.Event()
+        # Set when shutdown is requested (inverse of running, but waitable)
+        self.stop_requested = threading.Event()
         self.workers = OrderedDict()
 
         # Used
@@ -211,6 +205,7 @@ class CSImageProcessor(threading.Thread):
     def shutdown_request(self, phase):
         if phase == ShutdownPhase.FINAL:
             self.running.clear()
+            self.stop_requested.set()
 
             if self.workers:
                 self.log("Shutting down: requesting")
@@ -410,14 +405,8 @@ class CSImageProcessor(threading.Thread):
 
         self.ready.set()
 
-        while self.running.is_set():
-            for worker in self.workers.values():
-                if worker.simple_idle.is_set():
-                    try:
-                        ip_params = self.queue_in.get(True, 0.1)
-                    except queue.Empty:
-                        break
-                    worker.queue_command(ip_params)
+        # Workers pull directly from queue_in; nothing to dispatch
+        self.stop_requested.wait()
 
 
 def microscope_name_from_scan_dir(directory, mconfig):
@@ -469,12 +458,16 @@ def process_dir(directory,
     del ip
 
 
-def process_snapshots(images,
-                      *args,
-                      nthreads=None,
-                      microscope=None,
-                      mconfig=None,
-                      **kwargs):
+def process_snapshot(image,
+                     *args,
+                     nthreads=None,
+                     microscope=None,
+                     mconfig=None,
+                     **kwargs):
+    """
+    One shot: process a single snapshot image with a temporary engine
+    See SnapshotCSIP.run() for options
+    """
     if microscope is None:
         microscope = get_virtual_microscope(mconfig=mconfig)
 
@@ -484,10 +477,8 @@ def process_snapshots(images,
         ip.start()
         # nothing to process => can try to shutdown before it starts
         ip.ready.wait(1.0)
-        ret = ip.process_snapshots(images, *args, **kwargs)
-        print("ok, shutting down")
-        return ret
+        return ip.process_snapshot(image, *args, **kwargs)
     finally:
         if ip:
-            ip.stop()
+            ip.shutdown()
     del ip

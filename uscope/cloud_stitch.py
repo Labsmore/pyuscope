@@ -8,6 +8,17 @@ import glob
 
 
 class CSInfo:
+    """
+    CloudStitch credentials
+    Resolution order: explicit argument, environment, bc config
+    Environment is used to hand credentials to child processes (ex: cs_auto)
+    without putting them on the command line where ps can see them
+    """
+    ENV_ACCESS_KEY = "PYUSCOPE_CS_ACCESS_KEY"
+    ENV_SECRET_KEY = "PYUSCOPE_CS_SECRET_KEY"
+    ENV_ID_KEY = "PYUSCOPE_CS_ID_KEY"
+    ENV_NOTIFICATION_EMAIL = "PYUSCOPE_CS_NOTIFICATION_EMAIL"
+
     def __init__(self,
                  access_key=None,
                  secret_key=None,
@@ -15,18 +26,35 @@ class CSInfo:
                  notification_email=None):
         bc = config.get_bc()
         if not access_key:
-            access_key = bc.labsmore_stitch_aws_access_key()
+            access_key = os.getenv(self.ENV_ACCESS_KEY) or bc.labsmore_stitch_aws_access_key()
         if not secret_key:
-            secret_key = bc.labsmore_stitch_aws_secret_key()
+            secret_key = os.getenv(self.ENV_SECRET_KEY) or bc.labsmore_stitch_aws_secret_key()
         if not id_key:
-            id_key = bc.labsmore_stitch_aws_id_key()
+            id_key = os.getenv(self.ENV_ID_KEY) or bc.labsmore_stitch_aws_id_key()
         if not notification_email:
-            notification_email = bc.labsmore_stitch_notification_email()
+            notification_email = os.getenv(
+                self.ENV_NOTIFICATION_EMAIL
+            ) or bc.labsmore_stitch_notification_email()
 
         self._access_key = access_key
         self._secret_key = secret_key
         self._id_key = id_key
         self._notification_email = notification_email
+
+    def to_env(self):
+        """
+        Environment variables to pass to a child process
+        """
+        ret = {}
+        for k, v in (
+            (self.ENV_ACCESS_KEY, self._access_key),
+            (self.ENV_SECRET_KEY, self._secret_key),
+            (self.ENV_ID_KEY, self._id_key),
+            (self.ENV_NOTIFICATION_EMAIL, self._notification_email),
+        ):
+            if v:
+                ret[k] = v
+        return ret
 
     def check_plausible(self):
         if not self._access_key:

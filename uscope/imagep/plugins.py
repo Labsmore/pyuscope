@@ -28,6 +28,8 @@ class IPPlugin:
                  default_options={},
                  microscope=None):
         self.microscope = microscope
+        # Set before anything that can raise so __del__ doesn't mask the error
+        self.tmp_dir = None
         if not log:
 
             def log(s):
@@ -38,7 +40,6 @@ class IPPlugin:
         self.log = log
         self.default_options = default_options
 
-        self.tmp_dir = None
         self.need_tmp_dir = need_tmp_dir
         if need_tmp_dir:
             self.create_tmp_dir()
@@ -585,101 +586,159 @@ class CorrectVM1V1Plugin(IPPlugin):
                     [int(cv2.IMWRITE_JPEG_QUALITY), 90])
 
 
+def text_wh(draw, text, font):
+    """
+    Pillow 10 removed ImageDraw.textsize() / ImageFont.getsize()
+    textbbox() is available since Pillow 8.0
+    """
+    left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+    return right - left, bottom - top
+
+
+def nice_scalebar_um(target_um):
+    """
+    Pick the "round" scalebar length (1, 2, 5 x 10^n um) closest to target_um
+    Closest is judged on a log scale so the result is within
+    about 0.63x to 1.6x of the target
+    """
+    assert target_um > 0
+    exp = math.floor(math.log10(target_um))
+    candidates = [mant * 10**exp for mant in (1, 2, 5, 10)]
+    return min(candidates,
+               key=lambda val: abs(math.log10(val) - math.log10(target_um)))
+
+
 class AnnotateScalebarPlugin(IPPlugin):
+    """
+    Adds a black band at the bottom of the image containing a scalebar
+    Scalebar length is snapped to a round value (ex: 200 um, 0.5 mm)
+    """
+    # Scalebar is the round value closest to this fraction of image width
+    SCALEBAR_WIDTH_FRACTION = 0.15
+    # Text to display next to the scalebar. Can be overridden by:
+    # microscope.j5 ipp.plugins.annotate-scalebar.text
+    # per call options["text"]
+    DEFAULT_TEXT = "Labsmore.com"
+
     def __init__(self, log, default_options={}, microscope=None):
         super().__init__(log=log,
                          microscope=microscope,
                          default_options=default_options,
                          need_tmp_dir=True)
-        current_script_path = Path(__file__).resolve()
-        project_path = current_script_path.parents[2]
-        self.font_path = str(project_path) + "/fonts/Roboto/Roboto-Regular.ttf"
-        assert Path(self.font_path).is_file(
-        ), f"The file {self.font_path} does not exist."
+        pconfig = self.usc.ipp.get_plugin("annotate-scalebar")
+        self.text = pconfig.get("text", self.DEFAULT_TEXT)
+        self.font_path = pconfig.get("font", None)
+        if self.font_path is None:
+            # Development checkout: fonts/ at project root
+            project_path = Path(__file__).resolve().parents[2]
+            self.font_path = str(project_path / "fonts" / "Roboto" /
+                                 "Roboto-Regular.ttf")
+        if not Path(self.font_path).is_file():
+            # Plugins are always constructed (get_plugins()) even if unused
+            # Don't take down the whole image processing pipeline over a font
+            # ex: installed as a package w/o the fonts dir
+            self.log(
+                f"WARNING: scalebar font {self.font_path} not found, using default font"
+            )
+            self.font_path = None
+
+    def get_font(self, size):
+        if self.font_path:
+            return ImageFont.truetype(self.font_path, size)
+        try:
+            # Pillow >= 10.1: scalable default font
+            return ImageFont.load_default(size=size)
+        except TypeError:
+            return ImageFont.load_default()
 
     def _run(self, data_in, data_out, options={}):
-        self.constant_text = "Labsmore.com"
-        self.font_size = 25
-        self.additional_text_distance_from_scalebar = 20
-
         pil_im = data_in["image"].to_im()
+        if pil_im.mode != "RGB":
+            pil_im = pil_im.convert("RGB")
         width, original_height = pil_im.size
-        # self.scalebar_x_start = 10
-        self.scalebar_x_start = int(width * 0.05)
-        self.scalebar_y_start = int(width * 0.01)
-        # self.short_line_length = 10
-        self.short_line_length = int(width * 0.025)
-        self.scalebar_length = int(width * 0.15)
-        # self.line_width = 5
-        self.line_width = int(width * 0.005)
+        text = options.get("text", self.text)
+
+        scalebar_x_start = int(width * 0.05)
+        scalebar_y_start = int(width * 0.01)
+        short_line_length = int(width * 0.025)
+        # width=0 draws nothing
+        line_width = max(1, int(width * 0.005))
         black_rectangle_height = int(original_height * 0.12)
+        # Scale font with the band it needs to fit in
+        font_size = max(10, int(black_rectangle_height * 0.25))
+        additional_text_distance_from_scalebar = font_size
+
+        # TODO: indicate how well calibrated the system is
+        um_per_pixel = float(
+            options.get("objective_config", {}).get("um_per_pixel", "0"))
+        if um_per_pixel > 0.0:
+            scalebar_um = nice_scalebar_um(width *
+                                           self.SCALEBAR_WIDTH_FRACTION *
+                                           um_per_pixel)
+            scalebar_length = int(round(scalebar_um / um_per_pixel))
+            scale_text = format_mm_3dec(scalebar_um / 1000)
+        else:
+            scalebar_length = int(width * self.SCALEBAR_WIDTH_FRACTION)
+            scale_text = "Missing calibration"
+        self.verbose and self.log(
+            f"scalebar: um_per_pixel {um_per_pixel}, length {scalebar_length} px => {scale_text}"
+        )
 
         new_image_height = original_height + black_rectangle_height
-
         modified_image = Image.new("RGB", (width, new_image_height),
                                    color="black")
-
         modified_image.paste(pil_im, (0, 0))
 
         draw = ImageDraw.Draw(modified_image)
-        font = ImageFont.truetype(self.font_path, self.font_size)
+        font = self.get_font(font_size)
         scalebar_y = new_image_height - black_rectangle_height // 2
 
         def draw_bar():
             draw.line([
-                self.scalebar_x_start, scalebar_y,
-                self.scalebar_x_start + self.scalebar_length, scalebar_y
+                scalebar_x_start, scalebar_y, scalebar_x_start +
+                scalebar_length, scalebar_y
             ],
                       fill="white",
-                      width=self.line_width)
-
+                      width=line_width)
             draw.line([
-                self.scalebar_x_start, scalebar_y - self.short_line_length,
-                self.scalebar_x_start, scalebar_y + self.short_line_length
+                scalebar_x_start, scalebar_y - short_line_length,
+                scalebar_x_start, scalebar_y + short_line_length
             ],
                       fill="white",
-                      width=self.line_width)
+                      width=line_width)
             draw.line([
-                self.scalebar_x_start + self.scalebar_length,
-                scalebar_y - self.short_line_length, self.scalebar_x_start +
-                self.scalebar_length, scalebar_y + self.short_line_length
+                scalebar_x_start + scalebar_length,
+                scalebar_y - short_line_length,
+                scalebar_x_start + scalebar_length,
+                scalebar_y + short_line_length
             ],
                       fill="white",
-                      width=self.line_width)
+                      width=line_width)
 
         def draw_scale_text():
-            # TODO: indicate how well calibrated the system is
-            um_per_pixel = float(
-                options.get("objective_config", {}).get("um_per_pixel", "0"))
-            if um_per_pixel > 0.0:
-                # print("um_per_pixel", um_per_pixel, "length", self.scalebar_length)
-                scale_text = format_mm_3dec(self.scalebar_length *
-                                            um_per_pixel / 1000)
-            else:
-                scale_text = "Missing calibration"
-
-            scale_text_width, scale_text_height = draw.textsize(
-                scale_text, font)
+            scale_text_width, scale_text_height = text_wh(
+                draw, scale_text, font)
+            # Centered over the bar, but don't run off the left edge
             scale_text_position = (
-                self.scalebar_x_start +
-                (self.scalebar_length - scale_text_width) // 2, scalebar_y -
-                int(scale_text_height * 1.2) - self.scalebar_y_start)
+                max(
+                    line_width, scalebar_x_start +
+                    (scalebar_length - scale_text_width) // 2),
+                scalebar_y - int(scale_text_height * 1.2) - scalebar_y_start)
             draw.text(scale_text_position, scale_text, font=font, fill="white")
-            return scale_text
 
-        def draw_labsmore(scale_text):
+        def draw_text():
+            if not text:
+                return
+            _text_width, text_height = text_wh(draw, text, font)
             additional_text_position = (
-                self.scalebar_x_start + self.scalebar_length +
-                self.additional_text_distance_from_scalebar,
-                scalebar_y - font.getsize(scale_text)[1] // 2)
-            draw.text(additional_text_position,
-                      self.constant_text,
-                      font=font,
-                      fill="white")
+                scalebar_x_start + scalebar_length +
+                additional_text_distance_from_scalebar,
+                scalebar_y - text_height // 2)
+            draw.text(additional_text_position, text, font=font, fill="white")
 
         draw_bar()
-        scale_text = draw_scale_text()
-        draw_labsmore(scale_text)
+        draw_scale_text()
+        draw_text()
 
         modified_image.save(data_out["image"].get_filename(), quality=90)
 

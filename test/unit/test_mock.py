@@ -34,6 +34,13 @@ from uscope.motion.thread import SimpleMotionThread
 from uscope.threads import CommandThreadBase
 from uscope.subsystem import Subsystem
 from uscope.planner.planner_util import microscope_to_planner_config, get_planner
+from uscope.imager.image_sequence import CapturedImage
+from uscope.imagep.pipeline import CSImageProcessor
+from uscope.imagep.plugins import AnnotateScalebarPlugin, nice_scalebar_um
+from uscope.imagep.util import EtherealImageR, EtherealImageW
+from uscope import config as uconfig
+
+from PIL import Image
 
 
 def quiet_log(msg="", *args, **kwargs):
@@ -487,6 +494,101 @@ class MotionThreadTestCase(TestCommon):
         done = threading.Event()
         mt.move_absolute({"x": 1.0}, done=done)
         self.assertTrue(done.wait(2.0))
+
+
+class ImageProcessingTestCase(TestCommon):
+    WIDTH = 800
+    HEIGHT = 600
+    # Scalebar adds a black band below the image
+    BAND = int(HEIGHT * 0.12)
+
+    def make_image(self):
+        return Image.new("RGB", (self.WIDTH, self.HEIGHT), "gray")
+
+    def run_plugin(self, plugin, options):
+        data_in = {"image": EtherealImageR(im=self.make_image())}
+        data_out = {"image": EtherealImageW(want_im=True, temp_dir=self.out_dir)}
+        plugin.run(data_in, data_out, options=options)
+        return data_out["image"].get_im()
+
+    def test_nice_scalebar_um(self):
+        self.assertEqual(nice_scalebar_um(120.0), 100)
+        self.assertEqual(nice_scalebar_um(200.0), 200)
+        self.assertEqual(nice_scalebar_um(49.8), 50)
+        self.assertEqual(nice_scalebar_um(499.0), 500)
+        self.assertEqual(nice_scalebar_um(7000.0), 5000)
+        self.assertEqual(nice_scalebar_um(8000.0), 10000)
+        self.assertEqual(nice_scalebar_um(0.6), 0.5)
+
+    def test_scalebar_plugin(self):
+        """
+        Pillow >= 10 removed ImageDraw.textsize() / ImageFont.getsize()
+        """
+        microscope = self.make_microscope("mock-grbl")
+        plugin = AnnotateScalebarPlugin(log=self.log, microscope=microscope)
+        im = self.run_plugin(plugin,
+                             {"objective_config": {
+                                 "um_per_pixel": 1.0
+                             }})
+        self.assertEqual(im.size, (self.WIDTH, self.HEIGHT + self.BAND))
+        # Something white got drawn in the band
+        band = im.crop((0, self.HEIGHT, self.WIDTH, self.HEIGHT + self.BAND))
+        self.assertEqual(band.getextrema()[0][1], 255)
+        # Image itself is untouched
+        self.assertEqual(im.getpixel((0, 0)), (128, 128, 128))
+
+    def test_scalebar_plugin_no_cal(self):
+        microscope = self.make_microscope("mock-grbl")
+        plugin = AnnotateScalebarPlugin(log=self.log, microscope=microscope)
+        im = self.run_plugin(plugin, {"objective_config": {}})
+        self.assertEqual(im.size, (self.WIDTH, self.HEIGHT + self.BAND))
+
+    def make_csip(self, microscope):
+        ip = CSImageProcessor(nthreads=1, log=self.log, microscope=microscope)
+        ip.start()
+        self.assertTrue(ip.ready.wait(5.0))
+        self.addCleanup(ip.shutdown)
+        return ip
+
+    def snapshot(self, ip, microscope, plugins):
+        image = self.make_image()
+        capim = CapturedImage(image=image, meta={}, microscope=microscope)
+        options = {
+            "captured_image": capim,
+            "objective_config": {
+                "um_per_pixel": 1.0
+            },
+            "plugins": plugins,
+        }
+        return ip.process_snapshot(image, options=options)
+
+    def test_snapshot_scalebar_not_sticky(self):
+        """
+        Requesting the scalebar on one snapshot must not add it to the
+        microscope config and thus all later snapshots / scans
+        """
+        microscope = self.make_microscope("mock-grbl")
+        ipp = uconfig.get_usc(microscope=microscope).ipp
+        # Config with the key present returns the live list
+        # (configs/lip-vm1 does this)
+        old = ipp.j.get("snapshot_correction", None)
+        ipp.j["snapshot_correction"] = []
+
+        def restore():
+            if old is None:
+                ipp.j.pop("snapshot_correction", None)
+            else:
+                ipp.j["snapshot_correction"] = old
+
+        self.addCleanup(restore)
+
+        ip = self.make_csip(microscope)
+        im = self.snapshot(ip, microscope, {"annotate-scalebar": {}})
+        self.assertEqual(im.size, (self.WIDTH, self.HEIGHT + self.BAND))
+        self.assertEqual(ipp.snapshot_correction(), [])
+
+        im = self.snapshot(ip, microscope, {})
+        self.assertEqual(im.size, (self.WIDTH, self.HEIGHT))
 
 
 class GrblMockTestCase(TestCommon):

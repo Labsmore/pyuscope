@@ -8,8 +8,12 @@ import subprocess
 from pathlib import Path
 
 
-REQUIRED_MODULES = ("gi", "cairo", "PyQt5")
+# Must match the apt packages in deb.containerfile and the deb Depends in
+# build_deb.py: anything required here must be installed in both places
+REQUIRED_MODULES = ("gi", "PyQt5")
 OPTIONAL_MODULES = (
+    # Only needed by gi for Gdk/Gtk, which pyuscope doesn't use
+    "cairo",
     "sip",
     "pygame",
     "libcamera",

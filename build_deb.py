@@ -285,8 +285,12 @@ Description: Digital microscope controller
         write_package_docs(package_root, version)
 
         package_root.chmod(0o755)
+        # Skip symlinks: uv_system_bindings.py links system packages into the
+        # venv and chmod would follow them into root owned /usr/lib
         for directory in (
-            path for path in package_root.rglob("*") if path.is_dir()
+            path
+            for path in package_root.rglob("*")
+            if path.is_dir() and not path.is_symlink()
         ):
             directory.chmod(0o755)
         output_dir.mkdir(parents=True, exist_ok=True)

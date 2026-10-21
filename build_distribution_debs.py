@@ -5,6 +5,7 @@ import argparse
 import io
 import os
 import platform
+import re
 import shutil
 import subprocess
 import tarfile
@@ -14,6 +15,30 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 CONTAINERFILE = ROOT / "deb.containerfile"
 GST_PLUGIN_ROOT = ROOT / "gst-plugin-toupcam"
+
+
+def pyuscope_version():
+    # Same source as build_deb.project_version()
+    pyproject = (ROOT / "pyproject.toml").read_text()
+    match = re.search(
+        r"(?m)^version\s*=\s*[\"']([^\"']+)[\"']\s*$", pyproject
+    )
+    if not match:
+        raise SystemExit("Could not determine version from pyproject.toml")
+    return match.group(1)
+
+
+def gst_plugin_version():
+    # Same source as gst-plugin-toupcam/build_deb.plugin_version()
+    configure_ac = (GST_PLUGIN_ROOT / "configure.ac").read_text()
+    match = re.search(
+        r"AC_INIT\(\s*\[toupcam\]\s*,\s*\[([^\]]+)\]\s*\)", configure_ac
+    )
+    if not match:
+        raise SystemExit(
+            "Could not determine plugin version from configure.ac"
+        )
+    return match.group(1)
 
 DISTRIBUTIONS = {
     "ubuntu26.04": "ubuntu:26.04",
@@ -254,10 +279,14 @@ def package_field(package, field):
 
 
 def create_release_bundle(output_dir, distribution, architecture):
+    # Match the exact versions just built: dist/ may hold packages from
+    # earlier versions and a wildcard would be ambiguous
     pyuscope_deb = one_package(
-        output_dir / f"pyuscope_*+{distribution}_{architecture}.deb",
+        output_dir
+        / f"pyuscope_{pyuscope_version()}+{distribution}_{architecture}.deb",
         "pyuscope package",
     )
+    gst_version = gst_plugin_version()
     sdk_directories = sorted(
         (GST_PLUGIN_ROOT / "dist").glob("toupcamsdk_*")
     )
@@ -265,7 +294,7 @@ def create_release_bundle(output_dir, distribution, architecture):
     for sdk_directory in sdk_directories:
         gst_packages = list(
             sdk_directory.glob(
-                f"gstreamer1.0-toupcam_*+{distribution}_{architecture}.deb"
+                f"gstreamer1.0-toupcam_{gst_version}+{distribution}_{architecture}.deb"
             )
         )
         sdk_packages = list(
@@ -428,7 +457,9 @@ def main():
         )
 
     print("\nBuilt packages:")
-    for package in sorted(output_dir.glob("pyuscope_*.deb")):
+    for package in sorted(
+        output_dir.glob(f"pyuscope_{pyuscope_version()}+*.deb")
+    ):
         print(package)
     print("\nBuilt release bundles:")
     for bundle in bundles:

@@ -9,14 +9,19 @@ if [ \! -d configs ] ; then
 fi
 
 install_uv_system=false
+force_toupcam=false
 while [ "$#" -gt 0 ] ; do
     case "$1" in
         --uv-system)
             install_uv_system=true
             ;;
+        --force-toupcam)
+            # Rebuild gst-plugin-toupcam even if a package is already installed
+            force_toupcam=true
+            ;;
         *)
             echo "Unknown option: $1" >&2
-            echo "Usage: $0 [--uv-system]" >&2
+            echo "Usage: $0 [--uv-system] [--force-toupcam]" >&2
             exit 2
             ;;
     esac
@@ -43,12 +48,16 @@ fi
 linux_distribution=$(lsb_release -d |cut -d ':' -f2 |xargs)
 
 install_pyuscope() {
-    sudo apt-get install -y python3-gst-1.0 python3-gi python3-pyqt5 python3-usb python3-opencv python3-serial python3-numpy python3-scipy imagemagick python3-distro python3-zbar luminance-hdr
-    # 2024-01-03: dev seems to be required, not just base
-    # Some people suggest gir1.2-gst-rtsp-server-1.0
-    # Install all for now
-    sudo apt-get install -y libgstrtspserver-1.0-0 libgstrtspserver-1.0-dev gir1.2-gst-rtsp-server-1.0
-
+    # Pure Python dependencies come from PyPI via uv (see pyproject.toml).
+    # apt only supplies what PyPI can't: GObject/GStreamer and Qt bindings
+    # (linked into the venv by utils/uv_system_bindings.py), shared libraries
+    # loaded at runtime, and external CLI tools.
+    # Keep in sync with the Depends in build_deb.py and deb.containerfile
+    sudo apt-get install -y \
+        python3-gi python3-gst-1.0 python3-pyqt5 \
+        gir1.2-gst-rtsp-server-1.0 libgstrtspserver-1.0-0 \
+        gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+        libzbar0 imagemagick luminance-hdr
 
     # Package removed
     # use flat pack
@@ -63,12 +72,6 @@ install_pyuscope() {
         sudo apt-get install -y hugin-tools enfuse
     fi
 
-    # For webserver
-    sudo apt-get install -y python3-werkzeug
-
-    # Keep the uv environment isolated from unrelated distribution packages.
-    # GObject/GStreamer, Qt, and optional hardware bindings are selectively
-    # linked below because they are supplied by apt rather than PyPI.
     "$UV" venv
     "$UV" sync
     /usr/bin/python3 utils/uv_system_bindings.py .venv
@@ -77,11 +80,27 @@ install_pyuscope() {
 # For GRBL etc serial port
 sudo usermod -a -G dialout $USER
 
+# Returns 0 if the toupcam GStreamer plugin is already usable on this system,
+# either from the gstreamer1.0-toupcam .deb or from a plugin GStreamer can find
+toupcam_plugin_installed() {
+    if dpkg-query -W -f='${Status}' gstreamer1.0-toupcam 2>/dev/null | grep -q "install ok installed" ; then
+        return 0
+    fi
+    if command -v gst-inspect-1.0 >/dev/null 2>&1 && gst-inspect-1.0 toupcamsrc >/dev/null 2>&1 ; then
+        return 0
+    fi
+    return 1
+}
+
 install_gst_plugin_toupcam() {
+    if ! $force_toupcam && toupcam_plugin_installed ; then
+        echo "toupcam GStreamer plugin already installed, skipping build (use --force-toupcam to rebuild)"
+        return
+    fi
     git submodule init
     git submodule update --remote
     pushd gst-plugin-toupcam
-    ./setup_ubuntu_20.04.sh
+    ./install.sh
     popd
 }
 

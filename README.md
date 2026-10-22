@@ -22,12 +22,17 @@ OS: we primarily test on Ubuntu 20.04 but other versions of Linux or MacOS might
 
 If you'd like a basic setup:
 
-    ./setup_ubuntu_20.04.sh
+    ./install.sh
 
 This installs `uv` for the current user and creates the shared workspace
 environment. To install `uv` in `/usr/local/bin` for all users instead:
 
-    ./setup_ubuntu_20.04.sh --uv-system
+    ./install.sh --uv-system
+
+If the `gstreamer1.0-toupcam` package (or a `toupcamsrc` plugin) is already
+installed, the Toupcam plugin build is skipped. To rebuild it anyway:
+
+    ./install.sh --force-toupcam
 
 After rebooting your system you can launch with (auto detected microscope):
 
@@ -77,7 +82,7 @@ Toolchain images and Python downloads are cached for subsequent builds.
 Assuming you have no outstanding changes, do the following:
 
     git pull --rebase
-    ./setup_ubuntu_20.04.sh
+    ./install.sh
 
 
 # Supported hardware

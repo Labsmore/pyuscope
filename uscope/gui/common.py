@@ -6,6 +6,7 @@ from uscope.gui import imager
 from uscope.app.argus.threads import QMotionThread, QImageProcessingThread, QJoystickThread, QTaskThread, QImagerControlThread
 from uscope.joystick import JoystickNotFound
 from uscope.microscope import Microscope
+from uscope.scan_runner import ScanRunner
 from uscope.kinematics import Kinematics
 from uscope.motion.hal import HomingAborted
 from uscope.motion.grbl import LimitSwitchActive, Estop
@@ -148,11 +149,7 @@ class ACSubsystem(Subsystem):
         """
         root_status[
             "taking_snapshot"] = self.ac.mw.mainTab.imaging_widget.taking_snapshot
-        planner_running = self.ac.planner_thread is not None
-        progress_cache = self.ac.mainTab.imaging_widget.planner_progress_cache
-        root_status["planner"] = None
-        if planner_running and progress_cache:
-            root_status["planner"] = progress_cache
+        root_status["planner"] = self.ac.scan_runner.progress_ts() or None
         root_status["scripting"] = {
             "running": self.ac.scriptingTab.is_running(),
         }
@@ -161,11 +158,6 @@ class ACSubsystem(Subsystem):
 
 
 class ArgusCommon(QObject):
-    """
-    was:
-    pictures_to_take, pictures_taken, image, first
-    """
-    cncProgress = pyqtSignal(dict)
     log_msg = pyqtSignal(str)
     takeSnapshot = pyqtSignal()
     setJogSlider = pyqtSignal(float)
@@ -199,7 +191,6 @@ class ArgusCommon(QObject):
         self.capture_format_override = None
 
         self.motion_thread = None
-        self.planner_thread = None
         self.joystick_thread = None
         self.image_processing_thread = None
         self.task_thread = None
@@ -258,7 +249,7 @@ class ArgusCommon(QObject):
         self.control_scroll = ImagerControlScroll(self.imager_properties,
                                                   ac=self)
 
-        self.planner_thread = None
+        self.scan_runner = ScanRunner(self, scan_dir=self.aconfig.scan_dir())
         # motion.progress = self.hal_progress
         self.motion_thread = QMotionThread(ac=self)
         self.motion_thread.log_msg.connect(self.log)
@@ -385,8 +376,7 @@ class ArgusCommon(QObject):
     def shutdown_request(self, phase):
         if self.motion_thread:
             self.motion_thread.shutdown_request(phase)
-        if self.planner_thread:
-            self.planner_thread.shutdown_request(phase)
+        self.scan_runner.shutdown_request(phase)
         if self.image_processing_thread:
             self.image_processing_thread.shutdown_request(phase)
         if self.joystick_thread:
@@ -401,9 +391,7 @@ class ArgusCommon(QObject):
             self.motion_thread.shutdown_join()
             # causes too many corner cases
             # self.motion_thread = None
-        if self.planner_thread:
-            self.planner_thread.shutdown_join()
-            # self.planner_thread = None
+        self.scan_runner.shutdown_join()
         if self.image_processing_thread:
             self.image_processing_thread.shutdown_join()
             # self.image_processing_thread = None
@@ -575,7 +563,7 @@ class ArgusCommon(QObject):
         self.runPlannerHConfigs.emit(list(hconfigs))
 
     def is_planner_running(self):
-        return self.planner_thread is not None
+        return self.scan_runner.is_running()
 
     def capture_format_changed(self, fmt):
         # Let the GUI (menu, ...) follow along

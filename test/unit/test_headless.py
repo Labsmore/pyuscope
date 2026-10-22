@@ -32,6 +32,8 @@ from uscope.scripting import (
     input_find_button,
     input_set,
 )
+from uscope.planner.planner_util import microscope_to_planner_config
+from uscope.scan_runner import ScanRunnerListener
 from uscope.session import HeadlessSession
 
 REPO_DIR = os.path.abspath(
@@ -284,6 +286,97 @@ class TestObjectiveState(HeadlessTestCase):
         self.state.cache_sn_load(cachej)
         self.assertEqual(self.state.name(), name)
         self.assertEqual(self.state.global_scalar, 1.5)
+
+
+class TestScanRunner(HeadlessTestCase):
+    imager = "mock"
+
+    class Listener(ScanRunnerListener):
+        def __init__(self):
+            self.events = []
+            self.progress = []
+            self.done = threading.Event()
+
+        def scan_started(self, hconfig):
+            self.events.append(("started", hconfig["out_dir"]))
+
+        def scan_progress(self, state):
+            self.progress.append(state["type"])
+
+        def scan_done(self, hconfig, result):
+            self.events.append(("done", result["result"]))
+
+        def queue_done(self, results):
+            self.events.append(("queue_done", len(results)))
+            self.done.set()
+
+    def setUp(self):
+        super().setUp()
+        self.runner = self.session.scan_runner
+        self.listener = self.Listener()
+        self.runner.add_listener(self.listener)
+        self.addCleanup(self.runner.listeners.remove, self.listener)
+
+    def hconfig(self, basename):
+        pconfig = microscope_to_planner_config(self.session.microscope,
+                                               objectivei=0,
+                                               contour={
+                                                   "start": {
+                                                       "x": 0.0,
+                                                       "y": 0.0
+                                                   },
+                                                   "end": {
+                                                       "x": 0.5,
+                                                       "y": 0.5
+                                                   },
+                                               })
+        return {
+            "pconfig": pconfig,
+            "out_dir_config": {
+                "user_basename": basename + "_" + os.path.basename(self.tmp)
+            },
+        }
+
+    def run_queue(self, hconfigs, **kwargs):
+        self.runner.run(hconfigs, **kwargs)
+        self.assertTrue(self.listener.done.wait(120), "queue did not finish")
+        self.runner.join(timeout=5)
+        self.assertFalse(self.runner.is_running())
+
+    def test_scan(self):
+        props = self.session.imager.get_properties()
+        hconfig = self.hconfig("runner")
+        scan_started = self.listener.scan_started
+
+        def mess_up_properties(hconfig):
+            scan_started(hconfig)
+            self.session.imager.set_properties({"loopback_int": 1})
+
+        self.listener.scan_started = mess_up_properties
+        self.run_queue([hconfig])
+        self.assertEqual(self.listener.events,
+                         [("started", hconfig["out_dir"]), ("done", "ok"),
+                          ("queue_done", 1)])
+        self.assertIn("begin", self.listener.progress)
+        self.assertIn("image", self.listener.progress)
+        self.assertIsNone(self.runner.progress_ts())
+        with open(os.path.join(hconfig["out_dir"], "uscan.log")) as f:
+            self.assertIn("Planner done", f.read())
+        self.assertEqual(self.session.imager.get_properties(), props)
+
+    def test_abort_on_failure(self):
+        bad = self.hconfig("bad")
+        bad["pconfig"] = {}
+        results = []
+        bad["callback_done"] = lambda result: results.append(result)
+        self.run_queue([bad, self.hconfig("next")])
+        self.assertEqual(results[0]["result"], "exception")
+        self.assertEqual(self.listener.events[-1], ("queue_done", 1))
+
+        self.listener.done.clear()
+        self.run_queue([bad, self.hconfig("next2")], abort_on_failure=False)
+        self.assertEqual(self.listener.events[-1], ("queue_done", 2))
+        self.assertEqual(self.listener.events[-2], ("done", "ok"))
 
 
 class TestMockImager(HeadlessTestCase):

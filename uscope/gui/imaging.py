@@ -3,8 +3,7 @@ from uscope import config
 from collections import OrderedDict
 from uscope.gui.widgets import AWidget, ArgusTab
 from uscope.motion import motion_util
-from uscope.benchmark import Benchmark
-from uscope.app.argus.threads import QPlannerThread
+from uscope.scan_runner import ScanRunnerListener
 from uscope.microscope import StopEvent, MicroscopeStop
 from uscope import version as uscope_version
 from uscope.scan_util import out_dir_config_to_dir
@@ -15,9 +14,7 @@ from PyQt5.QtWidgets import *
 
 import os.path
 from uscope.util import utcnow
-from io import StringIO
 import threading
-import time
 
 
 def snapshot_fn(user, extension, parent):
@@ -1224,6 +1221,28 @@ class ImagingOptionsWindow(QWidget):
 
 
 # 2023-11-15: combined ScanWidget + SnapshotWidget
+class QScanRunnerListener(QObject, ScanRunnerListener):
+    """
+    Delivers scan runner events to the GUI thread
+    """
+    scanStarted = pyqtSignal(dict)
+    scanProgress = pyqtSignal(dict)
+    scanDone = pyqtSignal(dict, dict)
+    queueDone = pyqtSignal(list)
+
+    def scan_started(self, hconfig):
+        self.scanStarted.emit(hconfig)
+
+    def scan_progress(self, state):
+        self.scanProgress.emit(state)
+
+    def scan_done(self, hconfig, result):
+        self.scanDone.emit(hconfig, result)
+
+    def queue_done(self, results):
+        self.queueDone.emit(results)
+
+
 class ImagingTaskWidget(AWidget):
     snapshotDone = pyqtSignal()
 
@@ -1238,13 +1257,14 @@ class ImagingTaskWidget(AWidget):
         self.imaging_config = None
         self.go_current_pconfig = go_current_pconfig
         self.setControlsEnabled = setControlsEnabled
-        self.current_planner_hconfig = None
-        self.restore_properties = None
-        self.log_fd_scan = None
         self._save_extension = None
         self.taking_snapshot = False
-        self.planner_progress_cache = None
         self.snapshotDone.connect(self.snapshot_done)
+        self.scan_listener = QScanRunnerListener()
+        self.scan_listener.scanProgress.connect(self.scan_progress)
+        self.scan_listener.scanDone.connect(self.scan_done)
+        self.scan_listener.queueDone.connect(self.queue_done)
+        self.ac.scan_runner.add_listener(self.scan_listener)
         self.capture_mode = "composite"
 
     def _initUI(self):
@@ -1315,152 +1335,26 @@ class ImagingTaskWidget(AWidget):
     def dry(self):
         return False
 
-    def processCncProgress(self, state):
-        """
-        pictures_to_take, pictures_taken, image, first
-        """
-        if self.planner_progress_cache is None:
-            self.planner_progress_cache = {}
+    def scan_progress(self, state):
         if state["type"] == "begin":
-            self.planner_progress_cache["images_to_capture"] = state[
-                "images_to_capture"]
             self.progress_bar.setMinimum(0)
             self.progress_bar.setMaximum(state["images_to_capture"])
             self.progress_bar.setValue(0)
-            self.bench = Benchmark(state["images_to_capture"])
         elif state["type"] == "image":
-            cur_time = time.time()
-            #self.ac.log('took %s at %d / %d' % (image, pictures_taken, pictures_to_take))
-            self.planner_progress_cache["images_captured"] = state[
-                "images_captured"]
-            self.bench.set_cur_items(state["images_captured"])
             self.ac.log('Captured: %s' % (state["image_filename_rel"], ))
-            self.planner_progress_cache[
-                "remaining_time"] = self.bench.remaining_time(
-                    cur_time=cur_time)
-            bench_str = self.bench.__str__(cur_time=cur_time)
-            self.planner_progress_cache["eta_message"] = bench_str
-            self.ac.log('%s' % (bench_str))
+            progress = self.ac.scan_runner.progress_ts()
+            if progress:
+                self.ac.log('%s' % (progress["eta_message"], ))
             self.progress_bar.setValue(state["images_captured"])
-        else:
-            pass
 
-    def plannerDone(self, result):
-        self.ac.log("RX planner done, result: %s" % (result["result"], ))
-
-        # Reset any planner specific configuration
-        self.go_pause_pb.setText("Scan")
-        # Cleanup camera objects
-        if self.log_fd_scan:
-            self.log_fd_scan.close()
-        self.log_fd_scan = None
-
-        self.ac.planner_thread = None
-        # May be None if setup failed before a config was selected
-        last_scan_config = self.current_planner_hconfig or {}
-        self.current_planner_hconfig = None
-        self.planner_progress_cache = None
-
-        # Restore defaults between each run
-        # Ex: if HDR doesn't clean up simplifies things
-        if self.restore_properties:
-            self.ac.imager.set_properties(self.restore_properties)
-
+    def scan_done(self, hconfig, result):
         if result["result"] == "ok":
-            self.ac.stitchingTab.scan_completed(last_scan_config, result)
+            self.ac.stitchingTab.scan_completed(hconfig, result)
 
-        callback = last_scan_config.get("callback_done")
-        if callback:
-            callback(result=result)
-
-        run_next = result["result"] == "ok" or (
-            not self.ac.batchTab.abort_on_failure())
-        # More scans?
-        if run_next and self.planner_hconfigs and not result.get("hard_fail"):
-            self.run_next_scan_config()
-        else:
-            self.planner_hconfigs = None
-            self.restore_properties = None
-            self.setControlsEnabled(True)
-            self.ac.motion_thread.jog_enable(True)
-            # Prevent accidental start after done
-            self.ac.control_scroll.enable_user_controls(True)
-
-    def run_next_scan_config(self):
-        try:
-            self.ac.motion_thread.jog_enable(False)
-            # self.ac.joystick_disable()
-            self.current_planner_hconfig = self.planner_hconfigs[0]
-            assert self.current_planner_hconfig
-            del self.planner_hconfigs[0]
-
-            dry = self.dry()
-            self.current_planner_hconfig["dry"] = dry
-
-            out_dir_config = self.current_planner_hconfig["out_dir_config"]
-            out_dir = out_dir_config_to_dir(
-                out_dir_config,
-                self.ac.usc.app("argus").scan_dir())
-            self.current_planner_hconfig["out_dir"] = out_dir
-            pconfig = self.current_planner_hconfig["pconfig"]
-
-            if os.path.exists(out_dir):
-                self.ac.log("Run aborted: directory already exists")
-                self.plannerDone({"result": "init_failure"})
-                return
-            if not dry:
-                os.mkdir(out_dir)
-
-            if "hdr" in pconfig["imager"] and self.ac.auto_exposure_enabled():
-                self.ac.log(
-                    "Run aborted: requested HDR but auto-exposure enabled")
-                self.plannerDone({"result": "init_failure"})
-                return
-
-            def emitCncProgress(state):
-                self.ac.cncProgress.emit(state)
-
-            # not sure if this is the right place to add this
-            # plannerj['copyright'] = "&copy; %s John McMaster, CC-BY" % datetime.datetime.today().year
-
-            # Directly goes into planner constructor
-            # Make sure everything here is thread safe
-            # log param is handled by other thread
-            planner_args = {
-                # Simple settings written to disk, no objects
-                "pconfig": pconfig,
-                "microscope": self.ac.microscope,
-                "out_dir": out_dir,
-
-                # Includes microscope.json in the output
-                "meta_base": {
-                    "microscope": self.ac.microscope.usc.usj
-                },
-
-                # Set to true if should try to mimimize hardware actions
-                "dry": dry,
-                # "overwrite": False,
-                #"verbosity": 2,
-            }
-
-            self.ac.planner_thread = QPlannerThread(
-                planner_args, progress_cb=emitCncProgress, parent=self)
-            self.ac.planner_thread.log_msg.connect(self.ac.log)
-            self.ac.planner_thread.plannerDone.connect(self.plannerDone)
-            self.setControlsEnabled(False)
-            # FIXME: move to planner somehow
-            if dry:
-                self.log_fd_scan = StringIO()
-            else:
-                self.log_fd_scan = open(os.path.join(out_dir, "uscan.log"),
-                                        "w")
-
-            self.go_pause_pb.setText("Pause")
-            self.ac.control_scroll.enable_user_controls(False)
-            self.ac.planner_thread.start()
-        except:
-            self.plannerDone({"result": "init_failure", "hard_fail": True})
-            raise
+    def queue_done(self, _results):
+        self.go_pause_pb.setText("Scan")
+        self.setControlsEnabled(True)
+        self.ac.control_scroll.enable_user_controls(True)
 
     def go_planner_hconfigs(self, scan_hconfigs):
         """
@@ -1470,32 +1364,20 @@ class ImagingTaskWidget(AWidget):
         """
         if not scan_hconfigs:
             return
-
-        self.planner_hconfigs = list(scan_hconfigs)
         if not self.ac.is_idle():
             return
 
-        if self.ac.auto_exposure_enabled():
-            self.ac.log(
-                "WARNING: auto-exposure is enabled. This may result in an unevently exposed panorama"
-            )
-
-        # If user had started some movement before hitting run wait until its done
-        # dbg("Waiting for previous movement (if any) to cease")
-        # TODO: make this not block GUI
-        self.ac.motion_thread.wait_idle()
-
-        dry = self.dry()
-        # dry and dbg('Dry run checked')
-        if not dry:
-            self.restore_properties = self.ac.imager.get_properties()
-
-        base_out_dir = self.ac.usc.app("argus").scan_dir()
-        if not dry and not os.path.exists(base_out_dir):
-            os.mkdir(base_out_dir)
-
-        # Kick off first job
-        self.run_next_scan_config()
+        self.setControlsEnabled(False)
+        self.go_pause_pb.setText("Pause")
+        self.ac.control_scroll.enable_user_controls(False)
+        try:
+            self.ac.scan_runner.run(
+                scan_hconfigs,
+                dry=self.dry(),
+                abort_on_failure=self.ac.batchTab.abort_on_failure())
+        except:
+            self.queue_done([])
+            raise
 
     def afgo(self, planner_widget):
         def offload(ac):
@@ -1529,14 +1411,15 @@ class ImagingTaskWidget(AWidget):
 
     def go_pause_clicked(self):
         # CNC already running? pause/continue
-        if self.ac.planner_thread:
+        scan_runner = self.ac.scan_runner
+        if scan_runner.is_running():
             # Pause
-            if self.ac.planner_thread.is_paused():
+            if scan_runner.is_paused():
                 self.go_pause_pb.setText("Pause")
-                self.ac.planner_thread.unpause()
+                scan_runner.unpause()
             else:
                 self.go_pause_pb.setText("Continue")
-                self.ac.planner_thread.pause()
+                scan_runner.pause()
         # Go go go!
         else:
             autofocus = self.iow.autofocus_cb.isChecked()
@@ -1815,7 +1698,6 @@ class MainTab(ArgusTab):
         self.setLayout(layout)
 
         # Offload callback to GUI thread so it can do GUI ops
-        self.ac.cncProgress.connect(self.imaging_widget.processCncProgress)
 
     def log(self, s='', newline=True):
         # This is a "high risk" way for non main thread things to modify GUI
@@ -1834,9 +1716,7 @@ class MainTab(ArgusTab):
 
         self.log_fd.write(s)
         self.log_fd.flush()
-        if self.imaging_widget.log_fd_scan is not None:
-            self.imaging_widget.log_fd_scan.write(s)
-            self.imaging_widget.log_fd_scan.flush()
+        self.ac.scan_runner.scan_log_write(s)
 
     def clear_log(self):
         self.log_widget.clear()

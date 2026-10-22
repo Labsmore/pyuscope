@@ -10,20 +10,16 @@ imager=
 """
 
 from uscope.config import get_bc
-from uscope.microscope import Microscope, MicroscopeStop
+from uscope.microscope import Microscope
 from uscope.motion.thread import SimpleMotionThread
 from uscope.imagep.thread import SimpleImageProcessingThreadBase
 from uscope.imager.imager import MockImager
 from uscope.imager.properties import MockImagerProperties
 from uscope.imager.thread import SimpleImagerControlThread
-from uscope.planner.planner_util import get_planner
-from uscope.planner.planner import PlannerStop
-from uscope.scan_util import out_dir_config_to_dir
+from uscope.scan_runner import ScanRunner
 from uscope.subsystem import Subsystem
 from uscope.threads import ShutdownPhase
-from uscope.benchmark import Benchmark
 
-import os
 import threading
 import time
 import traceback
@@ -74,14 +70,12 @@ class HeadlessSession:
         self.motion_thread = None
         self.image_processing_thread = None
         self.imager_control_thread = None
-        self.planner_thread = None
         self.vidpip = None
         self.imager = None
         self.imager_properties = None
         self._imager_poll_thread = None
         self._imager_poll_stop = threading.Event()
-        self._planner_progress = None
-        self._planner_lock = threading.Lock()
+        self.scan_runner = ScanRunner(self, scan_dir=self.scan_dir())
 
         try:
             self._init_threads(imager)
@@ -202,12 +196,16 @@ class HeadlessSession:
             self._log(msg)
         else:
             print(msg)
+        # Microscope logs before the runner exists
+        scan_runner = getattr(self, "scan_runner", None)
+        if scan_runner:
+            scan_runner.scan_log_write(msg + "\n")
 
     def shutdown(self):
         # Let a running scan stop before the threads it relies on
-        if self.planner_thread is not None:
+        if self.scan_runner.is_running():
             self.microscope.stop()
-            self.planner_thread.join(timeout=10.0)
+            self.scan_runner.join(timeout=10.0)
         self._imager_poll_stop.set()
         if self._imager_poll_thread:
             self._imager_poll_thread.join(timeout=2.0)
@@ -262,13 +260,10 @@ class HeadlessSession:
         return self.bc.get_scan_dir()
 
     def planner_progress_ts(self):
-        with self._planner_lock:
-            if self.planner_thread is None or self._planner_progress is None:
-                return None
-            return dict(self._planner_progress)
+        return self.scan_runner.progress_ts()
 
     def is_planner_running(self):
-        return self.planner_thread is not None
+        return self.scan_runner.is_running()
 
     def run_planner_hconfigs(self, hconfigs):
         """
@@ -276,82 +271,4 @@ class HeadlessSession:
         Each hconfig["callback_done"](result=...) is called when it finishes
         Stops at the first scan that doesn't complete ok
         """
-        hconfigs = list(hconfigs)
-        with self._planner_lock:
-            if self.planner_thread is not None:
-                raise RuntimeError("Planner is already running")
-            self.planner_thread = threading.Thread(target=self._run_hconfigs,
-                                                   args=(hconfigs, ),
-                                                   name="planner",
-                                                   daemon=True)
-        self.planner_thread.start()
-
-    def _run_hconfigs(self, hconfigs):
-        try:
-            for hconfig in hconfigs:
-                result = self._run_hconfig(hconfig)
-                callback = hconfig.get("callback_done")
-                if callback:
-                    callback(result=result)
-                if result["result"] != "ok":
-                    break
-        finally:
-            with self._planner_lock:
-                self.planner_thread = None
-                self._planner_progress = None
-
-    def _run_hconfig(self, hconfig):
-        ret = {"result": None}
-        try:
-            dry = hconfig.get("dry", False)
-            out_dir_config = hconfig.get("out_dir_config") or {
-                "dt_prefix": True,
-                "user_basename": "scan",
-            }
-            out_dir = out_dir_config_to_dir(out_dir_config, self.scan_dir())
-            if os.path.exists(out_dir):
-                self.log("Run aborted: directory already exists")
-                ret["result"] = "init_failure"
-                return ret
-            if not dry:
-                os.makedirs(out_dir)
-            hconfig["out_dir"] = out_dir
-
-            planner = get_planner(
-                microscope=self.microscope,
-                pconfig=hconfig["pconfig"],
-                out_dir=out_dir,
-                dry=dry,
-                meta_base={"microscope": self.usc.usj},
-                log=self.log)
-            planner.register_progress_callback(self._planner_progress_cb)
-            self.log(f"Planner: running to {out_dir}")
-            ret["meta"] = planner.run()
-            ret["result"] = "ok"
-            self.log("Planner: done")
-        except (MicroscopeStop, PlannerStop):
-            ret["result"] = "stopped"
-        except Exception as e:
-            self.log(f"WARNING: planner crashed: {e}")
-            traceback.print_exc()
-            ret["result"] = "exception"
-            ret["exception"] = e
-        return ret
-
-    def _planner_progress_cb(self, state):
-        with self._planner_lock:
-            if self._planner_progress is None:
-                self._planner_progress = {}
-            progress = self._planner_progress
-            if state["type"] == "begin":
-                progress["images_to_capture"] = state["images_to_capture"]
-                progress["images_captured"] = 0
-                self._bench = Benchmark(state["images_to_capture"])
-            elif state["type"] == "image":
-                cur_time = time.time()
-                progress["images_captured"] = state["images_captured"]
-                self._bench.set_cur_items(state["images_captured"])
-                progress["remaining_time"] = self._bench.remaining_time(
-                    cur_time=cur_time)
-                progress["eta_message"] = self._bench.__str__(
-                    cur_time=cur_time)
+        self.scan_runner.run(hconfigs)

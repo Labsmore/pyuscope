@@ -1,14 +1,9 @@
-from uscope.planner.planner_util import get_planner
-from uscope.planner.planner import PlannerStop
-from uscope.benchmark import Benchmark
 from uscope import cloud_stitch
 from uscope.imagep.thread import ImageProcessingThreadBase
-from uscope.planner.thread import PlannerThreadBase
 from uscope.motion.thread import MotionThreadBase
 from uscope.joystick_thread import JoystickThreadBase
 from uscope.imager.thread import ImagerControlThreadBase
 from uscope.threads import CommandThreadBase, ShutdownPhase
-from uscope.microscope import MicroscopeStop
 from PyQt5.QtCore import QThread, pyqtSignal
 import traceback
 import time
@@ -220,53 +215,6 @@ class QMotionThread(MotionThreadBase, ArgusThread):
 
     def log(self, msg=""):
         self.log_msg.emit(msg)
-
-
-class QPlannerThread(PlannerThreadBase, ArgusThread):
-    plannerDone = pyqtSignal(dict)
-    log_msg = pyqtSignal(str)
-
-    def __init__(self, planner_args, progress_cb, parent=None):
-        ArgusThread.__init__(self, parent)
-        PlannerThreadBase.__init__(self,
-                                   planner_args=planner_args,
-                                   progress_cb=progress_cb)
-
-    def log(self, msg=""):
-        self.log_msg.emit(msg)
-
-    def run(self):
-        ret = {
-            "result": None,
-        }
-        try:
-            self.log('Initializing planner!')
-            # print("Planner thread started: %s" % (threading.get_ident(), ))
-
-            self.planner = get_planner(log=self.log, **self.planner_args)
-            self.planner.register_progress_callback(self.progress_cb)
-            self.log('Running planner')
-            b = Benchmark()
-            self.log()
-            self.log()
-            self.log()
-            self.log()
-            ret["meta"] = self.planner.run()
-            ret["result"] = "ok"
-            b.stop()
-            self.log('Planner done!  Took : %s' % str(b))
-        except MicroscopeStop:
-            ret["result"] = "stopped"
-        except PlannerStop:
-            ret["result"] = "stopped"
-        except Exception as e:
-            self.log('WARNING: planner thread crashed: %s' % str(e))
-            traceback.print_exc()
-            ret["result"] = "exception"
-            ret["exception"] = e
-            #raise
-        finally:
-            self.plannerDone.emit(ret)
 
 
 class QImageProcessingThread(ImageProcessingThreadBase, ArgusThread):

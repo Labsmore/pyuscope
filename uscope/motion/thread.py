@@ -199,7 +199,8 @@ class MotionThreadBase(CommandThreadBase):
         # Let main gui get the last position from a different thread
         # It can request updates
         self._pos_cache = None
-        self._stop = False
+        # Not _stop: would shadow threading.Thread._stop() (breaks join())
+        self._stop_requested = False
         self._estop = False
         # XXX: add config directive
         self.allow_motion_reboot = False
@@ -300,7 +301,7 @@ class MotionThreadBase(CommandThreadBase):
 
     def stop(self):
         # self.command("stop")
-        self._stop = True
+        self._stop_requested = True
 
     def estop(self):
         # self.command("estop")
@@ -432,10 +433,10 @@ class MotionThreadBase(CommandThreadBase):
                     self._estop = False
                     continue
 
-                if self._stop:
+                if self._stop_requested:
                     self.motion.stop()
                     self.queue_clear()
-                    self._stop = False
+                    self._stop_requested = False
                     continue
 
                 if not self.normal_running.is_set():

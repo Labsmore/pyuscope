@@ -188,7 +188,8 @@ def make_app(app):
             request.args.get("wait_imaging_ok", default=True, type=int))
         raw = bool(request.args.get("raw", default=False, type=int))
         format_ = request.args.get("format", default="JPEG", type=str)
-        pil_image = plugin.image(wait_imaging_ok=wait_imaging_ok, raw=raw)
+        pil_image = plugin.image(wait_imaging_ok=wait_imaging_ok,
+                                 mode="raw" if raw else None)
         buffered = BytesIO()
         pil_image.save(buffered, format=format_)
         img_str = base64.b64encode(buffered.getvalue()).decode('ascii')

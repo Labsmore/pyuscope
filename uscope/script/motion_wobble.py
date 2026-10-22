@@ -1,7 +1,7 @@
-from uscope.gui.scripting import ArgusScriptingPlugin
+from uscope.scripting import ScriptingPlugin
 
 
-class Plugin(ArgusScriptingPlugin):
+class Plugin(ScriptingPlugin):
     def show_input(self):
         return "Wobble +/- (mm)"
 

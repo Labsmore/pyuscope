@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from uscope.gui.scripting import ArgusScriptingPlugin
+from uscope.scripting import ScriptingPlugin
 from uscope.util import datetime_file_str, LogToFile
 from uscope.imager import pixel_format
 
@@ -94,7 +94,7 @@ def analyze(in_dir=None, log=None, verbose=False):
         histeq_im(dir_out + '/ff.tif', dir_out + '/ffe.tif')
 
 
-class Plugin(ArgusScriptingPlugin):
+class Plugin(ScriptingPlugin):
     def input_config(self):
         return {
             "Output directory": {
@@ -341,7 +341,7 @@ class Plugin(ArgusScriptingPlugin):
         if capture_format == "Current":
             capture_format = None
         if task == "ff-target":
-            # cal = get_cal(self._ac.microscope)
+            # cal = get_cal(self.session.microscope)
             # cal.fid70_go()
             self.log("FIXME")
         elif task == "sample":

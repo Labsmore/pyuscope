@@ -4,14 +4,14 @@ X63.603 750 Y185.237 500 Z-25.795 250
 """
 
 from uscope.config import get_usc
-from uscope.gui.scripting import ArgusScriptingPlugin
+from uscope.scripting import ScriptingPlugin
 
 import random
 from uscope.util import utcnow
 import os
 
 
-class Plugin(ArgusScriptingPlugin):
+class Plugin(ScriptingPlugin):
     def input_config(self):
         return {
             "Buttons": {

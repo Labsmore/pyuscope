@@ -1,7 +1,39 @@
+from uscope.util import utcnow
 from collections import OrderedDict
 import glob
 import os
 import re
+
+
+def out_dir_config_to_dir(j, parent):
+    """
+    {
+        "dt_prefix": True,
+        "user_basename": str(self.le.text()),
+    }
+    """
+    prefix = ''
+    # if self.prefix_date_cb.isChecked():
+    if j.get("dt_prefix"):
+        # 2020-08-12_06-46-21
+        prefix = utcnow().isoformat().replace(
+            'T', '_').replace(':', '-').split('.')[0] + "_"
+
+    mod = None
+    while True:
+        mod_str = ''
+        if mod:
+            mod_str = '_%u' % mod
+        fn_full = os.path.join(
+            parent,
+            prefix + j["user_basename"] + mod_str + j.get("extension", ""))
+        if os.path.exists(fn_full):
+            if mod is None:
+                mod = 1
+            else:
+                mod += 1
+            continue
+        return fn_full
 
 
 def iindex_filename_key(filename):

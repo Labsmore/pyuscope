@@ -12,7 +12,7 @@ Need the fllowing:
 
 import matplotlib.pyplot as plt
 
-from uscope.gui.scripting import ArgusScriptingPlugin
+from uscope.scripting import ScriptingPlugin
 from uscope.util import utcnow, add_bool_arg, datetime_file_str, LogToFile
 
 import cv2
@@ -221,7 +221,7 @@ def analyze(in_dir=None,
         log("  Max: %0.3f um" % pj["y"]["ds"]["max"])
 
 
-class Plugin(ArgusScriptingPlugin):
+class Plugin(ScriptingPlugin):
     def input_config(self):
         return {
             "Output directory": {

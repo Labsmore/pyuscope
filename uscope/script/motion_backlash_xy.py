@@ -2,7 +2,7 @@
 
 import matplotlib.pyplot as plt
 
-from uscope.gui.scripting import ArgusScriptingPlugin
+from uscope.scripting import ScriptingPlugin
 from uscope.calibration import find_centroid, find_centroid_fn, get_cal
 from uscope.util import add_bool_arg, datetime_file_str, LogToFile
 
@@ -138,7 +138,7 @@ def analyze(in_dir=None,
         log("Y backlash: %0.3f um" % (pj["y"]["backlash"], ))
 
 
-class Plugin(ArgusScriptingPlugin):
+class Plugin(ScriptingPlugin):
     def input_config(self):
         return {
             "Output directory": {
@@ -366,7 +366,7 @@ class Plugin(ArgusScriptingPlugin):
 
         task = button["value"]
         if task == "fiducial":
-            cal = get_cal(self._ac.microscope)
+            cal = get_cal(self.session.microscope)
             cal.fid70_go()
         elif task == "sample":
             self.sample()

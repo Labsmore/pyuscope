@@ -181,6 +181,8 @@ class ArgusCommon(QObject):
     May be emitted from a non-GUI thread (ex: scripting)
     """
     captureFormatChanged = pyqtSignal(str)
+    # list of scan hconfigs, see ScriptingPlugin.run_planner_hconfig()
+    runPlannerHConfigs = pyqtSignal(object)
 
     # pos = pyqtSignal(int)
 
@@ -190,6 +192,9 @@ class ArgusCommon(QObject):
         self.mw = mw
         self.tabs = {}
         self.logs = []
+        # Objective config dict, updated from the GUI thread
+        self.active_objective = None
+        self.objectiveChanged.connect(self.active_objective_updated)
         """
         Capture format override
         None: use microscope.j5 imager.format
@@ -315,9 +320,11 @@ class ArgusCommon(QObject):
         self.microscope.jog_cancel = self.motion_thread.jog_cancel
         self.microscope.motion_stop = self.motion_thread.stop
         self.microscope.get_jog_controller = self.motion_thread.get_jog_controller
-        self.microscope.image_save_extension = self.mainTab.imaging_widget.save_extension
+        self.microscope.image_save_extension = self.image_save_extension
         self.microscope.get_active_objective = self.get_active_objective
         self.microscope.set_active_objective = self.set_active_objective
+        self.runPlannerHConfigs.connect(
+            self.mainTab.imaging_widget.go_planner_hconfigs)
 
         # FIXME: these are not thread safe
         # convert to signals
@@ -376,6 +383,8 @@ class ArgusCommon(QObject):
         )
         self.kinematics.configure()
         self.microscope.kinematics = self.kinematics
+        # Planner already uses it from its own thread
+        self.microscope.set_kinematics_ts(self.kinematics)
 
         self.image_processing_thread.log_msg.connect(self.log)
         self.image_processing_thread.start()
@@ -569,14 +578,31 @@ class ArgusCommon(QObject):
         """
         return self.mainTab.imaging_widget.imaging_config
 
+    def active_objective_updated(self, data):
+        self.active_objective = data
+
+    """
+    Scripting session interface (see uscope/scripting.py)
+    Thread safe
+    """
+
     def get_active_objective(self):
         """
         Returns the name of the active objective
         """
-        return self.scriptingTab.active_objective["name"]
+        return self.active_objective["name"]
 
     def set_active_objective(self, objective):
         self.mainTab.objective_widget.setObjective.emit(objective)
+
+    def image_save_extension(self):
+        return self.mainTab.imaging_widget.save_extension()
+
+    def set_um_per_pixel_raw_1x(self, val):
+        self.mainTab.objective_widget.setUmPerPixelRaw1x.emit(val)
+
+    def run_planner_hconfigs(self, hconfigs):
+        self.runPlannerHConfigs.emit(list(hconfigs))
 
     def recover_video_crash(self):
         prop_cache = self.control_scroll.get_prop_cache()

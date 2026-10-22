@@ -39,7 +39,7 @@ $ curl 'http://localhost:8080/set/pos/?x=1&z=-2'; echo
 # Move relative position
 $ curl -X POST 'http://localhost:8080/set/pos/?y=1&x=-1&relative=1'; echo
 """
-from uscope.gui.scripting import ArgusScriptingPlugin
+from uscope.scripting import ScriptingPlugin
 from uscope.script import webserver_common
 
 from flask import Flask, current_app, request, render_template, send_from_directory
@@ -68,7 +68,6 @@ def image_to_base64(p_img):
 
 class MySocket(SocketIO):
     def __init__(self, *args, **kwargs):
-        webserver_common.plugin = self
         super().__init__(*args, **kwargs)
         self.clients = set()
         self.on_event('connect', self.on_connection)
@@ -99,8 +98,9 @@ class MySocket(SocketIO):
         self.emit("disconnect")
 
 
-class Plugin(ArgusScriptingPlugin):
+class Plugin(ScriptingPlugin):
     def __init__(self, *args, **kwargs):
+        webserver_common.plugin = self
         super().__init__(*args, **kwargs)
         self.verbose = True
         self.frame = None
@@ -112,7 +112,7 @@ class Plugin(ArgusScriptingPlugin):
 
     def run_test(self):
         self.log(f"Running Pyuscope Webserver Plugin on port: {SERVER_PORT}")
-        self.objectives = self._ac.microscope.get_objectives()
+        self.objectives = self.session.microscope.get_objectives()
         if not self.socket:
             self.socket = MySocket(app, cors_allowed_origins="*")
 

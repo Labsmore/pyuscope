@@ -1,7 +1,6 @@
 """Calibration settings tab and collect/analyze wizard."""
 
 import os
-import threading
 import traceback
 
 from PyQt5.QtCore import Qt, pyqtSignal
@@ -24,7 +23,8 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
-from uscope.gui.scripting import ArgusScriptingPlugin
+from uscope.scripting import ScriptingPlugin
+from uscope.gui.scripting import QtScriptHost, exec_prompt
 from uscope.gui.widgets import ArgusTab
 from uscope.cal.base import Quality
 from uscope.cal.registry import all_cals, get as get_cal
@@ -33,15 +33,19 @@ from uscope.cal.store import CalEntry
 from uscope.util import readj, writej
 
 
-class CalibrationRunPlugin(ArgusScriptingPlugin):
-    prompt_sig = pyqtSignal(str, str, list, object)
+class CalScriptHost(QtScriptHost):
     progress_sig = pyqtSignal(float, str)
 
-    def __init__(self, ac, names, quality=Quality.FULL):
-        super().__init__(ac)
+    def progress(self, frac, text):
+        self.progress_sig.emit(frac, text)
+
+
+class CalibrationRunPlugin(ScriptingPlugin):
+    def __init__(self, session, names, quality=Quality.FULL, host=None):
+        super().__init__(session, host=host)
         self._names = names
         self._quality = quality
-        self.session = None
+        self.cal_session = None
 
     def show_run_button(self):
         return False
@@ -50,26 +54,15 @@ class CalibrationRunPlugin(ArgusScriptingPlugin):
         from uscope.cal.context import CalContext
         from uscope.cal.report import write_report
 
-        box = []
-        ev = threading.Event()
-
-        def prompt_fn(title, text, buttons):
-            ev.clear()
-            box[:] = []
-            self.prompt_sig.emit(title, text, list(buttons), (box, ev))
-            while not ev.wait(0.15):
-                self.check_running()
-            return box[0] if box else buttons[-1]
-
         ctx = CalContext(plugin=self,
                          quality=self._quality,
-                         prompt_fn=prompt_fn,
-                         progress_fn=lambda f, t: self.progress_sig.emit(f, t))
-        self.session = CalSession(self._ac.microscope,
-                                  self._names,
-                                  quality=self._quality)
-        self.session.run_collect_analyze(ctx)
-        write_report(self.session)
+                         prompt_fn=self.prompt,
+                         progress_fn=self.host.progress)
+        self.cal_session = CalSession(self.session.microscope,
+                                      self._names,
+                                      quality=self._quality)
+        self.cal_session.run_collect_analyze(ctx)
+        write_report(self.cal_session)
 
 
 class CalibrationWizard(QDialog):
@@ -77,6 +70,11 @@ class CalibrationWizard(QDialog):
         super().__init__(parent)
         self.ac = ac
         self.plugin = None
+        self.host = CalScriptHost(parent=self)
+        self.host.log_sig.connect(self._log)
+        self.host.progress_sig.connect(self._on_progress)
+        self.host.prompt_sig.connect(self._on_prompt)
+        self.host.done_sig.connect(self._done)
         self.setWindowTitle("Run calibration")
         self.resize(640, 520)
         layout = QVBoxLayout()
@@ -177,11 +175,10 @@ class CalibrationWizard(QDialog):
         if self.plugin is not None:
             return
         quality = self.quality_cb.currentText()
-        self.plugin = CalibrationRunPlugin(self.ac, names, quality=quality)
-        self.plugin.log_msg.connect(self._log)
-        self.plugin.progress_sig.connect(self._on_progress)
-        self.plugin.prompt_sig.connect(self._on_prompt)
-        self.plugin.done.connect(self._done)
+        self.plugin = CalibrationRunPlugin(self.ac,
+                                           names,
+                                           quality=quality,
+                                           host=self.host)
         self.run_pb.setEnabled(False)
         self.stop_pb.setEnabled(True)
         self.apply_pb.setEnabled(False)
@@ -201,38 +198,27 @@ class CalibrationWizard(QDialog):
         self.status.setText(text)
 
     def _on_prompt(self, title, text, buttons, box_ev):
-        box, ev = box_ev
-        mb = QMessageBox(self)
-        mb.setWindowTitle(title)
-        mb.setText(text)
-        mapping = {}
-        for label in buttons:
-            b = mb.addButton(label, QMessageBox.AcceptRole)
-            mapping[b] = label
-        mb.exec_()
-        clicked = mb.clickedButton()
-        box.append(mapping.get(clicked, buttons[-1]))
-        ev.set()
+        exec_prompt(self, title, text, buttons, box_ev)
 
-    def _done(self):
+    def _done(self, _plugin=None):
         self.stop_pb.setEnabled(False)
         self.run_pb.setEnabled(True)
         ok = self.plugin and self.plugin.succeeded()
         self.status.setText("Finished" if ok else "Stopped / failed")
-        if self.plugin and self.plugin.session:
+        if self.plugin and self.plugin.cal_session:
             self.apply_pb.setEnabled(True)
             self.report_pb.setEnabled(True)
-            for name, result in self.plugin.session.results.items():
+            for name, result in self.plugin.cal_session.results.items():
                 self._log("%s: %s" %
                           (name, "PASS" if result.ok else "FAIL") +
                           (("  " + result.message) if result.message else ""))
 
     def _apply(self):
-        if not self.plugin or not self.plugin.session:
+        if not self.plugin or not self.plugin.cal_session:
             return
         store = self.ac.microscope.cal_store
         applied = []
-        for name, result in self.plugin.session.results.items():
+        for name, result in self.plugin.cal_session.results.items():
             if not result.entries:
                 continue
             ans = QMessageBox.question(
@@ -243,7 +229,7 @@ class CalibrationWizard(QDialog):
             if ans != QMessageBox.Yes:
                 continue
             try:
-                self.plugin.session.apply_one(name, store=store)
+                self.plugin.cal_session.apply_one(name, store=store)
                 applied.append(name)
             except Exception as e:
                 traceback.print_exc()
@@ -253,9 +239,9 @@ class CalibrationWizard(QDialog):
             self.parent().reload_table()
 
     def _open_report(self):
-        if not self.plugin or not self.plugin.session:
+        if not self.plugin or not self.plugin.cal_session:
             return
-        fn = os.path.join(self.plugin.session.path, "report.pdf")
+        fn = os.path.join(self.plugin.cal_session.path, "report.pdf")
         if os.path.exists(fn):
             os.system("xdg-open %s &" % fn)
         else:

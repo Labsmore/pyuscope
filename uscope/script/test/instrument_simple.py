@@ -1,4 +1,4 @@
-from uscope.gui.scripting import InstrumentScriptPlugin
+from uscope.scripting import InstrumentScriptPlugin
 
 
 class Plugin(InstrumentScriptPlugin):

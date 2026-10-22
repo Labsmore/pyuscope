@@ -13,7 +13,7 @@ class CalContext:
                  progress_fn=None):
         self.plugin = plugin
         if microscope is None and plugin is not None:
-            microscope = plugin._ac.microscope
+            microscope = plugin.session.microscope
         self.microscope = microscope
         self.log = log or (plugin.log if plugin is not None else print)
         self.quality = quality

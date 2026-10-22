@@ -1,7 +1,7 @@
-from uscope.app.argus.scripting import ArgusScriptingPlugin
+from uscope.scripting import ScriptingPlugin
 
 
-class Plugin(ArgusScriptingPlugin):
+class Plugin(ScriptingPlugin):
     def input_config(self):
         return {
             "Counter": {

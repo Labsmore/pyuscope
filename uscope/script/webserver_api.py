@@ -32,7 +32,7 @@ $ curl 'http://localhost:8080/set/active_objective/1000X'; echo
 {"status": 400}
 """
 
-from uscope.gui.scripting import ArgusScriptingPlugin
+from uscope.scripting import ScriptingPlugin
 from uscope.script import webserver_common
 
 from flask import Flask
@@ -56,7 +56,7 @@ class ServerThread(Thread):
         self.server.shutdown()
 
 
-class Plugin(ArgusScriptingPlugin):
+class Plugin(ScriptingPlugin):
     def __init__(self, *args, **kwargs):
         webserver_common.plugin = self
         super().__init__(*args, **kwargs)
@@ -95,12 +95,12 @@ class Plugin(ArgusScriptingPlugin):
         elif mode == "network":
             host = "0.0.0.0"
         else:
-            assert 0, f"bad mode {host}"
+            assert 0, f"bad mode {mode}"
 
         vals = self.get_input()
         port = vals["port"]
         self.log(f"Running pyuscope webserver (bind: {host}) on port {port}")
-        self.objectives = self._ac.microscope.get_objectives()
+        self.objectives = self.session.microscope.get_objectives()
         # Keep a reference to this plugin
         app.plugin = self
         self.server = ServerThread(host=host, port=port)

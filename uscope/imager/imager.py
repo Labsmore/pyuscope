@@ -109,6 +109,20 @@ class Imager:
         else:
             raise ValueError(f"bad capture mode {mode}")
 
+    def supported_capture_formats(self):
+        """
+        gstreamer format strings this imager can be switched to
+        Empty if switching isn't supported
+        """
+        return []
+
+    def get_capture_format(self):
+        return None
+
+    def set_capture_format(self, fmt):
+        raise ValueError(
+            f"Capture format {fmt} not supported by {type(self).__name__}")
+
     def remote(self):
         """Return true if the image is taken remotely and not handled here. Call take() instead of get"""
         return False
@@ -181,7 +195,7 @@ class MockImager(Imager):
     def wh(self):
         return self.width, self.height
 
-    def get(self):
+    def get(self, **_kwargs):
         # Small test image
         return CapturedImage(
             image=Image.new("RGB", (self.width, self.height), 'white'))

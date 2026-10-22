@@ -5,7 +5,7 @@ The Calibration tab is the preferred UI. This plugin remains so existing
 muscle memory (Scripting → cal_all.py) still works.
 """
 
-from uscope.gui.scripting import ArgusScriptingPlugin
+from uscope.scripting import ScriptingPlugin
 from uscope.cal.analysis.centroid import find_centroid
 from uscope.cal.base import Quality
 from uscope.cal.session import CalSession
@@ -16,7 +16,7 @@ from PIL import ImageStat
 DEFAULT_SET = ("scale", "backlash_xy", "repeat_xy", "dark_frame", "flat_field")
 
 
-class Plugin(ArgusScriptingPlugin):
+class Plugin(ScriptingPlugin):
     def input_config(self):
         return {
             "Sample centroid": {
@@ -60,7 +60,7 @@ class Plugin(ArgusScriptingPlugin):
 
     def _run_set(self, quality):
         ctx = CalContext(plugin=self, quality=quality)
-        session = CalSession(self._ac.microscope, DEFAULT_SET, quality=quality)
+        session = CalSession(self.session.microscope, DEFAULT_SET, quality=quality)
         self.log("Session %s" % session.path)
         session.run_collect_analyze(ctx)
         write_report(session)
@@ -83,7 +83,7 @@ class Plugin(ArgusScriptingPlugin):
         elif task == "analyze":
             from uscope.cal.base import session_root
             import os
-            root = session_root(self._ac.microscope)
+            root = session_root(self.session.microscope)
             sessions = sorted(
                 [os.path.join(root, n) for n in os.listdir(root)
                  if os.path.isdir(os.path.join(root, n))])
@@ -94,7 +94,7 @@ class Plugin(ArgusScriptingPlugin):
             self.log("Analyzing %s" % path)
             from uscope.cal.registry import names as cal_names
             from uscope.cal.dataset import Dataset
-            session = CalSession(self._ac.microscope, [], path=path)
+            session = CalSession(self.session.microscope, [], path=path)
             for name in cal_names():
                 d = os.path.join(path, name)
                 if os.path.exists(os.path.join(d, "manifest.json")):

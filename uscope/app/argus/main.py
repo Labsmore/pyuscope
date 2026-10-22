@@ -348,7 +348,7 @@ class MainWindow(AMainWindow):
 
         self.captureFormatMenu = None
         self.captureFormatActions = {}
-        formats = self.ac.vidpip.imager_aplugin.supported_formats()
+        formats = self.ac.vidpip.supported_formats()
         if not formats or len(formats) < 2:
             return
 

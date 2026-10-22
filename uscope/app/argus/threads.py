@@ -505,7 +505,7 @@ class QTaskThread(CommandThreadBase, ArgusThread):
         imager_state = {
             }
         imager_state["sn"] = self.ac.microscope.imager.get_sn()
-        imager_state["prop_cache"] = self.ac.control_scroll.get_prop_cache()
+        imager_state["prop_cache"] = self.ac.imager_properties.get_prop_cache()
 
         """
         verbose = metadata.get("verbose", False)

@@ -1,6 +1,6 @@
-from uscope.imager.plugins.aplugin import ArgusGstImagerPlugin
+from uscope.imager.plugins.aplugin import GstImagerPlugin
 from uscope.imager import pixel_format
-from .widgets import TTControlScroll
+from .properties import TTProperties
 
 import gi
 
@@ -17,12 +17,12 @@ VID_TOUPTEK = 0x0547
 PID_MU800 = 0x6801
 
 
-class Plugin(ArgusGstImagerPlugin):
+class Plugin(GstImagerPlugin):
     def source_name(self):
         return "gst-toupcamsrc"
 
-    def get_control_scroll(self):
-        return TTControlScroll
+    def get_properties(self):
+        return TTProperties(self.session, plugin=self)
 
     def get_gst_source(self, name=None):
         source = Gst.ElementFactory.make('toupcamsrc', name)
@@ -55,12 +55,12 @@ class Plugin(ArgusGstImagerPlugin):
         """
         All formats toupcamsrc 0.7.0+ can negotiate
         16 bit formats are only usable if the camera has a > 8 bit sensor
-        (see GstGUIImager.supported_capture_formats() which checks max-bit-depth)
+        (see GstImager.supported_capture_formats() which checks max-bit-depth)
         """
         return list(pixel_format.FORMATS.keys())
 
     def _source_prop(self, name, default=None):
-        source = getattr(self.ac.vidpip, "source", None)
+        source = getattr(self.session.vidpip, "source", None)
         if source is None:
             return default
         try:
@@ -82,7 +82,7 @@ class Plugin(ArgusGstImagerPlugin):
         RGGB / BGGR are unaffected by the transpose.
         Can be overridden with imager.bayer_pattern in microscope.j5
         """
-        override = self.ac.microscope.usc.imager.bayer_pattern()
+        override = self.session.microscope.usc.imager.bayer_pattern()
         if override:
             return override
         if self._source_prop("mono", False):
@@ -101,7 +101,7 @@ class Plugin(ArgusGstImagerPlugin):
         pattern = self.sensor_bayer_pattern()
         if pattern is None:
             return None
-        usc = self.ac.microscope.usc
+        usc = self.session.microscope.usc
         crop = usc.imager.crop_tblr()
         if crop:
             if crop["left"] % 2:

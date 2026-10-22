@@ -1,6 +1,4 @@
-from uscope.imager.plugins.aplugin import ArgusGstImagerPlugin
-#from .widgets import V4L2GstControlScroll
-from uscope.gui.control_scroll import ImagerControlScroll
+from uscope.imager.plugins.aplugin import GstImagerPlugin
 
 import gi
 
@@ -15,15 +13,12 @@ from gi.repository import Gst
 Gst.init(None)
 
 
-class Plugin(ArgusGstImagerPlugin):
+class Plugin(GstImagerPlugin):
     def name(self):
         return "gst-libcamerasrc"
 
     def source_name(self):
         return "libcamerasrc"
-
-    def get_control_scroll(self):
-        return ImagerControlScroll
 
     def get_gst_source(self, name=None):
         return Gst.ElementFactory.make('libcamerasrc', name)

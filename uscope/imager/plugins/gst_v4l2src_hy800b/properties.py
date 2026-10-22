@@ -3,8 +3,7 @@ VM1 candidate camera
 Hopefully works better than the original camera choice
 """
 
-from uscope.gui.v4l_control_scroll import V4L2AutoExposureDisplayer, V4L2ControlScroll
-from uscope.gui.control_scroll import BoolDisplayer, AutoExposureSoftwareVP, AutoExposureSoftwareTargetVP
+from uscope.imager.properties import V4L2ImagerProperties, AutoExposureSoftwareVP, AutoExposureSoftwareTargetVP
 from collections import OrderedDict
 """
 this is a "menu"
@@ -29,8 +28,8 @@ groups_gst = OrderedDict([(
             "prop_name": "Auto Exposure",
             "disp_name": "Auto Exposure",
             "default": True,
-            "ctor": V4L2AutoExposureDisplayer,
-            "type": "ctor",
+            "type": "bool",
+            "conv": "v4l2_auto_exposure",
             "optional": True,
             "visible": False,
         },
@@ -38,8 +37,8 @@ groups_gst = OrderedDict([(
             "prop_name": "Exposure, Auto",
             "disp_name": "Auto Exposure (HW)",
             "default": True,
-            "ctor": V4L2AutoExposureDisplayer,
-            "type": "ctor",
+            "type": "bool",
+            "conv": "v4l2_auto_exposure",
             "optional": True,
             "visible": False,
         },
@@ -97,11 +96,8 @@ groups_gst = OrderedDict([(
         {
             "prop_name": "White Balance Temperature, Auto",
             "disp_name": "Auto White Balance Temperature",
-            "min": 0,
-            "max": 1,
             "default": 0,
-            "ctor": BoolDisplayer,
-            "type": "ctor",
+            "type": "bool",
             # Not present on all host systems for some reason
             # maybe added in Linux 5.15?
             "optional": True,
@@ -121,17 +117,17 @@ groups_gst = OrderedDict([(
 )])
 
 
-class V4L2HY800BControlScroll(V4L2ControlScroll):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, groups_gst=groups_gst)
+class V4L2HY800BProperties(V4L2ImagerProperties):
+    def __init__(self, session, plugin=None):
+        super().__init__(session, plugin=plugin, groups=groups_gst)
         self.add_virtual_property(
             AutoExposureSoftwareVP(name="auto_exposure_sw",
                                    value=0,
-                                   ac=self.ac))
+                                   session=session))
         self.add_virtual_property(
             AutoExposureSoftwareTargetVP(name="auto_exposure_sw_target",
                                          value=0,
-                                         ac=self.ac))
+                                         session=session))
 
-    def auto_exposure_enabled(self):
-        return self.disp_prop_read("Auto Exposure (SW)")
+    def get_auto_exposure_disp_property(self):
+        return "Auto Exposure (SW)"

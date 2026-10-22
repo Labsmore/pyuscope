@@ -1,4 +1,4 @@
-from uscope.threads import ShutdownPhase
+from uscope.threads import ShutdownPhase, SimpleThread
 
 import numpy as np
 import threading
@@ -133,3 +133,12 @@ class ImagerControlThreadBase:
                 self.log('WARNING: imager thread crashed: %s' % str(e))
                 traceback.print_exc()
             tlast = tnow
+
+
+class SimpleImagerControlThread(ImagerControlThreadBase, SimpleThread):
+    def __init__(self, microscope):
+        SimpleThread.__init__(self)
+        ImagerControlThreadBase.__init__(self, microscope)
+
+    def log(self, msg=""):
+        self.microscope.log(msg)

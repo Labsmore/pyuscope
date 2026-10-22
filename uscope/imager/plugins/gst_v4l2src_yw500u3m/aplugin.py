@@ -1,5 +1,5 @@
 from uscope.imager.plugins.gst_v4l2src.aplugin import Plugin as V4l2Plugin
-from .widgets import V4L2YW500U3MControlScroll
+from .properties import V4L2YW500U3MProperties
 
 import gi
 
@@ -18,5 +18,5 @@ class Plugin(V4l2Plugin):
     def name(self):
         return "gst-v4l2src-yw500u3m"
 
-    def get_control_scroll(self):
-        return V4L2YW500U3MControlScroll
+    def get_properties(self):
+        return V4L2YW500U3MProperties(self.session, plugin=self)

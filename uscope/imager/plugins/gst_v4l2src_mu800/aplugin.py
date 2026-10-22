@@ -1,5 +1,5 @@
 from uscope.imager.plugins.gst_v4l2src.aplugin import Plugin as V4l2Plugin
-from .widgets import V4L2MU800ControlScroll
+from .properties import V4L2MU800Properties
 
 import gi
 
@@ -21,8 +21,8 @@ class Plugin(V4l2Plugin):
     def name(self):
         return "gst-v4l2src-mu800"
 
-    def get_control_scroll(self):
-        return V4L2MU800ControlScroll
+    def get_properties(self):
+        return V4L2MU800Properties(self.session, plugin=self)
 
     def detect_sources(self):
         """

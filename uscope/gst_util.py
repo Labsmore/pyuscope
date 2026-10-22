@@ -129,10 +129,10 @@ class CaptureSink(CbSink):
     """
 
     # FIXME: get width/height from stream
-    def __init__(self, ac, width, height, source_type):
+    def __init__(self, session, width, height, source_type):
         CbSink.__init__(self)
 
-        self.ac = ac
+        self.session = session
         # Protects pending requests and the image buffer
         # Requests come from arbitrary threads (planner, scripting, GUI)
         # while frames arrive in the gstreamer streaming thread
@@ -173,7 +173,7 @@ class CaptureSink(CbSink):
         with self._capture_lock:
             image_dict = self.images_actual.pop(image_id)
         #self.verbose and print("bytes", len(buf), 'w', width, 'h', height)
-        aplugin = self.ac.vidpip.imager_aplugin
+        aplugin = self.session.vidpip.imager_aplugin
         # Let the source plugin annotate (ex: sensor bit depth, bayer pattern)
         aplugin.gst_frame_meta(image_dict)
         decoded = aplugin.gst_decode_image(image_dict)
@@ -184,7 +184,7 @@ class CaptureSink(CbSink):
             image, data = decoded, None
         return CapturedImage(image=image,
                              meta=image_dict["meta"],
-                             microscope=self.ac.microscope,
+                             microscope=self.session.microscope,
                              data=data,
                              pixel_format=image_dict.get("format"),
                              bit_depth=image_dict.get("bit_depth"),

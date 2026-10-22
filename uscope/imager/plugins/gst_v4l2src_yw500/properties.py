@@ -15,7 +15,7 @@ only displays manual or aperature priority mode
 is there a flag that would have indicated which is supported?
 """
 
-from uscope.gui.v4l_control_scroll import V4L2AutoExposureDisplayer, V4L2ControlScroll
+from uscope.imager.properties import V4L2ImagerProperties
 from collections import OrderedDict
 """
 these controls seem not to work
@@ -44,16 +44,16 @@ groups_gst = OrderedDict([(
             "prop_name": "Auto Exposure",
             "disp_name": "Auto Exposure",
             "default": True,
-            "ctor": V4L2AutoExposureDisplayer,
-            "type": "ctor",
+            "type": "bool",
+            "conv": "v4l2_auto_exposure",
             "optional": True,
         },
         {
             "prop_name": "Exposure, Auto",
             "disp_name": "Auto Exposure",
             "default": True,
-            "ctor": V4L2AutoExposureDisplayer,
-            "type": "ctor",
+            "type": "bool",
+            "conv": "v4l2_auto_exposure",
             "optional": True,
         },
         {
@@ -97,6 +97,6 @@ groups_gst = OrderedDict([(
 )])
 
 
-class V4L2YW500ControlScroll(V4L2ControlScroll):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, groups_gst=groups_gst)
+class V4L2YW500Properties(V4L2ImagerProperties):
+    def __init__(self, session, plugin=None):
+        super().__init__(session, plugin=plugin, groups=groups_gst)

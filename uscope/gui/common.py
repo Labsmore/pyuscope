@@ -1,9 +1,8 @@
 from uscope.gui.gstwidget import GstVideoPipeline
 from uscope.gui.picam2widget import PiCam2VideoPipeline
-from uscope.gui.control_scrolls import get_control_scroll
+from uscope.gui.control_scroll import ImagerControlScroll
 from uscope.config import get_bc
 from uscope.gui import imager
-from uscope.gst_util import Gst, CaptureSink
 from uscope.app.argus.threads import QMotionThread, QImageProcessingThread, QJoystickThread, QTaskThread, QImagerControlThread
 from uscope.joystick import JoystickNotFound
 from uscope.microscope import Microscope
@@ -254,33 +253,13 @@ class ArgusCommon(QObject):
         else:
             self.log("VIDSRC: Using Gstreamer source")
             self.vidpip = GstVideoPipeline(ac=self, zoomable=True, log=self.log)
+            self.capture_sink = self.vidpip.capture_sink
+            self.vidpip.setupGst()
 
-            # FIXME: review sizing
-            # self.vidpip.size_widgets()
-            # self.capture_sink = Gst.ElementFactory.make("capturesink")
-
-            # TODO: some pipelines output jpeg directly
-            # May need to tweak this
-            cropped_width, cropped_height = self.usc.imager.cropped_wh()
-            self.capture_sink = CaptureSink(ac=self,
-                                            width=cropped_width,
-                                            height=cropped_height,
-                                            source_type=self.vidpip.source_name)
-            assert self.capture_sink
-            self.vidpip.player.add(self.capture_sink)
-            # jpegenc is probably obsolete here
-            # Now data is normalized in CaptureSink to do jpeg conversion etc
-            if 1:
-                self.vidpip.setupGst(raw_tees=[self.capture_sink])
-            else:
-                self.jpegenc = Gst.ElementFactory.make("jpegenc")
-                self.vidpip.player.add(self.jpegenc)
-                self.vidpip.setupGst(raw_tees=[self.jpegenc])
-                self.jpegenc.link(self.capture_sink)
-
-        # Special UI initialization
         # Requires video pipeline already setup
-        self.control_scroll = get_control_scroll(self.vidpip, ac=self)
+        self.imager_properties = self.vidpip.imager_aplugin.get_properties()
+        self.control_scroll = ImagerControlScroll(self.imager_properties,
+                                                  ac=self)
 
         self.planner_thread = None
         # motion.progress = self.hal_progress
@@ -348,6 +327,7 @@ class ArgusCommon(QObject):
         self.vidpip.run()
         self.init_imager()
         # Needs imager / vidpip to be able to query which properties are present
+        self.imager_properties.setup()
         self.control_scroll.run()
 
         # TODO: init things in Microscope and then push references here
@@ -391,9 +371,8 @@ class ArgusCommon(QObject):
 
         # Must be made thread safe
         self.microscope.set_motion_ts(self.motion_thread.get_planner_motion())
-        # emits events + uses queue => already thread safe
-        self.microscope.set_imager_ts(
-            imager.GstGUIImagerTS(imager=self.microscope.imager))
+        # Imager and its property model are thread safe
+        self.microscope.set_imager_ts(self.microscope.imager)
 
         self.subsystem = ACSubsystem(self)
         self.microscope.add_subsystem(self.subsystem)
@@ -495,9 +474,10 @@ class ArgusCommon(QObject):
     def init_imager(self):
         source = self.vidpip.source_name
         self.log('Loading imager %s...' % source)
-        # Gst is pretty ingrained for the GUI
-        #
-        self.imager = self.vidpip.imager_aplugin.get_imager()
+        if source == "picam2src":
+            self.imager = imager.Picam2GUIImager(self)
+        else:
+            self.imager = imager.GstGUIImager(self)
         # gst pipeline already created / should be ready to go
         self.imager.device_restarted()
 
@@ -518,19 +498,19 @@ class ArgusCommon(QObject):
         pass
 
     def auto_exposure_enabled(self):
-        return self.control_scroll.auto_exposure_enabled()
+        return self.imager_properties.auto_exposure_enabled()
 
     def set_exposure(self, n):
-        return self.control_scroll.set_exposure(n)
+        return self.imager_properties.set_exposure(n)
 
     def get_exposure(self):
-        return self.control_scroll.get_exposure()
+        return self.imager_properties.get_exposure()
 
     def get_exposure_disp_property(self):
-        return self.control_scroll.get_exposure_disp_property()
+        return self.imager_properties.get_exposure_disp_property()
 
     def auto_color_enabled(self):
-        return self.control_scroll.auto_color_enabled()
+        return self.imager_properties.auto_color_enabled()
 
     # FIXME: better abstraction
     def is_idle(self):
@@ -604,11 +584,18 @@ class ArgusCommon(QObject):
     def run_planner_hconfigs(self, hconfigs):
         self.runPlannerHConfigs.emit(list(hconfigs))
 
+    def is_planner_running(self):
+        return self.planner_thread is not None
+
+    def capture_format_changed(self, fmt):
+        # Let the GUI (menu, ...) follow along
+        self.captureFormatChanged.emit(fmt)
+
     def recover_video_crash(self):
-        prop_cache = self.control_scroll.get_prop_cache()
+        prop_cache = self.imager_properties.get_prop_cache()
         self.vidpip.recover_video_crash()
         # FIXME: maybe this needs to be delayed until we are actually up?
         # In any case GUI will still have old state and it might "just work"
         # Assume we are good
         # If the camera is still gone we'll get a pipeline crash in a second or so
-        self.control_scroll.recover_video_crash(prop_cache)
+        self.imager_properties.recover_video_crash(prop_cache)

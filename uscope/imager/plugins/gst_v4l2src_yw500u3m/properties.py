@@ -3,7 +3,7 @@ VM1 candidate camera
 Hopefully works better than the original camera choice
 """
 
-from uscope.gui.v4l_control_scroll import V4L2ControlScroll
+from uscope.imager.properties import V4L2ImagerProperties
 from collections import OrderedDict
 """
 this is a "menu"
@@ -18,6 +18,6 @@ groups_gst = OrderedDict([(
 )])
 
 
-class V4L2YW500U3MControlScroll(V4L2ControlScroll):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, groups_gst=groups_gst)
+class V4L2YW500U3MProperties(V4L2ImagerProperties):
+    def __init__(self, session, plugin=None):
+        super().__init__(session, plugin=plugin, groups=groups_gst)

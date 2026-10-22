@@ -41,7 +41,7 @@ class PiCam2VideoPipeline:
         self.verbose = os.getenv("USCOPE_GSTWIDGET_VERBOSE") == "Y"
 
         # Load the picam2 plugin for the imager architecture
-        self.imager_aplugin = get_imager_aplugin(ac=ac, source_name="picam2src")
+        self.imager_aplugin = get_imager_aplugin(session=ac, source_name="picam2src")
 
         # Set up preview configuration and switch to it
         self.preview_config = self.picam2.create_preview_configuration(main={"size": (1280, 960)})

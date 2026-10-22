@@ -1,17 +1,13 @@
-from uscope.imager.plugins.aplugin import ArgusImagerPlugin
-from .widgets import Picam2ControlScroll
+from uscope.imager.plugins.aplugin import ImagerPlugin
+from .properties import Picam2Properties
 
 
-class Plugin(ArgusImagerPlugin):
+class Plugin(ImagerPlugin):
     def name(self):
         return "picam2src"
 
-    def get_imager(self):
-        from uscope.gui.imager import Picam2GUIImager
-        return Picam2GUIImager(self.ac)
-
-    def get_control_scroll(self):
-        return Picam2ControlScroll
+    def get_properties(self):
+        return Picam2Properties(self.session, plugin=self)
 
     def get_widget(self):
         # Picam2 uses its own preview widget (QGlPicamera2 / QPicamera2)

@@ -1,9 +1,6 @@
-from uscope.imager.plugins.aplugin import ArgusGstImagerPlugin
-from uscope.imager.plugins.gst_videotestsrc.widgets import TestSrcScroll
-# from uscope.imager.plugins.gst_videotestsrc.widgets import TestSrcScroll
-import cv2
-import numpy as np
-from PIL import Image
+from uscope.imager.plugins.aplugin import GstImagerPlugin
+from uscope.imager.plugins.gst_videotestsrc.properties import TestSrcProperties
+from uscope.imager import pixel_format
 
 import gi
 
@@ -16,28 +13,35 @@ from gi.repository import Gst
 Gst.init(None)
 
 
-class Plugin(ArgusGstImagerPlugin):
+class Plugin(GstImagerPlugin):
     def name(self):
         return "gst-videotestsrc"
 
     def source_name(self):
         return "videotestsrc"
 
-    def get_control_scroll(self):
-        return TestSrcScroll
+    def get_properties(self):
+        return TestSrcProperties(self.session, plugin=self)
 
     def get_gst_source(self, name=None):
-        # self.verbose and print('WARNING: using test source')
         return Gst.ElementFactory.make('videotestsrc', name)
 
+    def supported_formats(self):
+        # Must be pinned: unconstrained, newer gstreamer negotiates exotic
+        # formats (ex: A444_16LE)
+        return [
+            fmt for fmt in pixel_format.FORMATS
+            if not pixel_format.is_raw(fmt)
+        ]
+
+    def gst_frame_meta(self, image_dict):
+        fmt = image_dict.get("format") or pixel_format.DEFAULT_FORMAT
+        image_dict["bit_depth"] = 16 if pixel_format.is_16bit(fmt) else 8
+
     def gst_decode_image(self, image_dict):
-        buf = image_dict["bytes"]
-        width = image_dict["width"]
-        height = image_dict["height"]
-        w = width
-        h = height
-        shape = (h, w, 4)
-        rgba = np.frombuffer(buf, dtype=np.uint8)
-        rgba = rgba.reshape(shape)
-        rgb = cv2.cvtColor(rgba, cv2.COLOR_BGRA2RGB)
-        return Image.fromarray(rgb)
+        return pixel_format.decode_frame(
+            image_dict["bytes"],
+            image_dict.get("format") or pixel_format.DEFAULT_FORMAT,
+            image_dict["width"],
+            image_dict["height"],
+            stride=image_dict.get("stride"))

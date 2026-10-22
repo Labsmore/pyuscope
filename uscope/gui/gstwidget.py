@@ -10,7 +10,7 @@ import os
 import signal
 import faulthandler
 from collections import OrderedDict
-from uscope.imager.plugins.aplugins import get_imager_aplugin
+from uscope.imager.gst_pipeline import GstImagerPipeline
 from uscope import util
 
 import gi
@@ -338,11 +338,9 @@ class SinkxZoomableWidget(ArgusVideoWidget):
         assert self.capsfilter.link(self.sinkx)
 
 
-class GstVideoPipeline:
+class GstVideoPipeline(GstImagerPipeline):
     """
-    Integrates Qt widgets + gstreamer pipelines for easy setup
-    Allows teeing off the pipeline for custom post processing
-    (ex: saving an image, evaluating focus)
+    GstImagerPipeline + Qt video widgets (and optional RTSP feed)
 
     vidpip = GstVideoPipeline()
     vidpip.setupWidgets()
@@ -361,20 +359,10 @@ class GstVideoPipeline:
         overview2=False,
         overview_full_window=False,
         widget_configs=None,
-        # microscope configuration
-        usj=None,
         ac=None,
         log=None):
         self.ac = ac
-        self.source = None
-        self.source_name = None
-        self.verbose = os.getenv("USCOPE_GSTWIDGET_VERBOSE") == "Y"
-        self.videoflip = None
-        self.setting_up = True
-        self.raw_capsfilter = None
-        # Requested source pixel format (gstreamer format string)
-        # None => don't constrain (source default)
-        self.capture_format = None
+        super().__init__(session=ac, log=log)
 
         if widget_configs is None:
             widget_configs = set()
@@ -392,43 +380,16 @@ class GstVideoPipeline:
             # Stand alone window
             if overview_full_window:
                 widget_configs.add("overview_full_window")
-        # Needs to be done early so elements can be added before main setup
-        self.player = Gst.Pipeline.new("player")
         """
         key: gst name
         widget: QWidget
         winid: during ON_SYNC_MESSAGE give the winid to render to
         width/height:
         """
-
-        # Must not be initialized until after layout is set
-        source = self.ac.microscope.usc.imager.source()
-        if source == "auto":
-            assert 0, "FIXME: currently not supported"
-            # source = auto_detect_source()
-        self.source_name = source
-        self.verbose and print("vidpip source %s" % source)
-        self.raw_element = None
-        # Arbitrates source specific pipeline, GUI rendering, etc
-        self.imager_aplugin = get_imager_aplugin(ac=self.ac,
-                                                 source_name=self.source_name)
-
-        self.incoming_w, self.incoming_h = self.ac.microscope.usc.imager.cropped_wh(
-        )
         self.widgets = OrderedDict()
         for widget_name in widget_configs:
             self.create_widget(widget_name)
         self.size_widgets()
-
-        # Clear if anything bad happens and shouldn't be trusted
-        self.ok = True
-
-        if log is None:
-
-            def log(s):
-                print(s)
-
-        self.log = log
 
         # RTSP
         self.rtsp_bin = None
@@ -464,25 +425,13 @@ class GstVideoPipeline:
         TODO: could we size these based on Qt widget policy?
         ie set to expanding and see how much room is availible
         Then shrink down based on that
-
-        For now this needs to be called early
-        But with some tweaks it can be made dynamic
-        
-        w/h: total canvas area available for all widgets we need to create
         """
-
-        # print("Sizing widgets for screen %u w x %u h" % (screen_w, screen_h))
-
         for widget in self.widgets.values():
-            """
-            self.verbose and print("size_widgets(w=%s, h=%s, frac=%s)" %
-                                   (w, h, frac))
-            """
             if widget_in and widget_in != widget:
                 continue
             if not widget.is_fixed():
                 continue
-            self.widget.calc_size()
+            widget.calc_size()
 
     def setupWidgets(self):
         for widget in self.widgets.values():
@@ -503,10 +452,7 @@ class GstVideoPipeline:
     def add_full_widget(self):
         # Don't think we have to pause first but might as well
         self.player.set_state(Gst.State.PAUSED)
-        widget_config = {
-            "type": "zoomable",
-        }
-        widget = self.create_widget("overview_full_window", widget_config)
+        widget = self.create_widget("overview_full_window")
         widget.setupWidget()
         vc_dsts = []
         widget.create_elements(self.player, vc_dsts)
@@ -518,270 +464,32 @@ class GstVideoPipeline:
         # self.full_restart_pipeline()
         return widget
 
-    def link_next_raw_element(self, element):
-        """
-        Add an element into the pipeline immediately before raw_tee
-        """
-        assert element
-        if not self.setting_up:
-            assert self.tee_vc
-            self.raw_element.unlink(self.tee_vc)
-            self.player.set_state(Gst.State.PAUSED)
-        else:
-            # not strictly true but close
-            assert self.tee_vc is None
-
-        self.player.add(element)
-        assert self.raw_element.link(element)
-        if self.tee_vc:
-            assert element.link(self.tee_vc)
-        self.raw_element = element
-
-        if not self.setting_up:
-            self.player.set_state(Gst.State.PLAYING)
-
     def full_restart_pipeline(self):
         for widget in self.widgets.values():
             widget.winid = widget.winId()
             assert widget.winid, "Need widget_winid by run"
 
         self.player.set_state(Gst.State.PLAYING)
-        if self.ac.imager:
-            self.ac.imager.device_restarted()
+        if self.microscope.imager:
+            self.microscope.imager.device_restarted()
 
     def remove_full_widget(self):
         assert 0, "FIXME"
 
-    def raw_caps(self):
-        """
-        Caps forced onto the source: resolution and (optionally) pixel format
-        """
-        raw_w, raw_h = self.ac.microscope.usc.imager.raw_wh()
-        s = "video/x-raw,width=%u,height=%u" % (raw_w, raw_h)
-        if self.capture_format:
-            s += ",format=%s" % self.capture_format
-        return Gst.Caps(s)
-
-    def set_capture_format(self, fmt):
-        """
-        Change the pixel format negotiated with the source
-        fmt: gstreamer format string (see uscope.imager.pixel_format)
-
-        Updating the capsfilter triggers renegotiation
-        The source (ex: toupcamsrc) reconfigures + restarts the camera
-        Safe to call from any thread (gstreamer properties are thread safe)
-        but shouldn't be called while a scan is running
-        """
-        from uscope.imager import pixel_format
-        pixel_format.validate(fmt)
-        supported = self.imager_aplugin.supported_formats()
-        if supported is None:
-            raise ValueError(
-                f"Source {self.source_name} does not support selecting pixel format"
-            )
-        if fmt not in supported:
-            raise ValueError(
-                f"Source {self.source_name} does not support format {fmt}")
-        if fmt == self.capture_format:
-            return
-        self.verbose and print("vidpip: capture format %s => %s" %
-                               (self.capture_format, fmt))
-        self.capture_format = fmt
-        if self.raw_capsfilter is not None:
-            self.raw_capsfilter.props.caps = self.raw_caps()
-
-    def get_capture_format(self):
-        """
-        Pixel format requested from the source
-        None if not constrained (source default)
-        """
-        return self.capture_format
-
-    def prepareSource(self, properties={}):
-        # Must not be initialized until after layout is set
-        # print(source)
-        # assert 0
-        #properties = {}
-        properties = dict(properties)
-        """
-        is_v4l2 = self.source_name == 'gst-v4l2src' or self.source_name.find(
-            'gst-v4l2src-') == 0
-        if is_v4l2:
-            self.source = Gst.ElementFactory.make('v4l2src', None)
-            assert self.source is not None
-        elif self.source_name == 'gst-toupcamsrc':
-            self.source = Gst.ElementFactory.make('toupcamsrc', None)
-            assert self.source is not None, "Failed to load toupcamsrc. Is it in the path?"
-            if esize is not None:
-                properties["esize"] = esize
-        elif self.source_name == 'gst-libcamerasrc':
-            self.source = Gst.ElementFactory.make('libcamerasrc', None)
-            assert self.source is not None, "Failed to load libcamerasrc"
-        elif self.source_name == 'gst-videotestsrc':
-            self.verbose and print('WARNING: using test source')
-            self.source = Gst.ElementFactory.make('videotestsrc', None)
-        else:
-            raise Exception('Unknown source %s' % (self.source_name, ))
-        """
-        self.source = self.imager_aplugin.get_gst_source()
-        assert self.source, "Failed to load camera source"
-
-        # Override with microscope.j5 values
-        properties.update(self.ac.microscope.usc.imager.source_properties())
-
-        for propk, propv in properties.items():
-            self.verbose and print("Set source %s => %s" % (propk, propv))
-            self.source.set_property(propk, propv)
-
-    def link_tee(self, src, dsts, add=False):
-        """
-        Link src to one or more dsts
-        If required, add tee + queues
-
-        dsts will be added to player?
-        This makes it easier to link things together dynamically
-        """
-
-        assert len(dsts) > 0, "Can't create tee with no sink elements"
-
-        # playing with dynamic linking
-        # this becomes a bad idea, make sure the tee is always there
-        if 0 and len(dsts) == 1:
-            dst = dsts[0]
-            if add:
-                try:
-                    self.player.add(dst)
-                except gi.overrides.Gst.AddError:
-                    print("WARNING: failed to add %s" % (dst, ))
-                    raise
-            assert src.link(dst)
-            self.verbose and print("tee simple link %s => %s" % (src, dst))
-            return None
-        else:
-            tee = Gst.ElementFactory.make("tee")
-            self.player.add(tee)
-            assert src.link(tee)
-            self.link_tee_dsts(tee, dsts, add=add)
-            return tee
-
-    def link_tee_dsts(self, tee, dsts, add=False):
-        for dst in dsts:
-            assert dst is not None
-            queue = Gst.ElementFactory.make("queue")
-            # self.queues.append(queue)
-            self.player.add(queue)
-            assert tee.link(queue)
-            if add:
-                # XXX: why isn't this a fatal error?
-                try:
-                    self.player.add(dst)
-                except gi.overrides.Gst.AddError:
-                    pass
-                    print("WARNING: failed to add %s" % (dst, ))
-                    raise
-            # XXX: why isn't this a fatal error?
-            try:
-                assert queue.link(dst)
-            except:
-                print(f"Failed to link {queue} => {dst}")
-                raise
-            # self.verbose and print("tee queue link %s => %s" % (src, dst))
-
-    def setupGst(self, raw_tees=None, vc_tees=None):
-        """
-        TODO: clean up queue architecture
-        Probably need to add a seperate (optional) tee before and after videoconvert
-        This will allow raw imaging but also share encoding for main + ROI
-        
-        
-        toupcamsource ! 
-        """
-
-        self.tee_vc = None
-        if raw_tees is None:
-            raw_tees = []
-        if vc_tees is None:
-            vc_tees = []
-
-        self.verbose and print(
-            "Setting up gstreamer pipeline w/ full=%u, roi=%u, tees-r %u, tees-vc %u"
-            % (self.overview, self.roi, len(raw_tees), len(vc_tees)))
-
-        # FIXME: is this needed? seems broken anyway
-        self.prepareSource()
-        self.player.add(self.source)
-        self.raw_element = self.source
-        """
-        observation:
-        -adding caps negotation on v4l2src fixed lots of issues (although roi still not working)
-            workaround: disable roi on v4l2src
-        -adding caps negotation on toupcamsrc caused roi issue
-            workaround: disable raw caps negotation on toupcamsrc
-        update: toupcamsrc failed due to bad config file setting incorrect caps negotation
-        """
-        self.raw_capsfilter = Gst.ElementFactory.make("capsfilter")
-        # Select the correct resolution from the camera
-        # This is pre-crop so it must be the actual resolution
-        # Also selects the pixel format (8 bit RGB, 16 bit, raw, ...)
-        # if the source supports it
-        if self.imager_aplugin.supported_formats() is not None:
-            self.capture_format = self.ac.microscope.usc.imager.capture_format(
-            )
-        self.raw_capsfilter.props.caps = self.raw_caps()
-        self.link_next_raw_element(self.raw_capsfilter)
-
-        # Hack to use a larger than needed camera sensor
-        # Crop out the unused sensor area
-        crop = self.ac.microscope.usc.imager.crop_tblr()
-        self.videocrop = None
-        if crop:
-            self.videocrop = Gst.ElementFactory.make("videocrop")
-            assert self.videocrop
-            self.videocrop.set_property("top", crop["top"])
-            self.videocrop.set_property("bottom", crop["bottom"])
-            self.videocrop.set_property("left", crop["left"])
-            self.videocrop.set_property("right", crop["right"])
-            self.link_next_raw_element(self.videocrop)
-
-        # Use hardware acceleration if present
-        # Otherwise can soft flip feeds when / if needed
-        # videoflip_method = self.parent.usc.imager.videoflip_method()
-        videoflip_method = self.ac.microscope.usc.imager.videoflip_method()
-        if videoflip_method:
-            self.videoflip = Gst.ElementFactory.make("videoflip")
-            assert self.videoflip
-            self.videoflip.set_property("method", videoflip_method)
-            self.link_next_raw_element(self.videoflip)
-
-        self.videoconvert = Gst.ElementFactory.make('videoconvert')
-        assert self.videoconvert is not None
-        self.player.add(self.videoconvert)
-
-        our_vc_tees = []
+    def create_vc_elements(self, vc_tees):
         for widget in self.widgets.values():
-            widget.create_elements(self.player, our_vc_tees)
+            widget.create_elements(self.player, vc_tees)
 
-        # Note at least one vc tee is garaunteed (either full or roi)
-        self.verbose and print("Link raw...")
-        raw_tees = [self.videoconvert] + raw_tees
-        self.tee_raw = self.link_tee(self.raw_element, raw_tees)
-
-        self.verbose and print("Link vc...")
-        self.verbose and print("  our", our_vc_tees)
-        self.verbose and print("  their", vc_tees)
-        vc_tees = our_vc_tees + vc_tees
-        self.tee_vc = self.link_tee(self.videoconvert, vc_tees)
-
-        # Finish linking post vc_tee
+    def link_vc_elements(self):
         for widget in self.widgets.values():
             widget.gst_link()
 
-        bus = self.player.get_bus()
+    def setup_bus(self, bus):
+        # Qt runs a glib main loop on Linux: messages are dispatched there
         bus.add_signal_watch()
         bus.enable_sync_message_emission()
         bus.connect("message", self.on_message)
         bus.connect("sync-message::element", self.on_sync_message)
-        self.setting_up = False
 
     def run(self):
         """
@@ -790,27 +498,7 @@ class GstVideoPipeline:
         for widget in self.widgets.values():
             widget.winid = widget.winId()
             assert widget.winid, "Need widget_winid by run"
-
-        self.verbose and print("Starting gstreamer pipeline")
-        self.player.set_state(Gst.State.PLAYING)
-        if self.source_name == 'gst-toupcamsrc':
-            assert self.source.get_property(
-                "devicepresent"), "camera not found"
-
-    def on_message(self, bus, message):
-        t = message.type
-
-        # print("on_message", message, t)
-        if t == Gst.MessageType.EOS:
-            self.player.set_state(Gst.State.NULL)
-            print("GstVP: End of stream")
-        elif t == Gst.MessageType.ERROR:
-            err, debug = message.parse_error()
-            print("GstVP error: %s" % err, debug)
-            self.player.set_state(Gst.State.NULL)
-            self.ok = False
-        elif t == Gst.MessageType.STATE_CHANGED:
-            pass
+        super().run()
 
     def gstreamer_to_winid(self, want_name):
         for widget in self.widgets.values():
@@ -823,8 +511,6 @@ class GstVideoPipeline:
             return
         message_name = message.get_structure().get_name()
         if message_name == "prepare-window-handle":
-            # self.verbose and print("prepare-window-handle", message.src.get_name())
-            # print("prepare-window-handle", message.src.get_name())
             imagesink = message.src
             imagesink.set_property("force-aspect-ratio", True)
             name = message.src.get_name()
@@ -864,38 +550,6 @@ class GstVideoPipeline:
         else:
             # TODO: post server shutdown cleanup
             self.player.remove(self.rtsp_bin)
-            # self.tee_vc.unlink(self.rtsp_bin)
-            # self.rtsp_server.get_mount_points().remove_factory()
-
-    def recover_video_crash(self):
-        """
-        Goal: recover from transient camera errors
-        At a high level:
-        -Stop pipeline
-        -Deconstruct the old video source / remove from pipeline
-        -Create a new video source and add to pipeline
-        -Start pipeline
-        -Restore properties (exposure, etc)
-        """
-        # Stop pipeline and remove the bad element
-        self.ok = False
-        self.player.set_state(Gst.State.NULL)
-        self.source.unlink(self.raw_capsfilter)
-        self.player.remove(self.source)
-        self.source = None
-
-        # Allocate a new source
-        self.prepareSource()
-        self.player.add(self.source)
-        # Now insert it back into the pipeline
-        if not self.source.link(self.raw_capsfilter):
-            raise RuntimeError("Couldn't set capabilities on the source")
-        # Go go go!
-        # Hopefully we'll come back up
-        # If not we'll crash in short order
-        self.player.set_state(Gst.State.PLAYING)
-        self.ac.imager.device_restarted()
-        self.ok = True
 
 
 class RtspBin(Gst.Bin):

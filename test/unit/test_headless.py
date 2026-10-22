@@ -45,10 +45,13 @@ def tearDownModule():
 
 class HeadlessTestCase(unittest.TestCase):
     session = None
+    # None: microscope config imager (mock-grbl: gst-videotestsrc pipeline)
+    imager = None
 
     @classmethod
     def setUpClass(cls):
-        cls.session = HeadlessSession(microscope_name="mock-grbl")
+        cls.session = HeadlessSession(microscope_name="mock-grbl",
+                                      imager=cls.imager)
 
     @classmethod
     def tearDownClass(cls):
@@ -194,6 +197,60 @@ class TestScripts(HeadlessTestCase):
         self.assertGreater(len(images), 1)
 
 
+class TestGstImager(HeadlessTestCase):
+    def test_pipeline(self):
+        self.assertIsNotNone(self.session.vidpip)
+        self.assertEqual(self.session.usc.imager.source(), "gst-videotestsrc")
+
+    def test_properties(self):
+        fn = self.write_script("""
+            from uscope.scripting import ScriptingPlugin
+
+            class Plugin(ScriptingPlugin):
+                def run_test(self):
+                    props = self.imager_get_disp_properties()
+                    assert "exposure" in props, props
+                    self.imager_set_disp_property("exposure", 20000)
+                    assert self.imager_get_disp_property("exposure") == 20000
+            """)
+        plugin = self.run_script(fn)
+        self.assertTrue(plugin.succeeded(), plugin.result_message)
+
+    def test_capture_format(self):
+        fn = self.write_script("""
+            from uscope.scripting import ScriptingPlugin
+
+            class Plugin(ScriptingPlugin):
+                def run_test(self):
+                    formats = self.imager_supported_capture_formats()
+                    assert formats == ["RGB", "ARGB64"], formats
+                    try:
+                        self.imager_set_capture_format("ARGB64")
+                        im = self.image_captured()
+                        assert im.pixel_format == "ARGB64", im.pixel_format
+                        assert im.data.dtype.name == "uint16", im.data.dtype
+                    finally:
+                        self.imager_set_capture_format("RGB")
+                    im = self.image_captured()
+                    assert im.pixel_format == "RGB", im.pixel_format
+                    assert im.image.mode == "RGB", im.image.mode
+            """)
+        plugin = self.run_script(fn)
+        self.assertTrue(plugin.succeeded(), plugin.result_message)
+
+
+class TestMockImager(HeadlessTestCase):
+    imager = "mock"
+
+    def test_no_pipeline(self):
+        self.assertIsNone(self.session.vidpip)
+
+    def test_image(self):
+        plugin = self.run_script(
+            os.path.join(SCRIPT_DIR, "test", "test_image.py"))
+        self.assertTrue(plugin.succeeded(), plugin.result_message)
+
+
 class TestInputHelpers(unittest.TestCase):
     CONFIG = {
         "Mode": {
@@ -245,13 +302,18 @@ class TestNoQt(unittest.TestCase):
             import uscope.app.headless.main
             from uscope.session import HeadlessSession
             from uscope.scripting import HeadlessScriptHost, ScriptRunner
+            # gst-videotestsrc pipeline
             with HeadlessSession(microscope_name="mock-grbl") as session:
+                assert session.vidpip is not None
                 host = HeadlessScriptHost()
                 runner = ScriptRunner(session=session, host=host)
-                plugin = runner.load({os.path.join(SCRIPT_DIR, "hello.py")!r})
+                plugin = runner.load(
+                    {os.path.join(SCRIPT_DIR, "test", "test_image.py")!r})
                 runner.run({{}})
                 assert host.done_event.wait(30)
                 assert plugin.succeeded(), plugin.result_message
+            for mod in ("PyQt5", "PyQt6", "PySide2", "PySide6"):
+                assert sys.modules[mod] is None, mod
             print("NOQT_OK")
             """)
         out = subprocess.run([sys.executable, "-c", code],

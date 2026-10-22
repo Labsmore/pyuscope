@@ -1,10 +1,17 @@
-from uscope.gui.imager import GstGUIImager
-from uscope.gui.gstwidget import SinkxZoomableWidget
+"""
+Imager plugins describe a camera source
+Qt free: front ends (Argus, headless) build their own pipeline / views on top
+"""
+
+from uscope.imager.properties import ImagerProperties
 
 
-class ArgusImagerPlugin:
-    def __init__(self, ac):
-        self.ac = ac
+class ImagerPlugin:
+    def __init__(self, session):
+        """
+        session: ArgusCommon or HeadlessSession
+        """
+        self.session = session
 
     def name(self):
         """
@@ -13,31 +20,23 @@ class ArgusImagerPlugin:
         """
         assert 0, "Required"
 
-    '''
-    def detect_sources(self):
+    def get_properties(self):
         """
-        If present return a list of properties that are required to configure that source,
-        one for each detected device
+        Return the ImagerProperties model for this source
         """
-        return []
-    '''
-
-    def get_imager(self):
-        """
-        Return a pyuscope Imager object
-        """
-        assert 0, "Required"
+        return ImagerProperties(self.session, plugin=self)
 
     def get_widget(self):
         """
+        Argus video widget class
         rpi has performance constraints
         allow it to do special direct rendering that bypasses gstreamer pipeline entirely
         """
+        from uscope.gui.gstwidget import SinkxZoomableWidget
         return SinkxZoomableWidget
 
 
-# Intended to be used with GstGUIImager
-class ArgusGstImagerPlugin(ArgusImagerPlugin):
+class GstImagerPlugin(ImagerPlugin):
     def name(self):
         return self.source_name()
 
@@ -52,9 +51,6 @@ class ArgusGstImagerPlugin(ArgusImagerPlugin):
         return gstreamer Element instance for this with name assined to this object instance
         '''
         assert 0, "Required"
-
-    def get_imager(self):
-        return GstGUIImager(self.ac)
 
     def supported_formats(self):
         """

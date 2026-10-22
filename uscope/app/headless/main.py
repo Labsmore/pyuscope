@@ -6,6 +6,7 @@ Examples:
 ./app/headless.py --microscope mock-grbl uscope/script/test/test_all.py --button all
 ./app/headless.py uscope/script/test/test_input.py --input distance=2.5 --input Mode=Fast
 ./app/headless.py uscope/script/webserver_api.py --button localhost
+./app/headless.py --microscope mock-grbl --imager-config '{"source": "gst-toupcamsrc", "width": 5440, "height": 3648, "scalar": 0.5}' uscope/script/test/test_image.py
 
 Inputs default to the script's input_config() defaults
 --config loads a saved script config (as from the Scripting tab "Save config")
@@ -23,6 +24,7 @@ from uscope.util import readj
 from uscope import util
 
 import argparse
+import json
 import os
 import sys
 import traceback
@@ -49,7 +51,27 @@ def parse_args():
     parser.add_argument("--list-inputs",
                         action="store_true",
                         help="Print the script's inputs and buttons then exit")
+    parser.add_argument(
+        "--imager",
+        choices=("config", "mock"),
+        default="config",
+        help=
+        "config: camera from the microscope config. mock: no camera (blank images)"
+    )
+    parser.add_argument(
+        "--imager-config",
+        help=
+        "Override the microscope config imager section (.j5 file or inline JSON)"
+    )
     return parser.parse_args()
+
+
+def load_imager_config(arg):
+    if not arg:
+        return None
+    if os.path.exists(arg):
+        return readj(arg)
+    return json.loads(arg)
 
 
 def build_input(config, args):
@@ -80,7 +102,10 @@ def list_inputs(config):
 
 
 def run(args):
-    session = HeadlessSession(microscope_name=args.microscope)
+    session = HeadlessSession(
+        microscope_name=args.microscope,
+        imager="mock" if args.imager == "mock" else None,
+        imager_config=load_imager_config(args.imager_config))
     util.register_emergency_stop(session.motion.emergency_stop)
     try:
         image_dir = args.image_dir

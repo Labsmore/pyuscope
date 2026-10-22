@@ -1,10 +1,7 @@
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-from PyQt5.QtWidgets import *
+from uscope.imager.properties import GstImagerProperties
+from uscope.imager import pixel_format
 
 from collections import OrderedDict
-
-from uscope.gui.control_scroll import GstControlScroll
 
 PROP_DISP_AUTO_EXPOSURE = "auto-exposure"
 PROP_DISP_EXPOSURE_TIME = "expotime"
@@ -46,6 +43,9 @@ groups_gst = OrderedDict([
             "prop_name": "wb-b",
             "disp_name": PROP_DISP_WB_B,
         },
+        # Normal users don't need to change these
+        # but its needed to configure the camera
+        # See https://github.com/Labsmore/pyuscope/issues/274
         {
             "prop_name": "hflip",
             "disp_name": "hflip",
@@ -59,90 +59,61 @@ groups_gst = OrderedDict([
     ]),
 ])
 
-groups_gst = OrderedDict(groups_gst)
 
-
-class TTControlScroll(GstControlScroll):
+class TTProperties(GstImagerProperties):
     """
-    Display a number of gst-toupcamsrc based controls and supply knobs to tweak them
+    gst-toupcamsrc properties
     """
-    def __init__(self, vidpip, ac=None, parent=None):
-        GstControlScroll.__init__(self,
-                                  vidpip=vidpip,
-                                  groups_gst=groups_gst,
-                                  ac=ac,
-                                  parent=parent)
-
-    def post_imager_ready(self):
-        GstControlScroll.post_imager_ready(self)
-
-        # Normal users don't need to change these
-        # but its needed to configure the camera
-        # See https://github.com/Labsmore/pyuscope/issues/274
-        # self.disp2element["hflip"].setVisible(config.get_bc().dev_mode())
-        # self.disp2element["vflip"].setVisible(config.get_bc().dev_mode())
-
+    def __init__(self, session, plugin=None):
+        super().__init__(session, plugin=plugin, groups=groups_gst)
         # White balance is applied by the camera ISP
         # Doesn't do anything in sensor raw modes
         self.raw_mode = False
-        if self.ac is not None:
-            self.ac.captureFormatChanged.connect(self.capture_format_changed)
-            fmt = self.ac.vidpip.get_capture_format()
-            if fmt:
-                self.capture_format_changed(fmt)
+
+    def setup(self):
+        super().setup()
+        fmt = self.session.vidpip.get_capture_format()
+        if fmt:
+            self.capture_format_changed(fmt)
 
     def capture_format_changed(self, fmt):
-        from uscope.imager import pixel_format
         self.raw_mode = pixel_format.is_raw(fmt)
         self.update_wb_enabled()
 
     def update_wb_enabled(self):
+        wb = [PROP_DISP_WB_R, PROP_DISP_WB_G, PROP_DISP_WB_B]
         if self.raw_mode:
-            self.set_gui_driven(False,
-                                disp_names=[
-                                    PROP_DISP_AUTO_WB, PROP_DISP_WB_R,
-                                    PROP_DISP_WB_G, PROP_DISP_WB_B
-                                ])
+            self.set_gui_driven(False, disp_names=[PROP_DISP_AUTO_WB] + wb)
         else:
             self.set_gui_driven(True, disp_names=[PROP_DISP_AUTO_WB])
-            self.set_gui_driven(
-                not self.auto_color_enabled(),
-                disp_names=[PROP_DISP_WB_R, PROP_DISP_WB_G, PROP_DISP_WB_B])
+            self.set_gui_driven(not self.auto_color_enabled(), disp_names=wb)
 
-    def auto_exposure_enabled(self):
-        return bool(self.disp_prop_read(PROP_DISP_AUTO_EXPOSURE))
+    def get_auto_exposure_disp_property(self):
+        return PROP_DISP_AUTO_EXPOSURE
 
     def auto_color_enabled(self):
         return bool(self.disp_prop_read(PROP_DISP_AUTO_WB))
-
-    def set_exposure(self, n):
-        self.prop_write(PROP_DISP_EXPOSURE_TIME, n)
-
-    def get_exposure(self):
-        return self.disp_prop_read(PROP_DISP_EXPOSURE_TIME)
 
     def get_exposure_disp_property(self):
         return PROP_DISP_EXPOSURE_TIME
 
     def disp_prop_was_rw(self, name, value):
-        # print("disp prop rw", name, value)
-        # Auto-exposure quickly fights with GUI
-        # Disable the control when its activated
+        # Auto-exposure quickly fights with the user
+        # Let the camera own exposure while its active
         if name == PROP_DISP_AUTO_EXPOSURE:
             self.set_gui_driven(
                 not value,
                 disp_names=[PROP_DISP_EXPOSURE_TIME, PROP_DISP_EXPOSURE_GAIN])
         if name == PROP_DISP_AUTO_WB:
             self.set_gui_driven(
-                not value and not getattr(self, "raw_mode", False),
+                not value and not self.raw_mode,
                 disp_names=[PROP_DISP_WB_R, PROP_DISP_WB_G, PROP_DISP_WB_B])
 
-    def flatten_hack(self, val):
+    def flatten_hack(self, prop):
         # NOTE: added source_properties_mod. Maybe leave this at actual max?
         # Log scale would also work well
-        if val["prop_name"] == PROP_DISP_EXPOSURE_TIME:
+        if prop["prop_name"] == PROP_DISP_EXPOSURE_TIME:
             # Despite max 15e3 exposure max, reporting 5e6
             # actually this is us?
             # Even so limit to 1 sec
-            val["max"] = min(1000000, val["max"])
-            # print("override", val)
+            prop["max"] = min(1000000, prop["max"])

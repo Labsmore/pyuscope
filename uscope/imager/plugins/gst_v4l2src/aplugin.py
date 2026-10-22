@@ -1,5 +1,5 @@
-from uscope.imager.plugins.aplugin import ArgusGstImagerPlugin
-from .widgets import V4L2GstControlScroll
+from uscope.imager.plugins.aplugin import GstImagerPlugin
+from .properties import V4L2GstProperties
 from uscope.v4l2_util import find_device
 
 import os
@@ -24,15 +24,15 @@ def have_v4l2_camera():
     return os.path.exists("/dev/video0")
 
 
-class Plugin(ArgusGstImagerPlugin):
+class Plugin(GstImagerPlugin):
     def name(self):
         return "gst-v4l2src"
 
     def source_name(self):
         return "v4l2src"
 
-    def get_control_scroll(self):
-        return V4L2GstControlScroll
+    def get_properties(self):
+        return V4L2GstProperties(self.session, plugin=self)
 
     def get_gst_source(self, name=None):
         source = Gst.ElementFactory.make('v4l2src', name)
@@ -41,7 +41,7 @@ class Plugin(ArgusGstImagerPlugin):
         # Set default v4l2 device, if not given
         # TODO: scrape info one way or the other to identify preferred device
         device = DEFAULT_V4L2_DEVICE
-        name = self.ac.usc.imager.j.get("v4l2_name")
+        name = self.session.usc.imager.j.get("v4l2_name")
         if name:
             device = find_device(name)
             print(f"Camera '{name}': selected {device}")

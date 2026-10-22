@@ -216,9 +216,28 @@ class TestGstImager(HeadlessTestCase):
                     assert "exposure" in props, props
                     self.imager_set_disp_property("exposure", 20000)
                     assert self.imager_get_disp_property("exposure") == 20000
+                    # gstreamer enum
+                    assert type(props["pattern"]) is int, props
+                    # JSON clients may only have floats
+                    self.imager_set_disp_property("pattern", 18.0)
+                    assert self.imager_get_disp_property("pattern") == 18
+                    self.imager_set_disp_property("exposure", 1234.6)
+                    assert self.imager_get_disp_property("exposure") == 1235
+                    try:
+                        self.imager_set_disp_property("pattern", "ball")
+                        assert 0, "accepted a string"
+                    except ValueError:
+                        pass
+                    self.imager_set_disp_property("pattern", props["pattern"])
             """)
         plugin = self.run_script(fn)
         self.assertTrue(plugin.succeeded(), plugin.result_message)
+
+    def test_properties_json(self):
+        """Web APIs / image metadata need plain values"""
+        props = self.session.imager.get_properties()
+        self.assertEqual(json.loads(json.dumps(props)), props)
+        json.dumps(self.session.imager_properties.get_prop_cache())
 
     def test_capture_format(self):
         fn = self.write_script("""

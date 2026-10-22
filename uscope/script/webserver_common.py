@@ -141,9 +141,11 @@ def make_app(app):
     def imager_set_disp_properties():
         properties = {}
         for k, v in request.args.items():
-            # FIXME: not everything is a float
-            properties[k] = float(v)
-        # Validate objective name before sending request
+            # JSON literals: 18, 1.5, true. The imager coerces to the property type
+            try:
+                properties[k] = json.loads(v)
+            except ValueError:
+                properties[k] = v
         plugin.imager_set_disp_properties(properties)
         return {'status': HTTPStatus.OK}
 

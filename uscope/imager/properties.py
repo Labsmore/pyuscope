@@ -346,9 +346,28 @@ class ImagerProperties:
             self.disp_cache[disp_name] = ret
             return ret
 
+    def coerce_disp_value(self, prop, val):
+        """
+        Value of the property's type
+        Lets clients that only have JSON numbers (ex: web) set int / bool properties
+        Floats are rounded (ex: computed exposures)
+        """
+        if prop["type"] == "int":
+            if isinstance(val, bool) or not isinstance(val, (int, float)):
+                raise ValueError(
+                    f"Property {prop['disp_name']}: expected int, got {val!r}")
+            return int(round(val))
+        if prop["type"] == "bool":
+            if val not in (True, False, 0, 1):
+                raise ValueError(
+                    f"Property {prop['disp_name']}: expected bool, got {val!r}")
+            return bool(val)
+        return val
+
     def disp_prop_write(self, disp_name, disp_val):
         with self.lock:
             prop = self.disp2prop[disp_name]
+            disp_val = self.coerce_disp_value(prop, disp_val)
             raw_val = self._converter(prop).disp2raw(disp_val)
             self.raw_prop_write(prop["prop_name"], raw_val)
             self.disp_cache[disp_name] = disp_val
@@ -414,7 +433,7 @@ class ImagerProperties:
                         f"Unknown imager property {disp_name}. Have: {list(self.disp2prop.keys())}"
                     )
                 self.disp_prop_write(disp_name, val)
-                written[disp_name] = val
+                written[disp_name] = self.disp_cache[disp_name]
         imager = self.microscope.imager
         if imager:
             imager.properties_changed()
@@ -572,6 +591,18 @@ class MockImagerProperties(ImagerProperties):
         return 0
 
 
+def gst_value_to_python(val):
+    """
+    Plain (JSON serializable) value for a gstreamer property value
+    Enums / flags => int (accepted back by set_property())
+    """
+    # Deferred: mock sessions don't need gstreamer
+    from gi.repository import GObject
+    if isinstance(val, (GObject.GEnum, GObject.GFlags)):
+        return int(val)
+    return val
+
+
 class GstImagerProperties(ImagerProperties):
     """
     Properties on the gstreamer source element (ex: toupcamsrc)
@@ -589,7 +620,7 @@ class GstImagerProperties(ImagerProperties):
         if ps is None:
             raise ValueError(f"Property '{prop_name}' not found")
         ret["prop_name"] = prop_name
-        ret["default"] = ps.default_value
+        ret["default"] = gst_value_to_python(ps.default_value)
 
         if prop_entry.get("fill_type", True):
             if ps.value_type.name == "gint":
@@ -609,6 +640,11 @@ class GstImagerProperties(ImagerProperties):
                 ret["type"] = "int"
             elif ps.value_type.name == "gboolean":
                 ret["type"] = "bool"
+            elif hasattr(ps, "enum_class"):
+                values = ps.enum_class.__enum_values__
+                ret["min"] = min(values)
+                ret["max"] = max(values)
+                ret["type"] = "int"
             else:
                 raise ValueError(
                     f"Property '{prop_name}': unsupported type {ps.value_type.name}"
@@ -622,7 +658,7 @@ class GstImagerProperties(ImagerProperties):
         self.source().set_property(name, val)
 
     def _raw_prop_read(self, name):
-        return self.source().get_property(name)
+        return gst_value_to_python(self.source().get_property(name))
 
 
 class V4L2ImagerProperties(ImagerProperties):

@@ -191,9 +191,6 @@ class ArgusCommon(QObject):
         self.mw = mw
         self.tabs = {}
         self.logs = []
-        # Objective config dict, updated from the GUI thread
-        self.active_objective = None
-        self.objectiveChanged.connect(self.active_objective_updated)
         """
         Capture format override
         None: use microscope.j5 imager.format
@@ -300,8 +297,6 @@ class ArgusCommon(QObject):
         self.microscope.motion_stop = self.motion_thread.stop
         self.microscope.get_jog_controller = self.motion_thread.get_jog_controller
         self.microscope.image_save_extension = self.image_save_extension
-        self.microscope.get_active_objective = self.get_active_objective
-        self.microscope.set_active_objective = self.set_active_objective
         self.runPlannerHConfigs.connect(
             self.mainTab.imaging_widget.go_planner_hconfigs)
 
@@ -548,18 +543,13 @@ class ArgusCommon(QObject):
         """
         Return currently selected objective configuration
         """
-        ret = self.mainTab.objective_widget.obj_config
-        assert ret
-        return ret
+        return self.microscope.objective_state.config()
 
     def imaging_config(self):
         """
         Return imaging widget configuration
         """
         return self.mainTab.imaging_widget.imaging_config
-
-    def active_objective_updated(self, data):
-        self.active_objective = data
 
     """
     Scripting session interface (see uscope/scripting.py)
@@ -570,16 +560,16 @@ class ArgusCommon(QObject):
         """
         Returns the name of the active objective
         """
-        return self.active_objective["name"]
+        return self.microscope.objective_state.name()
 
     def set_active_objective(self, objective):
-        self.mainTab.objective_widget.setObjective.emit(objective)
+        self.microscope.objective_state.select(objective)
 
     def image_save_extension(self):
         return self.mainTab.imaging_widget.save_extension()
 
     def set_um_per_pixel_raw_1x(self, val):
-        self.mainTab.objective_widget.setUmPerPixelRaw1x.emit(val)
+        self.microscope.objective_state.set_um_per_pixel_raw_1x(val)
 
     def run_planner_hconfigs(self, hconfigs):
         self.runPlannerHConfigs.emit(list(hconfigs))

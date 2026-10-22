@@ -1,7 +1,7 @@
 from uscope.config import get_bc, get_usc
 from uscope.motion.plugins import get_motion_hal, configure_motion_hal
 from uscope.kinematics import Kinematics
-from uscope.objective import MicroscopeObjectives
+from uscope.objective import MicroscopeObjectives, ObjectiveState
 from uscope.imager import gst
 from uscope.motion.grbl import grbl_mconfig
 import threading
@@ -151,6 +151,7 @@ class Microscope:
         self.calibration = self.cal_store.as_dict()
 
         self.objectives = None
+        self.objective_state = ObjectiveState(self)
 
         if not auto or virtual:
             make_motion = False
@@ -356,11 +357,11 @@ class Microscope:
         assert 0, "hack: overriden by GUI"
 
     def get_active_objective(self):
-        """GUI overrides this. Headless / cal code gets None unless set."""
-        return getattr(self, "_active_objective_name", None)
+        """None until a front end loads objectives (see objective_state)"""
+        return self.objective_state.name()
 
     def set_active_objective(self, objective):
-        self._active_objective_name = objective
+        self.objective_state.select(objective)
 
     def _on_cal_changed(self, store, keys):
         self.calibration = store.as_dict()

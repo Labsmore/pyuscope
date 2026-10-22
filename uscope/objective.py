@@ -1,4 +1,5 @@
 import copy
+import threading
 from collections import OrderedDict
 """
 Sample usage:
@@ -205,3 +206,207 @@ class MicroscopeObjectives:
         self.um_per_pixel_raw_1x = value
         if recalculate:
             self.recalculate_db()
+
+
+class ObjectiveState:
+    """
+    Front end independent objective selection
+    Owns which objective is active and the scalars applied to the objective DB
+    Thread safe
+
+    Listeners are called with the active objective config (dict) whenever it
+    changes (selection, scalars, calibration). They may be called from any thread
+    """
+
+    # Calibration keys that change the computed objective DB
+    CAL_KEYS = {"optics.um_per_pixel_raw_1x", "kinematics.tsettle_motion"}
+
+    def __init__(self, microscope, log=None):
+        self.microscope = microscope
+        self._log = log
+        self.lock = threading.RLock()
+        self.objectives = None
+        self.selected_name = None
+        # User magnification correction (ex: barlow). None => 1.0
+        self.global_scalar = None
+        # Overrides microscope / calibration value. None => no override
+        self.um_per_pixel_raw_1x = None
+        self.listeners = []
+        store = getattr(self.microscope, "cal_store", None)
+        if store is not None:
+            store.subscribe(self._on_cal_changed)
+
+    def log(self, msg):
+        if self._log:
+            self._log(msg)
+        else:
+            self.microscope.log(msg)
+
+    def add_listener(self, cb):
+        self.listeners.append(cb)
+
+    def _notify(self, config):
+        for cb in list(self.listeners):
+            cb(config)
+
+    def _on_cal_changed(self, store, keys):
+        # Microscope already applied these to its objectives
+        if self.objectives is not None and set(keys or []) & self.CAL_KEYS:
+            self._notify(self.config())
+
+    """
+    Objective DB
+    """
+
+    def reload(self):
+        """
+        Recompute the objective DB with current scalars
+        Keeps the selected objective if it still exists
+        """
+        with self.lock:
+            self.objectives = self.microscope.get_objectives()
+            self.objectives.set_global_scalar(self.global_scalar or 1.0,
+                                              recalculate=False)
+            self.objectives.set_um_per_pixel_raw_1x(
+                self.um_per_pixel_raw_1x
+                or self.microscope.usc.optics.um_per_pixel_raw_1x(),
+                recalculate=False)
+            self.objectives.recalculate_db()
+            if self.selected_name not in self.objectives.names():
+                self.selected_name = self.objectives.default_name()
+            config = self.config()
+        self._notify(config)
+
+    def _objectives(self):
+        if self.objectives is None:
+            self.reload()
+        return self.objectives
+
+    def names(self):
+        with self.lock:
+            return self._objectives().names()
+
+    def name(self):
+        """Active objective name. None until objectives are loaded"""
+        return self.selected_name
+
+    def config(self):
+        """Active objective config (dict)"""
+        with self.lock:
+            return self._objectives().get_config(self.selected_name)
+
+    def full_config(self):
+        with self.lock:
+            return self._objectives().get_full_config()
+
+    def view_um(self):
+        """(width, height) of the final image in um"""
+        config = self.config()
+        im_w_pix, im_h_pix = self.microscope.usc.imager.cropped_wh()
+        im_w_um = config["x_view"]
+        return im_w_um, im_w_um * im_h_pix / im_w_pix
+
+    """
+    Selection
+    """
+
+    def select(self, name, parfocal=True):
+        """
+        Make name the active objective
+        parfocal: move Z by the calibrated offset between the objectives (if enabled)
+        """
+        with self.lock:
+            if name not in self._objectives().names():
+                raise ValueError(f"Unknown objective {name}")
+            old_name = self.selected_name
+            if name == old_name:
+                return
+            self.selected_name = name
+            config = self.config()
+        self.log("Selected objective %s" % name)
+        self._notify(config)
+        if parfocal:
+            self.go_parfocal_z(name, old_name=old_name)
+
+    def parfocal_delta(self, new_name, old_name):
+        """Z (mm) to move going from old_name to new_name. None if not enabled"""
+        if not old_name or not new_name or old_name == new_name:
+            return None
+        store = getattr(self.microscope, "cal_store", None)
+        if store is None:
+            return None
+        e_new = store.get("optics.z_offset", {"objective": new_name})
+        if e_new is None or not e_new.enabled:
+            return None
+        e_old = store.get("optics.z_offset", {"objective": old_name})
+        z_old = float(e_old.value) if e_old is not None else 0.0
+        delta = float(e_new.value) - z_old
+        if abs(delta) < 1e-6:
+            return None
+        return delta
+
+    def go_parfocal_z(self, name=None, old_name=None):
+        """Move Z by the stored offset for name versus old_name (default: current)"""
+        name = name or self.name()
+        if old_name is None:
+            old_name = self.name()
+        delta = self.parfocal_delta(name, old_name)
+        if delta is None:
+            return
+        self.log("Parfocal: moving Z by %0.4f mm (%s -> %s)" %
+                 (delta, old_name, name))
+        self.microscope.motion_thread.move_relative({"z": delta})
+
+    """
+    Scalars
+    """
+
+    def set_global_scalar(self, val):
+        """None => 1.0 (no correction)"""
+        with self.lock:
+            self.global_scalar = None if val is None else float(val)
+        self.log(f"Setting global objective scalar {self.global_scalar or 1.0}")
+        self.reload()
+
+    def set_um_per_pixel_raw_1x(self, val):
+        with self.lock:
+            self.um_per_pixel_raw_1x = val
+        self.reload()
+
+    """
+    Per microscope S/N cache (see Microscope.cache_sn_save)
+    """
+
+    def cache_sn_save(self, cachej):
+        with self.lock:
+            cachej["objective"] = {
+                "name": self.selected_name,
+                "global_scalar":
+                "" if self.global_scalar is None else str(self.global_scalar),
+                "um_per_pixel_raw_1x": self.um_per_pixel_raw_1x,
+            }
+
+    def cache_sn_load(self, cachej):
+        j = cachej.get("objective", {})
+        global_scalar = None
+        s = str(j.get("global_scalar") or "").strip()
+        if s:
+            try:
+                global_scalar = float(s)
+            except ValueError:
+                self.log("Failed to parse global image scalar")
+        um_per_pixel_raw_1x = j.get("um_per_pixel_raw_1x", None)
+        store = getattr(self.microscope, "cal_store", None)
+        if store is not None:
+            if um_per_pixel_raw_1x:
+                store.migrate_um_per_pixel(um_per_pixel_raw_1x)
+            v = store.get_value("optics.um_per_pixel_raw_1x")
+            if v is not None:
+                um_per_pixel_raw_1x = v
+        with self.lock:
+            self.global_scalar = global_scalar
+            self.um_per_pixel_raw_1x = um_per_pixel_raw_1x
+            name = j.get("name", None)
+            if name:
+                self.selected_name = name
+        self.reload()

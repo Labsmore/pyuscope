@@ -89,8 +89,8 @@ class HeadlessSession:
             self.shutdown()
             raise
 
-        objectives = self.microscope.get_objectives()
-        self.set_active_objective(objectives.default_name())
+        self.objective_state = self.microscope.objective_state
+        self.objective_state.reload()
         self.microscope.image_save_extension = self.image_save_extension
         self.microscope.add_subsystem(SessionSubsystem(self))
 
@@ -238,23 +238,19 @@ class HeadlessSession:
     """
 
     def objective_config(self):
-        return self.microscope.get_objectives().get_config(
-            self.get_active_objective())
+        return self.objective_state.config()
 
     def get_active_objective(self):
-        return self.microscope.get_active_objective()
+        return self.objective_state.name()
 
     def set_active_objective(self, objective):
-        if objective not in self.microscope.get_objectives().names():
-            raise ValueError(f"Unknown objective {objective}")
-        self.microscope.set_active_objective(objective)
-
+        self.objective_state.select(objective)
 
     def image_save_extension(self):
         return self.usc.imager.save_extension()
 
     def set_um_per_pixel_raw_1x(self, val):
-        self.microscope.get_objectives().set_um_per_pixel_raw_1x(val)
+        self.objective_state.set_um_per_pixel_raw_1x(val)
 
     def apply_capture_format_override(self, fmt):
         self.imager.set_capture_format(fmt)

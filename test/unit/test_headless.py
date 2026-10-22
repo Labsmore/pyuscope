@@ -239,6 +239,53 @@ class TestGstImager(HeadlessTestCase):
         self.assertTrue(plugin.succeeded(), plugin.result_message)
 
 
+class TestObjectiveState(HeadlessTestCase):
+    imager = "mock"
+
+    def setUp(self):
+        super().setUp()
+        self.state = self.session.objective_state
+        self.changes = []
+        self.state.add_listener(self.changes.append)
+        self.addCleanup(self.state.listeners.remove, self.changes.append)
+        self.addCleanup(self.state.cache_sn_load, {})
+
+    def test_select(self):
+        names = self.state.names()
+        self.assertGreater(len(names), 1)
+        self.state.select(names[1])
+        self.assertEqual(self.session.get_active_objective(), names[1])
+        self.assertEqual(self.session.microscope.get_active_objective(),
+                         names[1])
+        self.assertEqual(self.session.objective_config()["name"], names[1])
+        self.assertEqual(self.changes[-1]["name"], names[1])
+        with self.assertRaises(ValueError):
+            self.state.select("1000X nope")
+
+    def test_global_scalar(self):
+        x_view = self.state.config()["x_view"]
+        self.state.set_global_scalar(2.0)
+        self.assertAlmostEqual(self.state.config()["x_view"], x_view / 2)
+        self.assertAlmostEqual(self.changes[-1]["x_view"], x_view / 2)
+        self.state.set_global_scalar(None)
+        self.assertAlmostEqual(self.state.config()["x_view"], x_view)
+
+    def test_cache(self):
+        name = self.state.names()[-1]
+        self.state.select(name)
+        self.state.set_global_scalar(1.5)
+        cachej = {}
+        self.state.cache_sn_save(cachej)
+        self.assertEqual(cachej["objective"]["name"], name)
+        self.assertEqual(cachej["objective"]["global_scalar"], "1.5")
+        self.state.cache_sn_load({})
+        self.assertIsNone(self.state.global_scalar)
+        self.state.select(self.state.names()[0])
+        self.state.cache_sn_load(cachej)
+        self.assertEqual(self.state.name(), name)
+        self.assertEqual(self.state.global_scalar, 1.5)
+
+
 class TestMockImager(HeadlessTestCase):
     imager = "mock"
 

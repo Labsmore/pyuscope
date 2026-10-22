@@ -360,27 +360,25 @@ class JoystickTab(ArgusTab):
 
 
 class ObjectiveWidget(AWidget):
+    """
+    View over the core objective state (microscope.objective_state)
+    """
 
-    setObjective = pyqtSignal(str)
-    setUmPerPixelRaw1x = pyqtSignal(float)
+    # Objective config dict. Lets the state notify from any thread
+    stateChanged = pyqtSignal(dict)
 
     def __init__(self, ac, aname=None, parent=None):
         super().__init__(ac=ac, aname=aname, parent=parent)
-        self.objective_name_le = None
-        # MicroscopeObjectives class
-        self.objectives = None
-        # JSON like data structure
-        self.obj_config = None
-        # For config load / save
-        self.selected_objective_name = None
-        self.default_objective_index = 0
-        self.global_scalar = None
-        self.um_per_pixel_raw_1x = None
+        self.state = self.ac.microscope.objective_state
+        # Ignore combo box changes we make ourselves
         self.updating_objectives = False
-        self.default_objective_name = None
+        self.stateChanged.connect(self.state_changed)
+        self.state.add_listener(self.stateChanged.emit)
 
-        self.setObjective.connect(self.set_objective)
-        self.setUmPerPixelRaw1x.connect(self.set_um_per_pixel_raw_1x)
+    @property
+    def obj_config(self):
+        """Active objective config (dict)"""
+        return self.state.config()
 
     def _initUI(self):
         self.advanced_widgets = []
@@ -408,14 +406,6 @@ class ObjectiveWidget(AWidget):
         layout.addWidget(self.global_scalar_le)
         self.global_scalar_le.returnPressed.connect(
             self.global_scalar_le_return)
-        """
-        self.modify_objectives_pb = advanced_widget(
-            QPushButton("Modify objectives"))
-        self.modify_objectives_pb.clicked.connect(
-            self.modify_objectives_clicked)
-        layout.addWidget(self.modify_objectives_pb)
-        row += 1
-        """
 
         self.setLayout(layout)
 
@@ -424,139 +414,60 @@ class ObjectiveWidget(AWidget):
             widget.setVisible(visible)
 
     def _post_ui_init(self):
-        self.reload_obj_cb()
+        self.state.reload()
 
-    def set_um_per_pixel_raw_1x(self, val):
-        self.um_per_pixel_raw_1x = val
-        self.reload_obj_cb()
-
-    def reload_obj_cb(self):
-        '''Re-populate the objective combo box'''
+    def state_changed(self, config):
+        """Make the widgets reflect the core state"""
         self.updating_objectives = True
-        self.obj_cb.clear()
-        self.objectives = self.ac.microscope.get_objectives()
-        if self.global_scalar:
-            self.objectives.set_global_scalar(self.global_scalar)
-        if self.um_per_pixel_raw_1x:
-            self.objectives.set_um_per_pixel_raw_1x(self.um_per_pixel_raw_1x)
-        for name in self.objectives.names():
-            self.obj_cb.addItem(name)
+        try:
+            names = self.state.names()
+            if [self.obj_cb.itemText(i)
+                    for i in range(self.obj_cb.count())] != names:
+                self.obj_cb.clear()
+                for name in names:
+                    self.obj_cb.addItem(name)
+            self.obj_cb.setCurrentText(config["name"])
+            im_w_um, im_h_um = self.state.view_um()
+            self.obj_view.setText('View : %0.3fx %0.3fy' % (im_w_um, im_h_um))
+            global_scalar = self.state.global_scalar
+            self.global_scalar_le.setText(
+                "" if global_scalar is None else str(global_scalar))
+        finally:
+            self.updating_objectives = False
+        self.ac.objectiveChanged.emit(config)
 
-        if self.default_objective_name:
-            self.obj_cb.setCurrentText(self.default_objective_name)
-        self.updating_objectives = False
-        self.update_obj_config()
-
-    def update_obj_config(self):
-        '''Make resolution display reflect current objective'''
+    def obj_cb_changed(self):
         if self.updating_objectives:
             return
-        old_name = getattr(self, "_parfocal_last", None)
-        self.selected_objective_name = str(self.obj_cb.currentText())
-        if not self.selected_objective_name:
-            self.selected_objective_name = self.objectives.default_name()
-        obj_config = self.objectives.get_config(self.selected_objective_name)
-        self.ac.log('Selected objective %s' % obj_config['name'])
-
-        im_w_pix, im_h_pix = self.ac.usc.imager.cropped_wh()
-        im_w_um = obj_config["x_view"]
-        im_h_um = im_w_um * im_h_pix / im_w_pix
-        self.obj_view.setText('View : %0.3fx %0.3fy' % (im_w_um, im_h_um))
-        if self.objective_name_le:
-            suffix = obj_config.get("suffix")
-            if not suffix:
-                suffix = obj_config.get("name")
-            self.objective_name_le.setText(suffix)
-        self.obj_config = obj_config
-        self._parfocal_last = self.selected_objective_name
-        self.ac.objectiveChanged.emit(self.obj_config)
-        self._maybe_apply_parfocal(old_name, self.selected_objective_name)
-
-    def _maybe_apply_parfocal(self, old_name, new_name):
-        if not old_name or not new_name or old_name == new_name:
-            return
-        store = getattr(self.ac.microscope, "cal_store", None)
-        if store is None:
-            return
-        e_new = store.get("optics.z_offset", {"objective": new_name})
-        if e_new is None or not e_new.enabled:
-            return
-        e_old = store.get("optics.z_offset", {"objective": old_name})
-        z_old = float(e_old.value) if e_old is not None else 0.0
-        delta = float(e_new.value) - z_old
-        if abs(delta) < 1e-6:
-            return
-        self.ac.log("Parfocal: moving Z by %0.4f mm (%s -> %s)" %
-                    (delta, old_name, new_name))
-        self.ac.motion_thread.move_relative({"z": delta})
+        name = str(self.obj_cb.currentText())
+        if name:
+            self.state.select(name)
 
     def go_parfocal_z(self, name=None):
         """Move Z by the stored offset for name versus the current objective."""
-        name = name or self.selected_objective_name
-        self._maybe_apply_parfocal(getattr(self, "_parfocal_last", None), name)
+        self.state.go_parfocal_z(name)
 
     def get_objective_meta_cache(self):
-        return self.obj_config
+        return self.state.config()
 
-    def reset_objectives_clicked(self):
-        self.reload_obj_cb()
-
-    def modify_objectives_clicked(self):
-        self.ac.log("FIXME: not supported")
-
-    def global_scalar_le_return(self, lazy=False):
+    def global_scalar_le_return(self):
         s = str(self.global_scalar_le.text()).strip()
-        if s:
-            try:
-                self.global_scalar = float(s)
-            except ValueError:
-                self.ac.log("Failed to parse global image scalar")
-                return
-        else:
-            if lazy:
-                return
-            self.global_scalar = 1.0
-        self.ac.log(f"Setting global objective scalar {self.global_scalar}")
-        self.reload_obj_cb()
-
-    """
-    FIXME: these are microscpoe specific
-    Probably need a per microscope cache for this
-    Might also be better to select by name
-    """
+        if not s:
+            self.state.set_global_scalar(None)
+            return
+        try:
+            val = float(s)
+        except ValueError:
+            self.ac.log("Failed to parse global image scalar")
+            return
+        self.state.set_global_scalar(val)
 
     def _cache_sn_save(self, cachej):
-        cachej["objective"] = {
-            "name": self.selected_objective_name,
-            "global_scalar": self.global_scalar_le.text(),
-            "um_per_pixel_raw_1x": self.um_per_pixel_raw_1x,
-        }
+        self.state.cache_sn_save(cachej)
 
     def _cache_sn_load(self, cachej):
-        j = cachej.get("objective", {})
-
-        self.default_objective_name = j.get("name", None)
-        self.global_scalar_le.setText(j.get("global_scalar", ""))
-        self.global_scalar_le_return(lazy=True)
-
-        self.um_per_pixel_raw_1x = j.get("um_per_pixel_raw_1x", None)
-        store = getattr(self.ac.microscope, "cal_store", None)
-        if store is not None:
-            if self.um_per_pixel_raw_1x:
-                store.migrate_um_per_pixel(self.um_per_pixel_raw_1x)
-            v = store.get_value("optics.um_per_pixel_raw_1x")
-            if v is not None:
-                self.um_per_pixel_raw_1x = v
-        self.reload_obj_cb()
-        assert self.obj_config, "not loaded :("
-        self.obj_cb.currentIndexChanged.connect(self.update_obj_config)
-
-    def set_objective(self, objective):
-        index = self.obj_cb.findText(objective)
-        # Do not change selection if objective not in options
-        if index == -1:
-            return
-        self.obj_cb.setCurrentIndex(index)
+        self.state.cache_sn_load(cachej)
+        self.obj_cb.currentIndexChanged.connect(self.obj_cb_changed)
 
 
 """

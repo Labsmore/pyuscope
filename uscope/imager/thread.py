@@ -81,11 +81,32 @@ class ImagerControlThreadBase:
         # Fully black frame (lens cap, light off): don't divide by zero
         # Treat as very dark so exposure steps up at the max rate
         average_now = max(average_now, 1e-3)
-        ratio = self._ae_target / average_now
-        # Sensor response isn't perfectly linear and the camera lags
-        # Limit the per iteration change to avoid large overshoot / oscillation
-        ratio = min(max(ratio, 1.0 / self.AE_MAX_STEP), self.AE_MAX_STEP)
-        new_exposure = max(1, int(round(exposure_now * ratio)))
+        new_exposure = None
+        store = getattr(self.microscope, "cal_store", None)
+        if store is not None:
+            entry = store.get("imager.response")
+            if entry is not None and entry.value:
+                try:
+                    from uscope.cal.analysis.linearity import invert_response
+                    t = invert_response(self._ae_target,
+                                        entry.value,
+                                        exposure_now=exposure_now,
+                                        average_now=average_now)
+                    if t is not None:
+                        new_exposure = max(1, int(round(t)))
+                except Exception:
+                    new_exposure = None
+        if new_exposure is None:
+            ratio = self._ae_target / average_now
+            # Sensor response isn't perfectly linear and the camera lags
+            # Limit the per iteration change to avoid large overshoot / oscillation
+            ratio = min(max(ratio, 1.0 / self.AE_MAX_STEP), self.AE_MAX_STEP)
+            new_exposure = max(1, int(round(exposure_now * ratio)))
+        else:
+            # Safety clamp even with a model
+            lo = max(1, int(round(exposure_now / self.AE_MAX_STEP)))
+            hi = int(round(exposure_now * self.AE_MAX_STEP))
+            new_exposure = min(max(new_exposure, lo), hi)
         0 and print(
             f"EXPOSURE: {exposure_now} => {new_exposure}, w/ target {self._ae_target} currently {average_now}, error {error}"
         )

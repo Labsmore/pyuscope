@@ -172,6 +172,24 @@ class USCImager:
 
         Returns either None or a dict with 4 keys
         """
+        from uscope.cal.store import _cal_store
+        store = _cal_store(self.microscope)
+        if store:
+            scope = {}
+            try:
+                obj = self.microscope.get_active_objective()
+                if obj:
+                    scope["objective"] = obj
+            except Exception:
+                pass
+            entry = store.get("imager.crop_pixels", scope)
+            if entry is not None and isinstance(entry.value, dict):
+                return {
+                    "top": int(entry.value.get("top", 0)),
+                    "bottom": int(entry.value.get("bottom", 0)),
+                    "left": int(entry.value.get("left", 0)),
+                    "right": int(entry.value.get("right", 0)),
+                }
         assert not "crop" in self.j, "Obsolete crop in config. Please update to crop_fractions"
         # Explicit config by pixels
         ret = {
@@ -286,7 +304,42 @@ class USCImager:
                             "imager_calibration_ff.tif")
 
     def has_ff_cal(self):
+        from uscope.cal.store import _cal_store
+        store = _cal_store(self.microscope)
+        if store:
+            if store.get("imager.illumination", self._illumination_scope()) is not None:
+                return True
         return os.path.exists(self.ff_cal_fn())
+
+    def _illumination_scope(self):
+        scope = {}
+        try:
+            obj = self.microscope.get_active_objective()
+            if obj:
+                scope["objective"] = obj
+        except Exception:
+            pass
+        try:
+            scope["wh"] = list(self.raw_wh())
+        except Exception:
+            pass
+        return scope
+
+    def illumination_tables(self):
+        """Dark + gain + mask, or None. Store first, then legacy TIFF."""
+        from uscope.cal.analysis.illumination import IlluminationTables
+        from uscope.cal.store import _cal_store
+        store = _cal_store(self.microscope)
+        if store:
+            entry = store.get("imager.illumination", self._illumination_scope())
+            if entry is not None:
+                path = store.illumination_abspath(entry)
+                if path and os.path.exists(path):
+                    return IlluminationTables.get(path)
+        fn = self.ff_cal_fn()
+        if os.path.exists(fn):
+            return IlluminationTables.get(fn)
+        return None
 
     def videoflip_method(self):
         return self.j.get("videoflip_method", None)
@@ -508,6 +561,14 @@ class USCMotion:
                     ret[k] = default_backlash
 
         self.validate_axes_dict(ret)
+        from uscope.cal.store import _cal_store
+        store = _cal_store(self.microscope)
+        if store:
+            axes = list(ret.keys()) or ["x", "y", "z"]
+            for axis in axes:
+                entry = store.get("motion.backlash", {"axis": axis})
+                if entry is not None:
+                    ret[axis] = float(entry.value)
         return ret
 
     def backlash_compensation(self):
@@ -545,6 +606,13 @@ class USCMotion:
                         ret[k] = 0
                 assert ret[k] in (-1, 0, +1), ret
 
+        from uscope.cal.store import _cal_store
+        store = _cal_store(self.microscope)
+        if store:
+            for axis in list(ret.keys()):
+                entry = store.get("motion.backlash", {"axis": axis})
+                if entry is not None and entry.extra.get("compensation") is not None:
+                    ret[axis] = int(entry.extra["compensation"])
         return ret
 
     def backlash_wiggle(self):
@@ -728,6 +796,12 @@ class USCOptics:
         raw => non-scaled image at selected resolution
         Relay, barlow, etc lens may significantly alter this from actual pixel size
         """
+        from uscope.cal.store import _cal_store
+        store = _cal_store(self.microscope)
+        if store:
+            v = store.get_value("optics.um_per_pixel_raw_1x")
+            if v is not None:
+                return v
         # Directly specified?
         ret = self.j.get("um_per_pixel_raw_1x", None)
         if ret is not None:

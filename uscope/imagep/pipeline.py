@@ -315,6 +315,9 @@ class CSImageProcessor(threading.Thread):
     def queue_correct_ff1(self, **kwargs):
         return self.queue_1_to_1_plugin(plugin="correct-ff1", **kwargs)
 
+    def queue_correct_illumination(self, **kwargs):
+        return self.queue_1_to_1_plugin(plugin="correct-illumination", **kwargs)
+
     def queue_correct_sharp1(self, **kwargs):
         return self.queue_1_to_1_plugin(plugin="correct-sharp1", **kwargs)
 

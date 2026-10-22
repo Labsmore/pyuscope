@@ -63,8 +63,15 @@ class MicroscopeObjectives:
         reference_tsettle_motion = self.microscope.usc.kinematics.tsettle_motion_na1(
         )
         reference_na = 1.0
+        store = getattr(self.microscope, "cal_store", None)
         # Objectives must support magnification to scale
         for objective in self.objectives.values():
+            if store:
+                entry = store.get("kinematics.tsettle_motion",
+                                  {"objective": objective.get("name")})
+                if entry is not None:
+                    objective["tsettle_motion"] = float(entry.value)
+                    continue
             if "tsettle_motion" in objective:
                 continue
             tsettle_motion = 0.0

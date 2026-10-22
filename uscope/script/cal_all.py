@@ -1,30 +1,24 @@
 #!/usr/bin/env python3
+"""Thin scripting shim around the uscope.cal framework.
 
-import matplotlib.pyplot as plt  # noqa: F401
+The Calibration tab is the preferred UI. This plugin remains so existing
+muscle memory (Scripting → cal_all.py) still works.
+"""
 
 from uscope.gui.scripting import ArgusScriptingPlugin
-from uscope.script import motion_backlash_xy
-from uscope.script import motion_repeat_xy
-from uscope.script import imager_scale
-from uscope.script import imager_ff
-from uscope.calibration import find_centroid
+from uscope.cal.analysis.centroid import find_centroid
+from uscope.cal.base import Quality
+from uscope.cal.session import CalSession
+from uscope.cal.context import CalContext
+from uscope.cal.report import write_report
 from PIL import ImageStat
 
-
-def analyze(log=None, microscope=None):
-    if log is None:
-        log = print
-        pass
-    motion_backlash_xy.analyze(log=log, microscope=microscope)
-    motion_repeat_xy.analyze(log=log, microscope=microscope)
-    imager_scale.analyze(log=log, microscope=microscope)
-    imager_ff.analyze(log=log, microscope=microscope)
+DEFAULT_SET = ("scale", "backlash_xy", "repeat_xy", "dark_frame", "flat_field")
 
 
 class Plugin(ArgusScriptingPlugin):
     def input_config(self):
         return {
-            # Collect a single image and throw thresholding
             "Sample centroid": {
                 "widget": "QPushButton",
                 "value": "sample_centroid",
@@ -33,23 +27,15 @@ class Plugin(ArgusScriptingPlugin):
                 "widget": "QPushButton",
                 "value": "sample_brightness",
             },
-            "Collect fiducial": {
+            "Collect (quick)": {
                 "widget": "QPushButton",
-                "value": "collect_fiducial",
+                "value": "collect_quick",
             },
-            "Collect fiducial (quick)": {
+            "Collect (full)": {
                 "widget": "QPushButton",
-                "value": "collect_fiducial_quick",
+                "value": "collect_full",
             },
-            "Collect ff": {
-                "widget": "QPushButton",
-                "value": "collect_ff",
-            },
-            "Collect ff (quick)": {
-                "widget": "QPushButton",
-                "value": "collect_ff_quick",
-            },
-            "Analyze": {
+            "Analyze last session": {
                 "widget": "QPushButton",
                 "value": "analyze",
             },
@@ -58,103 +44,64 @@ class Plugin(ArgusScriptingPlugin):
     def show_run_button(self):
         return False
 
-    def collect_fiducial(self, quick=False):
-        objective_config = self.get_objective_config()
-        self.log("Using objective %s" % objective_config["name"])
-
-        if not quick:
-            self.log("Sleeping. Clear the area!")
-            self.sleep(5)
-            test = "collect"
-        else:
-            test = "collect_quick"
-
-        self.log("")
-        self.log("")
-        self.log("")
-        self.run_plugin(motion_backlash_xy, button_value=test)
-        self.run_plugin(motion_backlash_xy, button_value="analyze")
-        self.log("")
-        self.log("")
-        self.log("")
-        self.run_plugin(motion_repeat_xy, button_value=test)
-        self.run_plugin(motion_repeat_xy, button_value="analyze")
-        self.log("")
-        self.log("")
-        self.log("")
-        self.run_plugin(imager_scale, button_value=test)
-        self.run_plugin(imager_scale, button_value="analyze")
-
-    def collect_ff(self, quick=False):
-        objective_config = self.get_objective_config()
-        self.log("Using objective %s" % objective_config["name"])
-
-        if not quick:
-            self.log("Sleeping. Clear the area!")
-            self.sleep(5)
-            test = "collect"
-        else:
-            test = "collect_quick"
-
-        self.log("")
-        self.log("")
-        self.log("")
-        self.run_plugin(imager_ff, button_value=test)
-        self.run_plugin(imager_ff, button_value="analyze")
-
     def sample_brightness(self):
         im = self.image()
-
-        assert im
-        im = im.convert('L')
-        assert im
+        im = im.convert("L")
         stat = ImageStat.Stat(im)
         self.log("Average pixel value: %0.1f" % stat.mean[0])
 
     def sample_centroid(self):
         im = self.image()
-
         try:
             x, y = find_centroid(im, show=self.show_image)
-            self.log(f"Centroid at x={x}, y={y}")
+            self.log("Centroid at x=%0.2f, y=%0.2f" % (x, y))
         except ValueError:
             self.log("Failed to find centroid :(")
 
-    def cleanup(self):
-        pass
+    def _run_set(self, quality):
+        ctx = CalContext(plugin=self, quality=quality)
+        session = CalSession(self._ac.microscope, DEFAULT_SET, quality=quality)
+        self.log("Session %s" % session.path)
+        session.run_collect_analyze(ctx)
+        write_report(session)
+        for name, result in session.results.items():
+            self.log("%s: %s %s" %
+                     (name, "PASS" if result.ok else "FAIL", result.message))
 
     def run_test(self):
-        self.origin = None
         vals = self.get_input()
         button = vals.get("button")
-
         task = button["value"]
-        if task == "collect_fiducial":
-            self.collect_fiducial()
-        elif task == "collect_fiducial_quick":
-            self.collect_fiducial(quick=True)
-        elif task == "collect_ff":
-            self.collect_ff()
-        elif task == "collect_ff_quick":
-            self.collect_ff(quick=True)
-        elif task == "sample_centroid":
+        if task == "sample_centroid":
             self.sample_centroid()
         elif task == "sample_brightness":
             self.sample_brightness()
+        elif task == "collect_quick":
+            self._run_set(Quality.QUICK)
+        elif task == "collect_full":
+            self._run_set(Quality.FULL)
         elif task == "analyze":
-            analyze(log=self.log)
+            from uscope.cal.base import session_root
+            import os
+            root = session_root(self._ac.microscope)
+            sessions = sorted(
+                [os.path.join(root, n) for n in os.listdir(root)
+                 if os.path.isdir(os.path.join(root, n))])
+            if not sessions:
+                self.log("No sessions in %s" % root)
+                return
+            path = sessions[-1]
+            self.log("Analyzing %s" % path)
+            from uscope.cal.registry import names as cal_names
+            from uscope.cal.dataset import Dataset
+            session = CalSession(self._ac.microscope, [], path=path)
+            for name in cal_names():
+                d = os.path.join(path, name)
+                if os.path.exists(os.path.join(d, "manifest.json")):
+                    session.names.append(name)
+                    session.datasets[name] = Dataset.load(d)
+                    result = session.analyze_one(name, log=self.log)
+                    self.log("%s: %s" % (name, result.message))
+            write_report(session)
         else:
             assert 0, task
-
-
-def main():
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Run test")
-    _args = parser.parse_args()
-
-    analyze()
-
-
-if __name__ == "__main__":
-    main()

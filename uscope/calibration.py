@@ -3,11 +3,6 @@ VM1 cal plate
 Must be used at 20x
 """
 
-import os
-
-import cv2
-import numpy as np
-
 from uscope.instrument import Instrument
 from uscope.motion.motion_util import parse_move
 
@@ -61,33 +56,10 @@ def get_cal(microscope):
 
 
 def find_centroid(im, show=None):
-    fn = "/tmp/centroid.tif"
-    im.save(fn)
-    try:
-        return find_centroid_fn(fn, show=show)
-    finally:
-        os.unlink(fn)
+    from uscope.cal.analysis.centroid import find_centroid as _find
+    return _find(im, show=show)
 
 
 def find_centroid_fn(fn, show=None):
-    im_orig = cv2.imread(fn, cv2.IMREAD_GRAYSCALE)
-    if im_orig is None:
-        raise ValueError(f"Failed to read image: {fn}")
-
-    # Only consider pixels near saturation.
-    _ret, im_wip = cv2.threshold(im_orig, 127, 255, cv2.THRESH_BINARY)
-    kernel = np.ones((5, 5), np.uint8)
-    im_wip = cv2.dilate(im_wip, kernel)
-    for _i in range(2):
-        im_wip = cv2.erode(im_wip, kernel)
-
-    moments = cv2.moments(im_wip)
-    if moments["m00"] <= 0:
-        raise ValueError("Failed to find centroid")
-    x = int(moments["m10"] / moments["m00"])
-    y = int(moments["m01"] / moments["m00"])
-
-    if show:
-        show(im_wip, "Centroid threshold")
-
-    return x, y
+    from uscope.cal.analysis.centroid import find_centroid_fn as _find
+    return _find(fn, show=show)

@@ -973,6 +973,20 @@ class MotionHAL:
         """
         self.enable_modifier("backlash", lazy=True)
 
+    def reconfigure_backlash(self):
+        """Rebuild the backlash modifier from current usc / cal store."""
+        if self.microscope is None:
+            return
+        backlash = self.microscope.usc.motion.backlash()
+        compensation = self.microscope.usc.motion.backlash_compensation()
+        self.options["backlash"] = backlash
+        self.options["backlash_compensation"] = compensation
+        if backlash and any(v for v in backlash.values()):
+            self.modifiers["backlash"] = BacklashMM(
+                self, backlash=backlash, compensation=compensation)
+        elif "backlash" in self.modifiers:
+            del self.modifiers["backlash"]
+
     def iter_active_modifiers(self):
         assert self.modifiers is not None, "Not configured yet"
         for modifier_name, modifier in self.modifiers.items():

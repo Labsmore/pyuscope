@@ -266,7 +266,14 @@
 ## 4.7.0
   * Compatible with
     * gst-plugin-toupcam: v0.7.0
-  * Calibration suite (cal/, uscope/calibration.py, uscope/script/cal_all.py etc)
+  * Calibration suite (uscope/cal/, Argus Calibration tab)
+    * Per-unit calibration.j5 store overlays microscope.j5 defaults; every
+      step is optional and individually enable/disable
+    * Existing: scale, XY backlash, XY repeatability, flat field
+    * New: dark frame + hot pixels, usable sensor area, exposure linearity,
+      Z backlash, motion settle, parfocality (auto-Z off by default)
+    * Wizard collect/analyze + PDF report; illumination correction uses
+      dark + gain + mask (legacy FF TIFF still loads)
   * Capture pixel format: 8 bit RGB, 16 bit RGB, 8 / 16 bit sensor raw
     * Negotiated with the camera through gstreamer caps
     * Config: imager.format sets the default

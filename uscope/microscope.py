@@ -145,6 +145,11 @@ class Microscope:
             usc = get_usc(microscope=self)
         self.usc = usc
 
+        from uscope.cal.store import CalStore
+        self.cal_store = CalStore.for_microscope(self)
+        self.cal_store.subscribe(self._on_cal_changed)
+        self.calibration = self.cal_store.as_dict()
+
         self.objectives = None
 
         if not auto or virtual:
@@ -351,10 +356,27 @@ class Microscope:
         assert 0, "hack: overriden by GUI"
 
     def get_active_objective(self):
-        assert 0, "hack: overriden by GUI"
+        """GUI overrides this. Headless / cal code gets None unless set."""
+        return getattr(self, "_active_objective_name", None)
 
     def set_active_objective(self, objective):
-        assert 0, "hack: overriden by GUI"
+        self._active_objective_name = objective
+
+    def _on_cal_changed(self, store, keys):
+        self.calibration = store.as_dict()
+        keys = set(keys or [])
+        if "optics.um_per_pixel_raw_1x" in keys and self.objectives:
+            v = store.get_value("optics.um_per_pixel_raw_1x")
+            if v is not None:
+                self.objectives.set_um_per_pixel_raw_1x(v)
+        if "motion.backlash" in keys and self.motion is not None:
+            if hasattr(self.motion, "reconfigure_backlash"):
+                self.motion.reconfigure_backlash()
+        if "kinematics.tsettle_motion" in keys and self.objectives:
+            self.objectives.recalculate_db()
+        if keys & {"imager.illumination", "imager.dark"}:
+            from uscope.cal.analysis.illumination import IlluminationTables
+            IlluminationTables.invalidate()
 
     '''
     def get_instrument(self, name):
@@ -483,7 +505,10 @@ class Microscope:
         In the future we might reverse such that we call argu
         """
         self._last_cachej = cachej
-        self.calibration = cachej.get("calibration", {})
+        if getattr(self, "cal_store", None) is not None:
+            self.calibration = self.cal_store.as_dict()
+        else:
+            self.calibration = cachej.get("calibration", {})
         '''
         instrumentsj = cachej.get("instruments", {})
         # TODO: might have other config here (ex: paths)

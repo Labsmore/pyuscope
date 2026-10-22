@@ -24,6 +24,7 @@ from uscope.gui.common import ArgusCommon, error
 from uscope.gui.widgets import TopWidget, BatchImageTab, AdvancedTab, StitchingTab, MeasureTab
 from uscope.gui.imaging import MainTab, ImagerTab
 from uscope.gui.scripting import ScriptingTab
+from uscope.gui.calibration import CalibrationTab
 
 
 # Can't save a dict like {(1, 2): "a"}
@@ -231,6 +232,7 @@ class MainWindow(AMainWindow):
         self.measureTab = self.add_tab(MeasureTab, "Measure")
         self.batchTab = self.add_tab(BatchImageTab, "Batch")
         self.scriptingTab = self.add_tab(ScriptingTab, "Scripting")
+        self.calibrationTab = self.add_tab(CalibrationTab, "Calibration")
         self.instrumentTabs = {}
         for name, configj in self.ac.bc.instruments().items():
             configj.setdefault("name", name)

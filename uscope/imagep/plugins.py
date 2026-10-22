@@ -398,16 +398,23 @@ class CorrectFF1Plugin(IPPlugin):
         # Plugin is always registered
         # Maybe should have a mechanism to exclude if it can't actually run?
         self.ff = None
-
-        if self.usc.imager.has_ff_cal():
-            self.ff = FFCal.get(self.usc.imager.ff_cal_fn())
-            # It's easy to have an outlier that boosts everything
-            self.verbose and self.log(
-                f"ff r: {self.ff.ff_rmin} : {self.ff.ff_rmax}")
-            self.verbose and self.log(
-                f"ff g: {self.ff.ff_gmin} : {self.ff.ff_gmax}")
-            self.verbose and self.log(
-                f"ff b: {self.ff.ff_bmin} : {self.ff.ff_bmax}")
+        self.tables = None
+        try:
+            self.tables = self.usc.imager.illumination_tables()
+        except Exception:
+            self.tables = None
+        if self.tables is None and self.usc.imager.has_ff_cal():
+            try:
+                self.ff = FFCal.get(self.usc.imager.ff_cal_fn())
+            except Exception:
+                self.ff = None
+            if self.ff is not None:
+                self.verbose and self.log(
+                    f"ff r: {self.ff.ff_rmin} : {self.ff.ff_rmax}")
+                self.verbose and self.log(
+                    f"ff g: {self.ff.ff_gmin} : {self.ff.ff_gmax}")
+                self.verbose and self.log(
+                    f"ff b: {self.ff.ff_bmin} : {self.ff.ff_bmax}")
 
     def npf2im(self, statef):
         #return statef, None
@@ -431,14 +438,34 @@ class CorrectFF1Plugin(IPPlugin):
         return im
 
     def _run(self, data_in, data_out, options={}):
-        # Calibration must be loaded
-        assert self.ff, "FF correction requested but no calibration loaded"
-
         self.verbose and self.log("FF1: run")
 
         image_in = data_in["image"]
-        # im_in = "cal/cal06_ff_1.5x/2023-06-20_01-22-25_blue_20x_cal6_1.5x_pic/c000_r001.jpg"
         im = image_in.to_mutable_im()
+
+        if self.tables is not None:
+            if im.size != self.tables.size:
+                raise Exception(
+                    "Calibration image size %uw x %uh but got image %uw x %uh"
+                    % (self.tables.size[0], self.tables.size[1], im.width,
+                       im.height))
+            arr = np.array(im)
+            out = self.tables.apply(arr)
+            if out.ndim == 2:
+                final_im = Image.fromarray(out).convert("RGB")
+            else:
+                if out.dtype != np.uint8:
+                    scale = 255.0 / max(float(out.max()), 1.0)
+                    out = np.clip(out * scale, 0, 255).astype(np.uint8)
+                final_im = Image.fromarray(out)
+                if final_im.mode != "RGB":
+                    final_im = final_im.convert("RGB")
+            final_im.save(data_out["image"].get_filename(), quality=90)
+            return
+
+        # Calibration must be loaded
+        assert self.ff, "FF correction requested but no calibration loaded"
+
         if im.size != self.ff.size:
             raise Exception(
                 "Calibration image size %uw x %uh but got image %uw x %uh" %
@@ -777,6 +804,7 @@ def get_plugin_ctors():
         "hdr-luminance": HDRLuminancePlugin,
         "stabilization": StabilizationPlugin,
         "correct-ff1": CorrectFF1Plugin,
+        "correct-illumination": CorrectFF1Plugin,
         "correct-sharp1": CorrectSharp1Plugin,
         "correct-vm1v1": CorrectVM1V1Plugin,
         "annotate-scalebar": AnnotateScalebarPlugin,

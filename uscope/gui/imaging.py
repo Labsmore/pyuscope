@@ -481,6 +481,7 @@ class ObjectiveWidget(AWidget):
         '''Make resolution display reflect current objective'''
         if self.updating_objectives:
             return
+        old_name = getattr(self, "_parfocal_last", None)
         self.selected_objective_name = str(self.obj_cb.currentText())
         if not self.selected_objective_name:
             self.selected_objective_name = self.objectives.default_name()
@@ -497,7 +498,32 @@ class ObjectiveWidget(AWidget):
                 suffix = obj_config.get("name")
             self.objective_name_le.setText(suffix)
         self.obj_config = obj_config
+        self._parfocal_last = self.selected_objective_name
         self.ac.objectiveChanged.emit(self.obj_config)
+        self._maybe_apply_parfocal(old_name, self.selected_objective_name)
+
+    def _maybe_apply_parfocal(self, old_name, new_name):
+        if not old_name or not new_name or old_name == new_name:
+            return
+        store = getattr(self.ac.microscope, "cal_store", None)
+        if store is None:
+            return
+        e_new = store.get("optics.z_offset", {"objective": new_name})
+        if e_new is None or not e_new.enabled:
+            return
+        e_old = store.get("optics.z_offset", {"objective": old_name})
+        z_old = float(e_old.value) if e_old is not None else 0.0
+        delta = float(e_new.value) - z_old
+        if abs(delta) < 1e-6:
+            return
+        self.ac.log("Parfocal: moving Z by %0.4f mm (%s -> %s)" %
+                    (delta, old_name, new_name))
+        self.ac.motion_thread.move_relative({"z": delta})
+
+    def go_parfocal_z(self, name=None):
+        """Move Z by the stored offset for name versus the current objective."""
+        name = name or self.selected_objective_name
+        self._maybe_apply_parfocal(getattr(self, "_parfocal_last", None), name)
 
     def get_objective_meta_cache(self):
         return self.obj_config
@@ -544,6 +570,13 @@ class ObjectiveWidget(AWidget):
         self.global_scalar_le_return(lazy=True)
 
         self.um_per_pixel_raw_1x = j.get("um_per_pixel_raw_1x", None)
+        store = getattr(self.ac.microscope, "cal_store", None)
+        if store is not None:
+            if self.um_per_pixel_raw_1x:
+                store.migrate_um_per_pixel(self.um_per_pixel_raw_1x)
+            v = store.get_value("optics.um_per_pixel_raw_1x")
+            if v is not None:
+                self.um_per_pixel_raw_1x = v
         self.reload_obj_cb()
         assert self.obj_config, "not loaded :("
         self.obj_cb.currentIndexChanged.connect(self.update_obj_config)

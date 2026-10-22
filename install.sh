@@ -72,7 +72,8 @@ install_pyuscope() {
         sudo apt-get install -y hugin-tools enfuse
     fi
 
-    "$UV" venv
+    # Reuse an existing .venv instead of prompting to replace it
+    "$UV" venv --allow-existing
     "$UV" sync
     /usr/bin/python3 utils/uv_system_bindings.py .venv
 }

@@ -20,6 +20,8 @@ from uscope.scan_runner import ScanRunner
 from uscope.subsystem import Subsystem
 from uscope.threads import ShutdownPhase
 
+import json5
+import os
 import threading
 import time
 import traceback
@@ -52,10 +54,13 @@ class HeadlessSession:
                  microscope_name=None,
                  imager=None,
                  imager_config=None,
+                 argus_state=True,
                  log=None):
         """
         imager_config: dict overriding the microscope config's imager section
             ex: {"source": "gst-toupcamsrc", "width": 5440, "height": 3648}
+        argus_state: start with the objective / global scalar Argus last saved
+            for this microscope. Read only: never written back
         """
         self._log = log
         self.bc = get_bc()
@@ -85,8 +90,32 @@ class HeadlessSession:
 
         self.objective_state = self.microscope.objective_state
         self.objective_state.reload()
+        if argus_state:
+            self.load_argus_state()
         self.microscope.image_save_extension = self.image_save_extension
         self.microscope.add_subsystem(SessionSubsystem(self))
+
+    def load_argus_state(self):
+        """
+        Apply the objective state Argus saved for this microscope (if any)
+        """
+        fn = self.bc.argus_cache_fn()
+        if not os.path.exists(fn):
+            return
+        try:
+            with open(fn, "r") as f:
+                cachej = json5.load(f)
+        except Exception as e:
+            self.log(f"WARNING: ignoring invalid Argus state {fn}: {e}")
+            return
+        entry = cachej.get("microscopes",
+                           {}).get(self.microscope.model_serial_string())
+        if not entry or "objective" not in entry:
+            return
+        self.objective_state.cache_sn_load(entry, migrate=False)
+        self.log("Argus state: objective %s, global scalar %s" %
+                 (self.objective_state.name(),
+                  self.objective_state.global_scalar or 1.0))
 
     def _init_imager(self, imager):
         """

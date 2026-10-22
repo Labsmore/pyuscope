@@ -83,7 +83,7 @@ class USCArgus:
         """
         Main persistent GUI cache file
         """
-        return os.path.join(self.microscope.usc.bc.get_data_dir(), "argus.j5")
+        return self.microscope.usc.bc.argus_cache_fn()
 
     def batch_cache_fn(self):
         ret = self.j.get("batch_cache_file")

@@ -386,7 +386,10 @@ class ObjectiveState:
                 "um_per_pixel_raw_1x": self.um_per_pixel_raw_1x,
             }
 
-    def cache_sn_load(self, cachej):
+    def cache_sn_load(self, cachej, migrate=True):
+        """
+        migrate: import a legacy um_per_pixel_raw_1x into the calibration store
+        """
         j = cachej.get("objective", {})
         global_scalar = None
         s = str(j.get("global_scalar") or "").strip()
@@ -398,7 +401,7 @@ class ObjectiveState:
         um_per_pixel_raw_1x = j.get("um_per_pixel_raw_1x", None)
         store = getattr(self.microscope, "cal_store", None)
         if store is not None:
-            if um_per_pixel_raw_1x:
+            if um_per_pixel_raw_1x and migrate:
                 store.migrate_um_per_pixel(um_per_pixel_raw_1x)
             v = store.get_value("optics.um_per_pixel_raw_1x")
             if v is not None:

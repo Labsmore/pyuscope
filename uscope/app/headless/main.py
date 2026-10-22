@@ -63,6 +63,11 @@ def parse_args():
         help=
         "Override the microscope config imager section (.j5 file or inline JSON)"
     )
+    parser.add_argument(
+        "--no-argus-state",
+        action="store_true",
+        help=
+        "Don't start with the objective / global scalar last saved by Argus")
     return parser.parse_args()
 
 
@@ -105,7 +110,8 @@ def run(args):
     session = HeadlessSession(
         microscope_name=args.microscope,
         imager="mock" if args.imager == "mock" else None,
-        imager_config=load_imager_config(args.imager_config))
+        imager_config=load_imager_config(args.imager_config),
+        argus_state=not args.no_argus_state)
     util.register_emergency_stop(session.motion.emergency_stop)
     try:
         image_dir = args.image_dir

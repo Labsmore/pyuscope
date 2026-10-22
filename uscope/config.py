@@ -1335,6 +1335,10 @@ class BaseConfig:
     def get_data_dir(self):
         return self._data_dir
 
+    def argus_cache_fn(self):
+        """Argus' persistent GUI state (objective, imaging options, ...)"""
+        return os.path.join(self._data_dir, "argus.j5")
+
     def get_scan_dir(self):
         return self._scan_dir
 

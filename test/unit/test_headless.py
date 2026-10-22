@@ -8,6 +8,7 @@ or
     uv run python -m unittest discover -s test/unit
 """
 
+import json
 import os
 import shutil
 import tempfile
@@ -32,6 +33,7 @@ from uscope.scripting import (
     input_find_button,
     input_set,
 )
+from uscope.config import get_bc
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope.scan_runner import ScanRunnerListener
 from uscope.session import HeadlessSession
@@ -286,6 +288,69 @@ class TestObjectiveState(HeadlessTestCase):
         self.state.cache_sn_load(cachej)
         self.assertEqual(self.state.name(), name)
         self.assertEqual(self.state.global_scalar, 1.5)
+
+
+class TestArgusState(unittest.TestCase):
+    def setUp(self):
+        self.fn = get_bc().argus_cache_fn()
+        self.addCleanup(lambda: os.path.exists(self.fn) and os.remove(self.fn))
+
+    def write_state(self, objective):
+        cachej = {
+            "microscopes": {
+                "mock-grbl_sn-1234": {
+                    "model": "mock-grbl",
+                    "serial": "1234",
+                    "objective": objective,
+                }
+            }
+        }
+        with open(self.fn, "w") as f:
+            json.dump(cachej, f)
+        with open(self.fn) as f:
+            return f.read()
+
+    def session(self, **kwargs):
+        session = HeadlessSession(microscope_name="mock-grbl",
+                                  imager="mock",
+                                  **kwargs)
+        self.addCleanup(session.shutdown)
+        return session
+
+    def test_load(self):
+        before = self.write_state({
+            "name": "20X",
+            "global_scalar": "2.0",
+            "um_per_pixel_raw_1x": 7.5,
+        })
+        session = self.session()
+        self.assertEqual(session.get_active_objective(), "20X")
+        self.assertEqual(session.objective_state.global_scalar, 2.0)
+        self.assertEqual(session.objective_state.um_per_pixel_raw_1x, 7.5)
+        session.objective_state.select("5X")
+        session.shutdown()
+        with open(self.fn) as f:
+            self.assertEqual(f.read(), before)
+        # Legacy GUI value is not imported into the calibration store
+        self.assertIsNone(session.microscope.cal_store.get_value(
+            "optics.um_per_pixel_raw_1x"))
+
+    def test_disabled(self):
+        self.write_state({"name": "20X", "global_scalar": "2.0"})
+        session = self.session(argus_state=False)
+        self.assertEqual(session.get_active_objective(), "5X")
+        self.assertIsNone(session.objective_state.global_scalar)
+
+    def test_unknown_objective(self):
+        self.write_state({"name": "1000X nope", "global_scalar": ""})
+        session = self.session()
+        self.assertEqual(session.get_active_objective(), "5X")
+
+    def test_invalid_file(self):
+        with open(self.fn, "w") as f:
+            f.write("{not json")
+        session = self.session()
+        self.assertEqual(session.get_active_objective(), "5X")
 
 
 class TestScanRunner(HeadlessTestCase):

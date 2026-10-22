@@ -181,7 +181,7 @@ class Plugin(ArgusScriptingPlugin):
 
     def sample(self):
         im = self.image()
-        x, y = find_centroid(im, show=True)
+        x, y = find_centroid(im, show=self.show_image)
         self.log(f"Centroid at x={x}, y={y}")
 
     def run_axis(self, axis, moves, step_size, repeat, quick=False):

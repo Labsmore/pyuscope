@@ -1514,6 +1514,33 @@ class TopWidget(AWidget):
     '''
 
 
+class ImageViewerDialog(QDialog):
+    """
+    Non-modal window to display a PIL image
+    Must be created on the GUI thread
+    """
+    def __init__(self, im, title="Image", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setAttribute(Qt.WA_DeleteOnClose)
+
+        im = im.convert("RGBA")
+        # QImage does not copy the buffer, so keep it alive
+        self._data = im.tobytes("raw", "RGBA")
+        qim = QImage(self._data, im.size[0], im.size[1], im.size[0] * 4,
+                     QImage.Format_RGBA8888)
+
+        label = QLabel()
+        label.setPixmap(QPixmap.fromImage(qim))
+        scroll = QScrollArea()
+        scroll.setWidget(label)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(scroll)
+        self.setLayout(layout)
+        self.resize(min(im.size[0] + 40, 1200), min(im.size[1] + 40, 900))
+
+
 class AnnotateImage(QLabel):
     """
     A custom class which overrides the painting method to allow annotations

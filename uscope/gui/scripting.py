@@ -1,4 +1,4 @@
-from uscope.gui.widgets import ArgusTab
+from uscope.gui.widgets import ArgusTab, ImageViewerDialog
 from uscope.gui.input_widget import InputWidget
 from uscope.motion import motion_util
 from uscope.microscope import StopEvent, MicroscopeStop
@@ -20,6 +20,8 @@ import time
 import traceback
 import json
 import queue
+import numpy as np
+from PIL import Image
 
 
 class TestFailed(Exception):
@@ -54,6 +56,8 @@ class ArgusScriptingPlugin(QThread):
     log_msg = pyqtSignal(str)
     done = pyqtSignal()
     runPlannerHConfigs = pyqtSignal(dict)
+    # (PIL.Image, title)
+    show_image_sig = pyqtSignal(object, str)
 
     def __init__(self, ac):
         super().__init__()
@@ -78,6 +82,19 @@ class ArgusScriptingPlugin(QThread):
         (not the main window)
         """
         self.log_msg.emit(s)
+
+    def show_image(self, im, title="Image"):
+        """
+        Display an image in a non-modal window
+        Accepts a PIL image or a numpy array (OpenCV BGR / grayscale)
+        Returns immediately
+        """
+        if isinstance(im, np.ndarray):
+            if im.ndim == 3 and im.shape[2] == 3:
+                im = im[:, :, ::-1]
+            im = Image.fromarray(im)
+        # Widgets must be created on the GUI thread, so hand off a private copy
+        self.show_image_sig.emit(im.copy(), title)
 
     def shutdown(self):
         """
@@ -450,6 +467,7 @@ class ArgusScriptingPlugin(QThread):
         -Cleanup / stop doesn't work correctly
         """
         p.log = self.log
+        p.show_image = self.show_image
         p.check_running = self.check_running
         p.run(input_=input_, button_value=button_value, top_level=False)
 
@@ -921,6 +939,7 @@ class ScriptingTab(ArgusTab):
 
             self.plugin.log_msg.connect(self.log_local)
             self.plugin.done.connect(self.plugin_done)
+            self.plugin.show_image_sig.connect(self.show_plugin_image)
             self.plugin.runPlannerHConfigs.connect(
                 self.ac.mainTab.imaging_widget.go_planner_hconfigs)
 
@@ -1058,6 +1077,10 @@ class ScriptingTab(ArgusTab):
 
         j = self.input.getValues()
         writej(filename, j)
+
+    def show_plugin_image(self, im, title):
+        dialog = ImageViewerDialog(im, title=title, parent=self)
+        dialog.show()
 
     def plugin_done(self):
         if self.plugin.succeeded():

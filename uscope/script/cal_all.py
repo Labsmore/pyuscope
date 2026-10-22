@@ -115,7 +115,7 @@ class Plugin(ArgusScriptingPlugin):
         im = self.image()
 
         try:
-            x, y = find_centroid(im, show=True)
+            x, y = find_centroid(im, show=self.show_image)
             self.log(f"Centroid at x={x}, y={y}")
         except ValueError:
             self.log("Failed to find centroid :(")

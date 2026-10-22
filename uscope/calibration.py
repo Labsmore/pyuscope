@@ -60,7 +60,7 @@ def get_cal(microscope):
     return ret
 
 
-def find_centroid(im, show=False):
+def find_centroid(im, show=None):
     fn = "/tmp/centroid.tif"
     im.save(fn)
     try:
@@ -69,7 +69,7 @@ def find_centroid(im, show=False):
         os.unlink(fn)
 
 
-def find_centroid_fn(fn, show=False):
+def find_centroid_fn(fn, show=None):
     im_orig = cv2.imread(fn, cv2.IMREAD_GRAYSCALE)
     if im_orig is None:
         raise ValueError(f"Failed to read image: {fn}")
@@ -88,13 +88,6 @@ def find_centroid_fn(fn, show=False):
     y = int(moments["m01"] / moments["m00"])
 
     if show:
-        import subprocess
-
-        fn_gray = "/tmp/pyuscope-gray.tif"
-        cv2.imwrite(fn_gray, im_wip)
-        try:
-            subprocess.check_call(["gthumb", fn_gray])
-        finally:
-            os.unlink(fn_gray)
+        show(im_wip, "Centroid threshold")
 
     return x, y

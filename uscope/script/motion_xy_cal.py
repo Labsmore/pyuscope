@@ -52,7 +52,7 @@ def median_pos(poss):
     return sorted(xs)[len(xs) // 2], sorted(ys)[len(ys) // 2]
 
 
-def find_centroid(im, show=False):
+def find_centroid(im, show=None):
     fn = "/tmp/centroid.tif"
     im.save(fn)
     try:
@@ -61,7 +61,7 @@ def find_centroid(im, show=False):
         os.unlink(fn)
 
 
-def find_centroid_fn(fn, show=False):
+def find_centroid_fn(fn, show=None):
     im_orig = cv2.imread(fn, cv2.IMREAD_GRAYSCALE)
 
     # Only consider pixels near saturation
@@ -84,12 +84,7 @@ def find_centroid_fn(fn, show=False):
     y = int(moments["m01"] / moments["m00"])
 
     if show:
-        import subprocess
-        fn_gray = "/tmp/pyuscope-gray.tif"
-        cv2.imwrite(fn_gray, im_wip)
-        # cv2.imshow("Centroid final",im_wip)
-        subprocess.check_call(["gthumb", fn_gray])
-        os.unlink(fn_gray)
+        show(im_wip, "Centroid threshold")
 
     return x, y
 
@@ -265,7 +260,7 @@ class Plugin(ArgusScriptingPlugin):
 
     def sample(self):
         im = self.image()
-        x, y = find_centroid(im, show=True)
+        x, y = find_centroid(im, show=self.show_image)
         self.log(f"Centroid at x={x}, y={y}")
 
     def run_axis(self, axis, backlash, moves, quick=False):

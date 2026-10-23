@@ -8,6 +8,7 @@ from uscope.imager.gst_imager import SessionImager, GstImager
 from uscope.planner.planner_util import get_planner, microscope_to_planner_config
 from uscope.imager.image_sequence import CapturedImage
 from uscope.imager.gst import ImageTimeout
+from uscope.imagep.util import TaskBarrier
 
 import threading
 import tempfile
@@ -68,6 +69,22 @@ class CompositeImageGrabber:
         self.imager = imager
         # delete on exit
         self.temp_dirs = []
+
+    def run_request_plugins(self, capim, processing_options):
+        ip = self.ac.image_processing_thread.ip
+        for plugin in processing_options.get("plugins", {}):
+            options = {"objective_config": self.ac.objective_config()}
+            plugin_options = processing_options["plugins"]
+            if isinstance(plugin_options, dict):
+                options.update(plugin_options.get(plugin) or {})
+            tb = TaskBarrier()
+            data_out = ip.queue_1_to_1_plugin(plugin=plugin,
+                                              im_in=capim.image,
+                                              want_im_out=True,
+                                              options=options,
+                                              tb=tb)
+            tb.wait()
+            capim.image = data_out["image"].get_im()
 
     # FIXME: timeouts aren't being respected
     def get_composite(self,
@@ -156,6 +173,9 @@ class CompositeImageGrabber:
                     "Expected exactly one image (image processing failed?)")
             capim = CapturedImage.load(out_fn[0],
                                        microscope=self.ac.microscope)
+            # Per request plugins (ex: scalebar) only apply to the final image
+            # The planner captures above run without them
+            self.run_request_plugins(capim, processing_options)
             # Now save it and/or return it
             if save_filename is not None:
                 # XXX: might re-compress things

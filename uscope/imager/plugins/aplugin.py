@@ -32,8 +32,8 @@ class ImagerPlugin:
         rpi has performance constraints
         allow it to do special direct rendering that bypasses gstreamer pipeline entirely
         """
-        from uscope.gui.gstwidget import SinkxZoomableWidget
-        return SinkxZoomableWidget
+        from uscope.gui.gstwidget import zoomable_widget_class
+        return zoomable_widget_class()
 
 
 class GstImagerPlugin(ImagerPlugin):

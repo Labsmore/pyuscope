@@ -13,6 +13,7 @@ import threading
 from collections import OrderedDict
 from uscope.imager.gst_pipeline import GstImagerPipeline
 from uscope import util
+from uscope.gui import video_sink
 
 import gi
 
@@ -448,6 +449,13 @@ class AppsinkZoomableWidget(SinkxZoomableWidget):
         painter.end()
 
 
+def zoomable_widget_class():
+    sink = video_sink.video_sink(QGuiApplication.platformName())
+    if sink == "appsink":
+        return AppsinkZoomableWidget
+    return SinkxZoomableWidget
+
+
 class GstVideoPipeline(GstImagerPipeline):
     """
     GstImagerPipeline + Qt video widgets (and optional RTSP feed)
@@ -844,6 +852,7 @@ def gstwidget_main(AQMainWindow, parse_args=default_parse_args):
     # and is removed in newer versions
 
     try:
+        video_sink.setup_qt_platform()
         app = QApplication(sys.argv)
         # FIXME: becoming unreadable
         # app.setStyleSheet(pathlib.Path(config.GUI.stylesheet_file).read_text())

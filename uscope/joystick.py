@@ -249,6 +249,9 @@ class JoystickConfig:
 def import_pygame():
     global pygame
     if pygame is None:
+        # SDL otherwise replaces the SIGINT / SIGTERM handlers with ones that
+        # only queue a quit event, so Ctrl+C / kill no longer stop the app
+        os.environ.setdefault("SDL_NO_SIGNAL_HANDLERS", "1")
         import pygame
 
 

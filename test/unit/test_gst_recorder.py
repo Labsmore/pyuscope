@@ -13,6 +13,12 @@ import threading
 import time
 import unittest
 
+# Keep test data out of the working tree
+# Must be set before uscope.config is imported
+_TMP_ROOT = tempfile.mkdtemp(prefix="pyuscope-test-recorder-")
+os.environ["PYUSCOPE_DATA_DIR"] = os.path.join(_TMP_ROOT, "data")
+os.environ["PYUSCOPE_MICROSCOPE"] = "mock-grbl"
+
 from uscope.gst_util import Gst
 from uscope.imager import gst_recorder
 from uscope.imager.gst_recorder import (
@@ -22,6 +28,10 @@ from uscope.imager.gst_recorder import (
     have_element,
     plan_recording,
 )
+
+
+def tearDownModule():
+    shutil.rmtree(_TMP_ROOT, ignore_errors=True)
 
 
 def has_only(*factories):
@@ -292,6 +302,27 @@ class SlowEncoderTestCase(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
         # 60 nominal
         self.assertGreater(nframes, 40)
+
+
+@unittest.skipUnless(have_element("mp4mux") and have_element("h264parse"),
+                     "No mp4 GStreamer elements")
+class ImagerPipelineTestCase(unittest.TestCase):
+    """
+    Recording from the real (videotestsrc) imager pipeline
+    """
+    def test_shutdown_finalizes(self):
+        from uscope.session import HeadlessSession
+        session = HeadlessSession(microscope_name="mock-grbl")
+        try:
+            recorder = session.vidpip.video_recorder()
+            self.assertIs(recorder, session.vidpip.video_recorder())
+            fn = recorder.start(os.path.join(_TMP_ROOT, "session"))
+            time.sleep(1.0)
+        finally:
+            session.shutdown()
+        self.assertFalse(recorder.is_recording())
+        self.assertIsNone(recorder.error)
+        self.assertGreater(ffprobe_ok(fn)[0], 0.5)
 
 
 def GLibError(msg):

@@ -10,6 +10,7 @@ Front ends add display consumers by overriding create_vc_elements() / link_vc_el
 """
 
 from uscope.gst_util import Gst, CaptureSink
+from uscope.imager.gst_recorder import GstVideoRecorder
 from uscope.imager import pixel_format
 from uscope.imager.plugins.aplugins import get_imager_aplugin
 from uscope.imager import camera_check
@@ -48,6 +49,7 @@ class GstImagerPipeline:
         self.camera_mismatch = None
         self._bus_thread = None
         self._bus_running = threading.Event()
+        self.recorder = None
 
         self.player = Gst.Pipeline.new("player")
         source = self.usc.imager.source()
@@ -282,6 +284,27 @@ class GstImagerPipeline:
         self.setup_bus(self.player.get_bus())
         self.setting_up = False
 
+    def video_recorder(self):
+        """
+        Records the raw (cropped, flipped) stream
+        """
+        if self.recorder is None:
+            assert self.tee_raw, "setupGst() first"
+            # Logs from gstreamer threads: self.log may not be thread safe
+            self.recorder = GstVideoRecorder(
+                self.player,
+                self.tee_raw,
+                log=lambda msg: self.microscope.log(msg),
+                wh=(self.incoming_w, self.incoming_h))
+        return self.recorder
+
+    def stop_recording(self):
+        """
+        Finalize any recording before the pipeline stops
+        """
+        if self.recorder and self.recorder.is_recording():
+            self.recorder.stop(wait=True)
+
     """
     Running
     """
@@ -362,6 +385,7 @@ class GstImagerPipeline:
             raise Exception(f"Video pipeline failed to start ({ret}, {state})")
 
     def stop(self):
+        self.stop_recording()
         self._bus_running.clear()
         self.player.set_state(Gst.State.NULL)
         if self._bus_thread:
@@ -395,6 +419,7 @@ class GstImagerPipeline:
         """
         # Stop pipeline and remove the bad element
         self.ok = False
+        self.stop_recording()
         self.player.set_state(Gst.State.NULL)
         self.source.unlink(self.raw_capsfilter)
         self.player.remove(self.source)

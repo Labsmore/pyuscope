@@ -24,7 +24,7 @@ import threading
 
 from uscope.gui.common import ArgusCommon, error
 
-from uscope.gui.widgets import TopWidget, BatchImageTab, AdvancedTab, StitchingTab, MeasureTab
+from uscope.gui.widgets import TopWidget, BatchImageTab, StitchingTab, MeasureTab
 from uscope.gui.imaging import MainTab, PanoramaTab, ImagerTab
 from uscope.gui.scripting import ScriptingTab
 from uscope.gui.calibration import CalibrationTab
@@ -266,14 +266,12 @@ class MainWindow(AMainWindow):
             tab.set_instrument_config(configj)
             tab.setVisible(configj.get("visible", True))
             self.instrumentTabs[name] = tab
-        self.advancedTab = self.add_tab(AdvancedTab, "Advanced")
         self.stitchingTab = self.add_tab(StitchingTab, "CloudStitch")
 
         # FIXME: hack, come up with something more intuitive
         self.ac.scriptingTab = self.scriptingTab
         self.ac.stitchingTab = self.stitchingTab
         self.ac.batchTab = self.batchTab
-        self.ac.advancedTab = self.advancedTab
 
         self.argus_options_window = ArgusOptionsWindow(self)
 

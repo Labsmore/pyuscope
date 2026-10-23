@@ -100,7 +100,7 @@ class CompositeImageGrabber:
             processing_options = {}
         hdr_pconfig = self.ac.mw.imagerTab.hdr_pconfig()
         stacker_pconfig = self.ac.mw.imagerTab.stacker_pconfig()
-        image_stabilization_pconfig = self.ac.advancedTab.image_stabilization_pconfig(
+        image_stabilization_pconfig = self.ac.mw.imagerTab.image_stabilization_pconfig(
         )
 
         # No advanced options?

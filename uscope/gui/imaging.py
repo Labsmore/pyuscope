@@ -1,7 +1,7 @@
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import config
 from collections import OrderedDict
-from uscope.gui.widgets import AWidget, ArgusTab, StackingWidget
+from uscope.gui.widgets import AWidget, ArgusTab, StackingWidget, StabilizationWidget
 from uscope.gui.video_record import VideoRecordWidget
 from uscope.motion import motion_util
 from uscope.scan_runner import ScanRunnerListener
@@ -1477,9 +1477,10 @@ class ImagingTaskWidget(AWidget):
                     pm_n, pm_n * 2 + 1)
                 if self.ac.imagerTab.stack_drift_correction_enabled():
                     scan_settings += "\nFocus stacking drift correction enabled"
-            if self.ac.advancedTab.image_stablization_enabled():
+            stabilization = self.ac.imagerTab.stabilization_widget
+            if stabilization.image_stablization_enabled():
                 scan_settings += "\nImage stabilization enabled (n=%u)" % (
-                    self.ac.advancedTab.get_image_stablization(), )
+                    stabilization.get_image_stablization(), )
 
             if self.iow.stitch_gb.isChecked():
                 post_settings = "Post processing (stitching) settings:"
@@ -1838,6 +1839,9 @@ class ImagerTab(ArgusTab):
         super().__init__(*args, **kwargs)
         self._hdr_pconfig = None
         self._hdr_checked = None
+        self.stabilization_widget = StabilizationWidget(ac=self.ac,
+                                                        aname="stabilization",
+                                                        parent=self)
         self.stacking_widget = None
         if self.ac.microscope.has_z():
             self.stacking_widget = StackingWidget(ac=self.ac,
@@ -1882,6 +1886,7 @@ class ImagerTab(ArgusTab):
         self.capture_tabs.addTab(hdr_widget(), "HDR")
         if self.stacking_widget:
             self.capture_tabs.addTab(self.stacking_widget, "Stacking")
+        self.capture_tabs.addTab(self.stabilization_widget, "Stabilization")
         self.capture_tabs.setSizePolicy(QSizePolicy.Preferred,
                                         QSizePolicy.Maximum)
         self.layout.addWidget(self.capture_tabs)
@@ -1916,6 +1921,9 @@ class ImagerTab(ArgusTab):
 
     def hdr_pconfig(self):
         return self._hdr_pconfig
+
+    def image_stabilization_pconfig(self):
+        return self.stabilization_widget.image_stabilization_pconfig()
 
     def stacker_pconfig(self):
         if not self.stacking_widget:

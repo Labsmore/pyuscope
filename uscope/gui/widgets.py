@@ -805,7 +805,10 @@ class StackingWidget(AWidget):
             pass
 
 
-class AdvancedTab(ArgusTab):
+class StabilizationWidget(AWidget):
+    """
+    Average several frames per capture to reduce noise / vibration
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -856,12 +859,13 @@ class AdvancedTab(ArgusTab):
         return self.get_image_stablization() > 1
 
     def _cache_save(self, cachej):
-        cachej["advanced"] = {
+        cachej["stabilization"] = {
             "image_stabilization": self.image_stabilization_cb.currentIndex(),
         }
 
     def _cache_load(self, cachej):
-        j = cachej.get("advanced", {})
+        # Was under the (removed) Advanced tab
+        j = cachej.get("stabilization") or cachej.get("advanced", {})
         self.image_stabilization_cb.setCurrentIndex(
             j.get("image_stabilization", 0))
 

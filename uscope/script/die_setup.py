@@ -35,7 +35,7 @@ import numpy as np
 import statistics
 import time
 
-# label => (distance multiplier, step multiplier) as the Advanced tab
+# label => (distance multiplier, step multiplier) as the Imager tab Stacking modes
 STACK_MODES = {
     "None": None,
     "Die normal": (1, 1),

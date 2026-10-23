@@ -1304,6 +1304,11 @@ class ImagingTaskWidget(AWidget):
             filename_base=self.video_fn,
             aname="video_record",
             parent=self)
+        # Shown in PanoramaTab, but also drive batch runs
+        self.go_pause_pb = QPushButton("Scan")
+        self.go_pause_pb.clicked.connect(self.go_pause_clicked)
+        self.go_pause_pb.setIcon(QIcon(config.GUI.icon_files['go']))
+        self.progress_bar = QProgressBar()
 
     def _initUI(self):
         def getNameLayout():
@@ -1341,14 +1346,6 @@ class ImagingTaskWidget(AWidget):
         self.snapshot_pb.clicked.connect(self.take_snapshot)
         layout.addWidget(self.snapshot_pb)
         layout.addWidget(self.video_record_widget)
-
-        self.go_pause_pb = QPushButton("Panoramic scan")
-        self.go_pause_pb.clicked.connect(self.go_pause_clicked)
-        self.go_pause_pb.setIcon(QIcon(config.GUI.icon_files['go']))
-        layout.addWidget(self.go_pause_pb)
-
-        self.progress_bar = QProgressBar()
-        layout.addWidget(self.progress_bar)
 
         gb = QGroupBox("Imaging")
         gb.setLayout(layout)
@@ -1442,7 +1439,7 @@ class ImagingTaskWidget(AWidget):
                         done.wait()
 
                     se.poll()
-                    self.ac.mainTab.emit_go_current_pconfig()
+                    self.ac.panoramaTab.emit_go_current_pconfig()
             except MicroscopeStop:
                 self.ac.log("Autofocus + Go cancelled")
 
@@ -1509,7 +1506,7 @@ class ImagingTaskWidget(AWidget):
                 return
 
             if autofocus:
-                self.afgo(self.ac.mainTab.active_planner_widget())
+                self.afgo(self.ac.panoramaTab.active_planner_widget())
             else:
                 self.go_current_pconfig()
 
@@ -1656,8 +1653,6 @@ class ImagingTaskWidget(AWidget):
 
 
 class MainTab(ArgusTab):
-    go_current_pconfig_signal = pyqtSignal(tuple)
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -1681,7 +1676,8 @@ class MainTab(ArgusTab):
                                                 parent=self)
         self.imaging_widget = ImagingTaskWidget(
             ac=self.ac,
-            go_current_pconfig=self.go_current_pconfig,
+            go_current_pconfig=lambda **kwargs: self.ac.panoramaTab.
+            go_current_pconfig(**kwargs),
             setControlsEnabled=self.setControlsEnabled,
             aname="imaging",
             parent=self)
@@ -1692,36 +1688,14 @@ class MainTab(ArgusTab):
         self.log("For enquiries contact support@labsmore.com")
         self.log("")
 
-        self.planner_widget_tabs = QTabWidget()
-        self.planner_widget_xy2p = XYPlanner2PWidget(
-            ac=self.ac,
-            scan_widget=self.imaging_widget,
-            objective_widget=self.objective_widget,
-            aname="XY2P",
-            parent=self)
-        self.planner_widget_xy3p = XYPlanner3PWidget(
-            ac=self.ac,
-            scan_widget=self.imaging_widget,
-            objective_widget=self.objective_widget,
-            aname="XY3P",
-            parent=self)
-
         self.motion_widget = MotionWidget(ac=self.ac,
                                           log=self.ac.log,
                                           aname="motion",
                                           parent=self)
 
-        self.go_current_pconfig_signal.connect(self.go_current_pconfig_slot)
-
     def _initUI(self):
         def get_axes_gb():
             layout = QVBoxLayout()
-            # Make this default since its more widely used
-            self.planner_widget_tabs.addTab(self.planner_widget_xy3p,
-                                            "Panorama XY3P")
-            self.planner_widget_tabs.addTab(self.planner_widget_xy2p,
-                                            "Panorama XY2P")
-            layout.addWidget(self.planner_widget_tabs)
             layout.addWidget(self.motion_widget)
             gb = QGroupBox("Motion")
             gb.setLayout(layout)
@@ -1732,12 +1706,14 @@ class MainTab(ArgusTab):
             layout.addWidget(self.objective_widget)
             layout.addWidget(get_axes_gb())
             layout.addWidget(self.imaging_widget)
-            layout.addWidget(self.log_widget)
+            layout.addWidget(self.log_widget, 1)
 
-            # hmm when the window shrinks these widgets just get really small
-            # so this isn't working as intended...
+            widget = QWidget()
+            widget.setLayout(layout)
             scroll = QScrollArea()
-            scroll.setLayout(layout)
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.NoFrame)
+            scroll.setWidget(widget)
             return scroll
 
         layout = QHBoxLayout()
@@ -1767,6 +1743,52 @@ class MainTab(ArgusTab):
     def clear_log(self):
         self.log_widget.clear()
 
+    def setControlsEnabled(self, yes):
+        self.imaging_widget.snapshot_pb.setEnabled(yes)
+
+    def _update_pconfig(self, pconfig):
+        self.imaging_widget.update_pconfig(pconfig)
+
+
+class PanoramaTab(ArgusTab):
+    """
+    Panoramic (XY tiled) scan setup and run
+    Shares file name / options with the Main tab imaging widget
+    """
+    go_current_pconfig_signal = pyqtSignal(tuple)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.imaging_widget = self.ac.mainTab.imaging_widget
+        objective_widget = self.ac.mainTab.objective_widget
+
+        self.planner_widget_tabs = QTabWidget()
+        self.planner_widget_xy2p = XYPlanner2PWidget(
+            ac=self.ac,
+            scan_widget=self.imaging_widget,
+            objective_widget=objective_widget,
+            aname="XY2P",
+            parent=self)
+        self.planner_widget_xy3p = XYPlanner3PWidget(
+            ac=self.ac,
+            scan_widget=self.imaging_widget,
+            objective_widget=objective_widget,
+            aname="XY3P",
+            parent=self)
+
+        self.go_current_pconfig_signal.connect(self.go_current_pconfig_slot)
+
+    def _initUI(self):
+        layout = QVBoxLayout()
+        # Make this default since its more widely used
+        self.planner_widget_tabs.addTab(self.planner_widget_xy3p, "XY3P")
+        self.planner_widget_tabs.addTab(self.planner_widget_xy2p, "XY2P")
+        layout.addWidget(self.planner_widget_tabs)
+        layout.addWidget(self.imaging_widget.go_pause_pb)
+        layout.addWidget(self.imaging_widget.progress_bar)
+        layout.addStretch()
+        self.setLayout(layout)
+
     def go_current_pconfig(self, callback_done=None):
         planner_hconfig = self.active_planner_widget(
         ).get_current_planner_hconfig()
@@ -1787,9 +1809,6 @@ class MainTab(ArgusTab):
         callback_done, = args
         self.go_current_pconfig(callback_done=callback_done)
 
-    def setControlsEnabled(self, yes):
-        self.imaging_widget.snapshot_pb.setEnabled(yes)
-
     def active_planner_widget(self):
         return self.planner_widget_tabs.currentWidget()
 
@@ -1797,16 +1816,14 @@ class MainTab(ArgusTab):
         self.planner_widget_xy3p.set_corners(corners)
         self.planner_widget_tabs.setCurrentWidget(self.planner_widget_xy3p)
 
-    def _update_pconfig(self, pconfig):
-        self.imaging_widget.update_pconfig(pconfig)
-
     def _cache_save(self, cachej):
-        cachej["main"] = {
+        cachej["panorama"] = {
             "planner_tab": self.planner_widget_tabs.currentIndex(),
         }
 
     def _cache_load(self, cachej):
-        j = cachej.get("main", {})
+        # Was under "main" before panorama got its own tab
+        j = cachej.get("panorama") or cachej.get("main", {})
         planner = j.get("planner_tab")
         if planner is not None:
             self.planner_widget_tabs.setCurrentIndex(planner)

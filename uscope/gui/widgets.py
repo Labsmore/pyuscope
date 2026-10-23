@@ -541,10 +541,10 @@ class BatchImageTab(ArgusTab):
         self.batch_cache_save()
 
     def get_scan_config(self):
-        #mainTab = self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
-        assert len(self.pconfig_sources) == 1
-        mainTab = self.pconfig_sources[0]
-        return mainTab.active_planner_widget().get_current_scan_config()
+        #source = self.pconfig_sources[self.pconfig_source_cb.currentIndex()]
+        source = self.pconfig_sources[
+            0] if self.pconfig_sources else self.ac.panoramaTab
+        return source.active_planner_widget().get_current_planner_hconfig()
 
     def add_cb(self, scan_config):
         self.scani += 1
@@ -554,6 +554,9 @@ class BatchImageTab(ArgusTab):
 
     def add_clicked(self):
         scan_config = self.get_scan_config()
+        if scan_config is None:
+            self.ac.log("Batch: failed to get scan config")
+            return
         self.add_cb(scan_config)
         self.scan_configs.append(scan_config)
         self.update_state()
@@ -754,8 +757,8 @@ class AdvancedTab(ArgusTab):
         self.ac.log("Gathering diagnostic info")
         # This has a lot of misc info
         try:
-            scan_config = self.ac.mainTab.active_planner_widget(
-            ).get_current_scan_config()
+            scan_config = self.ac.panoramaTab.active_planner_widget(
+            ).get_current_planner_hconfig()
         except Exception:
             scan_config = {}
             self.ac.log("Exception getting planner config")

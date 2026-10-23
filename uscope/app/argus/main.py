@@ -24,7 +24,7 @@ import threading
 from uscope.gui.common import ArgusCommon, error
 
 from uscope.gui.widgets import TopWidget, BatchImageTab, AdvancedTab, StitchingTab, MeasureTab
-from uscope.gui.imaging import MainTab, ImagerTab
+from uscope.gui.imaging import MainTab, PanoramaTab, ImagerTab
 from uscope.gui.scripting import ScriptingTab
 from uscope.gui.calibration import CalibrationTab
 from uscope.gui.minimap import MinimapTab
@@ -245,6 +245,10 @@ class MainWindow(AMainWindow):
     def init_objects(self):
         # Tabs
         self.mainTab = self.add_tab(MainTab, "Main")
+        # PanoramaTab uses Main's imaging widget
+        self.ac.mainTab = self.mainTab
+        self.panoramaTab = self.add_tab(PanoramaTab, "Panorama")
+        self.ac.panoramaTab = self.panoramaTab
         self.imagerTab = self.add_tab(ImagerTab, "Imager")
         self.measureTab = self.add_tab(MeasureTab, "Measure")
         self.minimapTab = self.add_tab(MinimapTab, "Minimap")
@@ -264,7 +268,6 @@ class MainWindow(AMainWindow):
         self.stitchingTab = self.add_tab(StitchingTab, "CloudStitch")
 
         # FIXME: hack, come up with something more intuitive
-        self.ac.mainTab = self.mainTab
         self.ac.scriptingTab = self.scriptingTab
         self.ac.stitchingTab = self.stitchingTab
         self.ac.batchTab = self.batchTab
@@ -606,7 +609,7 @@ class MainWindow(AMainWindow):
             mw.set_kj_xy_scalar(+1.0)
 
     def displayLimitsTriggered(self):
-        self.ac.mainTab.show_minmax(bool(self.displayLimits.isChecked()))
+        self.ac.panoramaTab.show_minmax(bool(self.displayLimits.isChecked()))
 
     def clearLogTriggered(self):
         self.ac.mainTab.clear_log()

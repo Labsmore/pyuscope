@@ -384,7 +384,7 @@ class ArgusCommon(QObject):
         self.microscope.image_save_extension = self.image_save_extension
         self.runPlannerHConfigs.connect(
             self.mainTab.imaging_widget.go_planner_hconfigs)
-        self.setPlannerXY3PCorners.connect(self.mainTab.set_xy3p_corners)
+        self.setPlannerXY3PCorners.connect(self.panoramaTab.set_xy3p_corners)
 
         # FIXME: these are not thread safe
         # convert to signals

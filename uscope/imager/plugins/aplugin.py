@@ -26,6 +26,20 @@ class ImagerPlugin:
         """
         return ImagerProperties(self.session, plugin=self)
 
+    def configure_resolution(self, log=None):
+        """
+        Called before the pipeline is built
+        May update microscope.j5 imager (in memory) with the selected resolution
+        """
+        pass
+
+    def resolution_selector(self):
+        """
+        Return a ResolutionSelector (see gst_toupcamsrc) if the source supports
+        selecting resolution, otherwise None
+        """
+        return None
+
     def get_widget(self):
         """
         Argus video widget class

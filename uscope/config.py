@@ -150,7 +150,12 @@ class USCImager:
         """
         The selected sensor size before any processing
         Following are not applied yet: crop, scaling
+        Some sources (ex: gst-toupcamsrc) fill this in from the camera if not configured
         """
+        if "width" not in self.j or "height" not in self.j:
+            raise ValueError(
+                "imager width/height: not configured and not yet detected from camera"
+            )
         w = int(self.j['width'])
         h = int(self.j['height'])
         return w, h
@@ -162,8 +167,7 @@ class USCImager:
         Scaling, if any, is not yet applied
         (ex: if too large a sensor is used)
         """
-        w = int(self.j['width'])
-        h = int(self.j['height'])
+        w, h = self.raw_wh()
 
         crop = self.crop_tblr()
         if crop:

@@ -58,6 +58,8 @@ class GstImagerPipeline:
         # Arbitrates source specific pipeline, properties, etc
         self.imager_aplugin = get_imager_aplugin(session=session,
                                                  source_name=self.source_name)
+        # Sizes below depend on the selected resolution
+        self.imager_aplugin.configure_resolution(log=self.log)
         self.incoming_w, self.incoming_h = self.usc.imager.cropped_wh()
         self.capture_sink = CaptureSink(session=session,
                                         width=self.incoming_w,

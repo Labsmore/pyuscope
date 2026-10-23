@@ -47,6 +47,19 @@ class Plugin(GstImagerPlugin):
                 ret[k] = v
         return ret
 
+    def configure_resolution(self, log=None):
+        from .resolution import ResolutionSelector
+        microscope = self.session.microscope
+        self._resolution_selector = ResolutionSelector(
+            microscope.usc.imager,
+            cache_fn=microscope.usc.bc.argus_cache_fn(),
+            model_serial_string=microscope.model_serial_string(),
+            log=log)
+        self._resolution_selector.configure()
+
+    def resolution_selector(self):
+        return getattr(self, "_resolution_selector", None)
+
     def detect_sources(self):
         print("FIXME")
         return []

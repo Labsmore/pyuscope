@@ -317,11 +317,19 @@ class ImagerProperties:
     def _converter(self, prop):
         return CONVERTERS[prop["conv"]]
 
+    def _mark_imager_changed(self):
+        imager = self.microscope.imager
+        if imager:
+            imager.properties_changed()
+
     def raw_prop_write(self, name, value):
         with self.lock:
             self.verbose and print(f"raw_prop_write() {name} = {value}")
             self._rawvirt_prop_write(name, value)
             self.raw_cache[name] = value
+            # Includes writes that bypass set_disp_properties()
+            # (ex: GUI sliders, crash recovery)
+            self._mark_imager_changed()
             prop = self.raw2prop.get(name)
             if prop:
                 self.disp_prop_was_rw(prop["disp_name"],
@@ -434,9 +442,6 @@ class ImagerProperties:
                     )
                 self.disp_prop_write(disp_name, val)
                 written[disp_name] = self.disp_cache[disp_name]
-        imager = self.microscope.imager
-        if imager:
-            imager.properties_changed()
         self._notify("properties_set", written)
 
     def update_by_reading(self):

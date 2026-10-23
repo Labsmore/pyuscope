@@ -29,6 +29,24 @@ class Plugin(GstImagerPlugin):
         assert source is not None, "Failed to load toupcamsrc. Is it in the path?"
         return source
 
+    def camera_present(self, source):
+        return bool(source.get_property("devicepresent"))
+
+    def camera_not_found_detail(self, source):
+        return ("toupcamsrc could not open a ToupTek camera."
+                " Is it plugged in and not open in another program?")
+
+    def probe_camera(self, source):
+        ret = {}
+        # model-name requires toupcamsrc built against SDK 53+
+        for k, prop in (("model", "model-name"), ("serial", "serial-number")):
+            if source.find_property(prop) is None:
+                continue
+            v = source.get_property(prop)
+            if v:
+                ret[k] = v
+        return ret
+
     def detect_sources(self):
         print("FIXME")
         return []

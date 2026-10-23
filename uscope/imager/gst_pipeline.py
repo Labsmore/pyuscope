@@ -12,6 +12,7 @@ Front ends add display consumers by overriding create_vc_elements() / link_vc_el
 from uscope.gst_util import Gst, CaptureSink
 from uscope.imager import pixel_format
 from uscope.imager.plugins.aplugins import get_imager_aplugin
+from uscope.imager import camera_check
 
 import gi
 import os
@@ -42,6 +43,9 @@ class GstImagerPipeline:
         self.capture_format = None
         # Clear if anything bad happens and shouldn't be trusted
         self.ok = True
+        # Set by run() if the camera doesn't look like the configured one
+        # Front ends may show it to the user
+        self.camera_mismatch = None
         self._bus_thread = None
         self._bus_running = threading.Event()
 
@@ -301,10 +305,50 @@ class GstImagerPipeline:
 
     def run(self):
         self.verbose and print("Starting gstreamer pipeline")
-        self.player.set_state(Gst.State.PLAYING)
-        if self.source_name == 'gst-toupcamsrc':
-            assert self.source.get_property(
-                "devicepresent"), "camera not found"
+        ret = self.player.set_state(Gst.State.PLAYING)
+        self.check_camera(ret)
+
+    def check_camera(self, state_ret=None):
+        """
+        Raise CameraNotFound if the source couldn't open a camera
+        Otherwise log a warning and set self.camera_mismatch if the camera
+        doesn't look like the one in the microscope config
+        Requires the source to be started (READY => PAUSED)
+        """
+        microscope = self.microscope
+        config_reason = getattr(microscope, "config_reason", "unknown")
+        present = self.imager_aplugin.camera_present(self.source)
+        if present is None:
+            present = state_ret != Gst.StateChangeReturn.FAILURE
+        if not present:
+            msg = camera_check.not_found_message(
+                microscope.name, config_reason, self.source_name,
+                self.imager_aplugin.camera_not_found_detail(self.source))
+            self.log("ERROR: " + msg)
+            raise camera_check.CameraNotFound(msg)
+
+        found = self.imager_aplugin.probe_camera(self.source)
+        caps = self.source.get_static_pad("src").query_caps(None)
+        caps_str = caps.to_string()
+        found["sizes"] = camera_check.caps_sizes(caps_str)
+        raw_w, raw_h = self.usc.imager.raw_wh()
+        if caps.is_any() or caps.is_empty():
+            found["wh_supported"] = None
+        else:
+            want = camera_check.size_caps_str(caps_str, raw_w, raw_h)
+            found["wh_supported"] = caps.can_intersect(Gst.Caps(want))
+        expected = {
+            "wh": (raw_w, raw_h),
+            "model": self.usc.imager.model(),
+            "v4l2_name": self.usc.imager.v4l2_name(),
+        }
+        self.log("Camera: " + camera_check.describe_camera(found))
+        issues = camera_check.check_camera(expected, found)
+        if issues:
+            self.camera_mismatch = camera_check.mismatch_message(
+                microscope.name, config_reason, self.source_name, found,
+                issues)
+            self.log("WARNING: " + self.camera_mismatch)
 
     def wait_playing(self, timeout=30.0):
         """
@@ -330,6 +374,10 @@ class GstImagerPipeline:
         elif t == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
             self.log("GstVP error: %s %s" % (err, debug))
+            if self.camera_mismatch:
+                self.log(
+                    "GstVP: likely caused by the microscope config / camera mismatch reported above"
+                )
             self.player.set_state(Gst.State.NULL)
             self.ok = False
 

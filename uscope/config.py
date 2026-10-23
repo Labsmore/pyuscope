@@ -123,6 +123,16 @@ class USCImager:
     def source(self):
         return self.j.get("source", "auto")
 
+    def model(self):
+        """
+        Optional expected camera model, ex: toupcamsrc model-name
+        Case insensitive substring match. Only used to warn on a mismatch
+        """
+        return self.j.get("model")
+
+    def v4l2_name(self):
+        return self.j.get("v4l2_name")
+
     def native_wh(self):
         """
         The largest possible sensor resolution

@@ -52,6 +52,23 @@ class GstImagerPlugin(ImagerPlugin):
         '''
         assert 0, "Required"
 
+    def camera_present(self, source):
+        """
+        Whether the started source opened a camera
+        None if the source can't tell (decided by the state change result)
+        """
+        return None
+
+    def camera_not_found_detail(self, source):
+        return "The video source failed to start"
+
+    def probe_camera(self, source):
+        """
+        Identify the camera behind a started source
+        Returns a dict, see uscope.imager.camera_check.check_camera() found
+        """
+        return {}
+
     def supported_formats(self):
         """
         gstreamer video/x-raw format strings this source can be negotiated to

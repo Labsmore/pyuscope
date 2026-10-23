@@ -281,9 +281,11 @@ class CalibrationTab(ArgusTab):
         self.effective_pb.clicked.connect(self._effective)
         self.parfocal_pb = QPushButton("Go to parfocal Z")
         self.parfocal_pb.clicked.connect(self._parfocal)
+        self.software_gain_pb = QPushButton("Software gain…")
+        self.software_gain_pb.clicked.connect(self._software_gain)
         for w in (self.run_pb, self.reload_pb, self.edit_pb, self.revert_pb,
                   self.export_pb, self.import_pb, self.effective_pb,
-                  self.parfocal_pb):
+                  self.parfocal_pb, self.software_gain_pb):
             row.addWidget(w)
         layout.addLayout(row)
 
@@ -426,6 +428,12 @@ class CalibrationTab(ArgusTab):
             lines.append("has illumination: %s" % usc.imager.has_ff_cal())
         except Exception as e:
             lines.append("has illumination: (%s)" % e)
+        try:
+            lines.append("software white balance: %s" %
+                         usc.imager.white_balance_gains())
+            lines.append("software gain: %s" % usc.imager.software_gain())
+        except Exception as e:
+            lines.append("software white balance / gain: (%s)" % e)
         store = self._store()
         if store:
             e = store.get("imager.response")
@@ -438,6 +446,18 @@ class CalibrationTab(ArgusTab):
             self.ac.mainTab.objective_widget.go_parfocal_z()
         except Exception as e:
             QMessageBox.warning(self, "Parfocal", str(e))
+
+    def _software_gain(self):
+        from PyQt5.QtWidgets import QInputDialog
+        gain, ok = QInputDialog.getDouble(
+            self, "Software gain",
+            "Gain applied to snapshots / scans (1.0: off)",
+            self.ac.usc.imager.software_gain(), 0.01, 100.0, 2)
+        if not ok:
+            return
+        self._store().set(CalEntry(key="imager.software_gain",
+                                   value=float(gain)))
+        self.reload_table()
 
 
 def _ask_text(parent, title, default):

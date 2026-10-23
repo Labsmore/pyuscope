@@ -36,8 +36,10 @@ class Imager:
         """Used for unit identification"""
         return None
 
-    # Hack: control scroll is getting written directly...
     def properties_changed(self):
+        """
+        Call after (not before) a property was written to the device
+        """
         self.last_properties_change = time.time()
 
     def since_properties_change(self):
@@ -124,8 +126,9 @@ class Imager:
     """
 
     def set_properties(self, vals):
-        self.last_properties_change = time.time()
         self._set_properties(vals)
+        # After the write: frames are only good once the camera has the value
+        self.properties_changed()
 
     def set_property(self, name, value):
         self.set_properties({name: value})

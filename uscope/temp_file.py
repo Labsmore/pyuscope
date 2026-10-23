@@ -7,7 +7,63 @@ Licensed under the terms of the LGPL V3 or later, see COPYING for details
 import random
 import os
 import shutil
+import atexit
+import glob
+import tempfile
+import threading
 from .util import print_debug
+
+PROCESS_ROOT_PREFIX = "pyuscope-proc-"
+_process_root = None
+_process_root_lock = threading.Lock()
+
+
+def _pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def cleanup_stale_process_roots(parent=None):
+    """
+    Remove temp roots left behind by pyuscope processes that died without
+    cleaning up (ex: hard crash in Qt at exit)
+    """
+    if parent is None:
+        parent = tempfile.gettempdir()
+    for path in glob.glob(os.path.join(parent, PROCESS_ROOT_PREFIX + "*-*")):
+        pid = os.path.basename(path)[len(PROCESS_ROOT_PREFIX):].split("-")[0]
+        try:
+            pid = int(pid)
+        except ValueError:
+            continue
+        if pid == os.getpid() or _pid_alive(pid):
+            continue
+        shutil.rmtree(path, ignore_errors=True)
+
+
+def process_temp_root():
+    """
+    Parent directory for all of this process's temp files
+    Grouped per process so stale ones can be found and removed after a crash
+    """
+    global _process_root
+    with _process_root_lock:
+        if _process_root is None:
+            cleanup_stale_process_roots()
+            _process_root = tempfile.mkdtemp(
+                prefix=f"{PROCESS_ROOT_PREFIX}{os.getpid()}-")
+            atexit.register(shutil.rmtree, _process_root, True)
+        return _process_root
+
+
+def TemporaryDirectory(**kwargs):
+    kwargs.setdefault("dir", process_temp_root())
+    return tempfile.TemporaryDirectory(**kwargs)
 
 g_default_prefix_dir = None
 g_default_prefix = None

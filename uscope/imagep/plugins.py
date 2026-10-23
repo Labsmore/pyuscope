@@ -4,7 +4,7 @@ import subprocess
 import shutil
 import threading
 import traceback
-import tempfile
+from uscope import temp_file
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import glob
@@ -58,7 +58,7 @@ class IPPlugin:
     def create_tmp_dir(self):
         if self.tmp_dir:
             return
-        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.tmp_dir = temp_file.TemporaryDirectory()
 
     def clear_tmp_dir(self):
         """

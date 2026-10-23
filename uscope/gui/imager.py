@@ -11,7 +11,7 @@ from uscope.imager.gst import ImageTimeout
 from uscope.imagep.util import TaskBarrier
 
 import threading
-import tempfile
+from uscope import temp_file
 import glob
 
 
@@ -140,7 +140,7 @@ class CompositeImageGrabber:
         if save_filename:
             self.ac.microscope.log(f"Composite snapshot: requested w/ {modes}")
 
-        out_dir_temp = tempfile.TemporaryDirectory()
+        out_dir_temp = temp_file.TemporaryDirectory()
         try:
             # Collect images but running a lightweight planner
             planner = get_planner(microscope=self.ac.microscope,

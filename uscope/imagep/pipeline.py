@@ -30,7 +30,7 @@ import traceback
 import multiprocessing
 import threading
 import queue
-import tempfile
+from uscope import temp_file
 import json
 
 
@@ -185,7 +185,7 @@ class CSImageProcessor(threading.Thread):
         self.workers = OrderedDict()
 
         # Used
-        self.temp_dir_object = tempfile.TemporaryDirectory()
+        self.temp_dir_object = temp_file.TemporaryDirectory()
         self.temp_dir = self.temp_dir_object.name
 
         if not nthreads:

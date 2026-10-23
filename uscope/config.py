@@ -1416,6 +1416,13 @@ class BaseConfig:
         ) and self.labsmore_stitch_aws_id_key(
         ) and self.labsmore_stitch_notification_email()
 
+    def fiji_path(self):
+        """
+        Fiji launcher (ex: ~/Fiji.app/ImageJ-linux64) or Fiji.app directory
+        for local stitching. Auto-detected if not set
+        """
+        return self.j.get("fiji_path", None)
+
     def argus_stitch_cli(self):
         """
         Call given program with the scan output directory as the argument

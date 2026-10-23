@@ -51,6 +51,53 @@ def gui_ask_home():
         raise HomingAborted("Homing aborted")
 
 
+class GuiHomeProgress:
+    """
+    Shows a progress bar while homing blocks the GUI thread (ex: at startup)
+    Progress is relative to max_home_time, so it is a worst case estimate
+    """
+    def __init__(self, fallback):
+        self.fallback = fallback
+        self.dialog = None
+
+    def __call__(self, state, percent, remaining):
+        app = QApplication.instance()
+        if app is None or QThread.currentThread() != app.thread():
+            self.fallback(state, percent, remaining)
+            return
+
+        if state == "start":
+            self.close()
+            self.dialog = QProgressDialog()
+            self.dialog.setWindowTitle("Homing")
+            self.dialog.setCancelButton(None)
+            self.dialog.setRange(0, 1000)
+            self.dialog.setMinimumDuration(0)
+            self.dialog.setAutoClose(False)
+            self.dialog.setAutoReset(False)
+            self.dialog.setWindowModality(Qt.ApplicationModal)
+            self.dialog.setMinimumWidth(400)
+            self.dialog.show()
+        elif state in ("done", "failed"):
+            self.close()
+            return
+
+        if self.dialog is None:
+            return
+        self.dialog.setValue(int(percent * 10))
+        remaining = int(remaining)
+        self.dialog.setLabelText("Homing...\nUp to %u:%02u remaining" %
+                                 (remaining // 60, remaining % 60))
+        app.processEvents()
+
+    def close(self):
+        if self.dialog is not None:
+            self.dialog.close()
+            self.dialog.deleteLater()
+            self.dialog = None
+            QApplication.instance().processEvents()
+
+
 class USCArgus:
     def __init__(self, j=None, microscope=None):
         """
@@ -301,6 +348,8 @@ class ArgusCommon(QObject):
         self.motion = self.motion_thread.motion
         self.microscope.set_motion(self.motion)
         self.motion.set_ask_home(gui_ask_home)
+        self.motion.set_home_progress(
+            GuiHomeProgress(self.motion.default_home_progress))
         # If the GUI dies with an uncaught exception, at least cancel jogs
         util.register_emergency_stop(self.motion.emergency_stop)
 

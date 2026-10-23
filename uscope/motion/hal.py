@@ -661,6 +661,7 @@ class MotionHAL:
         self.last_jog_time = None
         self.ask_home = self.default_ask_home
         self.home_progress = self.default_home_progress
+        self._last_home_progress_print = 0
 
         self.check_threads = self.microscope.bc.check_threads()
         self.check_thread_id = None
@@ -698,10 +699,18 @@ class MotionHAL:
             print("Invalid response")
             print("")
 
-    # FIXME: not ready yet
     def default_home_progress(self, state, percent, remaining):
-        print("Homing: %0.1f%% done, %s remaining" %
-              (percent, time_str(remaining)))
+        """
+        state: "start", "running" (called frequently), "done", or "failed"
+        remaining: worst case seconds left (based on max_home_time)
+        """
+        now = time.time()
+        if state == "running" and now - self._last_home_progress_print < 10:
+            return
+        self._last_home_progress_print = now
+        if state in ("start", "running"):
+            print("Homing: %0.1f%% of max time, up to %s remaining" %
+                  (percent, time_str(remaining)))
 
     def set_ask_home(self, func):
         self.ask_home = func

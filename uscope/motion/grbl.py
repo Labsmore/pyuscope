@@ -1573,9 +1573,7 @@ class GrblHal(MotionHAL):
             try:
                 max_home_time = self.microscope.usc.motion.j.get(
                     "max_home_time", 180)
-                # FIXME: do something better than an initial estimate
-                self.home_progress("start", 0.0, max_home_time)
-                self.grbl.gs.h(timeout=max_home_time)
+                self._home_with_progress(max_home_time)
                 break
             except HomingFailed:
                 print("Homing timed out, nudging again")
@@ -1584,6 +1582,38 @@ class GrblHal(MotionHAL):
         deltat = time.time() - tstart
         print("Homing successful after %0.1f sec. Ready to use!" % (deltat, ))
         self.set_is_homed()
+
+    def _home_with_progress(self, max_home_time):
+        """
+        $H gives no feedback until it completes
+        Run it in the background and report elapsed time vs max_home_time
+        so that the caller (ex: GUI) can stay responsive
+        """
+        result = {}
+
+        def run():
+            try:
+                self.grbl.gs.h(timeout=max_home_time)
+            except BaseException as e:
+                result["exception"] = e
+
+        thread = threading.Thread(target=run, name="grbl-home", daemon=True)
+        tstart = time.time()
+        self.home_progress("start", 0.0, max_home_time)
+        thread.start()
+        try:
+            while thread.is_alive():
+                thread.join(0.1)
+                dt = time.time() - tstart
+                # Max time is an upper bound, not an estimate => never claim done early
+                percent = min(99.0, 100.0 * dt / max_home_time)
+                self.home_progress("running", percent,
+                                   max(0.0, max_home_time - dt))
+        finally:
+            ok = not thread.is_alive() and "exception" not in result
+            self.home_progress("done" if ok else "failed", 100.0, 0.0)
+        if "exception" in result:
+            raise result["exception"]
 
     def qstatus_updated(self, status):
         self.last_qstatus = dict(status)

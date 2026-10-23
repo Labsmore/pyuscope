@@ -8,6 +8,7 @@ from uscope.microscope import StopEvent, MicroscopeStop
 from uscope import version as uscope_version
 from uscope import app_log
 from uscope.scan_util import out_dir_config_to_dir
+from uscope import fiji_stitch
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -1173,6 +1174,24 @@ class ImagingOptionsWindow(QWidget):
                 layout.addWidget(QLabel("CloudStitch?"), row, 1)
                 row += 1
 
+                self.fiji_stitch_cb = QCheckBox()
+                try:
+                    fiji = fiji_stitch.find_fiji()
+                except ValueError as e:
+                    fiji = None
+                    self.ac.log(f"Fiji stitch: ERROR: {e}")
+                if fiji:
+                    self.ac.log(f"Fiji stitch: available ({fiji})")
+                else:
+                    self.fiji_stitch_cb.setEnabled(False)
+                    self.fiji_stitch_cb.setToolTip(
+                        "Fiji not found. Install Fiji or set fiji_path")
+                self.fiji_stitch_cb.stateChanged.connect(
+                    self.itw.update_imaging_config)
+                layout.addWidget(self.fiji_stitch_cb, row, 0)
+                layout.addWidget(QLabel("Fiji stitch (local)?"), row, 1)
+                row += 1
+
                 self.keep_intermediate_cb = QCheckBox()
                 self.keep_intermediate_cb.setChecked(True)
                 self.keep_intermediate_cb.stateChanged.connect(
@@ -1452,6 +1471,7 @@ class ImagingTaskWidget(AWidget):
                 ippj = {}
                 self.update_ippj(ippj)
                 post_settings += "\nCloudStitch: %s" % (ippj["cloud_stitch"], )
+                post_settings += "\nFiji stitch: %s" % (ippj["fiji_stitch"], )
                 post_settings += "\nKeeping intermediate files: %s" % (
                     ippj["keep_intermediates"], )
                 if ippj["write_html_viewer"]:
@@ -1564,6 +1584,7 @@ class ImagingTaskWidget(AWidget):
 
     def update_ippj(self, ippj):
         ippj["cloud_stitch"] = self.iow.cloudstitch_cb.isChecked()
+        ippj["fiji_stitch"] = self.iow.fiji_stitch_cb.isChecked()
         ippj["write_html_viewer"] = self.iow.html_cb.isChecked()
         ippj["write_quick_pano"] = self.iow.quick_stitch_cb.isChecked()
         ippj["write_snapshot_grid"] = self.iow.snapshot_grid_cb.isChecked()
@@ -1575,6 +1596,7 @@ class ImagingTaskWidget(AWidget):
             "extension": self.snapshot_suffix_cb.currentIndex(),
             "stitch": self.iow.stitch_gb.isChecked(),
             "cloudstitch": self.iow.cloudstitch_cb.isChecked(),
+            "fiji_stitch": self.iow.fiji_stitch_cb.isChecked(),
             "autofocus": self.iow.autofocus_cb.isChecked(),
             "add_scalebar": self.iow.add_scalebar_cb.isChecked(),
             "keep_intermediate": self.iow.keep_intermediate_cb.isChecked(),
@@ -1591,6 +1613,8 @@ class ImagingTaskWidget(AWidget):
         # Without creds the checkbox is disabled and must stay unchecked
         if self.iow.cloudstitch_cb.isEnabled():
             self.iow.cloudstitch_cb.setChecked(j.get("cloudstitch", True))
+        if self.iow.fiji_stitch_cb.isEnabled():
+            self.iow.fiji_stitch_cb.setChecked(j.get("fiji_stitch", False))
         self.iow.autofocus_cb.setChecked(
             j.get("autofocus", self.ac.microscope.has_z()))
         self.iow.add_scalebar_cb.setChecked(j.get("add_scalebar", False))

@@ -346,10 +346,12 @@ class MinimapTab(ArgusTab):
         self.last_fov = self.minimap.fov_map_rect(pos["x"], pos["y"],
                                                   *fov_wh)
         self.view.set_fov(self.last_fov)
+        xy = (pos["x"], pos["y"])
         if self.fit_pending:
             self.fit_pending = False
             self.zoom_fov()
-        elif self.follow_cb.isChecked():
+        # Only when moving so the user can still pan away
+        elif self.follow_cb.isChecked() and xy != self.last_pos:
             rect = QRectF(*self.last_fov)
             visible = self.view.mapToScene(
                 self.view.viewport().rect()).boundingRect()
@@ -357,7 +359,6 @@ class MinimapTab(ArgusTab):
                 self.view.center_on_rect(rect)
 
         now = time.time()
-        xy = (pos["x"], pos["y"])
         if xy != self.last_pos:
             self.last_pos = xy
             self.tpos_changed = now

@@ -40,7 +40,8 @@ def get_open_set(working_iindex):
         for row in range(working_iindex["rows"]):
             open_set.add((col, row))
     for filev in working_iindex["images"].values():
-        open_set.remove((filev["col"], filev["row"]))
+        # Singletons (ex: image.jpg from a composite snapshot) have no col / row
+        open_set.discard((filev.get("col", 0), filev.get("row", 0)))
     return open_set
 
 

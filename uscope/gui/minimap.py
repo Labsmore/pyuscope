@@ -5,22 +5,26 @@ Click on the map to move the stage there
 """
 
 from uscope.gui.widgets import ArgusTab
-from uscope.minimap import Minimap, nice_mm_per_pix, DEFAULT_MAX_BYTES
+from uscope.minimap import MapCoords, MinimapStack, nice_mm_per_pix, DEFAULT_MAX_BYTES
 from uscope.threads import ShutdownPhase
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
+import math
 import threading
 import time
 import traceback
+
+# Scene coordinates are stage um so that layers of any resolution line up
+SCENE_MM_PER_UNIT = 0.001
 
 # Map pixels across a field of view when resolution is "Auto"
 AUTO_FOV_PIX = 128
 # (label, mm per map pixel)
 RESOLUTIONS = [
-    ("Auto", None),
+    ("Auto (per objective)", None),
     ("1 um/pix", 0.001),
     ("2 um/pix", 0.002),
     ("5 um/pix", 0.005),
@@ -37,7 +41,7 @@ CLICK_SLOP = 4
 
 
 class MinimapView(QGraphicsView):
-    # Scene (= map pixel) coordinates
+    # Scene coordinates
     clicked = pyqtSignal(float, float)
 
     def __init__(self, parent=None):
@@ -50,14 +54,14 @@ class MinimapView(QGraphicsView):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setViewportUpdateMode(QGraphicsView.FullViewportUpdate)
         self.press_pos = None
-        # (tu, tv) => QGraphicsPixmapItem
+        # (mm_per_pix, tu, tv) => QGraphicsPixmapItem
         self.tile_items = {}
 
         pen = QPen(QColor(255, 255, 0))
         pen.setCosmetic(True)
         pen.setWidth(2)
         self.fov_item = self.scene().addRect(QRectF(), pen)
-        self.fov_item.setZValue(10)
+        self.fov_item.setZValue(1000)
         self.fov_item.setVisible(False)
         pen = QPen(QColor(255, 255, 0))
         pen.setCosmetic(True)
@@ -66,16 +70,18 @@ class MinimapView(QGraphicsView):
             self.scene().addLine(QLineF(), pen)
         ]
         for item in self.cross_items:
-            item.setZValue(10)
+            item.setZValue(1000)
             item.setVisible(False)
 
     def update_tiles(self, minimap, dirty):
+        scale = minimap.mm_per_pix / SCENE_MM_PER_UNIT
         for key, tile in dirty.items():
-            item = self.tile_items.get(key)
+            item_key = (minimap.mm_per_pix, ) + key
+            item = self.tile_items.get(item_key)
             if tile is None:
                 if item is not None:
                     self.scene().removeItem(item)
-                    del self.tile_items[key]
+                    del self.tile_items[item_key]
                 continue
             h, w = tile.rgba.shape[0:2]
             # copy(): QImage doesn't own the buffer
@@ -86,8 +92,12 @@ class MinimapView(QGraphicsView):
                 item = self.scene().addPixmap(pixmap)
                 # Pixelated is more honest about the resolution
                 item.setTransformationMode(Qt.FastTransformation)
-                item.setPos(*minimap.tile_origin(key))
-                self.tile_items[key] = item
+                u, v = minimap.tile_origin(key)
+                item.setPos(u * scale, v * scale)
+                item.setScale(scale)
+                # Higher resolution (higher magnification) on top
+                item.setZValue(-math.log10(minimap.mm_per_pix))
+                self.tile_items[item_key] = item
             else:
                 item.setPixmap(pixmap)
 
@@ -156,17 +166,20 @@ class MinimapTab(ArgusTab):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.minimap = None
+        self.stack = None
+        # Stage mm <=> scene
+        self.coords = None
         # Bumped when the map is reset so in flight captures are dropped
         self.generation = 0
         self.capture_thread = None
         # Last pos seen and when it last changed
         self.last_pos = None
         self.tpos_changed = 0.0
-        # Where / when we last successfully pasted
+        # (xy, mm_per_pix) / when we last successfully pasted
         self.pasted_pos = None
         self.tpasted = 0.0
         self.last_fov = None
+        self.last_mm_per_pix = None
         self.fit_pending = False
         self.frameReady.connect(self.frame_ready)
 
@@ -222,7 +235,7 @@ class MinimapTab(ArgusTab):
         self.update_status()
 
     def enabled(self):
-        return self.minimap is not None
+        return self.stack is not None
 
     def enable_changed(self):
         if self.enable_cb.isChecked():
@@ -231,8 +244,9 @@ class MinimapTab(ArgusTab):
             self.free_map()
 
     def resolution_changed(self):
-        if self.enabled():
-            self.reset_map()
+        # Existing layers stay: new frames go to a layer at the new resolution
+        self.pasted_pos = None
+        self.update_status()
 
     def fov_wh(self, image_wh=None):
         """Field of view (mm) for an image of the given size"""
@@ -242,26 +256,32 @@ class MinimapTab(ArgusTab):
         return x_view, x_view * image_wh[1] / image_wh[0]
 
     def mm_per_pix(self):
+        """Resolution of the layer frames are currently pasted into"""
         mm_per_pix = RESOLUTIONS[self.resolution_cb.currentIndex()][1]
         if mm_per_pix is None:
+            # Per objective
             mm_per_pix = nice_mm_per_pix(self.fov_wh()[0], AUTO_FOV_PIX)
         return mm_per_pix
 
     def reset_map(self):
         self.free_map()
-        self.minimap = Minimap(mm_per_pix=self.mm_per_pix(),
-                               origin=self.ac.usc.motion.origin(),
-                               max_bytes=DEFAULT_MAX_BYTES)
+        origin = self.ac.usc.motion.origin()
+        self.stack = MinimapStack(origin=origin, max_bytes=DEFAULT_MAX_BYTES)
+        self.coords = MapCoords(SCENE_MM_PER_UNIT, origin=origin)
         self.fit_pending = True
         self.update_status()
+
+    def update_view_tiles(self):
+        for layer in self.stack.layers.values():
+            self.view.update_tiles(layer, layer.pop_dirty())
 
     def free_map(self):
         self.generation += 1
         self.pasted_pos = None
-        if self.minimap is not None:
-            self.minimap.clear()
-            self.view.update_tiles(self.minimap, self.minimap.pop_dirty())
-        self.minimap = None
+        if self.stack is not None:
+            self.stack.clear()
+            self.update_view_tiles()
+        self.stack = None
         self.last_fov = None
         self.view.set_fov(None)
         self.update_status()
@@ -271,28 +291,41 @@ class MinimapTab(ArgusTab):
             return
         self.generation += 1
         self.pasted_pos = None
-        self.minimap.clear()
-        self.view.update_tiles(self.minimap, self.minimap.pop_dirty())
+        self.stack.clear()
+        self.update_view_tiles()
         self.update_status()
 
     def update_status(self):
-        if self.minimap is None:
+        if self.stack is None:
             self.status_label.setText("Disabled")
             return
+        try:
+            res = "%0.1f um/pix" % (self.mm_per_pix() * 1000, )
+        except Exception:
+            res = "? um/pix"
+        layers = len([l for l in self.stack.layers.values() if l.tiles])
         self.status_label.setText(
-            "%0.1f um/pix, %u tiles, %0.1f / %0.0f MB" %
-            (self.minimap.mm_per_pix * 1000, len(self.minimap.tiles),
-             self.minimap.memory_bytes() / 1e6, DEFAULT_MAX_BYTES / 1e6))
+            "%s, %u layers, %u tiles, %0.1f / %0.0f MB" %
+            (res, layers, self.stack.num_tiles(),
+             self.stack.memory_bytes() / 1e6, DEFAULT_MAX_BYTES / 1e6))
+
+    def scene_bounds(self):
+        """Painted area as a scene QRectF, or None"""
+        bounds = self.stack.bounds_mm()
+        if bounds is None:
+            return None
+        ua, va = self.coords.stage_to_map(bounds[0], bounds[1])
+        ub, vb = self.coords.stage_to_map(bounds[2], bounds[3])
+        return QRectF(QPointF(min(ua, ub), min(va, vb)),
+                      QPointF(max(ua, ub), max(va, vb)))
 
     def fit(self):
         if not self.enabled():
             return
-        bounds = self.minimap.bounds()
-        if bounds is None:
+        rect = self.scene_bounds()
+        if rect is None:
             self.zoom_fov()
             return
-        u0, v0, u1, v1 = bounds
-        rect = QRectF(u0, v0, u1 - u0, v1 - v0)
         if self.last_fov:
             rect = rect.united(QRectF(*self.last_fov))
         self.view.fit(rect)
@@ -313,15 +346,14 @@ class MinimapTab(ArgusTab):
         if not self.ac.is_idle():
             return
         # Don't move off into the unknown: stay near what we've seen
-        bounds = self.minimap.bounds()
+        bounds = self.scene_bounds()
         if bounds is None or self.last_fov is None:
             return
-        u0, v0, u1, v1 = bounds
         _fu0, _fv0, fw, fh = self.last_fov
-        if not (u0 - fw <= u <= u1 + fw and v0 - fh <= v <= v1 + fh):
+        if not bounds.adjusted(-fw, -fh, fw, fh).contains(QPointF(u, v)):
             self.ac.log("Minimap: click is too far outside of mapped area")
             return
-        x, y = self.minimap.map_to_stage(u, v)
+        x, y = self.coords.map_to_stage(u, v)
         pos = {"x": x, "y": y}
         self.ac.log("Minimap: move to %s" %
                     self.ac.usc.motion.format_positions(pos))
@@ -341,10 +373,14 @@ class MinimapTab(ArgusTab):
             return
         try:
             fov_wh = self.fov_wh()
+            mm_per_pix = self.mm_per_pix()
         except Exception:
             return
-        self.last_fov = self.minimap.fov_map_rect(pos["x"], pos["y"],
-                                                  *fov_wh)
+        if mm_per_pix != self.last_mm_per_pix:
+            # ex: objective changed
+            self.last_mm_per_pix = mm_per_pix
+            self.update_status()
+        self.last_fov = self.coords.fov_map_rect(pos["x"], pos["y"], *fov_wh)
         self.view.set_fov(self.last_fov)
         xy = (pos["x"], pos["y"])
         if self.fit_pending:
@@ -367,7 +403,8 @@ class MinimapTab(ArgusTab):
             return
         if now - self.tpos_changed < self.tsettle():
             return
-        if xy == self.pasted_pos and now - self.tpasted < REFRESH_PERIOD:
+        if (xy, mm_per_pix
+            ) == self.pasted_pos and now - self.tpasted < REFRESH_PERIOD:
             return
         # Don't compete with scans / snapshots for the camera
         if not self.ac.motion_thread.idle.is_set():
@@ -378,13 +415,13 @@ class MinimapTab(ArgusTab):
             return
         if self.ac.imager is None:
             return
-        self.start_capture(xy)
+        self.start_capture(xy, mm_per_pix)
 
-    def start_capture(self, xy):
+    def start_capture(self, xy, mm_per_pix):
         args = {
             "xy": xy,
             "generation": self.generation,
-            "minimap": self.minimap,
+            "minimap": self.stack.layer(mm_per_pix),
             "x_view": self.ac.objective_config()["x_view"],
         }
         self.capture_thread = threading.Thread(target=self.capture_run,
@@ -424,13 +461,17 @@ class MinimapTab(ArgusTab):
         pos = self.ac.motion_thread.get_pos_cache()
         if not pos or (pos["x"], pos["y"]) != args["xy"]:
             return
-        self.minimap.paste(args["small"], *args["xy"])
-        self.view.update_tiles(self.minimap, self.minimap.pop_dirty())
-        bounds = self.minimap.bounds()
+        # Objective changed during capture: frame may not match x_view
+        if self.ac.objective_config()["x_view"] != args["x_view"]:
+            return
+        layer = args["minimap"]
+        self.stack.paste(layer, args["small"], *args["xy"])
+        # Eviction can hit any layer
+        self.update_view_tiles()
+        bounds = self.scene_bounds()
         if bounds:
-            u0, v0, u1, v1 = bounds
-            self.view.ensure_scene_rect(QRectF(u0, v0, u1 - u0, v1 - v0))
-        self.pasted_pos = args["xy"]
+            self.view.ensure_scene_rect(bounds)
+        self.pasted_pos = (args["xy"], layer.mm_per_pix)
         self.tpasted = time.time()
         self.update_status()
 

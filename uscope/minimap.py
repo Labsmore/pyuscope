@@ -17,6 +17,7 @@ Pure numpy / PIL: no Qt
 """
 
 from collections import OrderedDict
+import itertools
 import math
 
 import numpy as np
@@ -46,6 +47,7 @@ def nice_mm_per_pix(fov_w_mm, target_pix=128):
 class Tile:
     def __init__(self):
         self.rgba = np.zeros((TILE_PIX, TILE_PIX, 4), dtype=np.uint8)
+        self.seq = 0
         # Painted area in local tile pixels: (u0, v0, u1, v1), exclusive end
         self.bbox = None
 
@@ -58,22 +60,12 @@ class Tile:
                          max(b[3], v1))
 
 
-class Minimap:
-    def __init__(self,
-                 mm_per_pix,
-                 origin="ll",
-                 max_bytes=DEFAULT_MAX_BYTES):
+class MapCoords:
+    def __init__(self, mm_per_pix, origin="ll"):
         assert mm_per_pix > 0
         assert origin in ("ll", "ul"), origin
         self.mm_per_pix = float(mm_per_pix)
         self.origin = origin
-        self.max_tiles = max(1, int(max_bytes // TILE_BYTES))
-        # (tu, tv) => Tile
-        # Ordered least recently pasted first for eviction
-        self.tiles = OrderedDict()
-        # Tile keys changed (painted or evicted) since last pop_dirty()
-        self.dirty = set()
-        self.evictions = 0
 
     def stage_to_map(self, x, y):
         u = x / self.mm_per_pix
@@ -97,6 +89,32 @@ class Minimap:
         w = fov_w_mm / self.mm_per_pix
         h = fov_h_mm / self.mm_per_pix
         return cu - w / 2, cv - h / 2, w, h
+
+
+class Minimap(MapCoords):
+    def __init__(self,
+                 mm_per_pix,
+                 origin="ll",
+                 max_bytes=DEFAULT_MAX_BYTES,
+                 counter=None):
+        """
+        max_bytes: None => unlimited (ex: MinimapStack manages memory)
+        counter: paste sequence numbers, shared to find the oldest tile across maps
+        """
+        super().__init__(mm_per_pix, origin)
+        if max_bytes is None:
+            self.max_tiles = None
+        else:
+            self.max_tiles = max(1, int(max_bytes // TILE_BYTES))
+        if counter is None:
+            counter = itertools.count()
+        self.counter = counter
+        # (tu, tv) => Tile
+        # Ordered least recently pasted first for eviction
+        self.tiles = OrderedDict()
+        # Tile keys changed (painted or evicted) since last pop_dirty()
+        self.dirty = set()
+        self.evictions = 0
 
     def scaled_wh(self, fov_w_mm, fov_h_mm):
         return (max(1, int(round(fov_w_mm / self.mm_per_pix))),
@@ -158,13 +176,23 @@ class Minimap:
             self.tiles[key] = tile
         else:
             self.tiles.move_to_end(key)
+        tile.seq = next(self.counter)
         return tile
 
     def _evict(self):
-        while len(self.tiles) > self.max_tiles:
-            key, _tile = self.tiles.popitem(last=False)
-            self.dirty.add(key)
-            self.evictions += 1
+        while self.max_tiles is not None and len(self.tiles) > self.max_tiles:
+            self.evict_oldest()
+
+    def oldest_seq(self):
+        """Paste sequence number of the least recently pasted tile, or None"""
+        for tile in self.tiles.values():
+            return tile.seq
+        return None
+
+    def evict_oldest(self):
+        key, _tile = self.tiles.popitem(last=False)
+        self.dirty.add(key)
+        self.evictions += 1
 
     def pop_dirty(self):
         """
@@ -227,4 +255,75 @@ class Minimap:
                 ret[iv0 - v0:iv1 - v0, iu0 - u0:iu1 - u0] = tile.rgba[
                     iv0 - tv * TILE_PIX:iv1 - tv * TILE_PIX,
                     iu0 - tu * TILE_PIX:iu1 - tu * TILE_PIX]
+        return ret
+
+
+class MinimapStack:
+    """
+    One Minimap per resolution so that switching objectives keeps both
+    the low magnification overview and high magnification detail
+    Memory is shared: the least recently pasted tile of any layer is evicted first
+    """
+    def __init__(self, origin="ll", max_bytes=DEFAULT_MAX_BYTES):
+        assert origin in ("ll", "ul"), origin
+        self.origin = origin
+        self.max_tiles = max(1, int(max_bytes // TILE_BYTES))
+        self.counter = itertools.count()
+        # mm_per_pix => Minimap
+        self.layers = {}
+
+    def layer(self, mm_per_pix):
+        mm_per_pix = float(mm_per_pix)
+        ret = self.layers.get(mm_per_pix)
+        if ret is None:
+            ret = Minimap(mm_per_pix,
+                          origin=self.origin,
+                          max_bytes=None,
+                          counter=self.counter)
+            self.layers[mm_per_pix] = ret
+        return ret
+
+    def paste(self, layer, small, x, y):
+        layer.paste(small, x, y)
+        self._evict()
+
+    def _evict(self):
+        while self.num_tiles() > self.max_tiles:
+            oldest = None
+            for layer in self.layers.values():
+                seq = layer.oldest_seq()
+                if seq is not None and (oldest is None or seq < oldest[0]):
+                    oldest = (seq, layer)
+            oldest[1].evict_oldest()
+
+    def num_tiles(self):
+        return sum(len(layer.tiles) for layer in self.layers.values())
+
+    def memory_bytes(self):
+        return self.num_tiles() * TILE_BYTES
+
+    def empty(self):
+        return self.num_tiles() == 0
+
+    def clear(self):
+        for layer in self.layers.values():
+            layer.clear()
+
+    def bounds_mm(self):
+        """
+        Painted area across all layers as stage (x0, y0, x1, y1) mm, or None
+        """
+        ret = None
+        for layer in self.layers.values():
+            bounds = layer.bounds()
+            if bounds is None:
+                continue
+            xa, ya = layer.map_to_stage(bounds[0], bounds[1])
+            xb, yb = layer.map_to_stage(bounds[2], bounds[3])
+            this = (min(xa, xb), min(ya, yb), max(xa, xb), max(ya, yb))
+            if ret is None:
+                ret = this
+            else:
+                ret = (min(ret[0], this[0]), min(ret[1], this[1]),
+                       max(ret[2], this[2]), max(ret[3], this[3]))
         return ret

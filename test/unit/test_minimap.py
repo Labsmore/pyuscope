@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 
 from uscope import minimap
-from uscope.minimap import Minimap, TILE_PIX, TILE_BYTES
+from uscope.minimap import Minimap, MinimapStack, TILE_PIX, TILE_BYTES
 
 
 def solid(w, h, rgb):
@@ -143,6 +143,44 @@ class TestMinimap(unittest.TestCase):
         # Tiny FoV still gives at least a pixel
         small = m.downscale(im, 0.001, 0.001)
         self.assertEqual(small.shape, (1, 1, 3))
+
+
+class TestMinimapStack(unittest.TestCase):
+    def test_layer_per_resolution(self):
+        s = MinimapStack()
+        lo = s.layer(0.02)
+        hi = s.layer(0.001)
+        self.assertIs(s.layer(0.02), lo)
+        self.assertIsNot(lo, hi)
+        # Same 1 mm FoV at both resolutions
+        s.paste(lo, solid(50, 50, (1, 1, 1)), 0.0, 0.0)
+        s.paste(hi, solid(1000, 1000, (2, 2, 2)), 0.0, 0.0)
+        # Centered on the origin => straddles tile boundaries
+        self.assertEqual(len(lo.tiles), 4)
+        self.assertEqual(len(hi.tiles), 16)
+        x0, y0, x1, y1 = s.bounds_mm()
+        for got, want in zip((x0, y0, x1, y1), (-0.5, -0.5, 0.5, 0.5)):
+            self.assertAlmostEqual(got, want, delta=0.02)
+        s.clear()
+        self.assertTrue(s.empty())
+        self.assertIsNone(s.bounds_mm())
+
+    def test_shared_memory_cap(self):
+        s = MinimapStack(max_bytes=4 * TILE_BYTES)
+        a = s.layer(0.01)
+        b = s.layer(0.002)
+        step = TILE_PIX * 0.01 * 3
+        s.paste(a, solid(8, 8, (1, 1, 1)), 1.28, -1.28)
+        s.paste(b, solid(8, 8, (2, 2, 2)), 0.256, -0.256)
+        s.paste(a, solid(8, 8, (3, 3, 3)), step + 1.28, -1.28)
+        s.paste(b, solid(8, 8, (4, 4, 4)), 0.256 + step, -0.256)
+        self.assertEqual(s.num_tiles(), 4)
+        # Oldest overall (first paste, layer a) goes first
+        s.paste(b, solid(8, 8, (5, 5, 5)), 0.256 + 2 * step, -0.256)
+        self.assertEqual(s.num_tiles(), 4)
+        self.assertEqual((len(a.tiles), len(b.tiles)), (1, 3))
+        self.assertEqual(a.evictions, 1)
+        self.assertEqual(s.memory_bytes(), 4 * TILE_BYTES)
 
 
 if __name__ == "__main__":

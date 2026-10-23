@@ -1108,6 +1108,25 @@ class JogListener(QPushButton):
     """
     Widget that listens for WSAD keys for linear stage movement
     """
+    # Native styles (ex: gtk2) ignore QPalette.Button
+    # A border must be set or the native bevel is still drawn on top,
+    # leaving only the edges colored
+    FOCUS_STYLESHEET = """
+        QPushButton {
+            color: black;
+            background-color: yellow;
+            border: 2px solid #b08800;
+            border-radius: 4px;
+            padding: 2px;
+        }
+        QPushButton:hover {
+            background-color: #ffff66;
+        }
+        QPushButton:pressed {
+            background-color: #e0c000;
+        }
+    """
+
     def __init__(self, label, parent=None):
         super().__init__(label, parent=parent)
         self.parent = parent
@@ -1123,17 +1142,19 @@ class JogListener(QPushButton):
         """
         Clearly indicate movement starting
         """
-        p = self.palette()
-        p.setColor(self.backgroundRole(), Qt.yellow)
-        self.setPalette(p)
+        super().focusInEvent(event)
+        # Styled size hint differs from native: don't let layout jump
+        self.setMinimumSize(self.size())
+        self.setStyleSheet(self.FOCUS_STYLESHEET)
 
     def focusOutEvent(self, event):
         """
         Clearly indicate movement stopping
         """
-        p = self.palette()
-        p.setColor(self.backgroundRole(), Qt.white)
-        self.setPalette(p)
+        super().focusOutEvent(event)
+        # Back to native look
+        self.setStyleSheet("")
+        self.setMinimumSize(0, 0)
 
 
 class HLinearSlider100(QSlider):

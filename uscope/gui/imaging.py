@@ -6,6 +6,7 @@ from uscope.motion import motion_util
 from uscope.scan_runner import ScanRunnerListener
 from uscope.microscope import StopEvent, MicroscopeStop
 from uscope import version as uscope_version
+from uscope import app_log
 from uscope.scan_util import out_dir_config_to_dir
 
 from PyQt5.QtGui import *
@@ -1613,14 +1614,12 @@ class MainTab(ArgusTab):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.log_fd = None
-
-        fn = os.path.join(self.ac.microscope.usc.bc.get_data_dir(), "log.txt")
-        existed = os.path.exists(fn)
-        self.log_fd = open(fn, "w+")
-        if existed:
-            self.log_fd.write("\n\n\n")
-            self.log_fd.flush()
+        # Normally opened at startup so stderr is also captured
+        self.app_log = app_log.get()
+        if self.app_log is None:
+            self.app_log = app_log.AppLog(
+                os.path.join(self.ac.microscope.usc.bc.get_data_dir(),
+                             "log.txt"))
         # must be created early to accept early logging
         # not displayed until later though
         self.log_widget = QTextEdit()
@@ -1715,8 +1714,7 @@ class MainTab(ArgusTab):
         c.insertText(s)
         self.log_widget.setTextCursor(c)
 
-        self.log_fd.write(s)
-        self.log_fd.flush()
+        self.app_log.write_log(s)
         self.ac.scan_runner.scan_log_write(s)
 
     def clear_log(self):

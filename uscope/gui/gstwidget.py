@@ -819,10 +819,10 @@ class ARtspMediaFactory(GstRtspServer.RTSPMediaFactory):
 
 
 def excepthook(excType, excValue, tracebackobj):
-    print("")
-    print("excepthook: got exception")
-    print("%s: %s" % (excType, excValue))
-    traceback.print_tb(tracebackobj)
+    # stderr so that it also goes to the log file (see uscope/app_log.py)
+    print("", file=sys.stderr)
+    print("excepthook: got exception", file=sys.stderr)
+    traceback.print_exception(excType, excValue, tracebackobj)
     # Don't leave the stage jogging
     util.run_emergency_stops()
     os._exit(1)
@@ -870,8 +870,8 @@ def gstwidget_main(AQMainWindow, parse_args=default_parse_args):
     # so explicitly handle to ensure clean exit
     # notably homing fail
     except Exception:
-        print("")
-        print("main: got exception")
+        print("", file=sys.stderr)
+        print("main: got exception", file=sys.stderr)
         traceback.print_exc()
         util.run_emergency_stops()
         os._exit(1)

@@ -9,6 +9,7 @@ from uscope.gui.gstwidget import gstwidget_main
 from uscope.util import add_bool_arg
 from uscope.gui.widgets import AMainWindow
 from uscope import config
+from uscope import app_log
 from uscope.gui.input_widget import InputWidget
 
 from PyQt5 import Qt
@@ -16,6 +17,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
+import os
 import traceback
 import threading
 
@@ -574,9 +576,12 @@ def parse_args():
 
 def main():
     try:
+        app_log.install(os.path.join(config.get_bc().get_data_dir(),
+                                     "log.txt"))
+        app_log.install_qt_message_handler()
         gstwidget_main(MainWindow, parse_args=parse_args)
     except Exception as e:
-        print(traceback.format_exc())
+        traceback.print_exc()
         error(str(e))
 
 

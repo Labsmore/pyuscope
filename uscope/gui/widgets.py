@@ -18,7 +18,6 @@ import time
 import os.path
 import math
 from enum import Enum
-import copy
 import traceback
 import json
 import json5
@@ -656,124 +655,49 @@ class BatchImageTab(ArgusTab):
         self.loadj(j)
 
 
-class AdvancedTab(ArgusTab):
+class StackingWidget(AWidget):
+    """
+    Focus stacking options (requires Z)
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         self._stacker_pconfig = None
-        self._stabilization_pconfig = None
-        self.stacker_number_le = None
+
         layout = QGridLayout()
         row = 0
+        """
+        Some quick tests around 20x indicated +/- 0.010 w/ 2 um steps is good
+        """
 
-        def stack_gb():
-            layout = QGridLayout()
-            row = 0
-            """
-            Some quick tests around 20x indicated +/- 0.010 w/ 2 um steps is good
-            """
-
-            layout.addWidget(QLabel("Mode"), row, 0)
-            self.stack_cb = QComboBox()
-            layout.addWidget(self.stack_cb, row, 1)
-            self.stack_cb.addItem("A: None")
-            self.stack_cb.addItem("B: Manual")
-            self.stack_cb.addItem("C: die normal")
-            self.stack_cb.addItem("D: die double distance")
-            self.stack_cb.addItem("E: die double steps")
-            row += 1
-
-            layout.addWidget(QLabel("Stack drift correction?"), row, 0)
-            self.stack_drift_cb = QCheckBox()
-            layout.addWidget(self.stack_drift_cb, row, 1)
-            row += 1
-
-            layout.addWidget(QLabel("+/- each side distance"), row, 0)
-            self.stacker_distance_le = QLineEdit("")
-            layout.addWidget(self.stacker_distance_le, row, 1)
-            row += 1
-
-            # Set to non-0 to activate
-            layout.addWidget(QLabel("+/- each side snapshots (+1 center)"),
-                             row, 0)
-            self.stacker_number_le = QLineEdit("")
-            layout.addWidget(self.stacker_number_le, row, 1)
-            row += 1
-
-            gb = QGroupBox("Stacking")
-            gb.setLayout(layout)
-            return gb
-
-        layout.addWidget(QLabel("Image stabilization"), row, 0)
-        self.image_stabilization_cb = QComboBox()
-        self.image_stabilization_cb_map = {
-            0: 1,
-            1: 3,
-            2: 9,
-            3: 27,
-            4: 100,
-            5: 1000,
-        }
-        self.image_stabilization_cb.addItem("1 (off)")
-        self.image_stabilization_cb.addItem("3")
-        self.image_stabilization_cb.addItem("9")
-        self.image_stabilization_cb.addItem("27")
-        self.image_stabilization_cb.addItem("100")
-        self.image_stabilization_cb.addItem("1000")
-        layout.addWidget(self.image_stabilization_cb, row, 1)
+        layout.addWidget(QLabel("Mode"), row, 0)
+        self.stack_cb = QComboBox()
+        layout.addWidget(self.stack_cb, row, 1)
+        self.stack_cb.addItem("A: None")
+        self.stack_cb.addItem("B: Manual")
+        self.stack_cb.addItem("C: die normal")
+        self.stack_cb.addItem("D: die double distance")
+        self.stack_cb.addItem("E: die double steps")
         row += 1
 
-        if self.ac.microscope.has_z():
-            layout.addWidget(stack_gb(), row, 0)
-            row += 1
-
-        # FIXME: display for now, but should make editable
-        # Or maybe have it log a report instead of making widgets?
-
-        self.diagnostic_info_pb = QPushButton("Diagnostic info (brief)")
-        self.diagnostic_info_pb.clicked.connect(self.diagnostic_info)
-        layout.addWidget(self.diagnostic_info_pb, row, 0)
+        layout.addWidget(QLabel("Stack drift correction?"), row, 0)
+        self.stack_drift_cb = QCheckBox()
+        layout.addWidget(self.stack_drift_cb, row, 1)
         row += 1
 
-        self.diagnostic_info_pb = QPushButton("Diagnostic info (verbose)")
-        self.diagnostic_info_pb.clicked.connect(self.diagnostic_info_verbose)
-        layout.addWidget(self.diagnostic_info_pb, row, 0)
+        layout.addWidget(QLabel("+/- each side distance"), row, 0)
+        self.stacker_distance_le = QLineEdit("")
+        layout.addWidget(self.stacker_distance_le, row, 1)
         row += 1
 
+        # Set to non-0 to activate
+        layout.addWidget(QLabel("+/- each side snapshots (+1 center)"), row,
+                         0)
+        self.stacker_number_le = QLineEdit("")
+        layout.addWidget(self.stacker_number_le, row, 1)
+        row += 1
+
+        layout.setRowStretch(row, 1)
         self.setLayout(layout)
-
-    def diagnostic_info_verbose(self):
-        self.diagnostic_info(verbose=True)
-
-    def diagnostic_info(self, verbose=False):
-        """
-        Some things take a while and/or need to be sequenced
-        Gather up all GUI state we can and pass off to another thread to actually print
-        """
-
-        self.ac.log("")
-        self.ac.log("")
-        self.ac.log("")
-        self.ac.log("Gathering diagnostic info")
-        # This has a lot of misc info
-        try:
-            scan_config = self.ac.panoramaTab.active_planner_widget(
-            ).get_current_planner_hconfig()
-        except Exception:
-            scan_config = {}
-            self.ac.log("Exception getting planner config")
-
-        imager_state = {}
-        imager_state["sn"] = self.ac.microscope.imager.get_sn()
-        imager_state["prop_cache"] = self.ac.imager_properties.get_prop_cache()
-
-        j = {
-            "argus_cachej": copy.deepcopy(self.ac.mw.cachej),
-            "scan_config": scan_config,
-            "imager_state": imager_state,
-            "verbose": verbose,
-        }
-        self.ac.task_thread.diagnostic_info(j)
 
     def update_pconfig_stack(self, pconfig):
         images_pm = int(str(self.stacker_number_le.text()))
@@ -796,75 +720,42 @@ class AdvancedTab(ArgusTab):
     def stacker_pconfig(self):
         return self._stacker_pconfig
 
-    def image_stabilization_pconfig(self):
-        return self._stabilization_pconfig
-
-    def get_image_stablization(self):
-        return self.image_stabilization_cb_map[
-            self.image_stabilization_cb.currentIndex()]
-
     def _update_pconfig(self, pconfig):
-        image_stabilization = self.get_image_stablization()
-        stabilization_pconfig = None
-        if image_stabilization > 1:
-            stabilization_pconfig = {
-                "n": image_stabilization,
-            }
-            pconfig["image-stabilization"] = stabilization_pconfig
-        self._stabilization_pconfig = stabilization_pconfig
-
-        if self.ac.microscope.has_z():
-            self.update_pconfig_stack(pconfig)
+        self.update_pconfig_stack(pconfig)
 
     def image_stacking_enabled(self):
-        if not self.ac.microscope.has_z():
-            return False
-
         images_pm = int(str(self.stacker_number_le.text()))
         distance_pm = float(self.stacker_distance_le.text())
-        if not images_pm or distance_pm == 0.0:
-            return False
-        else:
-            return True
+        return bool(images_pm and distance_pm != 0.0)
 
     def image_stacking_pm_n(self):
         return int(str(self.stacker_number_le.text()))
 
-    def image_stablization_enabled(self):
-        return self.get_image_stablization() > 1
+    def drift_correction_enabled(self):
+        return self.stack_drift_cb.isChecked()
 
     def _post_ui_init(self):
-        if self.ac.microscope.has_z():
-            self.ac.objectiveChanged.connect(self.update_stack_mode)
-            self.stack_cb.currentIndexChanged.connect(self.update_stack_mode)
-            self.update_stack_mode()
+        self.ac.objectiveChanged.connect(self.update_stack_mode)
+        self.stack_cb.currentIndexChanged.connect(self.update_stack_mode)
+        self.update_stack_mode()
 
     def _cache_save(self, cachej):
-        j = {
-            "image_stabilization": self.image_stabilization_cb.currentIndex(),
+        cachej["stacking"] = {
+            "images_pm": self.stacker_number_le.text(),
+            "distance_pm": self.stacker_distance_le.text(),
+            "mode_index": self.stack_cb.currentIndex(),
+            "drift_correction": self.stack_drift_cb.isChecked(),
         }
-        if self.ac.microscope.has_z():
-            j["stacking"] = {
-                "images_pm": self.stacker_number_le.text(),
-                "distance_pm": self.stacker_distance_le.text(),
-                "mode_index": self.stack_cb.currentIndex(),
-                "drift_correction": self.stack_drift_cb.isChecked(),
-            }
-        cachej["advanced"] = j
 
     def _cache_load(self, cachej):
-        j = cachej.get("advanced", {})
-        self.image_stabilization_cb.setCurrentIndex(
-            j.get("image_stabilization", 0))
-        if self.ac.microscope.has_z():
-            stacking = j.get("stacking", {})
-            self.stacker_number_le.setText(stacking.get("images_pm", "0"))
-            self.stacker_distance_le.setText(stacking.get(
-                "distance_pm", "0.0"))
-            self.stack_cb.setCurrentIndex(stacking.get("mode_index", 0))
-            self.stack_drift_cb.setChecked(stacking.get("drift_correction", 0))
+        # Was under the Advanced tab
+        stacking = cachej.get("stacking") or cachej.get("advanced", {}).get(
+            "stacking", {})
+        self.stacker_number_le.setText(stacking.get("images_pm", "0"))
+        self.stacker_distance_le.setText(stacking.get("distance_pm", "0.0"))
+        self.stack_cb.setCurrentIndex(stacking.get("mode_index", 0))
+        self.stack_drift_cb.setChecked(stacking.get("drift_correction", 0))
 
-    #
     def update_stack_mode(self, *args):
         mode = self.stack_cb.currentIndex()
 
@@ -886,13 +777,6 @@ class AdvancedTab(ArgusTab):
             self.stacker_distance_le.setText("%0.6f" % params["pm_distance"])
             self.stacker_number_le.setText("%u" % params["pm_steps"])
 
-        """
-        self.stack_cb.addItem("A: None")
-        self.stack_cb.addItem("B: Manual")
-        self.stack_cb.addItem("C: die normal")
-        self.stack_cb.addItem("D: die double distance")
-        self.stack_cb.addItem("E: die double steps")
-        """
         # Disabled
         if mode == 0:
             self.stacker_distance_le.setText("0.0")
@@ -912,6 +796,74 @@ class AdvancedTab(ArgusTab):
             setup_die_step(1, 2)
         else:
             assert 0, "unknown mode"
+
+    def _poll_misc(self):
+        # Update cache for snapshot configuration
+        try:
+            self.update_pconfig_stack({})
+        except ValueError:
+            pass
+
+
+class AdvancedTab(ArgusTab):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self._stabilization_pconfig = None
+        layout = QGridLayout()
+        row = 0
+
+        layout.addWidget(QLabel("Image stabilization"), row, 0)
+        self.image_stabilization_cb = QComboBox()
+        self.image_stabilization_cb_map = {
+            0: 1,
+            1: 3,
+            2: 9,
+            3: 27,
+            4: 100,
+            5: 1000,
+        }
+        self.image_stabilization_cb.addItem("1 (off)")
+        self.image_stabilization_cb.addItem("3")
+        self.image_stabilization_cb.addItem("9")
+        self.image_stabilization_cb.addItem("27")
+        self.image_stabilization_cb.addItem("100")
+        self.image_stabilization_cb.addItem("1000")
+        layout.addWidget(self.image_stabilization_cb, row, 1)
+        row += 1
+
+        layout.setRowStretch(row, 1)
+        self.setLayout(layout)
+
+    def image_stabilization_pconfig(self):
+        return self._stabilization_pconfig
+
+    def get_image_stablization(self):
+        return self.image_stabilization_cb_map[
+            self.image_stabilization_cb.currentIndex()]
+
+    def _update_pconfig(self, pconfig):
+        image_stabilization = self.get_image_stablization()
+        stabilization_pconfig = None
+        if image_stabilization > 1:
+            stabilization_pconfig = {
+                "n": image_stabilization,
+            }
+            pconfig["image-stabilization"] = stabilization_pconfig
+        self._stabilization_pconfig = stabilization_pconfig
+
+    def image_stablization_enabled(self):
+        return self.get_image_stablization() > 1
+
+    def _cache_save(self, cachej):
+        cachej["advanced"] = {
+            "image_stabilization": self.image_stabilization_cb.currentIndex(),
+        }
+
+    def _cache_load(self, cachej):
+        j = cachej.get("advanced", {})
+        self.image_stabilization_cb.setCurrentIndex(
+            j.get("image_stabilization", 0))
 
     def _poll_misc(self):
         # Update caches for snapshot configuration

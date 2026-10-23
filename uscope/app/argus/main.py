@@ -17,6 +17,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
+import copy
 import os
 import traceback
 import threading
@@ -250,6 +251,7 @@ class MainWindow(AMainWindow):
         self.panoramaTab = self.add_tab(PanoramaTab, "Panorama")
         self.ac.panoramaTab = self.panoramaTab
         self.imagerTab = self.add_tab(ImagerTab, "Imager")
+        self.ac.imagerTab = self.imagerTab
         self.measureTab = self.add_tab(MeasureTab, "Measure")
         self.minimapTab = self.add_tab(MinimapTab, "Minimap")
         self.snapshotsTab = self.add_tab(SnapshotViewerTab, "Snapshots")
@@ -354,6 +356,15 @@ class MainWindow(AMainWindow):
         # Help menu
         helpMenu = menuBar.addMenu("Help")
         helpMenu.addAction(self.helpContentAction)
+        self.diagnosticInfoAction = QAction("Diagnostic info (brief)", self)
+        self.diagnosticInfoAction.triggered.connect(
+            lambda: self.diagnostic_info(verbose=False))
+        helpMenu.addAction(self.diagnosticInfoAction)
+        self.diagnosticInfoVerboseAction = QAction(
+            "Diagnostic info (verbose)", self)
+        self.diagnosticInfoVerboseAction.triggered.connect(
+            lambda: self.diagnostic_info(verbose=True))
+        helpMenu.addAction(self.diagnosticInfoVerboseAction)
         helpMenu.addAction(self.aboutAction)
 
         self.exitAction.triggered.connect(self.close)
@@ -522,6 +533,36 @@ class MainWindow(AMainWindow):
 
     def about(self):
         pass
+
+    def diagnostic_info(self, verbose=False):
+        """
+        Some things take a while and/or need to be sequenced
+        Gather up all GUI state we can and pass off to another thread to actually print
+        """
+
+        self.ac.log("")
+        self.ac.log("")
+        self.ac.log("")
+        self.ac.log("Gathering diagnostic info")
+        # This has a lot of misc info
+        try:
+            scan_config = self.panoramaTab.active_planner_widget(
+            ).get_current_planner_hconfig()
+        except Exception:
+            scan_config = {}
+            self.ac.log("Exception getting planner config")
+
+        imager_state = {}
+        imager_state["sn"] = self.ac.microscope.imager.get_sn()
+        imager_state["prop_cache"] = self.ac.imager_properties.get_prop_cache()
+
+        j = {
+            "argus_cachej": copy.deepcopy(self.cachej),
+            "scan_config": scan_config,
+            "imager_state": imager_state,
+            "verbose": verbose,
+        }
+        self.ac.task_thread.diagnostic_info(j)
 
     def _initUI(self):
         self.setWindowTitle("pyuscope main")

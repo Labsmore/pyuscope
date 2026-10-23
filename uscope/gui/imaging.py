@@ -1,7 +1,7 @@
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import config
 from collections import OrderedDict
-from uscope.gui.widgets import AWidget, ArgusTab
+from uscope.gui.widgets import AWidget, ArgusTab, StackingWidget
 from uscope.gui.video_record import VideoRecordWidget
 from uscope.motion import motion_util
 from uscope.scan_runner import ScanRunnerListener
@@ -1471,11 +1471,11 @@ class ImagingTaskWidget(AWidget):
 
             scan_settings = "Scan settings:"
             scan_settings += "\nAutofocus corners: %s" % (autofocus, )
-            if self.ac.advancedTab.image_stacking_enabled():
-                pm_n = self.ac.advancedTab.image_stacking_pm_n()
+            if self.ac.imagerTab.image_stacking_enabled():
+                pm_n = self.ac.imagerTab.image_stacking_pm_n()
                 scan_settings += "\nFocus stacking enabled (+/- %u images => %u per stack)" % (
                     pm_n, pm_n * 2 + 1)
-                if self.ac.advancedTab.stack_drift_cb.isChecked():
+                if self.ac.imagerTab.stack_drift_correction_enabled():
                     scan_settings += "\nFocus stacking drift correction enabled"
             if self.ac.advancedTab.image_stablization_enabled():
                 scan_settings += "\nImage stabilization enabled (n=%u)" % (
@@ -1838,12 +1838,17 @@ class ImagerTab(ArgusTab):
         super().__init__(*args, **kwargs)
         self._hdr_pconfig = None
         self._hdr_checked = None
+        self.stacking_widget = None
+        if self.ac.microscope.has_z():
+            self.stacking_widget = StackingWidget(ac=self.ac,
+                                                  aname="stacking",
+                                                  parent=self)
 
     def _initUI(self):
         # Most of the layout is filled in from the ControlScroll
         self.layout = QVBoxLayout()
 
-        def hdr_gb():
+        def hdr_widget():
             layout = QGridLayout()
             row = 0
 
@@ -1868,11 +1873,18 @@ class ImagerTab(ArgusTab):
             layout.addWidget(self.hdr_auto_stops_per, row, 1)
             row += 1
 
-            gb = QGroupBox("HDR")
-            gb.setLayout(layout)
-            return gb
+            layout.setRowStretch(row, 1)
+            widget = QWidget()
+            widget.setLayout(layout)
+            return widget
 
-        self.layout.addWidget(hdr_gb())
+        self.capture_tabs = QTabWidget()
+        self.capture_tabs.addTab(hdr_widget(), "HDR")
+        if self.stacking_widget:
+            self.capture_tabs.addTab(self.stacking_widget, "Stacking")
+        self.capture_tabs.setSizePolicy(QSizePolicy.Preferred,
+                                        QSizePolicy.Maximum)
+        self.layout.addWidget(self.capture_tabs)
         self.layout.addWidget(self.ac.control_scroll)
 
         self.setLayout(self.layout)
@@ -1904,6 +1916,22 @@ class ImagerTab(ArgusTab):
 
     def hdr_pconfig(self):
         return self._hdr_pconfig
+
+    def stacker_pconfig(self):
+        if not self.stacking_widget:
+            return None
+        return self.stacking_widget.stacker_pconfig()
+
+    def image_stacking_enabled(self):
+        return bool(self.stacking_widget
+                    and self.stacking_widget.image_stacking_enabled())
+
+    def image_stacking_pm_n(self):
+        return self.stacking_widget.image_stacking_pm_n()
+
+    def stack_drift_correction_enabled(self):
+        return bool(self.stacking_widget
+                    and self.stacking_widget.drift_correction_enabled())
 
     def check_hdr_resolution(self, properties_list):
         """

@@ -52,15 +52,18 @@ class TestColorPipeline(unittest.TestCase):
     def test_no_cal_is_noop(self):
         self.assertIsNone(self.usc.imager.white_balance_gains())
         self.assertEqual(self.usc.imager.software_gain(), 1.0)
-        out, _capim = self._process((100, 200, 50))
+        out, capim = self._process((100, 200, 50))
         self.assertEqual(out.getpixel((0, 0)), (100, 200, 50))
+        self.assertEqual(capim.meta["corrections"], [])
 
     def test_white_balance(self):
         self._set_wb([2.0, 1.0, 4.0])
         self.assertEqual(self.usc.imager.white_balance_gains(),
                          [2.0, 1.0, 4.0])
-        out, _capim = self._process((100, 200, 50))
+        out, capim = self._process((100, 200, 50))
         self.assertEqual(out.getpixel((0, 0)), (200, 200, 200))
+        # Lets scan post processing know not to apply it again
+        self.assertEqual(capim.meta["corrections"], ["correct-wb"])
 
     def test_disabled_entry(self):
         self._set_wb([2.0, 1.0, 4.0], enabled=False)

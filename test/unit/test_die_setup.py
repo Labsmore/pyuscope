@@ -134,6 +134,7 @@ class TestDieSetup(unittest.TestCase):
         input_.update({
             "autofocus_start": "No",
             "autofocus_corners": "No",
+            "refocus_views": 0,
         })
         input_.update(overrides)
         self.runner.run(input_)

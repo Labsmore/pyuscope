@@ -74,6 +74,13 @@ class Plugin(ScriptingPlugin):
                 "values": ["Yes", "No"],
                 "default": "Yes",
             },
+            # Follow die tilt during long edge walks. 0 to disable
+            "Refocus every N views": {
+                "widget": "QLineEdit",
+                "key": "refocus_views",
+                "type": int,
+                "default": "4",
+            },
             "Autofocus corners": {
                 "widget": "QComboBox",
                 "key": "autofocus_corners",
@@ -128,12 +135,15 @@ class Plugin(ScriptingPlugin):
         vals = self.get_input()
         self.has_z = self.session.microscope.has_z()
         self.debug = vals["debug"] == "Yes"
+        self.refocus_views = vals["refocus_views"] if self.has_z else 0
+        self.views = 0
         objective = self.get_objective_config()
         x_view = objective["x_view"]
         self.log("Die setup: objective %s, view %0.3f mm" %
                  (objective["name"], x_view))
         if vals["border"] < 0 or vals["step"] <= 0 or vals["step"] > 0.75:
-            self.fail("Border must be >= 0 and step 0 to 0.75")
+            self.log("ERROR: border must be >= 0 and step 0 to 0.75")
+            self.fail("Bad input")
 
         if self.has_z and vals["autofocus_start"] == "Yes":
             self.log("Autofocusing start position")
@@ -157,9 +167,10 @@ class Plugin(ScriptingPlugin):
         self.log("Die / background separation: %0.1f" %
                  self.classifier.separation)
         if self.classifier.separation < DieClassifier.MIN_SEPARATION:
-            self.fail(
-                "Can't tell die from background. Is the die lower left corner in view with the die in the upper right?"
+            self.log(
+                "ERROR: can't tell die from background. Is the die lower left corner in view with the die in the upper right?"
             )
+            self.fail("No die / background contrast")
 
         try:
             corners = find_die(self.observe,
@@ -227,6 +238,9 @@ class Plugin(ScriptingPlugin):
 
     def observe(self, center):
         self.move_absolute({"x": float(center[0]), "y": float(center[1])})
+        self.views += 1
+        if self.refocus_views > 0 and self.views % self.refocus_views == 0:
+            self.autofocus()
         obs = Observation(self.image(),
                           center,
                           self.mm_per_px,

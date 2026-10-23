@@ -620,6 +620,26 @@ def predict_ur(corners):
         corners["ul"]) - np.asarray(corners["ll"])
 
 
+def scan_corners(corners, border):
+    """
+    Expand the die by border along its edges
+    These are the planner XY3P corners (outer corners of the scan area)
+
+    corners: stage ll, lr, ul die corners
+    border: (x, y) mm to keep around the die
+    """
+    ll, lr, ul = (np.asarray(corners[k], dtype=np.float64)
+                  for k in ("ll", "lr", "ul"))
+    u = (lr - ll) / np.linalg.norm(lr - ll)
+    v = (ul - ll) / np.linalg.norm(ul - ll)
+    bx, by = border
+    return {
+        "ll": ll - bx * u - by * v,
+        "lr": lr + bx * u - by * v,
+        "ul": ul - bx * u + by * v,
+    }
+
+
 def xy3p_corners(corners, view_wh, border):
     """
     die corners => XY3P corner positions
@@ -630,18 +650,10 @@ def xy3p_corners(corners, view_wh, border):
     view_wh: (x, y) mm field of view
     border: (x, y) mm to keep around the die, along the die edges
     """
-    ll, lr, ul = (np.asarray(corners[k], dtype=np.float64)
-                  for k in ("ll", "lr", "ul"))
-    u = (lr - ll) / np.linalg.norm(lr - ll)
-    v = (ul - ll) / np.linalg.norm(ul - ll)
-    bx, by = border
+    scan = scan_corners(corners, border)
     xv, yv = view_wh
-    # Scan region corners
-    sll = ll - bx * u - by * v
-    slr = lr + bx * u - by * v
-    sul = ul - bx * u + by * v
     return {
-        "ll": sll + (xv / 2, yv / 2),
-        "ul": sul + (xv / 2, -yv / 2),
-        "lr": slr + (-xv / 2, yv / 2),
+        "ll": scan["ll"] + (xv / 2, yv / 2),
+        "ul": scan["ul"] + (xv / 2, -yv / 2),
+        "lr": scan["lr"] + (-xv / 2, yv / 2),
     }

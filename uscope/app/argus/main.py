@@ -216,8 +216,34 @@ class MainWindow(AMainWindow):
                    screen.height()))
         self.showMaximized()
 
+    def expertViewTriggered(self):
+        """
+        Show / hide tabs most users don't need
+        (QTabWidget.setTabVisible() is Qt 5.15+ => remove / re-insert)
+        """
+        expert = self.expertView.isChecked()
+        all_tabs = list(self.ac.tabs.items())
+        for name, tab in all_tabs:
+            if tab not in (self.batchTab, self.scriptingTab,
+                           self.stitchingTab):
+                continue
+            index = self.tab_widget.indexOf(tab)
+            if expert and index < 0:
+                # Restore original position relative to tabs still shown
+                insert_at = 0
+                for _name, other in all_tabs:
+                    if other is tab:
+                        break
+                    if self.tab_widget.indexOf(other) >= 0:
+                        insert_at += 1
+                self.tab_widget.insertTab(insert_at, tab, name)
+            elif not expert and index >= 0:
+                self.tab_widget.removeTab(index)
+
     def _cache_load(self, j):
         j = j.get("main_window", {})
+        self.expertView.setChecked(j.get("expert_view", config.bc.dev_mode()))
+        self.expertViewTriggered()
         self.displayLimits.setChecked(
             j.get("display_limits", config.bc.dev_mode()))
         self.displayLimitsTriggered()
@@ -231,6 +257,7 @@ class MainWindow(AMainWindow):
 
     def _cache_save(self, j):
         j = j.setdefault("main_window", {})
+        j["expert_view"] = self.expertView.isChecked()
         j["display_limits"] = self.displayLimits.isChecked()
         j["display_advanced_movement"] = self.displayAdvancedMovement.isChecked(
         )
@@ -289,6 +316,12 @@ class MainWindow(AMainWindow):
         self.clearLog = QAction("Clear log", fileMenu)
         fileMenu.addAction(self.clearLog)
         self.clearLog.triggered.connect(self.clearLogTriggered)
+        self.expertView = QAction("Expert view", fileMenu, checkable=True)
+        self.expertView.setToolTip("Show Batch, Scripting and CloudStitch tabs")
+        fileMenu.addAction(self.expertView)
+        self.expertView.setChecked(config.bc.dev_mode())
+        self.expertView.triggered.connect(self.expertViewTriggered)
+        self.expertViewTriggered()
         # Extended options
         self.displayArgusOptions = QAction("Advanced options", fileMenu)
         fileMenu.addAction(self.displayArgusOptions)

@@ -128,7 +128,7 @@ class RecorderTestCase(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="pyuscope-test-recorder-")
         self.player = Gst.parse_launch(
-            "videotestsrc is-live=true ! "
+            "videotestsrc is-live=true name=src ! "
             "video/x-raw,width=641,height=481,framerate=30/1 ! "
             "tee name=tee ! queue ! fakesink sync=true name=view")
         self.tee = self.player.get_by_name("tee")
@@ -186,6 +186,19 @@ class RecorderTestCase(unittest.TestCase):
         self.assertGreater(self.view_position(), pos)
         self.check_bus()
         self.assertEqual(len(self.tee.srcpads), 1)
+
+    def test_record_untimestamped(self):
+        # Like toupcamsrc: frames have no PTS, which mp4mux rejects
+        def clear(pad, info):
+            buf = info.get_buffer()
+            buf.pts = buf.dts = buf.duration = Gst.CLOCK_TIME_NONE
+            return Gst.PadProbeReturn.OK
+
+        self.player.get_by_name("src").get_static_pad("src").add_probe(
+            Gst.PadProbeType.BUFFER, clear)
+        fn = self.record(1.5)
+        self.assertAlmostEqual(ffprobe_ok(fn)[0], 1.5, delta=0.5)
+        self.check_bus()
 
     def test_record_twice(self):
         fn1 = self.record(0.5, name="rec1")

@@ -220,6 +220,7 @@ class GstVideoRecorder:
         self.finished = threading.Event()
         self.finished.set()
         self.stop_timer = None
+        self.offset = 0
 
     def is_recording(self):
         return self.bin is not None
@@ -303,10 +304,14 @@ class GstVideoRecorder:
         })
         add("videoconvert")
         add("videoscale")
-        add("capsfilter", {
+        capsfilter = add("capsfilter", {
             "caps":
             f"video/x-raw,format=I420,width={width},height={height},pixel-aspect-ratio=1/1"
         })
+        # After videoconvert so buffers are ours, not shared with other tee branches
+        # (sources that skip timestamps don't produce I420 => never passthrough)
+        capsfilter.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER,
+                                                   self._stamp_probe)
         add(plan["video_encoder"], plan["video_encoder_props"])
         if plan["video_parser"]:
             add(plan["video_parser"])
@@ -355,6 +360,26 @@ class GstVideoRecorder:
             return 0
         return max(0, clock.get_time() - self.player.get_base_time())
 
+    def _stamp_probe(self, pad, info):
+        """
+        Some sources (ex: toupcamsrc) don't timestamp frames but muxers require it
+        Use the arrival time
+        """
+        buf = info.get_buffer()
+        if buf.pts != Gst.CLOCK_TIME_NONE:
+            return Gst.PadProbeReturn.OK
+        event = pad.get_sticky_event(Gst.EventType.SEGMENT, 0)
+        if event is None:
+            return Gst.PadProbeReturn.OK
+        segment = event.parse_segment()
+        running_time = max(0, self._running_time() + self.offset)
+        pts = segment.position_from_running_time(Gst.Format.TIME,
+                                                 running_time)
+        if pts != Gst.CLOCK_TIME_NONE:
+            buf.pts = pts
+            buf.dts = pts
+        return Gst.PadProbeReturn.OK
+
     def _link(self):
         self.player.add(self.bin)
         # request_pad_simple: GStreamer 1.20+
@@ -363,6 +388,7 @@ class GstVideoRecorder:
         self.tee_pad = request_pad("src_%u")
         # Start the file at t=0 instead of at pipeline uptime
         offset = -self._running_time()
+        self.offset = offset
         sinkpad = self.bin.get_static_pad("sink")
         sinkpad.set_offset(offset)
         if self.audio_src is not None:

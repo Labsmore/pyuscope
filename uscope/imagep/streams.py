@@ -4,7 +4,7 @@ from uscope.scan_util import index_scan_images, bucket_group, is_tif_scan
 from uscope import config
 from uscope.imagep.util import TaskBarrier, EtherealImageR, remove_intermediate_directories, find_qr_code_match, check_valid_image_dir
 from uscope.imagep.summary import write_html_viewer, write_snapshot_grid, write_quick_pano
-from uscope.util import writej
+from uscope.util import writej, readj
 from uscope.cal.analysis.color import apply_gains, effective_gains
 import glob
 import shutil
@@ -23,6 +23,33 @@ def get_image_suffix(dir_in):
         return ".tif"
     else:
         return ".jpg"
+
+
+# 28b21ca: planner started capturing "processed" images (FF corrected)
+# Older scans are raw
+PROCESSED_CAPTURE_DATE = "2023-11-16"
+
+
+def scan_capture_corrections(directory):
+    """
+    Return list of corrections (ex: "correct-ff1") already applied to scan
+    images at capture time or None if unknown (ex: not a pyuscope scan)
+    """
+    fn = os.path.join(directory, "uscan.json")
+    if not os.path.exists(fn):
+        return None
+    scanj = readj(fn)
+    capturej = scanj.get("image-capture", {})
+    if "corrections" in capturej:
+        return list(capturej["corrections"])
+    # Legacy scan: assume processed capture applied FF if calibrated
+    get_mode = scanj.get("pconfig", {}).get("imager",
+                                            {}).get("get_mode", "processed")
+    if get_mode == "raw":
+        return []
+    if scanj.get("time_end", "") < PROCESSED_CAPTURE_DATE:
+        return []
+    return ["correct-ff1"]
 
 
 class ImageStream:
@@ -84,6 +111,16 @@ class IPPConfigJ:
     def snapshot_correction(self):
         # Usually snapshots are already corrected during normal imaging
         return bool(self.j.get("snapshot_correction", False))
+
+    def ff_correction(self):
+        """
+        None (default): only if not already applied when capturing
+        True / False: force on / off
+        """
+        ret = self.j.get("ff_correction", None)
+        if ret is None:
+            return None
+        return bool(ret)
 
     def cloud_stitch(self):
         return bool(self.j.get("cloud_stitch", True))
@@ -248,10 +285,12 @@ class DirCSIP:
 
         self.log("Reading metadata...")
         working_iindex = index_scan_images(self.directory)
+        capture_corrections = scan_capture_corrections(self.directory)
 
         self.log("Microscope: %s" % (self.microscope.name, ))
         self.log("Serial: %s" % (self.microscope.serial(), ))
         self.log("Has FF cal: %s" % config.get_usc().imager.has_ff_cal())
+        self.log("Capture corrections: %s" % (capture_corrections, ))
         self.log("Options")
         self.log("  Keep intermediates: %s" %
                  self.ipp_config.keep_intermediates())
@@ -323,6 +362,10 @@ class DirCSIP:
                 for pipeline_this in ipp:
                     plugin = pipeline_this["plugin"]
                     this_dir = pipeline_this["dir"]
+                    if plugin in (capture_corrections or []):
+                        self.verbose and self.log(
+                            f"{plugin}: skip (applied at capture)")
+                        continue
                     self.verbose and self.log(f"{plugin}: start")
                     next_dir = os.path.join(working_iindex["dir"], this_dir)
                     self.correct_plugin_run(pipeline_this,
@@ -331,8 +374,15 @@ class DirCSIP:
                                             lazy=self.lazy)
                     working_iindex = index_scan_images(next_dir)
 
-        if not config.get_usc().imager.has_ff_cal():
+        ff_correction = self.ipp_config.ff_correction()
+        if ff_correction is False:
+            self.verbose and self.log("FF correction: skip (requested)")
+        elif not config.get_usc().imager.has_ff_cal():
             self.verbose and self.log("FF correction: skip")
+        elif ff_correction is None and "correct-ff1" in (capture_corrections
+                                                         or []):
+            self.verbose and self.log(
+                "FF correction: skip (applied at capture)")
         else:
             self.verbose and self.log("FF correction: start")
             next_dir = os.path.join(working_iindex["dir"], "ff1")

@@ -7,6 +7,7 @@ from uscope.imager.autofocus import AutoStacker
 from uscope.gui.common import ArgusShutdown
 from uscope.threads import ShutdownPhase
 from uscope.imager.imager_util import format_mm_3dec
+from uscope.gui.measure_util import point_segment_distance, label_normal, label_rect
 
 from PyQt5 import Qt
 from PyQt5.QtGui import *
@@ -1569,16 +1570,26 @@ class AnnotateImage(QLabel):
     """
 
     Modes = Enum('Modes', ['SELECT', 'RULER'])
+    # Screen pixels
+    SELECT_RADIUS = 6
+    DRAG_THRESHOLD = 5
+    TICK_LEN = 6
 
     def __init__(self, filename=None):
         super().__init__()
         self.filename = filename
         self.mode = self.Modes.SELECT
+        # Points are in image pixel coordinates so they are independent of zoom
         self.measurements = []
         self.point_a = None
-        self.point_b = False
+        self.press_pos = None
+        self.cursor_pos = None
         self.selected_index = -1
         self._pixel_conversion = 1.0
+        self.line_color = QColor(255, 220, 0)
+        self.selected_color = QColor(60, 255, 60)
+        self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.ClickFocus)
 
     @property
     def pixel_conversion(self):
@@ -1589,50 +1600,77 @@ class AnnotateImage(QLabel):
         self._pixel_conversion = value
         self.update()  # Repaint when conversion updated
 
+    def image_scale(self):
+        """
+        Widget pixels per image pixel
+        """
+        pixmap = self.pixmap()
+        if pixmap is None or pixmap.isNull() or pixmap.width() == 0:
+            return 1.0
+        return self.width() / pixmap.width()
+
+    def to_image(self, pos):
+        return QPointF(pos) / self.image_scale()
+
+    def to_widget(self, point):
+        return point * self.image_scale()
+
     def add_measurement(self, value):
         self.measurements.append(value)
+
+    def measurement_text(self, a, b):
+        distance = math.hypot(a.x() - b.x(), a.y() - b.y())
+        distance_um = self.pixel_conversion * distance
+        return format_mm_3dec(distance_um / 1000)
 
     # Check if the current pos selects a target
     def select(self, pos):
         pos = (pos.x(), pos.y())
         self.selected_index = -1
+        best = self.SELECT_RADIUS
         for n, m in enumerate(self.measurements):
-            # TODO: maybe cache points for faster and more accurate selection?
             if m[0] == "Line":
-                start = (m[1].x(), m[1].y())
-                end = (m[2].x(), m[2].y())
-                start_x = min(start[0], end[0])
-                end_x = max(start[0], end[0])
-                start_y = min(start[1], end[1])
-                end_y = max(start[1], end[1])
-                if pos[0] in range(start_x, end_x) and pos[1] in range(
-                        start_y, end_y):
+                start = self.to_widget(m[1])
+                end = self.to_widget(m[2])
+                distance = point_segment_distance(pos, (start.x(), start.y()),
+                                                  (end.x(), end.y()))
+                if distance <= best:
+                    best = distance
                     self.selected_index = n
-                    break
-            elif m[0] == "Circle":  # e.g. logic for detecting circle/other shape selection...
-                pass
-            elif m[0] == "Square":
-                pass
 
         self.update()
 
     def delete_selected(self):
         if self.selected_index == -1:
             return
-        if self.mode != self.Modes.SELECT:
-            return
         try:
             del self.measurements[self.selected_index]
+        except IndexError:
+            pass
+        self.selected_index = -1
+        self.update()
+
+    def cancel_pending(self):
+        """
+        Drop a half placed ruler or the selection
+        Return True if there was something to cancel
+        """
+        if self.point_a is not None:
+            self.point_a = None
+            self.update()
+            return True
+        if self.selected_index != -1:
             self.selected_index = -1
             self.update()
-        except Exception as _e:
-            pass
+            return True
+        return False
 
     def set_mode(self, value: int):
         self.mode = value
         # Reset vars when mode change
         self.point_a = None
-        self.point_b = None
+        self.press_pos = None
+        self.update()
 
     def paintEvent(self, e):
         # Make sure to paint the image first
@@ -1641,89 +1679,150 @@ class AnnotateImage(QLabel):
         # Now draw the measurements
         qp = QPainter()
         qp.begin(self)
-        pen = QPen(Qt.blue)
+        qp.setRenderHint(QPainter.Antialiasing)
+        font = QFont(self.font())
+        font.setBold(True)
+        qp.setFont(font)
+        fm = QFontMetrics(font)
+        visible = self.visibleRegion().boundingRect()
+        if visible.isEmpty():
+            visible = self.rect()
+        outline_color = QColor(0, 0, 0, 180)
 
-        def draw_point(point):
-            circ_radius = 4
-            pen.setWidth(4)
-            qp.setPen(pen)
-            qp.drawEllipse(point.x() - int(circ_radius / 2),
-                           point.y() - int(circ_radius / 2), circ_radius,
-                           circ_radius)
+        def draw_outlined(color, width, style, draw):
+            # Dark outline under the colored stroke keeps it visible on both
+            # bright and dark images
+            for c, w in ((outline_color, width + 2), (color, width)):
+                pen = QPen(c, w, style)
+                pen.setCapStyle(Qt.RoundCap)
+                qp.setPen(pen)
+                draw()
 
-        def draw_labelled_line(start, end):
-            pen.setWidth(8)
-            qp.setPen(pen)
-            draw_point(start)
-            draw_point(end)
-            qp.drawLine(start.x(), start.y(), end.x(), end.y())
-            font = QFont()
-            font.setFamily('Times')
-            font.setBold(True)
-            font.setPointSize(12)
-            qp.setFont(font)
-            distance = ((start.x() - end.x())**2 +
-                        (start.y() - end.y())**2)**0.5
-            distance = round(distance, 2)
-            # Center on line but offset so we aren't on it
-            dx = 0
-            dy = 0
-            # More left/right than up/down?
-            if abs(start.x() - end.x()) > abs(start.y() - end.y()):
-                # Move up
-                dy -= 10
-            else:
-                # Move right
-                dx += 10
-            distance_um = self.pixel_conversion * distance
-            text = format_mm_3dec(distance_um / 1000)
-            qp.drawText((start.x() + end.x()) // 2 + dx,
-                        (start.y() + end.y()) // 2 + dy, text)
+        def draw_point(point, color):
+            draw_outlined(
+                color, 2, Qt.SolidLine, lambda: qp.drawEllipse(
+                    point, self.TICK_LEN / 2, self.TICK_LEN / 2))
 
-        selected_color = QColor(43, 250, 43, 200)
-        default_color = QColor(43, 43, 43, 200)
+        def draw_label(start, end, text, color):
+            pad = 3
+            size = (fm.horizontalAdvance(text) + 2 * pad,
+                    fm.height() + 2 * pad)
+            # Keep labels in view while scrolled, but don't pile labels of
+            # off screen rulers up along the edge
+            bounds_rect = self.rect()
+            if visible.contains(((start + end) / 2).toPoint()):
+                bounds_rect = visible
+            bounds = (bounds_rect.x(), bounds_rect.y(), bounds_rect.width(),
+                      bounds_rect.height())
+            x, y, w, h = label_rect((start.x(), start.y()), (end.x(), end.y()),
+                                    size,
+                                    bounds=bounds)
+            rect = QRectF(x, y, w, h)
+            qp.setPen(QPen(color, 1))
+            qp.setBrush(QColor(0, 0, 0, 170))
+            qp.drawRoundedRect(rect, 3, 3)
+            qp.setBrush(Qt.NoBrush)
+            qp.setPen(Qt.white)
+            qp.drawText(rect, Qt.AlignCenter, text)
+
+        def draw_labelled_line(a, b, color, style=Qt.SolidLine):
+            start = self.to_widget(a)
+            end = self.to_widget(b)
+            nx, ny = label_normal((start.x(), start.y()), (end.x(), end.y()))
+            tick = QPointF(nx, ny) * self.TICK_LEN
+
+            def draw():
+                qp.drawLine(start, end)
+                qp.drawLine(start - tick, start + tick)
+                qp.drawLine(end - tick, end + tick)
+
+            draw_outlined(color, 2, style, draw)
+            draw_label(start, end, self.measurement_text(a, b), color)
+
         for n, m in enumerate(self.measurements):
-            pen.setColor(default_color)
+            color = self.line_color
             if n == self.selected_index:
-                pen.setColor(selected_color)
+                color = self.selected_color
             if m[0] == "Line":
-                draw_labelled_line(m[1], m[2])
+                draw_labelled_line(m[1], m[2], color)
 
-        if self.point_a:
-            point_color = QColor(43, 43, 250, 200)
-            pen.setColor(point_color)
-            draw_point(self.point_a)
+        if self.point_a is not None:
+            if self.cursor_pos is not None:
+                draw_labelled_line(self.point_a,
+                                   self.to_image(self.cursor_pos),
+                                   self.line_color, Qt.DashLine)
+            else:
+                draw_point(self.to_widget(self.point_a), self.line_color)
 
         qp.end()
 
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton and self.mode == self.Modes.RULER:
+            self.press_pos = event.pos()
+
+    def mouseMoveEvent(self, event):
+        pos = event.pos()
+        self.cursor_pos = pos
+        # Press and drag also places a ruler
+        if self.point_a is None and self.press_pos is not None and math.hypot(
+                pos.x() - self.press_pos.x(),
+                pos.y() - self.press_pos.y()) >= self.DRAG_THRESHOLD:
+            self.point_a = self.to_image(self.press_pos)
+        if self.point_a is not None:
+            self.update()
+
+    def leaveEvent(self, event):
+        self.cursor_pos = None
+        if self.point_a is not None:
+            self.update()
+
     def mouseReleaseEvent(self, event):
+        if event.button() == Qt.RightButton:
+            self.cancel_pending()
+            return
+        if event.button() != Qt.LeftButton:
+            return
+        self.press_pos = None
+
         # Try to find a selectable
         if self.mode == self.Modes.SELECT:
             self.select(event.pos())
             return
 
         if self.mode == self.Modes.RULER:
-            if not self.point_a:
-                self.point_a = event.pos()
+            pos = event.pos()
+            if self.point_a is None:
+                self.point_a = self.to_image(pos)
                 self.update()
                 return
-            if self.point_a:
-                self.add_measurement(["Line", self.point_a, event.pos()])
-                self.point_a = None
-                self.point_b = None
+            start = self.to_widget(self.point_a)
+            # Ignore zero length rulers from clicking the first point again
+            if math.hypot(pos.x() - start.x(),
+                          pos.y() - start.y()) < self.DRAG_THRESHOLD:
+                return
+            self.add_measurement(["Line", self.point_a, self.to_image(pos)])
+            self.point_a = None
 
         self.update()
 
     def undo(self):
+        if self.point_a is not None:
+            self.cancel_pending()
+            return
         try:
             self.measurements.pop()
         except IndexError:
             # No more actions to undo
             return
+        if self.selected_index >= len(self.measurements):
+            self.selected_index = -1
         self.update()
 
     def clear_all(self):
         self.measurements = []
+        self.point_a = None
+        self.press_pos = None
+        self.selected_index = -1
         self.update()
 
 

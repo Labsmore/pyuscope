@@ -268,7 +268,7 @@ class SinkxZoomableWidget(ArgusVideoWidget):
             incoming_crop_lr += 1
             incoming_used_w -= 1
         if incoming_crop_tb % 2 == 1:
-            incoming_crop_lr += 1
+            incoming_crop_tb += 1
             incoming_used_h -= 1
         verbose and print(
             f"  Incoming: zoomed size {incoming_used_w}w x {incoming_used_h}h")

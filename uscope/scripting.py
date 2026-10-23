@@ -712,6 +712,39 @@ class ScriptingPlugin:
         """
         self.imager().set_properties(properties)
 
+    def imager_get_exposure(self):
+        """
+        Exposure in camera units (typically us)
+        None if the camera doesn't have an exposure control
+        """
+        prop = self.session.imager_properties.get_exposure_disp_property()
+        if prop is None:
+            return None
+        return self.imager_get_disp_property(prop)
+
+    def imager_set_exposure(self, value):
+        prop = self.session.imager_properties.get_exposure_disp_property()
+        if prop is None:
+            raise ValueError("Camera doesn't support setting exposure")
+        self.imager_set_disp_property(prop, value)
+
+    def imager_get_auto_exposure(self):
+        """
+        True / False or None if the camera doesn't support auto exposure
+        """
+        prop = self.session.imager_properties.get_auto_exposure_disp_property(
+        )
+        if prop is None:
+            return None
+        return bool(self.imager_get_disp_property(prop))
+
+    def imager_set_auto_exposure(self, enabled):
+        prop = self.session.imager_properties.get_auto_exposure_disp_property(
+        )
+        if prop is None:
+            raise ValueError("Camera doesn't support auto exposure")
+        self.imager_set_disp_property(prop, bool(enabled))
+
     def imager_supported_capture_formats(self):
         """
         Pixel formats this camera can capture in

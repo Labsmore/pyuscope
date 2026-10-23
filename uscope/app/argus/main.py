@@ -105,7 +105,18 @@ class ArgusOptionsWindow(QWidget):
 
         layout.addWidget(motion_gb())
         layout.addWidget(joystick_gb())
-        self.setLayout(layout)
+        layout.addStretch()
+        general = QWidget()
+        general.setLayout(layout)
+
+        self.tabs = QTabWidget()
+        self.tabs.addTab(general, "General")
+        self.tabs.addTab(self.mw.calibrationTab, "Calibration")
+        top = QVBoxLayout()
+        top.addWidget(self.tabs)
+        self.setLayout(top)
+        self.setWindowTitle("Advanced options")
+        self.resize(1000, 600)
 
     def motion_damper_le_return(self, lazy=False):
         s = str(self.motion_damper_le.text()).strip()
@@ -284,7 +295,6 @@ class MainWindow(AMainWindow):
         self.snapshotsTab = self.add_tab(SnapshotViewerTab, "Snapshots")
         self.batchTab = self.add_tab(BatchImageTab, "Batch")
         self.scriptingTab = self.add_tab(ScriptingTab, "Scripting")
-        self.calibrationTab = self.add_tab(CalibrationTab, "Calibration")
         self.instrumentTabs = {}
         for name, configj in self.ac.bc.instruments().items():
             configj.setdefault("name", name)
@@ -300,6 +310,10 @@ class MainWindow(AMainWindow):
         self.ac.stitchingTab = self.stitchingTab
         self.ac.batchTab = self.batchTab
 
+        # Shown in File => Advanced options, not as a main tab
+        self.calibrationTab = CalibrationTab(ac=self.ac,
+                                             aname="calibration",
+                                             parent=self)
         self.argus_options_window = ArgusOptionsWindow(self)
 
     def createMenuBar(self):

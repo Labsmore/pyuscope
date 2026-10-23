@@ -124,6 +124,38 @@ class USCArgus:
             return bool(int(val))
         return bool(self.j.get("mdi", 0))
 
+    def video_record_container(self):
+        """
+        mp4 or mkv
+        Falls back to the other if encoders for this one aren't installed
+        """
+        ret = self.j.get("video_record_container", "mp4")
+        if ret not in ("mp4", "mkv"):
+            raise ValueError("Bad video_record_container: %s" % (ret, ))
+        return ret
+
+    def video_record_audio(self):
+        """
+        Default for the record audio checkbox
+        """
+        return bool(self.j.get("video_record_audio", False))
+
+    def video_record_audio_source(self):
+        """
+        gst-launch style description, ex: "pulsesrc device=foo"
+        """
+        return self.j.get("video_record_audio_source", "autoaudiosrc")
+
+    def video_record_max_wh(self):
+        """
+        Downscale recordings to fit in this size to keep encoding real time
+        None: record full resolution
+        """
+        ret = self.j.get("video_record_max_wh", [3840, 2160])
+        if ret is None:
+            return None
+        return tuple(ret)
+
     """
     def jog_min(self):
         return int(self.j.get("jog_min", 1))

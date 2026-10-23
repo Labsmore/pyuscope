@@ -328,3 +328,16 @@ def get_control_rw(fd):
 
 def find_device(name):
     return get_control_rw_class().find_device(name)
+
+
+def list_devices():
+    """
+    Return [(device, card name)] for each /dev/video* that can be queried
+    """
+    ret = []
+    for dev_name in sorted(glob.glob("/dev/video*")):
+        try:
+            ret.append((dev_name, str(pyrav4l2.Device(dev_name).device_name)))
+        except Exception:
+            pass
+    return ret

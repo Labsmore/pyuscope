@@ -27,6 +27,7 @@ from uscope.gui.widgets import TopWidget, BatchImageTab, AdvancedTab, StitchingT
 from uscope.gui.imaging import MainTab, ImagerTab
 from uscope.gui.scripting import ScriptingTab
 from uscope.gui.calibration import CalibrationTab
+from uscope.gui.minimap import MinimapTab
 
 
 # Can't save a dict like {(1, 2): "a"}
@@ -245,6 +246,7 @@ class MainWindow(AMainWindow):
         self.mainTab = self.add_tab(MainTab, "Main")
         self.imagerTab = self.add_tab(ImagerTab, "Imager")
         self.measureTab = self.add_tab(MeasureTab, "Measure")
+        self.minimapTab = self.add_tab(MinimapTab, "Minimap")
         self.batchTab = self.add_tab(BatchImageTab, "Batch")
         self.scriptingTab = self.add_tab(ScriptingTab, "Scripting")
         self.calibrationTab = self.add_tab(CalibrationTab, "Calibration")

@@ -357,7 +357,10 @@ class GstVideoRecorder:
 
     def _link(self):
         self.player.add(self.bin)
-        self.tee_pad = self.tee.request_pad_simple("src_%u")
+        # request_pad_simple: GStreamer 1.20+
+        request_pad = getattr(self.tee, "request_pad_simple",
+                              None) or self.tee.get_request_pad
+        self.tee_pad = request_pad("src_%u")
         # Start the file at t=0 instead of at pipeline uptime
         offset = -self._running_time()
         sinkpad = self.bin.get_static_pad("sink")

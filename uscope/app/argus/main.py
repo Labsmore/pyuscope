@@ -193,9 +193,22 @@ class MainWindow(AMainWindow):
         # Must be done after post_ui_init() as may depend on threads being fully initialized
         self.cache_load()
 
+        # Some window managers drop a maximize request made before the
+        # window is mapped. Request it up front and again once events run
+        self.setWindowState(self.windowState() | Qt.WindowMaximized)
         self.show()
+        QTimer.singleShot(250, self.ensure_maximized)
 
-        # sometimes GUI maximization doesn't stick
+    def ensure_maximized(self):
+        if self.isMaximized() or self.isFullScreen():
+            return
+        screen = QApplication.desktop().availableGeometry(self)
+        hint = self.minimumSizeHint()
+        if hint.width() > screen.width() or hint.height() > screen.height():
+            self.ac.log(
+                "WARNING: window minimum size %ux%u exceeds screen %ux%u, can't maximize"
+                % (hint.width(), hint.height(), screen.width(),
+                   screen.height()))
         self.showMaximized()
 
     def _cache_load(self, j):
@@ -475,7 +488,6 @@ class MainWindow(AMainWindow):
         self.central_widget.setLayout(layout)
         self.setCentralWidget(self.central_widget)
         self.createMenuBar()
-        self.showMaximized()
 
     def _poll_misc(self):
         pass

@@ -32,6 +32,14 @@ def caps_video_info(caps):
     if caps is None or not caps.is_fixed():
         return None
     s = caps.get_structure(0)
+    # gst-python 1.26 returns a StructureWrapper usable only as a context manager
+    if hasattr(s, "__enter__"):
+        with s as structure:
+            return _structure_video_info(caps, structure)
+    return _structure_video_info(caps, s)
+
+
+def _structure_video_info(caps, s):
     if s.get_name() != "video/x-raw":
         return None
     fmt = s.get_string("format")

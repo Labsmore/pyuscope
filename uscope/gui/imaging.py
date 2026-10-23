@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import *
 
 import os.path
 from uscope.util import utcnow
+from uscope.imager.imager_util import hdr_exposure_sequence, format_exposure_csv
 import threading
 
 
@@ -1770,6 +1771,7 @@ class ImagerTab(ArgusTab):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._hdr_pconfig = None
+        self._hdr_checked = None
 
     def _initUI(self):
         # Most of the layout is filled in from the ControlScroll
@@ -1819,25 +1821,12 @@ class ImagerTab(ArgusTab):
                 val = self.ac.get_exposure()
                 if val is None:
                     return None
-                pm_stops = int(self.hdr_auto_stops.text())
-                stops_per = int(self.hdr_auto_stops_per.text())
-
-                hdr_seq = []
-                # add in reverse then reverse list
-                val_tmp = val
-                for _stopi in range(pm_stops):
-                    val_tmp /= 2**stops_per
-                    hdr_seq.append(val_tmp)
-                hdr_seq.reverse()
-                hdr_seq.append(val)
-                val_tmp = val
-                for _stopi in range(pm_stops):
-                    val_tmp *= 2**stops_per
-                    hdr_seq.append(val_tmp)
-
-                le_str = ",".join(["%u" % x for x in hdr_seq])
-                self.hdr_le.setText(le_str)
-                self.hdr_seq = hdr_seq
+                hdr_seq = hdr_exposure_sequence(
+                    val, int(self.hdr_auto_stops.text()),
+                    float(self.hdr_auto_stops_per.text()))
+                le_str = format_exposure_csv(hdr_seq)
+                if le_str != self.hdr_le.text():
+                    self.hdr_le.setText(le_str)
             except ValueError:
                 return
 
@@ -1850,6 +1839,23 @@ class ImagerTab(ArgusTab):
     def hdr_pconfig(self):
         return self._hdr_pconfig
 
+    def check_hdr_resolution(self, properties_list):
+        """
+        Warn if the camera can't distinguish the requested exposures
+        """
+        disp = self.ac.get_exposure_disp_property()
+        vals = [x[disp] for x in properties_list]
+        if vals == self._hdr_checked:
+            return
+        self._hdr_checked = vals
+        prop = self.ac.imager_properties.disp2prop.get(disp, {})
+        if prop.get("type") == "int":
+            vals = [int(round(x)) for x in vals]
+        if len(set(vals)) != len(vals):
+            self.ac.log(
+                "WARNING: HDR exposures %s are not distinct at camera resolution. Increase exposure or stops per exposure"
+                % (",".join(str(x) for x in vals), ))
+
     def update_pconfig_hdr(self, pconfig):
         raw = str(self.hdr_le.text()).strip()
         if not raw:
@@ -1859,12 +1865,13 @@ class ImagerTab(ArgusTab):
         try:
             # XXX: consider gain as well
             properties_list = []
-            for val in [int(x) for x in raw.split(",")]:
+            for val in [float(x) for x in raw.split(",")]:
                 properties_list.append(
                     {self.ac.get_exposure_disp_property(): val})
         except ValueError:
             self.ac.log("Invalid HDR exposure value")
             raise
+        self.check_hdr_resolution(properties_list)
         ret = {
             "properties_list": properties_list,
             # this is probably a good approximation for now

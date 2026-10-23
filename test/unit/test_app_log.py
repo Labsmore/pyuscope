@@ -58,6 +58,17 @@ class TestAppLog(AppLogTestCase):
         self.assertRegex(self.read(),
                          "^" + TS_RE + " stderr: partial\ngui message\n$")
 
+    def test_rotate(self):
+        for i in range(5):
+            with open(self.fn, "w") as f:
+                f.write("run %u" % i)
+            app_log.rotate(self.fn, keep=3)
+        self.assertFalse(os.path.exists(self.fn))
+        for i, run in ((1, 4), (2, 3), (3, 2)):
+            with open("%s.%u" % (self.fn, i)) as f:
+                self.assertEqual(f.read(), "run %u" % run)
+        self.assertFalse(os.path.exists(self.fn + ".4"))
+
 
 class TestInstall(AppLogTestCase):
     def test_stderr_tee(self):

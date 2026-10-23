@@ -13,6 +13,7 @@ Native code writing straight to fd 2 (ex: GStreamer warnings) is not
 """
 
 import datetime
+import os
 import sys
 import threading
 
@@ -98,6 +99,18 @@ def get():
     return _app_log
 
 
+def rotate(fn, keep=3):
+    """
+    Shift fn => fn.1 => fn.2 ... so a restart after a crash keeps the crash log
+    """
+    for i in range(keep - 1, 0, -1):
+        src = "%s.%u" % (fn, i)
+        if os.path.exists(src):
+            os.replace(src, "%s.%u" % (fn, i + 1))
+    if os.path.exists(fn):
+        os.replace(fn, fn + ".1")
+
+
 def install(fn, stdout=False, mode="w"):
     """
     Open the log file and tee stderr (and optionally stdout) into it
@@ -106,6 +119,8 @@ def install(fn, stdout=False, mode="w"):
     global _app_log
 
     assert _app_log is None, "app log already installed"
+    if mode == "w":
+        rotate(fn)
     _app_log = AppLog(fn, mode=mode)
     if sys.stderr is not None:
         sys.stderr = StreamTee(sys.stderr, _app_log, "stderr")

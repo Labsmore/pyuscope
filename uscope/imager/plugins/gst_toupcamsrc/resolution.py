@@ -109,12 +109,11 @@ def filter_settable(resolutions, max_esize):
 def max_resolution(resolutions):
     """
     Largest by pixel count
-    Ties: lowest esize (SDK lists largest first)
+    Ties: first listed
     """
     if not resolutions:
         return None
-    return max(resolutions,
-               key=lambda r: (r["width"] * r["height"], -r["esize"]))
+    return max(resolutions, key=lambda r: r["width"] * r["height"])
 
 
 def find_wh(resolutions, wh):
@@ -365,6 +364,25 @@ class ResolutionSelector:
                  (self.active["width"], self.active["height"],
                   self.active["esize"], self.how))
 
+    def label(self, r):
+        return resolution_label(r, self.resolutions)
+
+    def selected_wh(self):
+        """
+        What the camera will be opened at next start (w, h)
+        """
+        if self.override is not None:
+            return self.override
+        if self.how == "user":
+            try:
+                r, _how = select(self.resolutions,
+                                 config_wh=self.config_wh,
+                                 config_esize=self.config_esize)
+                return r["width"], r["height"]
+            except Exception:
+                return None
+        return self.active["width"], self.active["height"]
+
     def can_select(self):
         return len(self.resolutions) > 1 and not self.pixel_crop
 
@@ -390,19 +408,9 @@ class ResolutionSelector:
         """
         if self.active is None:
             return False
-        if self.override is not None:
-            want = self.override
-        elif self.how == "user":
-            # Default restored: config / max
-            try:
-                r, _how = select(self.resolutions,
-                                 config_wh=self.config_wh,
-                                 config_esize=self.config_esize)
-                want = r["width"], r["height"]
-            except Exception:
-                return True
-        else:
-            return False
+        want = self.selected_wh()
+        if want is None:
+            return True
         return tuple(want) != (self.active["width"], self.active["height"])
 
     def cache_sn_save(self, cachej_sn):

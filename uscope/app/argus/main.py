@@ -317,6 +317,7 @@ class MainWindow(AMainWindow):
             self.enableRtspServer.triggered.connect(
                 self.enableRtspServerTriggered)
         self.createCaptureFormatMenu(videoMenu)
+        self.createResolutionMenu(videoMenu)
 
         motionMenu = menuBar.addMenu("Motion")
         # Some people prefer perspective of moving camera, some prefer moving stage
@@ -418,6 +419,64 @@ class MainWindow(AMainWindow):
         except (ValueError, RuntimeError) as e:
             self.ac.log(f"Failed to restore default capture format: {e}")
         self.captureFormatChanged(self.ac.imager.get_capture_format())
+
+    def createResolutionMenu(self, videoMenu):
+        """
+        Video => Resolution
+        Overrides microscope.j5 imager width/height (default: camera max)
+        Persists per microscope + camera S/N
+        Applied on next start: image sizes are set up throughout
+        (pipeline, widgets, calibration) when Argus starts
+        """
+        self.resolutionMenu = None
+        self.resolutionActions = []
+        selector = self.ac.vidpip.imager_aplugin.resolution_selector()
+        if not selector or not selector.can_select():
+            return
+
+        self.resolutionMenu = videoMenu.addMenu("Resolution")
+        self.resolutionGroup = QActionGroup(self)
+        self.resolutionGroup.setExclusive(True)
+        for r in selector.resolutions:
+            action = QAction(selector.label(r), self, checkable=True)
+            action.setData((r["width"], r["height"]))
+            self.resolutionGroup.addAction(action)
+            self.resolutionMenu.addAction(action)
+            self.resolutionActions.append(action)
+        self.resolutionGroup.triggered.connect(self.resolutionTriggered)
+        self.resolutionMenu.addSeparator()
+        self.resolutionDefault = QAction("Use microscope default", self)
+        self.resolutionMenu.addAction(self.resolutionDefault)
+        self.resolutionDefault.triggered.connect(
+            lambda: self.resolutionSelect(None))
+        self.resolutionMenuUpdate()
+
+    def resolutionMenuUpdate(self):
+        selector = self.ac.vidpip.imager_aplugin.resolution_selector()
+        want = selector.selected_wh()
+        for action in self.resolutionActions:
+            action.setChecked(want is not None
+                              and tuple(action.data()) == tuple(want))
+
+    def resolutionTriggered(self, action):
+        self.resolutionSelect(action.data())
+
+    def resolutionSelect(self, wh):
+        selector = self.ac.vidpip.imager_aplugin.resolution_selector()
+        try:
+            selector.set_override(wh)
+        except ValueError as e:
+            self.ac.log(f"Failed to set resolution: {e}")
+        self.resolutionMenuUpdate()
+        self.cache_save()
+        want = selector.selected_wh()
+        if selector.restart_required() and want:
+            self.ac.log("Camera resolution %ux%u: restart Argus to apply" %
+                        tuple(want))
+            QMessageBox.information(
+                self, "Camera resolution",
+                "Camera resolution will change to %u x %u when Argus is restarted"
+                % tuple(want))
 
     def zoom_plus(self):
         self.ac.vidpip.zoomable_plus()

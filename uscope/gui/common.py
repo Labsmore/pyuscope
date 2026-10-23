@@ -448,6 +448,9 @@ class ArgusCommon(QObject):
             imagerj["format"] = self.capture_format_override
         else:
             imagerj.pop("format", None)
+        selector = self.vidpip.imager_aplugin.resolution_selector()
+        if selector:
+            selector.cache_sn_save(cachej)
 
     def cache_sn_load(self, cachej):
         self.microscope.cache_sn_load(cachej)

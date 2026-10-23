@@ -65,6 +65,9 @@ class TestSelect(unittest.TestCase):
     def test_max(self):
         self.assertEqual(tres.max_resolution([R2, R1, R0]), R0)
         self.assertIsNone(tres.max_resolution([]))
+        # Unknown esize (camera not probed)
+        r = {"esize": None, "width": 1, "height": 1}
+        self.assertEqual(tres.max_resolution([r, r.copy()]), r)
         self.assertEqual(tres.select(RES), (R0, "max"))
 
     def test_filter_settable(self):
@@ -218,6 +221,7 @@ class TestSelector(unittest.TestCase):
         self.assertEqual(j["source_properties"]["esize"], 1)
         # Restoring the default goes back to microscope.j5
         sel.set_override(None)
+        self.assertEqual(sel.selected_wh(), (5440, 3648))
         self.assertTrue(sel.restart_required())
         cachej_sn = {"imager": {"format": "RGB"}}
         sel.cache_sn_save(cachej_sn)

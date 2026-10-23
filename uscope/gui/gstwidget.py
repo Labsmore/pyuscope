@@ -9,6 +9,7 @@ import traceback
 import os
 import signal
 import faulthandler
+import threading
 from collections import OrderedDict
 from uscope.imager.gst_pipeline import GstImagerPipeline
 from uscope import util
@@ -64,6 +65,9 @@ The widget used to render a sinkx winId
 
 
 class ArgusVideoWidget(QWidget):
+    # Renders into winId() via GstVideoOverlay
+    uses_window_handle = True
+
     def __init__(self, ac=None, player=None, config={}, parent=None):
         super().__init__(parent=parent)
         self.config = config
@@ -338,6 +342,112 @@ class SinkxZoomableWidget(ArgusVideoWidget):
         assert self.capsfilter.link(self.sinkx)
 
 
+class AppsinkZoomableWidget(SinkxZoomableWidget):
+    """
+    Same as SinkxZoomableWidget but frames are pulled from an appsink and painted by Qt
+    Doesn't need a native X window => works on Wayland / offscreen
+    Costs a frame copy + Qt scaling per frame
+    """
+
+    uses_window_handle = False
+    frame_ready = pyqtSignal()
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.image = None
+        self.videoconvert = None
+        # Newest frame not yet picked up by the GUI thread
+        # Only one is kept so a slow GUI drops frames instead of queuing them
+        self.pending_image = None
+        self.pending_lock = threading.Lock()
+        self.frame_ready.connect(self.on_frame_ready)
+
+    def setupWidget(self, parent=None):
+        if parent:
+            self.setParent(parent)
+        self.setAttribute(Qt.WA_OpaquePaintEvent)
+
+    def create_elements(self, player, src_tee):
+        self.videocrop = Gst.ElementFactory.make("videocrop")
+        assert self.videocrop
+        player.add(self.videocrop)
+
+        self.videoscale = Gst.ElementFactory.make("videoscale")
+        assert self.videoscale
+        player.add(self.videoscale)
+
+        self.videoconvert = Gst.ElementFactory.make("videoconvert")
+        assert self.videoconvert
+        player.add(self.videoconvert)
+
+        # BGRx bytes in memory == QImage.Format_RGB32 on little endian
+        self.capsfilter = Gst.ElementFactory.make("capsfilter")
+        self.capsfilter.props.caps = Gst.Caps.from_string(
+            "video/x-raw,format=BGRx")
+        self.update_crop_scale()
+        player.add(self.capsfilter)
+
+        self.sinkx = Gst.ElementFactory.make("appsink", self.gst_element_name)
+        assert self.sinkx
+        self.sinkx.set_property("emit-signals", True)
+        # Display only: never back up the pipeline
+        self.sinkx.set_property("max-buffers", 1)
+        self.sinkx.set_property("drop", True)
+        self.sinkx.set_property("sync", False)
+        self.sinkx.connect("new-sample", self.on_new_sample)
+        player.add(self.sinkx)
+        src_tee.append(self.videocrop)
+
+    def gst_link(self):
+        assert self.videocrop.link(self.videoscale)
+        assert self.videoscale.link(self.videoconvert)
+        assert self.videoconvert.link(self.capsfilter)
+        assert self.capsfilter.link(self.sinkx)
+
+    def on_new_sample(self, appsink):
+        """
+        GStreamer streaming thread
+        """
+        sample = appsink.emit("pull-sample")
+        if sample is None:
+            return Gst.FlowReturn.OK
+        info = GstVideo.VideoInfo.new_from_caps(sample.get_caps())
+        buf = sample.get_buffer()
+        ok, mapinfo = buf.map(Gst.MapFlags.READ)
+        if not ok:
+            return Gst.FlowReturn.OK
+        try:
+            # copy() so the QImage owns its pixels after unmap
+            image = QImage(mapinfo.data, info.width, info.height,
+                           info.stride[0], QImage.Format_RGB32).copy()
+        finally:
+            buf.unmap(mapinfo)
+        with self.pending_lock:
+            notify = self.pending_image is None
+            self.pending_image = image
+        if notify:
+            # Queued to the GUI thread
+            self.frame_ready.emit()
+        return Gst.FlowReturn.OK
+
+    def on_frame_ready(self):
+        with self.pending_lock:
+            self.image = self.pending_image
+            self.pending_image = None
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), Qt.black)
+        if self.image is not None and not self.image.isNull():
+            size = self.image.size().scaled(self.size(), Qt.KeepAspectRatio)
+            x = (self.width() - size.width()) // 2
+            y = (self.height() - size.height()) // 2
+            painter.drawImage(QRect(x, y, size.width(), size.height()),
+                              self.image)
+        painter.end()
+
+
 class GstVideoPipeline(GstImagerPipeline):
     """
     GstImagerPipeline + Qt video widgets (and optional RTSP feed)
@@ -466,6 +576,8 @@ class GstVideoPipeline(GstImagerPipeline):
 
     def full_restart_pipeline(self):
         for widget in self.widgets.values():
+            if not widget.uses_window_handle:
+                continue
             widget.winid = widget.winId()
             assert widget.winid, "Need widget_winid by run"
 
@@ -496,6 +608,8 @@ class GstVideoPipeline(GstImagerPipeline):
         You must have placed widget by now or it will invalidate winid
         """
         for widget in self.widgets.values():
+            if not widget.uses_window_handle:
+                continue
             widget.winid = widget.winId()
             assert widget.winid, "Need widget_winid by run"
         super().run()

@@ -22,6 +22,8 @@ from uscope.scripting import (ScriptRunner, HeadlessScriptHost,
                               input_buttons)
 from uscope.util import readj
 from uscope import util
+from uscope import app_log
+from uscope.config import get_bc
 
 import argparse
 import json
@@ -150,6 +152,10 @@ def run(args):
 
 def main():
     args = parse_args()
+    # Separate from Argus' log.txt as both may run at once
+    app_log.install(os.path.join(get_bc().get_data_dir(),
+                                 "headless_log.txt"),
+                    stdout=True)
     try:
         sys.exit(run(args))
     except KeyboardInterrupt:

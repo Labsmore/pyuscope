@@ -5,7 +5,9 @@ Log file plumbing: stderr / exceptions tee'd into the app log file
 
 import io
 import os
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -13,6 +15,9 @@ import traceback
 import unittest
 
 from uscope import app_log
+
+REPO_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", ".."))
 
 TS_RE = r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3}"
 
@@ -155,6 +160,36 @@ class TestInstall(AppLogTestCase):
             sys.stderr = old_stderr
         self.assertRegex(self.read(),
                          TS_RE + " stderr: Qt warning: qt says hi")
+
+
+class TestHeadless(unittest.TestCase):
+    def test_headless_log(self):
+        tmp = tempfile.mkdtemp(prefix="pyuscope-test-app-log-")
+        try:
+            env = dict(os.environ)
+            env["PYUSCOPE_DATA_DIR"] = os.path.join(tmp, "data")
+            env["PYTHONPATH"] = REPO_DIR
+            script = os.path.join(REPO_DIR, "uscope", "script", "test",
+                                  "test_exception.py")
+            out = subprocess.run([
+                sys.executable,
+                os.path.join(REPO_DIR, "app", "headless.py"), "--microscope",
+                "mock-grbl", "--imager", "mock", script
+            ],
+                                 cwd=REPO_DIR,
+                                 env=env,
+                                 capture_output=True,
+                                 text=True,
+                                 timeout=120)
+            # Terminal output unchanged
+            self.assertIn("Traceback", out.stderr)
+            self.assertNotIn(" stderr: ", out.stderr)
+            with open(os.path.join(tmp, "data", "headless_log.txt")) as f:
+                content = f.read()
+            self.assertRegex(content, TS_RE + " stderr: Traceback")
+            self.assertRegex(content, TS_RE + " stdout: Script completed")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":

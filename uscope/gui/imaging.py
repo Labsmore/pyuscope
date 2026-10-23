@@ -2,6 +2,7 @@ from uscope.planner.planner_util import microscope_to_planner_config
 from uscope import config
 from collections import OrderedDict
 from uscope.gui.widgets import AWidget, ArgusTab
+from uscope.gui.video_record import VideoRecordWidget
 from uscope.motion import motion_util
 from uscope.scan_runner import ScanRunnerListener
 from uscope.microscope import StopEvent, MicroscopeStop
@@ -1298,6 +1299,11 @@ class ImagingTaskWidget(AWidget):
         self.scan_listener.queueDone.connect(self.queue_done)
         self.ac.scan_runner.add_listener(self.scan_listener)
         self.capture_mode = "composite"
+        self.video_record_widget = VideoRecordWidget(
+            ac=ac,
+            filename_base=self.video_fn,
+            aname="video_record",
+            parent=self)
 
     def _initUI(self):
         def getNameLayout():
@@ -1334,6 +1340,7 @@ class ImagingTaskWidget(AWidget):
         self.snapshot_pb.setIcon(QIcon(config.GUI.icon_files["camera"]))
         self.snapshot_pb.clicked.connect(self.take_snapshot)
         layout.addWidget(self.snapshot_pb)
+        layout.addWidget(self.video_record_widget)
 
         self.go_pause_pb = QPushButton("Panoramic scan")
         self.go_pause_pb.clicked.connect(self.go_pause_clicked)
@@ -1568,6 +1575,11 @@ class ImagingTaskWidget(AWidget):
     def snapshot_fn(self):
         return snapshot_fn(user=str(self.job_name_le.text()),
                            extension=self.save_extension(),
+                           parent=self.ac.usc.app("argus").snapshot_dir())
+
+    def video_fn(self, extension):
+        return snapshot_fn(user=str(self.job_name_le.text()),
+                           extension=extension,
                            parent=self.ac.usc.app("argus").snapshot_dir())
 
     def _post_ui_init(self):

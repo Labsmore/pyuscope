@@ -98,9 +98,15 @@ class WhiteBalanceCal(Calibration):
             return Result(self.name,
                           ok=False,
                           message="Need color frames, got grayscale")
-        wb = compute_white_balance(arr,
-                                   roi_fraction=self.roi_fraction,
-                                   normalize=self.normalize)
+        try:
+            wb = compute_white_balance(arr,
+                                       roi_fraction=self.roi_fraction,
+                                       normalize=self.normalize)
+        except ValueError as e:
+            # ex: a black channel
+            return Result(self.name,
+                          ok=False,
+                          message="Bad white target image: %s" % (e, ))
         gains = wb["gains"]
         log("White balance levels %s => gains %s" %
             (["%0.1f" % x for x in wb["levels"]], ["%0.3f" % x

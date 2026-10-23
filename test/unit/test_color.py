@@ -235,6 +235,12 @@ class TestWhiteBalanceCal(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("dark", result.message)
 
+    def test_black_channel_fails(self):
+        im = Image.fromarray(_white((0, 100, 100)))
+        result = self._run(_FakeCtx(im))
+        self.assertFalse(result.ok)
+        self.assertFalse(result.entries)
+
 
 if __name__ == "__main__":
     unittest.main()

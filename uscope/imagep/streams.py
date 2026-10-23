@@ -574,11 +574,14 @@ class SnapshotCSIP:
         # and leak into scan image processing
         ipp = list(config.get_usc().ipp.snapshot_correction())
         config_plugins = [p["plugin"] for p in ipp]
+        # Lets later processing (ex: DirCSIP on a scan) not apply them again
+        corrections = []
         if len(ipp) == 0:
             self.verbose and self.log("Post corrections: skip")
         else:
             for pipeline_this in ipp:
                 current_image = run_1_to_1(pipeline_this["plugin"])
+                corrections.append(pipeline_this["plugin"])
 
         if not config.get_usc().imager.has_ff_cal():
             self.verbose and self.log("FF correction: skip")
@@ -590,6 +593,7 @@ class SnapshotCSIP:
                                                    tb=tb)
             tb.wait()
             current_image = data_out["image"].get_im()
+            corrections.append("correct-ff1")
 
         # After FF: FF normalizes each channel to itself so color is unchanged
         color_gains = self.color_gains()
@@ -599,6 +603,7 @@ class SnapshotCSIP:
             current_image = run_1_to_1("correct-wb",
                                        plugin_options=dict(
                                            options, color_gains=color_gains))
+            corrections.append("correct-wb")
             # Native depth data is what gets saved for .tif / .png
             data = getattr(capim, "data", None)
             if data is not None:
@@ -608,6 +613,8 @@ class SnapshotCSIP:
                         data, [config.get_usc().imager.software_gain()] * 3)
                 else:
                     capim.data = apply_gains(data, color_gains)
+
+        capim.set_meta_kv("corrections", corrections)
 
         # Per request plugins (ex: scalebar annotation) go last
         # They may change image geometry which corrections (ex: FF) can't handle

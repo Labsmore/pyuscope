@@ -1190,6 +1190,9 @@ class PlannerCaptureImage(PlannerPlugin):
         super().__init__(planner=planner)
         self.images_captured = 0
         self.get_mode = self.pc.j["imager"].get("get_mode", "processed")
+        # Corrections (ex: correct-ff1) already applied to every saved image
+        # None if unknown (no local capture)
+        self.corrections = None
 
     def scan_begin(self, state):
         properties = self.pc.j["imager"].get("properties")
@@ -1213,6 +1216,7 @@ class PlannerCaptureImage(PlannerPlugin):
                 tstart = time.time()
                 capim = self.planner.imager.get_by_mode(mode=self.get_mode)
                 im = capim.image
+                self.update_corrections(capim)
                 tend = time.time()
                 self.verbose and self.log(
                     "FIXME TMP: actual capture took %0.3f" % (tend - tstart, ))
@@ -1234,10 +1238,26 @@ class PlannerCaptureImage(PlannerPlugin):
         }
         yield modifiers, replace_keys
 
+    def update_corrections(self, capim):
+        # Images that skipped the processing pipeline (ex: raw) have no key
+        corrections = list((capim.meta or {}).get("corrections", []))
+        if self.corrections is None:
+            self.corrections = corrections
+        elif corrections != self.corrections:
+            self.log(
+                "WARNING: image corrections changed during scan: %s => %s" %
+                (self.corrections, corrections))
+            self.corrections = [
+                c for c in self.corrections if c in corrections
+            ]
+
     def gen_meta(self, meta):
         meta["image-capture"] = {
             "captured": self.images_captured,
+            "mode": self.get_mode,
         }
+        if self.corrections is not None:
+            meta["image-capture"]["corrections"] = self.corrections
 
 
 """

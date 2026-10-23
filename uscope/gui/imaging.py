@@ -1088,6 +1088,17 @@ class XYPlanner3PWidget(PlannerWidget):
     def get_corner_move_pos(self, corner_name):
         return self.get_corner_widget_pos(corner_name)
 
+    def set_corners(self, corners):
+        """
+        corners: corner name => {"x", "y"[, "z"]} as corner_clicked() records
+        """
+        for corner_name, pos in corners.items():
+            widgets = self.corner_widgets[corner_name]
+            for axis in "xyz":
+                if axis in pos:
+                    widgets[axis + "_le"].setText(
+                        self.ac.usc.motion.format_position(axis, pos[axis]))
+
     def get_corner_planner_pos(self, corner_name):
         assert self.ac.usc.motion.origin(
         ) == "ll", "fixme: support other origin"
@@ -1769,6 +1780,10 @@ class MainTab(ArgusTab):
 
     def active_planner_widget(self):
         return self.planner_widget_tabs.currentWidget()
+
+    def set_xy3p_corners(self, corners):
+        self.planner_widget_xy3p.set_corners(corners)
+        self.planner_widget_tabs.setCurrentWidget(self.planner_widget_xy3p)
 
     def _update_pconfig(self, pconfig):
         self.imaging_widget.update_pconfig(pconfig)

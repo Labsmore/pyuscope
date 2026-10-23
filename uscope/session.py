@@ -81,6 +81,8 @@ class HeadlessSession:
         self._imager_poll_thread = None
         self._imager_poll_stop = threading.Event()
         self.scan_runner = ScanRunner(self, scan_dir=self.scan_dir())
+        # Last ScriptingPlugin.planner_set_xy3p_corners() (no GUI to show it)
+        self.planner_xy3p_corners = None
 
         try:
             self._init_threads(imager)
@@ -301,3 +303,9 @@ class HeadlessSession:
         Stops at the first scan that doesn't complete ok
         """
         self.scan_runner.run(hconfigs)
+
+    def set_planner_xy3p_corners(self, corners):
+        self.planner_xy3p_corners = dict(corners)
+        for name, pos in corners.items():
+            self.log("XY3P %s: %s" %
+                     (name, self.usc.motion.format_positions(pos)))

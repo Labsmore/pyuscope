@@ -180,6 +180,8 @@ class ArgusCommon(QObject):
     captureFormatChanged = pyqtSignal(str)
     # list of scan hconfigs, see ScriptingPlugin.run_planner_hconfig()
     runPlannerHConfigs = pyqtSignal(object)
+    # dict, see ScriptingPlugin.planner_set_xy3p_corners()
+    setPlannerXY3PCorners = pyqtSignal(object)
 
     # pos = pyqtSignal(int)
 
@@ -301,6 +303,7 @@ class ArgusCommon(QObject):
         self.microscope.image_save_extension = self.image_save_extension
         self.runPlannerHConfigs.connect(
             self.mainTab.imaging_widget.go_planner_hconfigs)
+        self.setPlannerXY3PCorners.connect(self.mainTab.set_xy3p_corners)
 
         # FIXME: these are not thread safe
         # convert to signals
@@ -586,6 +589,9 @@ class ArgusCommon(QObject):
 
     def run_planner_hconfigs(self, hconfigs):
         self.runPlannerHConfigs.emit(list(hconfigs))
+
+    def set_planner_xy3p_corners(self, corners):
+        self.setPlannerXY3PCorners.emit(dict(corners))
 
     def is_planner_running(self):
         return self.scan_runner.is_running()

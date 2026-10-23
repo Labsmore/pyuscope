@@ -14,6 +14,8 @@ Session interface used here:
     set_um_per_pixel_raw_1x(val)
     apply_capture_format_override(fmt)
     run_planner_hconfigs(hconfigs)
+    set_planner_xy3p_corners(corners)
+    imager_properties
 
 Front end specific behavior (where logs go, how images are shown, prompting the user)
 is provided by a ScriptHost
@@ -611,6 +613,18 @@ class ScriptingPlugin:
         if cbsync is not None:
             # should be a single JSON object in the callback
             return cbsync.check_return_kw1()
+
+    def planner_set_xy3p_corners(self, corners):
+        """
+        Fill in the XY3P panorama corners as if set with the GUI buttons
+        corners: {"ll": pos, "ul": pos, "lr": pos}
+        pos: {"x": 1.0, "y": 2.0, "z": 3.0} (z optional)
+            Stage position with that corner of the scan area at the image corner
+            ie the planner extends the scan by half a view past each position
+        Argus: also selects the XY3P tab. Use its Go button to start a scan
+        """
+        self.check_running()
+        self.session.set_planner_xy3p_corners(corners)
 
     def subsystem_functions(self):
         """

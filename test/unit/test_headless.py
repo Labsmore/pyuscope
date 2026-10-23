@@ -33,6 +33,7 @@ from uscope.scripting import (
     input_find_button,
     input_set,
 )
+from uscope import config as uconfig
 from uscope.config import get_bc
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope.scan_runner import ScanRunnerListener
@@ -261,6 +262,15 @@ class TestGstImager(HeadlessTestCase):
         plugin = self.run_script(fn)
         self.assertTrue(plugin.succeeded(), plugin.result_message)
 
+
+class TestSoftwareColor(HeadlessTestCase):
+    @classmethod
+    def setUpClass(cls):
+        # usc is cached by microscope name: an earlier session's microscope
+        # (and its calibration store) would otherwise be used
+        uconfig.usc = None
+        super().setUpClass()
+
     def test_white_balance_and_gain(self):
         fn = self.write_script("""
             import numpy as np
@@ -278,7 +288,7 @@ class TestGstImager(HeadlessTestCase):
                     raw = np.array(self.image_captured(mode="raw").image)
                     try:
                         self.set_software_gain(0.5)
-                        assert self.software_gain() == 0.5
+                        assert self.software_gain() == 0.5, self.software_gain()
                         im = np.array(self.image())
                     finally:
                         self.set_software_gain(1.0)

@@ -261,6 +261,34 @@ class TestGstImager(HeadlessTestCase):
         plugin = self.run_script(fn)
         self.assertTrue(plugin.succeeded(), plugin.result_message)
 
+    def test_white_balance_and_gain(self):
+        fn = self.write_script("""
+            import numpy as np
+            from uscope.scripting import ScriptingPlugin
+
+            class Plugin(ScriptingPlugin):
+                def run_test(self):
+                    # Color bars aren't a white target
+                    try:
+                        self.white_balance_calibrate(quality="quick")
+                        assert 0, "expected failure"
+                    except Exception as e:
+                        assert "White balance failed" in str(e), e
+                    assert self.white_balance_gains() is None
+                    raw = np.array(self.image_captured(mode="raw").image)
+                    try:
+                        self.set_software_gain(0.5)
+                        assert self.software_gain() == 0.5
+                        im = np.array(self.image())
+                    finally:
+                        self.set_software_gain(1.0)
+                    # Bars are static
+                    assert abs(im.mean() - raw.mean() / 2) < 2, (im.mean(),
+                                                                 raw.mean())
+            """)
+        plugin = self.run_script(fn)
+        self.assertTrue(plugin.succeeded(), plugin.result_message)
+
 
 class TestObjectiveState(HeadlessTestCase):
     imager = "mock"

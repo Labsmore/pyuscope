@@ -761,6 +761,60 @@ class ScriptingPlugin:
             self.wait_imaging_ok()
         return self.imager().get_by_mode(mode=mode)
 
+    def white_balance_calibrate(self, quality="full", apply=True):
+        """
+        Measure software white balance gains from a centered white target
+        Set exposure so the target isn't saturated and turn off auto white balance first
+        apply: save as the active calibration (applied to processed images)
+        Returns [r, g, b] gains
+        Raises if the measurement looks bad (ex: saturated); nothing is applied then
+        """
+        from uscope.cal.context import CalContext
+        from uscope.cal.session import CalSession
+
+        name = "white_balance"
+        ctx = CalContext(plugin=self, quality=quality, prompt_fn=self.prompt)
+        cal_session = CalSession(self.session.microscope, [name],
+                                 quality=quality)
+        result = cal_session.run_collect_analyze(ctx)[name]
+        self.log("White balance: " + result.message)
+        if not result.ok:
+            raise Exception("White balance failed: " + result.message)
+        if apply:
+            cal_session.apply_one(name)
+        return result.entries[0].value["gains"]
+
+    def white_balance_gains(self):
+        """
+        Active software white balance gains [r, g, b] or None
+        """
+        return self.session.microscope.usc.imager.white_balance_gains()
+
+    def white_balance_clear(self):
+        """
+        Remove the software white balance calibration
+        """
+        self.session.microscope.cal_store.delete("imager.white_balance")
+
+    def software_gain(self):
+        """
+        Scalar gain applied to processed images
+        """
+        return self.session.microscope.usc.imager.software_gain()
+
+    def set_software_gain(self, gain):
+        """
+        Set (and persist) a scalar gain applied to processed images
+        Output is clipped. Useful when exposure / sensor gain can't go higher
+        (ex: low light IR imaging). 1.0 is a no-op
+        """
+        from uscope.cal.store import CalEntry
+        gain = float(gain)
+        if gain <= 0:
+            raise ValueError("Gain must be positive")
+        self.session.microscope.cal_store.set(
+            CalEntry(key="imager.software_gain", value=gain))
+
     """
     Plugin defined functions
     """

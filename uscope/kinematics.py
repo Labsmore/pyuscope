@@ -40,6 +40,8 @@ class Kinematics:
             )
         self.tsettle_autofocus = tsettle_autofocus
         self.should_frame_sync = self.microscope.usc.kinematics.frame_sync()
+        self.frame_sync_frames_hdr = self.microscope.usc.kinematics.frame_sync_frames_hdr(
+        )
         self.tsettle_video_pipeline = 3.0
 
         # self.diagnostic_info()
@@ -108,21 +110,34 @@ class Kinematics:
         if not self.should_frame_sync:
             return
 
-        # Have we done a sync since last movements
+        imager = self.microscope.imager
+        motion = self.microscope.motion
+        properties_changed = True
         if self.last_frame_sync is not None:
             since_last_sync = time.time() - self.last_frame_sync
-            if since_last_sync < self.microscope.motion.since_last_motion(
-            ) and since_last_sync < self.microscope.imager.since_properties_change(
-            ):
+            properties_changed = imager.since_properties_change(
+            ) <= since_last_sync
+            motion_changed = motion is not None and motion.since_last_motion(
+            ) <= since_last_sync
+            if not properties_changed and not motion_changed:
                 return
 
+        # Frames already exposing / in flight when a property was written
+        # still have the old value. Pull fresh frames one after another
+        # rather than relying on wall time
+        nframes = 1
+        if properties_changed:
+            nframes = max(1, self.frame_sync_frames_hdr)
+        # Stamp when the flush was requested, not when it completed
+        # A property change racing with the flush must trigger another sync
         tstart = time.time()
-        imager = self.microscope.imager_ts()
-        _image = imager.get()
+        imager_ts = self.microscope.imager_ts()
+        for _framei in range(nframes):
+            imager_ts.get()
         tend = time.time()
-        self.verbose and self.log("FIXME TMP: flush image took %0.3f" %
-                                  (tend - tstart, ))
-        self.last_frame_sync = time.time()
+        self.verbose and self.log("FIXME TMP: flush %u image(s) took %0.3f" %
+                                  (nframes, tend - tstart))
+        self.last_frame_sync = tstart
 
     def wait_imaging_ok(self, flush_image=True):
         """
@@ -153,5 +168,7 @@ class Kinematics:
         log(indent + "tsettle_motion: %0.3f" % self.tsettle_motion)
         log(indent + "tsettle_hdr: %0.3f" % self.tsettle_hdr)
         log(indent + "tsettle_autofocus: %0.3f" % self.tsettle_autofocus)
+        log(indent + "frame_sync: %s" % self.should_frame_sync)
+        log(indent + "frame_sync_frames_hdr: %u" % self.frame_sync_frames_hdr)
         log(indent +
             "tsettle_video_pipeline: %0.3f" % self.tsettle_video_pipeline)

@@ -775,6 +775,14 @@ class USCKinematics:
         # Recommended for real imagers
         return bool(self.j.get("frame_sync", True))
 
+    def frame_sync_frames_hdr(self):
+        """
+        Frames to discard after an imager property (ex: exposure) changes
+        The frame being exposed when the property is written is stale and
+        sensors typically latch the new value at a later frame boundary
+        """
+        return int(self.j.get("frame_sync_frames_hdr", 2))
+
 
 class USCOptics:
     def __init__(self, j=None, microscope=None):

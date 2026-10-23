@@ -10,6 +10,7 @@ from uscope.scan_runner import ScanRunner
 from uscope.kinematics import Kinematics
 from uscope.motion.hal import HomingAborted
 from uscope.motion.grbl import LimitSwitchActive, Estop
+from uscope.imager.camera_check import CameraNotFound
 from uscope.subsystem import Subsystem
 from uscope import util
 
@@ -157,6 +158,11 @@ class ACSubsystem(Subsystem):
             "autofocusing"] = self.ac.image_processing_thread.autofocus_running
 
 
+def camera_not_found_dialog(e):
+    QMessageBox.critical(None, "Camera not found", str(e), QMessageBox.Ok,
+                         QMessageBox.Ok)
+
+
 class ArgusCommon(QObject):
     log_msg = pyqtSignal(str)
     takeSnapshot = pyqtSignal()
@@ -242,7 +248,12 @@ class ArgusCommon(QObject):
             self.log("VIDSRC: Using Gstreamer source")
             self.vidpip = GstVideoPipeline(ac=self, zoomable=True, log=self.log)
             self.capture_sink = self.vidpip.capture_sink
-            self.vidpip.setupGst()
+            # v4l2 sources look up the configured camera by name here
+            try:
+                self.vidpip.setupGst()
+            except CameraNotFound as e:
+                camera_not_found_dialog(e)
+                raise
 
         # Requires video pipeline already setup
         self.imager_properties = self.vidpip.imager_aplugin.get_properties()
@@ -310,7 +321,18 @@ class ArgusCommon(QObject):
         self.microscope.set_jog_scale = set_jog_scale_emit
 
         self.vid_fd = None
-        self.vidpip.run()
+        try:
+            self.vidpip.run()
+        except CameraNotFound as e:
+            camera_not_found_dialog(e)
+            raise
+        camera_mismatch = getattr(self.vidpip, "camera_mismatch", None)
+        if camera_mismatch:
+            QMessageBox.warning(
+                None, "Microscope config / camera mismatch",
+                camera_mismatch +
+                "\n\nContinuing anyway: video and calibration may be wrong",
+                QMessageBox.Ok, QMessageBox.Ok)
         self.init_imager()
         # Needs imager / vidpip to be able to query which properties are present
         self.imager_properties.setup()

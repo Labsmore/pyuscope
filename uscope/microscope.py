@@ -136,14 +136,18 @@ class Microscope:
             mconfig["name"] = name
         if serial:
             mconfig["serial"] = serial
+        # Human readable explanation of why this config was used
+        # Shown when the hardware doesn't match the config
+        self.config_reason = "caller (--microscope or equivalent)"
         if not mconfig.get("name") or not mconfig.get("serial"):
             self.default_microscope_config(mconfig, overwrite=False)
-            print("using microscope auto config", mconfig)
         self.name = mconfig["name"]
         self._serial = mconfig.get("serial", None)
         if usc is None:
             usc = get_usc(microscope=self)
         self.usc = usc
+        print(f"Microscope config: {self.name}"
+              f" (selected by: {self.config_reason}), S/N {self._serial}")
 
         from uscope.cal.store import CalStore
         self.cal_store = CalStore.for_microscope(self)
@@ -196,6 +200,7 @@ class Microscope:
             name = os.getenv("PYUSCOPE_MICROSCOPE")
             if name:
                 mconfig["name"] = name
+                self.config_reason = "PYUSCOPE_MICROSCOPE environment variable"
 
         # TODO: put mock flag in config file
         is_mock = mconfig.get("name") in ("mock", "mock-grbl")
@@ -203,7 +208,10 @@ class Microscope:
         if (not mconfig.get("name") or not mconfig.get("serial")
             ) and self.hardware and not is_mock:
             # Try to do aggressive GRBL auto-config
+            had_name = bool(mconfig.get("name"))
             grbl_mconfig(mconfig, overwrite=overwrite)
+            if mconfig.get("name") and (overwrite or not had_name):
+                self.config_reason = "GRBL controller metadata (auto config)"
 
         # Default to mock GRBL
         if not mconfig.get("name"):
@@ -214,6 +222,7 @@ class Microscope:
             # Microscope of last resort
             # Generally mock-grbl is better than mock
             mconfig["name"] = "mock-grbl"
+            self.config_reason = "default (no microscope specified or detected)"
             is_mock = True
         if is_mock:
             mconfig["serial"] = "1234"

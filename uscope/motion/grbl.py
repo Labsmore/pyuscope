@@ -2075,7 +2075,10 @@ def microscope_by_name_hash(h):
     print("Config name hashes")
     for this_h, name in hash2name.items():
         print("  %s: %s" % (name, this_h.hex()))
-    raise Exception(f"failed to find a microscope config for hash {h.hex()}")
+    raise Exception(
+        f"GRBL metadata names microscope config hash {h.hex()} but no config in"
+        f" {get_configs_dir()} matches. Select the config explicitly with"
+        " --microscope <name> or PYUSCOPE_MICROSCOPE=<name>")
 
 
 def get_grbl(port=None, gs=None, reset=False, verbose=False):

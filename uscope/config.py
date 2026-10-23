@@ -355,6 +355,52 @@ class USCImager:
             return IlluminationTables.get(fn)
         return None
 
+    def software_white_balance(self):
+        """
+        Apply calibrated software white balance (imager.white_balance in the
+        calibration store) to processed images (snapshots, scan tiles)
+        Intended for cameras that can only do color temperature (ex: UVC)
+        Has no effect until a white balance calibration is collected
+        """
+        return bool(self.j.get("software_white_balance", True))
+
+    def white_balance_gains(self):
+        """[r, g, b] software white balance gains or None"""
+        if not self.software_white_balance():
+            return None
+        from uscope.cal.store import _cal_store
+        store = _cal_store(self.microscope)
+        if not store:
+            return None
+        scope = {}
+        try:
+            obj = self.microscope.get_active_objective()
+            if obj:
+                scope["objective"] = obj
+        except Exception:
+            pass
+        entry = store.get("imager.white_balance", scope)
+        if entry is None or not isinstance(entry.value, dict):
+            return None
+        gains = entry.value.get("gains")
+        if not gains or len(gains) != 3:
+            return None
+        return [float(g) for g in gains]
+
+    def software_gain(self):
+        """
+        Scalar gain applied to processed images along with white balance
+        Useful when the sensor gain range isn't enough (ex: low light IR)
+        Calibration store imager.software_gain overrides the config value
+        """
+        from uscope.cal.store import _cal_store
+        store = _cal_store(self.microscope)
+        if store:
+            entry = store.get("imager.software_gain")
+            if entry is not None:
+                return float(entry.value)
+        return float(self.j.get("software_gain", 1.0))
+
     def videoflip_method(self):
         return self.j.get("videoflip_method", None)
 

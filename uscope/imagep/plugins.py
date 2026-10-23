@@ -1,4 +1,5 @@
 from uscope.imager.imager_util import format_mm_3dec
+from uscope.cal.analysis.color import apply_gains_pil, effective_gains
 
 import subprocess
 import shutil
@@ -508,6 +509,28 @@ class CorrectFF1Plugin(IPPlugin):
 
 
 """
+Software white balance and gain
+Per-channel gains from the white balance calibration times a scalar gain
+"""
+
+
+class CorrectWhiteBalancePlugin(IPPlugin):
+    def __init__(self, log, default_options={}, microscope=None):
+        super().__init__(log=log,
+                         microscope=microscope,
+                         default_options=default_options)
+
+    def _run(self, data_in, data_out, options={}):
+        gains = options.get("color_gains")
+        if gains is None:
+            gains = effective_gains(self.usc.imager.white_balance_gains(),
+                                    self.usc.imager.software_gain())
+        im = data_in["image"].to_mutable_im()
+        final_im = apply_gains_pil(im, gains)
+        final_im.save(data_out["image"].get_filename(), quality=90)
+
+
+"""
 Sharpen image using a kernel
 """
 
@@ -806,6 +829,7 @@ def get_plugin_ctors():
         "correct-ff1": CorrectFF1Plugin,
         "correct-illumination": CorrectFF1Plugin,
         "correct-sharp1": CorrectSharp1Plugin,
+        "correct-wb": CorrectWhiteBalancePlugin,
         "correct-vm1v1": CorrectVM1V1Plugin,
         "annotate-scalebar": AnnotateScalebarPlugin,
     }

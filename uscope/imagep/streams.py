@@ -5,6 +5,7 @@ from uscope import config
 from uscope.imagep.util import TaskBarrier, EtherealImageR, remove_intermediate_directories, find_qr_code_match, check_valid_image_dir
 from uscope.imagep.summary import write_html_viewer, write_snapshot_grid, write_quick_pano
 from uscope.util import writej
+from uscope.cal.analysis.color import apply_gains, effective_gains
 import glob
 import shutil
 import os
@@ -506,6 +507,16 @@ class SnapshotCSIP:
         self.verbose = verbose
         self.microscope = microscope
 
+    def color_gains(self):
+        """Software white balance x software gain, or None if a no-op"""
+        usc = config.get_usc()
+        try:
+            return effective_gains(usc.imager.white_balance_gains(),
+                                   usc.imager.software_gain())
+        except ValueError as e:
+            self.log(f"WARNING: ignoring bad white balance / gain: {e}")
+            return None
+
     def run(self, options):
         # TODO: Write this part
         self.verbose and self.log("SnapshotCSIP verbose")
@@ -546,14 +557,15 @@ class SnapshotCSIP:
         if add_meta:
             add_meta(capim)
 
-        def run_1_to_1(plugin):
+        def run_1_to_1(plugin, plugin_options=None):
             self.verbose and self.log(f"{plugin}: start")
             tb = TaskBarrier()
-            data_out = self.csip.queue_1_to_1_plugin(plugin=plugin,
-                                                     im_in=current_image,
-                                                     want_im_out=True,
-                                                     tb=tb,
-                                                     options=options)
+            data_out = self.csip.queue_1_to_1_plugin(
+                plugin=plugin,
+                im_in=current_image,
+                want_im_out=True,
+                tb=tb,
+                options=options if plugin_options is None else plugin_options)
             tb.wait()
             return data_out["image"].get_im()
 
@@ -578,6 +590,24 @@ class SnapshotCSIP:
                                                    tb=tb)
             tb.wait()
             current_image = data_out["image"].get_im()
+
+        # After FF: FF normalizes each channel to itself so color is unchanged
+        color_gains = self.color_gains()
+        if color_gains is None or "correct-wb" in config_plugins:
+            self.verbose and self.log("Color correction: skip")
+        else:
+            current_image = run_1_to_1("correct-wb",
+                                       plugin_options=dict(
+                                           options, color_gains=color_gains))
+            # Native depth data is what gets saved for .tif / .png
+            data = getattr(capim, "data", None)
+            if data is not None:
+                if data.ndim == 2:
+                    # Raw bayer mosaic: can't balance, only scale
+                    capim.data = apply_gains(
+                        data, [config.get_usc().imager.software_gain()] * 3)
+                else:
+                    capim.data = apply_gains(data, color_gains)
 
         # Per request plugins (ex: scalebar annotation) go last
         # They may change image geometry which corrections (ex: FF) can't handle

@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run
 """Software white balance / gain: gain computation and application."""
 
+import tempfile
 import unittest
 
 import numpy as np
@@ -15,6 +16,10 @@ from uscope.cal.analysis.color import (
     effective_gains,
     gains_from_levels,
 )
+from uscope.cal.calibrations.white_balance import WhiteBalanceCal
+from uscope.cal.dataset import Dataset
+from uscope.cal.registry import names as cal_names
+from uscope.imager.image_sequence import CapturedImage
 
 
 def _white(rgb, w=40, h=30, dtype=np.uint8):
@@ -161,6 +166,74 @@ class TestApplyGains(unittest.TestCase):
         im = Image.new("I", (4, 4), 30000)
         out = apply_gains_pil(im, [3.0, 3.0, 3.0])
         self.assertEqual(out.getpixel((0, 0)), 65535)
+
+
+class _FakeCtx:
+    def __init__(self, image, data=None):
+        self.captured = CapturedImage(image=image, data=data)
+
+    def check_running(self):
+        pass
+
+    def progress(self, frac, text):
+        pass
+
+    def get_disp_properties(self):
+        return {"White Balance Temperature": 4600, "Exposure": 100}
+
+    def image_captured(self, mode=None):
+        assert mode == "raw"
+        return self.captured
+
+
+class TestWhiteBalanceCal(unittest.TestCase):
+    def _run(self, ctx):
+        cal = WhiteBalanceCal()
+        ds = Dataset.create(tempfile.mkdtemp(prefix="pyuscope-wb-"),
+                            cal.name)
+        cal.collect(ctx, ds)
+        return cal.analyze(Dataset.load(ds.path))
+
+    def test_registered(self):
+        self.assertIn("white_balance", cal_names())
+
+    def test_8bit(self):
+        im = Image.fromarray(_white((100, 200, 50)))
+        result = self._run(_FakeCtx(im))
+        self.assertTrue(result.ok, result.message)
+        entry = result.entries[0]
+        self.assertEqual(entry.key, "imager.white_balance")
+        self.assertEqual(entry.scope, {})
+        np.testing.assert_allclose(entry.value["gains"], [2.0, 1.0, 4.0])
+        self.assertEqual(entry.value["imager_properties"],
+                         {"White Balance Temperature": 4600})
+
+    def test_16bit_data(self):
+        im = Image.fromarray(_white((1, 2, 3)))
+        data = _white((10000, 20000, 40000), dtype=np.uint16)
+        result = self._run(_FakeCtx(im, data=data))
+        self.assertTrue(result.ok, result.message)
+        np.testing.assert_allclose(result.entries[0].value["gains"],
+                                   [2.0, 1.0, 0.5])
+
+    def test_raw_mosaic_uses_image(self):
+        im = Image.fromarray(_white((100, 200, 50)))
+        data = np.zeros((30, 40), dtype=np.uint16)
+        result = self._run(_FakeCtx(im, data=data))
+        np.testing.assert_allclose(result.entries[0].value["gains"],
+                                   [2.0, 1.0, 4.0])
+
+    def test_saturated_fails(self):
+        im = Image.fromarray(_white((255, 255, 200)))
+        result = self._run(_FakeCtx(im))
+        self.assertFalse(result.ok)
+        self.assertIn("saturated", result.message)
+
+    def test_dark_fails(self):
+        im = Image.fromarray(_white((2, 4, 3)))
+        result = self._run(_FakeCtx(im))
+        self.assertFalse(result.ok)
+        self.assertIn("dark", result.message)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ def _build():
     from uscope.cal.calibrations.backlash_z import BacklashZCal
     from uscope.cal.calibrations.settle import SettleCal
     from uscope.cal.calibrations.parfocal import ParfocalCal
+    from uscope.cal.calibrations.white_balance import WhiteBalanceCal
 
     cals = [
         ScaleCal(),
@@ -26,6 +27,7 @@ def _build():
         BacklashZCal(),
         SettleCal(),
         ParfocalCal(),
+        WhiteBalanceCal(),
     ]
     return {c.name: c for c in cals}
 

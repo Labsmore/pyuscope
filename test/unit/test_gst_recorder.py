@@ -161,7 +161,9 @@ class RecorderTestCase(unittest.TestCase):
 
     def record(self, seconds, name="rec", **kwargs):
         done = []
-        fn = self.recorder.start(os.path.join(self.tmp, name),
+        if not callable(name):
+            name = os.path.join(self.tmp, name)
+        fn = self.recorder.start(name,
                                  done=lambda fn, err: done.append((fn, err)),
                                  **kwargs)
         self.assertTrue(self.recorder.is_recording())
@@ -210,6 +212,17 @@ class RecorderTestCase(unittest.TestCase):
         duration, streams = ffprobe_ok(fn)
         self.assertEqual(sorted(streams), ["audio", "video"])
         self.check_bus()
+
+    def test_filename_callable(self):
+        exts = []
+
+        def filename(extension):
+            exts.append(extension)
+            return os.path.join(self.tmp, "called" + extension)
+
+        fn = self.record(0.3, name=filename)
+        self.assertEqual(exts, [".mp4"])
+        self.assertEqual(fn, os.path.join(self.tmp, "called.mp4"))
 
     def test_already_recording(self):
         self.recorder.start(os.path.join(self.tmp, "rec"))

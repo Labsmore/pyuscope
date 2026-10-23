@@ -243,6 +243,7 @@ class GstVideoRecorder:
               done=None):
         """
         filename_base: output file name without extension
+            or callable(extension) returning the full file name
         audio_source: gst-launch style description, ex: "pulsesrc device=foo"
         Returns the file name being written
         Raises RecordError if recording couldn't be started
@@ -255,7 +256,10 @@ class GstVideoRecorder:
                 self.log(
                     f"Recording: {container} unavailable, using {plan['container']}"
                 )
-            filename = filename_base + plan["extension"]
+            if callable(filename_base):
+                filename = filename_base(plan["extension"])
+            else:
+                filename = filename_base + plan["extension"]
             wh = self._tee_wh()
             if wh is None:
                 raise RecordError("Video size unknown: is the camera running?")

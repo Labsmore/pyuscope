@@ -1854,19 +1854,43 @@ class MeasureTab(ArgusTab):
             self.annotate_image.setScaledContents(True)
             self.sa_image = QScrollArea()
             self.sa_image.setBackgroundRole(QPalette.Dark)
+            self.sa_image.setAlignment(Qt.AlignCenter)
             self.sa_image.setWidget(self.annotate_image)
             self.sa_image.setVisible(False)
+            self.sa_image.viewport().installEventFilter(self)
             layout.addWidget(self.sa_image, row, 0)
+            self.no_image_label = QLabel("Take a snapshot to measure it here")
+            self.no_image_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(self.no_image_label, row, 0)
             self.pb_grid = QVBoxLayout()
             self.ruler_pb = QPushButton("Ruler")
             self.ruler_pb.setCheckable(True)
+            self.ruler_pb.setToolTip(
+                "On: click two points (or drag) to measure\n"
+                "Off: click a ruler to select it, Del to delete")
             self.ruler_pb.clicked.connect(self.on_ruler)
             self.pb_grid.addWidget(self.ruler_pb)
+            self.fit_cb = QCheckBox("Fit to window")
+            self.fit_cb.setToolTip(
+                "Shrink large images to fit. Uncheck for 1:1 pixels")
+            self.fit_cb.setChecked(True)
+            self.fit_cb.stateChanged.connect(self.update_zoom)
+            self.pb_grid.addWidget(self.fit_cb)
             self.pb_grid.addStretch()
+            help_label = QLabel("Ctrl+Z: undo\n"
+                                "Esc / right click: cancel\n"
+                                "Del: delete selected")
+            self.pb_grid.addWidget(help_label)
+            self.scale_label = QLabel("")
+            self.pb_grid.addWidget(self.scale_label)
+            self.undo_pb = QPushButton("Undo")
+            self.undo_pb.clicked.connect(self.on_undo)
+            self.pb_grid.addWidget(self.undo_pb)
             self.clear_all_pb = QPushButton("Clear All")
             self.clear_all_pb.clicked.connect(self.annotate_image.clear_all)
             self.pb_grid.addWidget(self.clear_all_pb)
             layout.addLayout(self.pb_grid, row, 1)
+            layout.setColumnStretch(0, 1)
 
             gb = QGroupBox("")
             gb.setLayout(layout)
@@ -1880,6 +1904,8 @@ class MeasureTab(ArgusTab):
         self.shortcut.activated.connect(self.on_undo)
         self.shortcut = QShortcut(QKeySequence("Del"), self)
         self.shortcut.activated.connect(self.annotate_image.delete_selected)
+        self.shortcut = QShortcut(QKeySequence("Esc"), self)
+        self.shortcut.activated.connect(self.annotate_image.cancel_pending)
 
         self.ac.snapshotCaptured.connect(self.snapshot_processed)
 
@@ -1897,11 +1923,23 @@ class MeasureTab(ArgusTab):
                 "color: white; background-color: green;")
         else:
             self.annotate_image.set_mode(self.annotate_image.Modes.SELECT)
-            self.ruler_pb.setStyleSheet(
-                "color: black; background-color: lightgrey;")
+            self.ruler_pb.setStyleSheet("")
 
-    def fitToWindow(self):
-        self.scrollArea.setWidgetResizable(True)
+    def eventFilter(self, obj, event):
+        if obj is self.sa_image.viewport() and event.type() == QEvent.Resize:
+            self.update_zoom()
+        return super().eventFilter(obj, event)
+
+    def update_zoom(self, *args):
+        pixmap = self.annotate_image.pixmap()
+        if pixmap is None or pixmap.isNull():
+            return
+        size = pixmap.size()
+        viewport = self.sa_image.viewport().size()
+        if self.fit_cb.isChecked() and (size.width() > viewport.width()
+                                        or size.height() > viewport.height()):
+            size = size.scaled(viewport, Qt.KeepAspectRatio)
+        self.annotate_image.resize(size)
 
     '''
     def open(self):
@@ -1953,8 +1991,11 @@ class MeasureTab(ArgusTab):
                      QImage.Format_RGBA8888)
         self.annotate_image.clear_all()
         self.annotate_image.setPixmap(QPixmap.fromImage(qim))
+        self.no_image_label.setVisible(False)
         self.sa_image.setVisible(True)
-        self.annotate_image.adjustSize()
+        self.update_zoom()
+        self.scale_label.setText("%0.4g um / pixel" %
+                                 self.annotate_image.pixel_conversion)
         # Need ruler before select mode is useful
         self.ruler_pb.setChecked(True)
         self.on_ruler(None)

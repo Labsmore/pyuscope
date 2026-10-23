@@ -52,8 +52,6 @@ Zoom 2.5
     //25MP
     "imager": {
         "source":"gst-toupcamsrc",
-        "width": 4928,
-        "height": 4928,
         //TODO: revisit after cal checkout
         //"scalar": 0.5,
         "um_per_pixel_raw_1x": 0.892857143,

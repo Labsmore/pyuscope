@@ -72,12 +72,7 @@ UT100 NEMA23 stages
     //E3ISPM20000KPA
     "imager": {
         "source":"gst-toupcamsrc",
-        "width": 5440,
-        "height": 3648,
         "native_pixel_pitch_um": 2.4,
-        "source_properties": {
-            "esize": 0
-        },
         "scalar": 0.50,
         "source_properties_mod": {
             //In us. Can go up to 15 sec which is impractical for typical usage

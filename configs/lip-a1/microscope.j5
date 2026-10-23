@@ -44,11 +44,6 @@ AMA100 relay lens
     },
     "imager": {
         "source":"gst-toupcamsrc",
-        "width": 5440,
-        "height": 3648,
-        "source_properties": {
-            "esize": 0
-        },
         "scalar": 0.5
     },
     "optics": {

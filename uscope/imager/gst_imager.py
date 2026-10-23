@@ -28,6 +28,9 @@ class SessionImager(Imager):
     # Give up after this many consecutive failed captures
     # Enough to ride out a camera restart but not hang a scan forever
     GET_MAX_TRIES = 5
+    # Frames already went through the gstreamer videoflip element
+    # If not, image processing applies imager.videoflip_method instead
+    FRAMES_FLIPPED = False
 
     def __init__(self, session):
         Imager.__init__(self)
@@ -113,7 +116,7 @@ class SessionImager(Imager):
             options["objective_config"] = self.session.objective_config()
             options["scale_factor"] = self.usc.imager.scalar()
             options["scale_expected_wh"] = self.usc.imager.final_wh()
-            if self.usc.imager.videoflip_method():
+            if self.usc.imager.videoflip_method() and not self.FRAMES_FLIPPED:
                 options["videoflip_method"] = self.usc.imager.videoflip_method(
                 )
             options.update(processing_options)
@@ -177,6 +180,9 @@ class GstImager(SessionImager):
     Captures from a GstImagerPipeline (session.vidpip)
     Thread safe
     """
+    # capturesink is downstream of the pipeline's videoflip
+    FRAMES_FLIPPED = True
+
     def capture_sink(self):
         return self.session.vidpip.capture_sink
 

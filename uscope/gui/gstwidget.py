@@ -732,15 +732,7 @@ class RtspBin(Gst.Bin):
         assert self.videoscale
         self.add(self.videoscale)
 
-        # Use hardware acceleration if present
-        # Otherwise can soft flip feeds when / if needed
-        # videoflip_method = self.parent.usc.imager.videoflip_method()
-        videoflip_method = self.ac.microscope.usc.imager.videoflip_method()
-        if videoflip_method:
-            self.videoflip = Gst.ElementFactory.make("videoflip")
-            assert self.videoflip
-            self.videoflip.set_property("method", videoflip_method)
-            self.add(self.videoflip)
+        # No videoflip: frames were already flipped upstream of the tee
 
         self.capsfilter = Gst.ElementFactory.make("capsfilter")
         self.update_crop_scale()

@@ -1573,9 +1573,6 @@ class ImagingTaskWidget(AWidget):
             "file_name": str(self.job_name_le.text()),
             "extension": self.snapshot_suffix_cb.currentIndex(),
             "stitch": self.iow.stitch_gb.isChecked(),
-            # currently not load cloud stitch state
-            # instead let it default to whether they have creds
-            # However its useful for debug dumps
             "cloudstitch": self.iow.cloudstitch_cb.isChecked(),
             "autofocus": self.iow.autofocus_cb.isChecked(),
             "add_scalebar": self.iow.add_scalebar_cb.isChecked(),
@@ -1590,6 +1587,9 @@ class ImagingTaskWidget(AWidget):
         self.job_name_le.setText(j.get("file_name", "unknown"))
         self.snapshot_suffix_cb.setCurrentIndex(j.get("extension", 0))
         self.iow.stitch_gb.setChecked(j.get("stitch", True))
+        # Without creds the checkbox is disabled and must stay unchecked
+        if self.iow.cloudstitch_cb.isEnabled():
+            self.iow.cloudstitch_cb.setChecked(j.get("cloudstitch", True))
         self.iow.autofocus_cb.setChecked(
             j.get("autofocus", self.ac.microscope.has_z()))
         self.iow.add_scalebar_cb.setChecked(j.get("add_scalebar", False))

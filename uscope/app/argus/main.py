@@ -28,6 +28,7 @@ from uscope.gui.imaging import MainTab, ImagerTab
 from uscope.gui.scripting import ScriptingTab
 from uscope.gui.calibration import CalibrationTab
 from uscope.gui.minimap import MinimapTab
+from uscope.gui.snapshot_viewer import SnapshotViewerTab
 
 
 # Can't save a dict like {(1, 2): "a"}
@@ -247,6 +248,7 @@ class MainWindow(AMainWindow):
         self.imagerTab = self.add_tab(ImagerTab, "Imager")
         self.measureTab = self.add_tab(MeasureTab, "Measure")
         self.minimapTab = self.add_tab(MinimapTab, "Minimap")
+        self.snapshotsTab = self.add_tab(SnapshotViewerTab, "Snapshots")
         self.batchTab = self.add_tab(BatchImageTab, "Batch")
         self.scriptingTab = self.add_tab(ScriptingTab, "Scripting")
         self.calibrationTab = self.add_tab(CalibrationTab, "Calibration")

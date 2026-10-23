@@ -72,6 +72,10 @@ def main():
         default=True,
         help="Best effort in lieu of crashing on error (ex: stack failure)")
     add_bool_arg(parser, "--quick-pano", default=None, help="")
+    add_bool_arg(parser,
+                 "--fiji-stitch",
+                 default=None,
+                 help="Also stitch locally with Fiji (see fiji_stitch.py)")
     parser.add_argument("--threads", default=None, type=int)
     # Also accepted via PYUSCOPE_CS_* environment variables (see CSInfo)
     parser.add_argument("--access-key")
@@ -101,6 +105,8 @@ def main():
         j = json.loads(args.json)
     if args.quick_pano is not None:
         j["write_quick_pano"] = args.quick_pano
+    if args.fiji_stitch is not None:
+        j["fiji_stitch"] = args.fiji_stitch
 
     run(args.dirs_in,
         cs_info=cs_info,

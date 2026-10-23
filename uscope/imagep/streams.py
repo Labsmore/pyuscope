@@ -1,4 +1,5 @@
 from uscope import cloud_stitch
+from uscope import fiji_stitch
 from uscope.scan_util import index_scan_images, bucket_group, is_tif_scan
 from uscope import config
 from uscope.imagep.util import TaskBarrier, EtherealImageR, remove_intermediate_directories, find_qr_code_match, check_valid_image_dir
@@ -109,6 +110,13 @@ class IPPConfigJ:
         """
         # This takes up disk space => off by default
         return bool(self.j.get("write_quick_pano", False))
+
+    def fiji_stitch(self):
+        """
+        Stitch locally with Fiji into <scan>/fiji/stitched.tif
+        Slow and memory hungry on large scans => off by default
+        """
+        return bool(self.j.get("fiji_stitch", False))
 
     def keep_intermediates(self):
         # https://github.com/Labsmore/pyuscope/issues/410
@@ -254,6 +262,7 @@ class DirCSIP:
         self.log("  Snapshot correction: %s" %
                  self.ipp_config.snapshot_correction())
         self.log("  Cloud stitch: %s" % self.ipp_config.cloud_stitch())
+        self.log("  Fiji stitch: %s" % self.ipp_config.fiji_stitch())
 
         self.log("")
 
@@ -414,6 +423,26 @@ class DirCSIP:
                     f"Clean up intermediates: {final_dir} => {self.directory}"
                 )
                 working_iindex = index_scan_images(self.directory)
+
+        if not self.ipp_config.fiji_stitch():
+            pass
+        elif not healthy:
+            self.log("Fiji stitch: skip (incomplete data)")
+        elif len(working_iindex["images"]) == 1:
+            self.log("Fiji stitch: skip (only one image)")
+        else:
+            try:
+                fiji_stitch.stitch_dir(working_iindex["dir"],
+                                       out_dir=os.path.join(
+                                           self.directory,
+                                           fiji_stitch.OUT_DIR),
+                                       lazy=self.lazy,
+                                       log=self.log)
+            except Exception as e:
+                if not self.best_effort:
+                    raise
+                # Don't hold up CloudStitch
+                self.log(f"WARNING: Fiji stitch failed: {e}")
 
         if not self.upload:
             self.log("CloudStitch: skip (requested by CLI)")

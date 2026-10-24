@@ -306,6 +306,22 @@ class MainWindow(AMainWindow):
             self.instrumentTabs[name] = tab
         self.stitchingTab = self.add_tab(StitchingTab, "CloudStitch")
 
+        # Display order (independent of construction order above)
+        display_order = [
+            self.mainTab,
+            self.snapshotsTab,
+            self.measureTab,
+            self.minimapTab,
+            self.panoramaTab,
+            self.imagerTab,
+            *self.instrumentTabs.values(),
+            self.batchTab,
+            self.scriptingTab,
+            self.stitchingTab,
+        ]
+        name_by_tab = {tab: name for name, tab in self.ac.tabs.items()}
+        self.ac.tabs = {name_by_tab[tab]: tab for tab in display_order}
+
         # FIXME: hack, come up with something more intuitive
         self.ac.scriptingTab = self.scriptingTab
         self.ac.stitchingTab = self.stitchingTab

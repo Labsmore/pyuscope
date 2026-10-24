@@ -1104,129 +1104,97 @@ Set output job name
 """
 
 
-class ImagingOptionsWindow(QWidget):
-    def __init__(self, itw, parent=None):
-        super().__init__(parent=parent)
+class ImagingOptions:
+    """
+    Snapshot and panorama options
+    Shown directly on the Main tab (snapshot) and Panorama tab (scan)
+    """
+    def __init__(self, itw):
         self.itw = itw
         self.ac = self.itw.ac
-        self.initUI()
+        self.snapshot_widget = self.snapshot_options()
+        self.panorama_widget = self.panorama_options()
 
-    def initUI(self):
+    def snapshot_options(self):
+        self.add_scalebar_cb = QCheckBox("Add scalebar")
+        self.add_scalebar_cb.stateChanged.connect(
+            self.itw.update_imaging_config)
+        return self.add_scalebar_cb
+
+    def panorama_options(self):
         layout = QVBoxLayout()
 
-        def image_gb():
-            layout = QGridLayout()
-            row = 0
+        self.autofocus_cb = QCheckBox("Autofocus corners")
+        self.autofocus_cb.setChecked(self.ac.microscope.has_z())
+        self.autofocus_cb.stateChanged.connect(self.itw.update_imaging_config)
+        layout.addWidget(self.autofocus_cb)
 
-            self.add_scalebar_cb = QCheckBox()
-            self.add_scalebar_cb.stateChanged.connect(
+        def process_gb():
+            layout = QVBoxLayout()
+
+            self.cloudstitch_cb = QCheckBox("CloudStitch")
+            if self.ac.stitchingTab.has_cs_info():
+                self.ac.log("CloudStitch: available")
+                self.cloudstitch_cb.setChecked(True)
+            else:
+                # Currently don't officially support changing at runtime
+                self.cloudstitch_cb.setEnabled(False)
+                self.ac.log(
+                    "CloudStitch: not configured. Contact support@labsmore.com to enable"
+                )
+            self.cloudstitch_cb.stateChanged.connect(
                 self.itw.update_imaging_config)
-            layout.addWidget(self.add_scalebar_cb, row, 0)
-            layout.addWidget(QLabel("Add scalebar"), row, 1)
-            row += 1
+            layout.addWidget(self.cloudstitch_cb)
 
-            gb = QGroupBox("Snapshot")
-            gb.setLayout(layout)
-
-            return gb
-
-        def pano_gb():
-            layout = QGridLayout()
-            row = 0
-
-            self.autofocus_cb = QCheckBox()
-            self.autofocus_cb.setChecked(self.ac.microscope.has_z())
-            self.autofocus_cb.stateChanged.connect(
+            self.fiji_stitch_cb = QCheckBox("Fiji stitch (local)")
+            try:
+                fiji = fiji_stitch.find_fiji()
+            except ValueError as e:
+                fiji = None
+                self.ac.log(f"Fiji stitch: ERROR: {e}")
+            if fiji:
+                self.ac.log(f"Fiji stitch: available ({fiji})")
+            else:
+                self.fiji_stitch_cb.setEnabled(False)
+                self.fiji_stitch_cb.setToolTip(
+                    "Fiji not found. Install Fiji or set fiji_path")
+            self.fiji_stitch_cb.stateChanged.connect(
                 self.itw.update_imaging_config)
-            layout.addWidget(self.autofocus_cb, row, 0)
-            layout.addWidget(QLabel("Autofocus corners?"), row, 1)
-            row += 1
+            layout.addWidget(self.fiji_stitch_cb)
 
-            def process_gb():
-                layout = QGridLayout()
-                row = 0
+            self.keep_intermediate_cb = QCheckBox(
+                "Keep intermediate (unstitched) files")
+            self.keep_intermediate_cb.setChecked(True)
+            self.keep_intermediate_cb.stateChanged.connect(
+                self.itw.update_imaging_config)
+            layout.addWidget(self.keep_intermediate_cb)
 
-                self.cloudstitch_cb = QCheckBox()
-                if self.ac.stitchingTab.has_cs_info():
-                    self.ac.log("CloudStitch: available")
-                    self.cloudstitch_cb.setChecked(True)
-                else:
-                    # Currently don't officially support changing at runtime
-                    self.cloudstitch_cb.setEnabled(False)
-                    self.ac.log(
-                        "CloudStitch: not configured. Contact support@labsmore.com to enable"
-                    )
-                self.cloudstitch_cb.stateChanged.connect(
-                    self.itw.update_imaging_config)
-                layout.addWidget(self.cloudstitch_cb, row, 0)
-                layout.addWidget(QLabel("CloudStitch?"), row, 1)
-                row += 1
+            self.html_cb = QCheckBox("HTML viewer")
+            self.html_cb.stateChanged.connect(self.itw.update_imaging_config)
+            layout.addWidget(self.html_cb)
 
-                self.fiji_stitch_cb = QCheckBox()
-                try:
-                    fiji = fiji_stitch.find_fiji()
-                except ValueError as e:
-                    fiji = None
-                    self.ac.log(f"Fiji stitch: ERROR: {e}")
-                if fiji:
-                    self.ac.log(f"Fiji stitch: available ({fiji})")
-                else:
-                    self.fiji_stitch_cb.setEnabled(False)
-                    self.fiji_stitch_cb.setToolTip(
-                        "Fiji not found. Install Fiji or set fiji_path")
-                self.fiji_stitch_cb.stateChanged.connect(
-                    self.itw.update_imaging_config)
-                layout.addWidget(self.fiji_stitch_cb, row, 0)
-                layout.addWidget(QLabel("Fiji stitch (local)?"), row, 1)
-                row += 1
+            self.quick_stitch_cb = QCheckBox("Quick stitch")
+            self.quick_stitch_cb.stateChanged.connect(
+                self.itw.update_imaging_config)
+            layout.addWidget(self.quick_stitch_cb)
 
-                self.keep_intermediate_cb = QCheckBox()
-                self.keep_intermediate_cb.setChecked(True)
-                self.keep_intermediate_cb.stateChanged.connect(
-                    self.itw.update_imaging_config)
-                layout.addWidget(self.keep_intermediate_cb, row, 0)
-                layout.addWidget(
-                    QLabel("Keep intermediate (unstitched) files?"), row, 1)
-                row += 1
+            self.snapshot_grid_cb = QCheckBox("Snapshot grid overview")
+            self.snapshot_grid_cb.stateChanged.connect(
+                self.itw.update_imaging_config)
+            layout.addWidget(self.snapshot_grid_cb)
 
-                self.html_cb = QCheckBox()
-                self.html_cb.stateChanged.connect(
-                    self.itw.update_imaging_config)
-                layout.addWidget(self.html_cb, row, 0)
-                layout.addWidget(QLabel("HTML viewer?"), row, 1)
-                row += 1
+            self.stitch_gb = QGroupBox("Post-processing")
+            self.stitch_gb.setCheckable(True)
+            self.stitch_gb.setLayout(layout)
+            self.stitch_gb.toggled.connect(self.itw.update_imaging_config)
 
-                self.quick_stitch_cb = QCheckBox()
-                self.quick_stitch_cb.stateChanged.connect(
-                    self.itw.update_imaging_config)
-                layout.addWidget(self.quick_stitch_cb, row, 0)
-                layout.addWidget(QLabel("Quick stitch?"), row, 1)
-                row += 1
+            return self.stitch_gb
 
-                self.snapshot_grid_cb = QCheckBox()
-                self.snapshot_grid_cb.stateChanged.connect(
-                    self.itw.update_imaging_config)
-                layout.addWidget(self.snapshot_grid_cb, row, 0)
-                layout.addWidget(QLabel("Snapshot grid overview?"), row, 1)
-                row += 1
+        layout.addWidget(process_gb())
 
-                self.stitch_gb = QGroupBox("Post-processing")
-                self.stitch_gb.setCheckable(True)
-                self.stitch_gb.setLayout(layout)
-
-                return self.stitch_gb
-
-            layout.addWidget(process_gb(), row, 0, 1, 2)
-            row += 1
-
-            gb = QGroupBox("Panorama")
-            gb.setLayout(layout)
-
-            return gb
-
-        layout.addWidget(image_gb())
-        layout.addWidget(pano_gb())
-        self.setLayout(layout)
+        gb = QGroupBox("Scan options")
+        gb.setLayout(layout)
+        return gb
 
 
 # 2023-11-15: combined ScanWidget + SnapshotWidget
@@ -1309,13 +1277,13 @@ class ImagingTaskWidget(AWidget):
                 self.update_save_extension)
             return hl
 
+        # Panorama options are placed by PanoramaTab
+        self.options = ImagingOptions(self)
+
         layout = QVBoxLayout()
 
         layout.addLayout(getNameLayout())
-
-        self.options_pb = QPushButton("Options")
-        self.options_pb.clicked.connect(self.show_options)
-        layout.addWidget(self.options_pb)
+        layout.addWidget(self.options.snapshot_widget)
 
         self.snapshot_pb = QPushButton("Snapshot")
         self.snapshot_pb.setIcon(QIcon(config.GUI.icon_files["camera"]))
@@ -1330,19 +1298,12 @@ class ImagingTaskWidget(AWidget):
         layoutW.addWidget(gb)
         self.setLayout(layoutW)
 
-        # Hidden by default
-        # Closing window is equivalent to hide
-        self.iow = ImagingOptionsWindow(self)
-
     def getNameJ(self):
         # return scan_dir_fn(user=str(self.le.text()), parent=parent)
         return {
             "dt_prefix": True,
             "user_basename": str(self.job_name_le.text()),
         }
-
-    def show_options(self):
-        self.iow.show()
 
     def dry(self):
         return False
@@ -1434,7 +1395,7 @@ class ImagingTaskWidget(AWidget):
                 scan_runner.pause()
         # Go go go!
         else:
-            autofocus = self.iow.autofocus_cb.isChecked()
+            autofocus = self.options.autofocus_cb.isChecked()
             auto_exposure = self.ac.auto_exposure_enabled()
             auto_color = self.ac.auto_color_enabled()
             auto_color = False
@@ -1458,7 +1419,7 @@ class ImagingTaskWidget(AWidget):
                 scan_settings += "\nImage stabilization enabled (n=%u)" % (
                     stabilization.get_image_stablization(), )
 
-            if self.iow.stitch_gb.isChecked():
+            if self.options.stitch_gb.isChecked():
                 post_settings = "Post processing (stitching) settings:"
                 ippj = {}
                 self.update_ippj(ippj)
@@ -1573,59 +1534,59 @@ class ImagingTaskWidget(AWidget):
         imagerj["save_extension"] = self.save_extension()
         imagerj["save_quality"] = self.ac.usc.imager.save_quality()
         # FIXME: move scan autofocus from Argus to planner
-        # imagerj["autofocus"] = self.iow.autofocus_cb.isChecked()
+        # imagerj["autofocus"] = self.options.autofocus_cb.isChecked()
 
         # Serialized into cs_auto.py CLI option
         ippj = pconfig.setdefault("ipp", {})
         self.update_ippj(ippj)
 
     def update_ippj(self, ippj):
-        ippj["cloud_stitch"] = self.iow.cloudstitch_cb.isChecked()
-        ippj["fiji_stitch"] = self.iow.fiji_stitch_cb.isChecked()
-        ippj["write_html_viewer"] = self.iow.html_cb.isChecked()
-        ippj["write_quick_pano"] = self.iow.quick_stitch_cb.isChecked()
-        ippj["write_snapshot_grid"] = self.iow.snapshot_grid_cb.isChecked()
-        ippj["keep_intermediates"] = self.iow.keep_intermediate_cb.isChecked()
+        ippj["cloud_stitch"] = self.options.cloudstitch_cb.isChecked()
+        ippj["fiji_stitch"] = self.options.fiji_stitch_cb.isChecked()
+        ippj["write_html_viewer"] = self.options.html_cb.isChecked()
+        ippj["write_quick_pano"] = self.options.quick_stitch_cb.isChecked()
+        ippj["write_snapshot_grid"] = self.options.snapshot_grid_cb.isChecked()
+        ippj["keep_intermediates"] = self.options.keep_intermediate_cb.isChecked()
 
     def _cache_save(self, cachej):
         cachej["imaging"] = {
             "file_name": str(self.job_name_le.text()),
             "extension": self.snapshot_suffix_cb.currentIndex(),
-            "stitch": self.iow.stitch_gb.isChecked(),
-            "cloudstitch": self.iow.cloudstitch_cb.isChecked(),
-            "fiji_stitch": self.iow.fiji_stitch_cb.isChecked(),
-            "autofocus": self.iow.autofocus_cb.isChecked(),
-            "add_scalebar": self.iow.add_scalebar_cb.isChecked(),
-            "keep_intermediate": self.iow.keep_intermediate_cb.isChecked(),
-            "html": self.iow.html_cb.isChecked(),
-            "quick_stitch": self.iow.quick_stitch_cb.isChecked(),
-            "snapshot_grid": self.iow.snapshot_grid_cb.isChecked(),
+            "stitch": self.options.stitch_gb.isChecked(),
+            "cloudstitch": self.options.cloudstitch_cb.isChecked(),
+            "fiji_stitch": self.options.fiji_stitch_cb.isChecked(),
+            "autofocus": self.options.autofocus_cb.isChecked(),
+            "add_scalebar": self.options.add_scalebar_cb.isChecked(),
+            "keep_intermediate": self.options.keep_intermediate_cb.isChecked(),
+            "html": self.options.html_cb.isChecked(),
+            "quick_stitch": self.options.quick_stitch_cb.isChecked(),
+            "snapshot_grid": self.options.snapshot_grid_cb.isChecked(),
         }
 
     def _cache_load(self, cachej):
         j = cachej.get("imaging", {})
         self.job_name_le.setText(j.get("file_name", "unknown"))
         self.snapshot_suffix_cb.setCurrentIndex(j.get("extension", 0))
-        self.iow.stitch_gb.setChecked(j.get("stitch", True))
+        self.options.stitch_gb.setChecked(j.get("stitch", True))
         # Without creds the checkbox is disabled and must stay unchecked
-        if self.iow.cloudstitch_cb.isEnabled():
-            self.iow.cloudstitch_cb.setChecked(j.get("cloudstitch", True))
-        if self.iow.fiji_stitch_cb.isEnabled():
-            self.iow.fiji_stitch_cb.setChecked(j.get("fiji_stitch", False))
-        self.iow.autofocus_cb.setChecked(
+        if self.options.cloudstitch_cb.isEnabled():
+            self.options.cloudstitch_cb.setChecked(j.get("cloudstitch", True))
+        if self.options.fiji_stitch_cb.isEnabled():
+            self.options.fiji_stitch_cb.setChecked(j.get("fiji_stitch", False))
+        self.options.autofocus_cb.setChecked(
             j.get("autofocus", self.ac.microscope.has_z()))
-        self.iow.add_scalebar_cb.setChecked(j.get("add_scalebar", False))
-        self.iow.keep_intermediate_cb.setChecked(
+        self.options.add_scalebar_cb.setChecked(j.get("add_scalebar", False))
+        self.options.keep_intermediate_cb.setChecked(
             j.get("keep_intermediate", True))
-        self.iow.html_cb.setChecked(j.get("html", False))
-        self.iow.quick_stitch_cb.setChecked(j.get("quick_stitch", False))
-        self.iow.snapshot_grid_cb.setChecked(j.get("snapshot_grid", False))
+        self.options.html_cb.setChecked(j.get("html", False))
+        self.options.quick_stitch_cb.setChecked(j.get("quick_stitch", False))
+        self.options.snapshot_grid_cb.setChecked(j.get("snapshot_grid", False))
 
     def update_imaging_config(self):
         self.imaging_config = {
-            "stitch": self.iow.stitch_gb.isChecked(),
-            "add_scalebar": self.iow.add_scalebar_cb.isChecked(),
-            "autofocus": self.iow.autofocus_cb.isChecked(),
+            "stitch": self.options.stitch_gb.isChecked(),
+            "add_scalebar": self.options.add_scalebar_cb.isChecked(),
+            "autofocus": self.options.autofocus_cb.isChecked(),
         }
 
 
@@ -1761,6 +1722,7 @@ class PanoramaTab(ArgusTab):
         self.planner_widget_tabs.addTab(self.planner_widget_xy3p, "XY3P")
         self.planner_widget_tabs.addTab(self.planner_widget_xy2p, "XY2P")
         layout.addWidget(self.planner_widget_tabs)
+        layout.addWidget(self.imaging_widget.options.panorama_widget)
         layout.addWidget(self.imaging_widget.go_pause_pb)
         layout.addWidget(self.imaging_widget.progress_bar)
         layout.addStretch()

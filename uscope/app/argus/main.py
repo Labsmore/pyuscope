@@ -260,10 +260,10 @@ class MainWindow(AMainWindow):
             j.get("display_limits", config.bc.dev_mode()))
         self.displayLimitsTriggered()
         self.displayAdvancedMovement.setChecked(
-            j.get("display_advanced_movement", config.bc.dev_mode()))
+            j.get("display_advanced_movement", False))
         self.displayAdvancedMovementTriggered()
         self.displayAdvancedObjective.setChecked(
-            j.get("display_advanced_objective", config.bc.dev_mode()))
+            j.get("display_advanced_objective", False))
         self.displayAdvancedObjectiveTriggered()
         self.argus_options_window.cache_load(j)
 
@@ -412,7 +412,7 @@ class MainWindow(AMainWindow):
                                                motionMenu,
                                                checkable=True)
         motionMenu.addAction(self.displayAdvancedMovement)
-        self.displayAdvancedMovement.setChecked(config.bc.dev_mode())
+        self.displayAdvancedMovement.setChecked(False)
         self.displayAdvancedMovement.triggered.connect(
             self.displayAdvancedMovementTriggered)
 

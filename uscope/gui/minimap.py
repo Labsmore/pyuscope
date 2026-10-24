@@ -234,6 +234,15 @@ class MinimapTab(ArgusTab):
         self.setLayout(layout)
         self.update_status()
 
+    def _cache_save(self, cachej):
+        cachej["minimap"] = {
+            "enable": self.enable_cb.isChecked(),
+        }
+
+    def _cache_load(self, cachej):
+        j = cachej.get("minimap", {})
+        self.enable_cb.setChecked(j.get("enable", True))
+
     def enabled(self):
         return self.stack is not None
 

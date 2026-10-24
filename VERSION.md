@@ -274,6 +274,10 @@
       Z backlash, motion settle, parfocality (auto-Z off by default)
     * Wizard collect/analyze + PDF report; illumination correction uses
       dark + gain + mask (legacy FF TIFF still loads)
+    * Argus: File => Advanced options => Calibration lists every parameter
+      with nominal / calibrated / effective values and typed editors
+    * Argus: File => Advanced options => Optics holds the global magnification
+      scalar (moved from the Main tab) and per objective um/pixel, FOV, settle
   * Capture pixel format: 8 bit RGB, 16 bit RGB, 8 / 16 bit sensor raw
     * Negotiated with the camera through gstreamer caps
     * Config: imager.format sets the default

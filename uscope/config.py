@@ -178,17 +178,18 @@ class USCImager:
             raise ValueError("Bad cropped w/h")
         return w, h
 
-    def crop_tblr(self):
+    def crop_tblr(self, nominal=False):
         """
         Crop properties
         Intended for gstreamer "videocrop"
         top/bottom/left/right
+        nominal: ignore the calibration store (microscope.j5 value only)
 
         Returns either None or a dict with 4 keys
         """
         from uscope.cal.store import _cal_store
         store = _cal_store(self.microscope)
-        if store:
+        if store and not nominal:
             scope = {}
             try:
                 obj = self.microscope.get_active_objective()
@@ -387,15 +388,16 @@ class USCImager:
             return None
         return [float(g) for g in gains]
 
-    def software_gain(self):
+    def software_gain(self, nominal=False):
         """
         Scalar gain applied to processed images along with white balance
         Useful when the sensor gain range isn't enough (ex: low light IR)
         Calibration store imager.software_gain overrides the config value
+        nominal: ignore the calibration store (microscope.j5 value only)
         """
         from uscope.cal.store import _cal_store
         store = _cal_store(self.microscope)
-        if store:
+        if store and not nominal:
             entry = store.get("imager.software_gain")
             if entry is not None:
                 return float(entry.value)
@@ -594,11 +596,12 @@ class USCMotion:
         self.validate_axes_dict(ret)
         return ret
 
-    def backlash(self):
+    def backlash(self, nominal=False):
         """
         Return a dictionary, one key per known axis, of the possible axes
         Backlash ("slop") defines the amount of motion needed in one axis to engage motion
         if previously going the other direction
+        nominal: ignore the calibration store (microscope.j5 value only)
         """
         default_backlash = 0.0
         backlash = self.j.get("backlash", {})
@@ -623,7 +626,7 @@ class USCMotion:
         self.validate_axes_dict(ret)
         from uscope.cal.store import _cal_store
         store = _cal_store(self.microscope)
-        if store:
+        if store and not nominal:
             axes = list(ret.keys()) or ["x", "y", "z"]
             for axis in axes:
                 entry = store.get("motion.backlash", {"axis": axis})
@@ -631,14 +634,15 @@ class USCMotion:
                     ret[axis] = float(entry.value)
         return ret
 
-    def backlash_compensation(self):
+    def backlash_compensation(self, nominal=False):
         """
         +1: move negative along axis then positive to final position
         0 => none
         -1: move positive along axis then negative to final position
+        nominal: ignore the calibration store (microscope.j5 value only)
         """
 
-        backlashes = self.backlash()
+        backlashes = self.backlash(nominal=nominal)
 
         default_comp = None
         backlash = self.j.get("backlash_compensation", {})
@@ -668,7 +672,7 @@ class USCMotion:
 
         from uscope.cal.store import _cal_store
         store = _cal_store(self.microscope)
-        if store:
+        if store and not nominal:
             for axis in list(ret.keys()):
                 entry = store.get("motion.backlash", {"axis": axis})
                 if entry is not None and entry.extra.get("compensation") is not None:
@@ -870,6 +874,10 @@ class USCOptics:
             v = store.get_value("optics.um_per_pixel_raw_1x")
             if v is not None:
                 return v
+        return self.um_per_pixel_raw_1x_nominal()
+
+    def um_per_pixel_raw_1x_nominal(self):
+        """um_per_pixel_raw_1x from microscope.j5, ignoring the calibration store"""
         # Directly specified?
         ret = self.j.get("um_per_pixel_raw_1x", None)
         if ret is not None:

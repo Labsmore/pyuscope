@@ -27,7 +27,7 @@ from uscope.gui.common import ArgusCommon, error
 from uscope.gui.widgets import TopWidget, BatchImageTab, StitchingTab, MeasureTab
 from uscope.gui.imaging import MainTab, PanoramaTab, ImagerTab
 from uscope.gui.scripting import ScriptingTab
-from uscope.gui.calibration import CalibrationTab
+from uscope.gui.calibration import CalibrationTab, OpticsTab
 from uscope.gui.minimap import MinimapTab
 from uscope.gui.snapshot_viewer import SnapshotViewerTab
 
@@ -111,12 +111,13 @@ class ArgusOptionsWindow(QWidget):
 
         self.tabs = QTabWidget()
         self.tabs.addTab(general, "General")
+        self.tabs.addTab(self.mw.opticsTab, "Optics")
         self.tabs.addTab(self.mw.calibrationTab, "Calibration")
         top = QVBoxLayout()
         top.addWidget(self.tabs)
         self.setLayout(top)
         self.setWindowTitle("Advanced options")
-        self.resize(1000, 600)
+        self.resize(1100, 700)
 
     def motion_damper_le_return(self, lazy=False):
         s = str(self.motion_damper_le.text()).strip()
@@ -310,7 +311,8 @@ class MainWindow(AMainWindow):
         self.ac.stitchingTab = self.stitchingTab
         self.ac.batchTab = self.batchTab
 
-        # Shown in File => Advanced options, not as a main tab
+        # Shown in File => Advanced options, not as main tabs
+        self.opticsTab = OpticsTab(ac=self.ac, aname="optics", parent=self)
         self.calibrationTab = CalibrationTab(ac=self.ac,
                                              aname="calibration",
                                              parent=self)

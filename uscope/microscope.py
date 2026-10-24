@@ -376,9 +376,9 @@ class Microscope:
         self.calibration = store.as_dict()
         keys = set(keys or [])
         if "optics.um_per_pixel_raw_1x" in keys and self.objectives:
-            v = store.get_value("optics.um_per_pixel_raw_1x")
-            if v is not None:
-                self.objectives.set_um_per_pixel_raw_1x(v)
+            # Falls back to nominal if the entry was removed / disabled
+            self.objectives.set_um_per_pixel_raw_1x(
+                self.usc.optics.um_per_pixel_raw_1x())
         if "motion.backlash" in keys and self.motion is not None:
             if hasattr(self.motion, "reconfigure_backlash"):
                 self.motion.reconfigure_backlash()

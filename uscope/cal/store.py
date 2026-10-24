@@ -298,10 +298,13 @@ class CalStore:
             return default
         return e.value
 
-    def find_exact(self, key, scope=None, include_factory=False):
+    def find_exact(self, key, scope=None, include_factory=False,
+                   include_user=True):
         scope_t = _scope_tuple(scope)
         with self._lock:
-            pools = [self._user]
+            pools = []
+            if include_user:
+                pools.append(self._user)
             if include_factory:
                 pools.append(self._factory)
             for pool in pools:

@@ -399,15 +399,6 @@ class ObjectiveWidget(AWidget):
         self.obj_view = advanced_widget(QLabel(""))
         layout.addWidget(self.obj_view, row, 2)
 
-        row += 1
-
-        layout.addWidget(advanced_widget(
-            QLabel("Global magnification scalar")))
-        self.global_scalar_le = advanced_widget(QLineEdit())
-        layout.addWidget(self.global_scalar_le)
-        self.global_scalar_le.returnPressed.connect(
-            self.global_scalar_le_return)
-
         self.setLayout(layout)
 
     def show_advanced(self, visible):
@@ -430,9 +421,6 @@ class ObjectiveWidget(AWidget):
             self.obj_cb.setCurrentText(config["name"])
             im_w_um, im_h_um = self.state.view_um()
             self.obj_view.setText('View : %0.3fx %0.3fy' % (im_w_um, im_h_um))
-            global_scalar = self.state.global_scalar
-            self.global_scalar_le.setText(
-                "" if global_scalar is None else str(global_scalar))
         finally:
             self.updating_objectives = False
         self.ac.objectiveChanged.emit(config)
@@ -450,18 +438,6 @@ class ObjectiveWidget(AWidget):
 
     def get_objective_meta_cache(self):
         return self.state.config()
-
-    def global_scalar_le_return(self):
-        s = str(self.global_scalar_le.text()).strip()
-        if not s:
-            self.state.set_global_scalar(None)
-            return
-        try:
-            val = float(s)
-        except ValueError:
-            self.ac.log("Failed to parse global image scalar")
-            return
-        self.state.set_global_scalar(val)
 
     def _cache_sn_save(self, cachej):
         self.state.cache_sn_save(cachej)

@@ -65,22 +65,24 @@ class MicroscopeObjectives:
         )
         reference_na = 1.0
         store = getattr(self.microscope, "cal_store", None)
+        # name => tsettle_motion without calibration store overrides
+        self.tsettle_motion_nominal = {}
         # Objectives must support magnification to scale
-        for objective in self.objectives.values():
+        for name, objective in self.objectives.items():
+            if "tsettle_motion" in objective:
+                tsettle_motion = objective["tsettle_motion"]
+            else:
+                # Ex: 2.0 sec sleep at 100x 1.0 NA => 20x 0.42 NA => 0.84 sec sleep
+                # Assume conservative NA (high power oil objective) if not specified
+                HIGHEST_NA = 1.4
+                tsettle_motion = reference_tsettle_motion * objective.get(
+                    "na", HIGHEST_NA) / reference_na
+            self.tsettle_motion_nominal[name] = tsettle_motion
             if store:
                 entry = store.get("kinematics.tsettle_motion",
-                                  {"objective": objective.get("name")})
+                                  {"objective": name})
                 if entry is not None:
-                    objective["tsettle_motion"] = float(entry.value)
-                    continue
-            if "tsettle_motion" in objective:
-                continue
-            tsettle_motion = 0.0
-            # Ex: 2.0 sec sleep at 100x 1.0 NA => 20x 0.42 NA => 0.84 sec sleep
-            # Assume conservative NA (high power oil objective) if not specified
-            HIGHEST_NA = 1.4
-            tsettle_motion = reference_tsettle_motion * objective.get(
-                "na", HIGHEST_NA) / reference_na
+                    tsettle_motion = float(entry.value)
             objective["tsettle_motion"] = tsettle_motion
 
     def names(self):
@@ -250,6 +252,10 @@ class ObjectiveState:
             cb(config)
 
     def _on_cal_changed(self, store, keys):
+        if "optics.um_per_pixel_raw_1x" in (keys or []):
+            # Store (else microscope.j5) is now the source of truth
+            with self.lock:
+                self.um_per_pixel_raw_1x = None
         # Microscope already applied these to its objectives
         if self.objectives is not None and set(keys or []) & self.CAL_KEYS:
             self._notify(self.config())
@@ -298,6 +304,11 @@ class ObjectiveState:
     def full_config(self):
         with self.lock:
             return self._objectives().get_full_config()
+
+    def tsettle_motion_nominal(self, name):
+        """Settle time (s) for name ignoring the calibration store"""
+        with self.lock:
+            return self._objectives().tsettle_motion_nominal.get(name)
 
     def view_um(self):
         """(width, height) of the final image in um"""

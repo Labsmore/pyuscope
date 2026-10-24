@@ -36,24 +36,8 @@ from uscope.scripting import ScriptingPlugin
 from uscope.script import webserver_common
 
 from flask import Flask
-from threading import Thread
-from werkzeug.serving import make_server
 
 app = Flask(__name__)
-
-
-class ServerThread(Thread):
-    def __init__(self, host='127.0.0.1', port=8080):
-        super().__init__()
-        self.server = make_server(host=host, port=port, app=app)
-        self.ctx = app.app_context()
-        self.ctx.push()
-
-    def run(self):
-        self.server.serve_forever()
-
-    def shutdown(self):
-        self.server.shutdown()
 
 
 class Plugin(ScriptingPlugin):
@@ -61,24 +45,10 @@ class Plugin(ScriptingPlugin):
         webserver_common.plugin = self
         super().__init__(*args, **kwargs)
         self.verbose = True
+        self.server = None
 
     def input_config(self):
-        return {
-            "Port": {
-                "widget": "QLineEdit",
-                "type": int,
-                "key": "port",
-                "default": "8080"
-            },
-            "Start localhost only": {
-                "widget": "QPushButton",
-                "value": "localhost",
-            },
-            "Start network accessible": {
-                "widget": "QPushButton",
-                "value": "network",
-            },
-        }
+        return webserver_common.input_config()
 
     def log_verbose(self, msg):
         if self.verbose:
@@ -88,30 +58,24 @@ class Plugin(ScriptingPlugin):
         return False
 
     def run_test(self):
-        mode = self.get_input().get("button", {}).get("value")
-
-        if mode == "localhost":
-            host = "127.0.0.1"
-        elif mode == "network":
-            host = "0.0.0.0"
-        else:
-            assert 0, f"bad mode {mode}"
-
         vals = self.get_input()
+        host = webserver_common.bind_host(vals)
         port = vals["port"]
         self.log(f"Running pyuscope webserver (bind: {host}) on port {port}")
         self.objectives = self.session.microscope.get_objectives()
         # Keep a reference to this plugin
         app.plugin = self
-        self.server = ServerThread(host=host, port=port)
+        self.server = webserver_common.ServerThread(app, host=host, port=port)
         self.server.start()
         # Keep plugin alive while server is running
         while self.server and self.server.is_alive():
             self.sleep(0.1)
 
     def cleanup(self):
-        self.server.shutdown()
-        self.server.join()
+        if self.server:
+            self.server.shutdown()
+            self.server.join()
+            self.server = None
 
 
 webserver_common.make_app(app)

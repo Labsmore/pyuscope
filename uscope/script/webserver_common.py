@@ -3,10 +3,60 @@ from http import HTTPStatus
 import json
 import base64
 from io import BytesIO
+from threading import Thread
+from werkzeug.serving import make_server
 
 import functools
 
 plugin = None
+DEFAULT_PORT = 8080
+
+
+def input_config():
+    return {
+        "Port": {
+            "widget": "QLineEdit",
+            "type": int,
+            "key": "port",
+            "default": str(DEFAULT_PORT)
+        },
+        "Start localhost only": {
+            "widget": "QPushButton",
+            "value": "localhost",
+        },
+        "Start network accessible": {
+            "widget": "QPushButton",
+            "value": "network",
+        },
+    }
+
+
+def bind_host(input_):
+    """Address to bind for the button pressed in input_config()"""
+    mode = input_.get("button", {}).get("value")
+    if mode == "localhost":
+        return "127.0.0.1"
+    elif mode == "network":
+        return "0.0.0.0"
+    raise ValueError(f"bad mode {mode}")
+
+
+class ServerThread(Thread):
+    def __init__(self, app, host='127.0.0.1', port=DEFAULT_PORT, threaded=False):
+        super().__init__(daemon=True)
+        self.server = make_server(host=host,
+                                  port=port,
+                                  app=app,
+                                  threaded=threaded)
+        self.ctx = app.app_context()
+        self.ctx.push()
+
+    def run(self):
+        self.server.serve_forever(0.1)
+
+    def shutdown(self):
+        self.server.shutdown()
+        self.server.server_close()
 
 
 def except_wrap(func):

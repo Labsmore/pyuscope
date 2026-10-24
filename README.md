@@ -42,6 +42,14 @@ If you want to explicitly specify a microscope:
 
     ./app/argus.py --microscope mock
 
+To control the microscope from a web browser or over HTTP (JSON API) instead
+of Argus, start the web server and browse to http://localhost:8080/ :
+
+    ./app/webserver.py
+
+`--network` accepts connections from other computers, `--port` changes the
+port and `--api-only` serves the JSON API without the browser UI.
+
 # Debian packages
 
 Build only a pyuscope package for the current distribution:
@@ -49,7 +57,8 @@ Build only a pyuscope package for the current distribution:
     ./build_deb.py
 
 The package installs pyuscope and its private Python environment under
-`/opt/pyuscope`. It provides the `pyuscope` and `pyuscope-argus` commands.
+`/opt/pyuscope`. It provides the `pyuscope`, `pyuscope-argus` and
+`pyuscope-webserver` commands.
 Package versions include the build distribution, for example
 `pyuscope_4.7.0+ubuntu24.04_amd64.deb`.
 

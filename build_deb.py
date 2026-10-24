@@ -261,6 +261,9 @@ def main():
         write_text(
             bin_dir / "pyuscope-argus", launcher("app/argus.py"), 0o755
         )
+        write_text(
+            bin_dir / "pyuscope-webserver", launcher("app/webserver.py"), 0o755
+        )
 
         write_text(
             package_root / "DEBIAN" / "control",

@@ -43,18 +43,17 @@ from uscope.scripting import ScriptingPlugin
 from uscope.script import webserver_common
 
 from flask import Flask, current_app, request, render_template, send_from_directory
-from werkzeug.serving import make_server
 from flask_cors import CORS
 import cv2
 from flask_socketio import SocketIO
 import base64
 import numpy as np
+import os
 
-FLUTTER_WEB_DIR = "web"
+FLUTTER_WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "web")
 app = Flask(__name__, template_folder=FLUTTER_WEB_DIR)
 CORS(app)
-SERVER_PORT = 8080
-HOST = '127.0.0.1'
 
 
 def image_to_base64(p_img):
@@ -105,33 +104,47 @@ class Plugin(ScriptingPlugin):
         self.verbose = True
         self.frame = None
         self.socket = None
+        self.server = None
+
+    def input_config(self):
+        return webserver_common.input_config()
 
     def log_verbose(self, msg):
         if self.verbose:
             self.log(msg)
 
+    def show_run_button(self):
+        return False
+
     def run_test(self):
-        self.log(f"Running Pyuscope Webserver Plugin on port: {SERVER_PORT}")
+        vals = self.get_input()
+        host = webserver_common.bind_host(vals)
+        port = vals["port"]
+        self.log(
+            f"Running pyuscope web page + API (bind: {host}) on port {port}")
         self.objectives = self.session.microscope.get_objectives()
         if not self.socket:
             self.socket = MySocket(app, cors_allowed_origins="*")
 
         # Keep a reference to this plugin
         app.plugin = self
-        self.server = make_server(host=HOST,
-                                  port=SERVER_PORT,
-                                  app=app,
-                                  threaded=True)
-        self.ctx = app.app_context()
-        self.ctx.push()
-        self.server.serve_forever(0.1)
+        self.server = webserver_common.ServerThread(app,
+                                                    host=host,
+                                                    port=port,
+                                                    threaded=True)
+        self.server.start()
+        while self.server and self.server.is_alive():
+            self.sleep(0.1)
 
-    def shutdown(self):
-        self.socket.disconnect_clients()
-        self.server.shutdown()
-        self.server.server_close()
-        super().shutdown()
-        self.server = None
+    def cleanup(self):
+        if self.server:
+            if self.socket:
+                self.socket.disconnect_clients()
+            server = self.server
+            # Stops the video feed loop
+            self.server = None
+            server.shutdown()
+            server.join()
 
 
 webserver_common.make_app(app)

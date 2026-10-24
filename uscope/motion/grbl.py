@@ -1590,10 +1590,14 @@ class GrblHal(MotionHAL):
         so that the caller (ex: GUI) can stay responsive
         """
         result = {}
+        gs = self.grbl.gs
+        # Serial access is single threaded: hand it to the worker while we block
+        owner_thread = gs.last_thread
 
         def run():
             try:
-                self.grbl.gs.h(timeout=max_home_time)
+                gs.last_thread = threading.get_ident()
+                gs.h(timeout=max_home_time)
             except BaseException as e:
                 result["exception"] = e
 
@@ -1610,6 +1614,8 @@ class GrblHal(MotionHAL):
                 self.home_progress("running", percent,
                                    max(0.0, max_home_time - dt))
         finally:
+            if not thread.is_alive():
+                gs.last_thread = owner_thread
             ok = not thread.is_alive() and "exception" not in result
             self.home_progress("done" if ok else "failed", 100.0, 0.0)
         if "exception" in result:

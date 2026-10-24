@@ -264,6 +264,10 @@ def main():
         write_text(
             bin_dir / "pyuscope-webserver", launcher("app/webserver.py"), 0o755
         )
+        write_text(
+            bin_dir / "pyuscope-microforge", launcher("app/microforge.py"),
+            0o755
+        )
 
         write_text(
             package_root / "DEBIAN" / "control",

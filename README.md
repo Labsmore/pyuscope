@@ -42,6 +42,16 @@ If you want to explicitly specify a microscope:
 
     ./app/argus.py --microscope mock
 
+To create a config for your own microscope (camera, optics, objectives,
+motion controller), run the New Microscope Wizard:
+
+    ./app/microforge.py
+
+It writes `configs/<name>/microscope.j5` with a reasonable guess for every
+value (`--from <config>` starts from an existing config instead). Then
+launch with `./app/argus.py --microscope <name>` and run
+Advanced options => Calibration to measure the real values.
+
 To control the microscope from a web browser or over HTTP (JSON API) instead
 of Argus, start the web server and browse to http://localhost:8080/ :
 

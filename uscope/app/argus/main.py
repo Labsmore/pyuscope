@@ -30,7 +30,7 @@ from uscope.gui.machine import MachineTab
 from uscope.gui.scripting import ScriptingTab
 from uscope.gui.instruments import InstrumentsTab
 from uscope.instrument_db import InstrumentDB
-from uscope.gui.calibration import CalibrationTab, OpticsTab
+from uscope.gui.calibration import CalibrateTab, CalibrationTab, OpticsTab
 from uscope.gui.objectives import ObjectivesTab
 from uscope.gui.minimap import MinimapTab
 from uscope.gui.snapshot_viewer import SnapshotViewerTab
@@ -245,8 +245,8 @@ class MainWindow(AMainWindow):
         self.displayAdvancedMovementTriggered()
         all_tabs = list(self.ac.tabs.items())
         for name, tab in all_tabs:
-            if tab not in (self.machineTab, self.batchTab, self.scriptingTab,
-                           self.stitchingTab):
+            if tab not in (self.machineTab, self.calibrateTab, self.batchTab,
+                           self.scriptingTab, self.stitchingTab):
                 continue
             index = self.tab_widget.indexOf(tab)
             if expert and index < 0:
@@ -260,6 +260,15 @@ class MainWindow(AMainWindow):
                 self.tab_widget.insertTab(insert_at, tab, name)
             elif not expert and index >= 0:
                 self.tab_widget.removeTab(index)
+
+    def show_calibrate_tab(self):
+        if self.tab_widget.indexOf(self.calibrateTab) < 0:
+            self.ac.log("Enabling expert view to show the Calibrate tab")
+            self.expertView.setChecked(True)
+            self.expertViewTriggered()
+        self.tab_widget.setCurrentWidget(self.calibrateTab)
+        self.raise_()
+        self.activateWindow()
 
     def _cache_load(self, j):
         j = j.get("main_window", {})
@@ -301,6 +310,7 @@ class MainWindow(AMainWindow):
         self.imagerTab = self.add_tab(ImagerTab, "Imager")
         self.ac.imagerTab = self.imagerTab
         self.machineTab = self.add_tab(MachineTab, "Machine")
+        self.calibrateTab = self.add_tab(CalibrateTab, "Calibrate")
         self.measureTab = self.add_tab(MeasureTab, "Measure")
         self.minimapTab = self.add_tab(MinimapTab, "Minimap")
         self.snapshotsTab = self.add_tab(SnapshotViewerTab, "Snapshots")
@@ -317,6 +327,7 @@ class MainWindow(AMainWindow):
             self.panoramaTab,
             self.imagerTab,
             self.machineTab,
+            self.calibrateTab,
             self.batchTab,
             self.scriptingTab,
             self.stitchingTab,
@@ -420,7 +431,7 @@ class MainWindow(AMainWindow):
         self.clearLog.triggered.connect(self.clearLogTriggered)
         self.expertView = QAction("Expert view", fileMenu, checkable=True)
         self.expertView.setToolTip(
-            "Show Machine, Batch, Scripting and CloudStitch tabs, "
+            "Show Machine, Calibrate, Batch, Scripting and CloudStitch tabs, "
             "RTSP server and advanced movement")
         fileMenu.addAction(self.expertView)
         self.expertView.setChecked(config.bc.dev_mode())

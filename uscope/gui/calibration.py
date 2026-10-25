@@ -1,4 +1,4 @@
-"""Calibration / optics settings pages and collect/analyze wizard."""
+"""Calibration / optics settings pages and the Calibrate tab."""
 
 import json
 import os
@@ -11,8 +11,6 @@ from PyQt5.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
-    QDialog,
-    QDialogButtonBox,
     QFileDialog,
     QFormLayout,
     QGridLayout,
@@ -26,6 +24,7 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSplitter,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -36,6 +35,7 @@ from PyQt5.QtWidgets import (
 )
 
 from uscope.scripting import ScriptingPlugin
+from uscope.threads import ShutdownPhase
 from uscope.gui.scripting import QtScriptHost, exec_prompt
 from uscope.gui.widgets import ArgusTab
 from uscope.cal import params as cal_params
@@ -78,27 +78,58 @@ class CalibrationRunPlugin(ScriptingPlugin):
         write_report(self.cal_session)
 
 
-class CalibrationWizard(QDialog):
-    def __init__(self, ac, parent=None):
+def cal_run_names(name):
+    """name plus its hard requires (transitive), name first"""
+    names = [name]
+    for n in names:
+        for req in get_cal(n).requires:
+            if req not in names:
+                names.append(req)
+    return names
+
+
+class CalRunWidget(QWidget):
+    """
+    Collect / analyze / apply page for one calibration
+    The owning CalibrateTab allows one run at a time across all pages
+    """
+    def __init__(self, ac, name, tab, parent=None):
         super().__init__(parent)
         self.ac = ac
+        self.name = name
+        self.tab = tab
         self.plugin = None
         self.host = CalScriptHost(parent=self)
         self.host.log_sig.connect(self._log)
         self.host.progress_sig.connect(self._on_progress)
         self.host.prompt_sig.connect(self._on_prompt)
         self.host.done_sig.connect(self._done)
-        self.setWindowTitle("Run calibration")
-        self.resize(640, 520)
+        cal = get_cal(name)
         layout = QVBoxLayout()
 
-        layout.addWidget(QLabel("Select calibrations (all optional):"))
-        self.checks = {}
-        for name, cal in all_cals().items():
-            cb = QCheckBox("%s — %s" % (cal.title, cal.description))
-            cb.setChecked(False)
-            self.checks[name] = cb
-            layout.addWidget(cb)
+        header = QHBoxLayout()
+        self.back_pb = QPushButton("← Back")
+        self.back_pb.setToolTip("Return to the list of calibrations")
+        self.back_pb.clicked.connect(self.tab.show_menu)
+        header.addWidget(self.back_pb)
+        title_l = QLabel(cal.title)
+        font = title_l.font()
+        font.setBold(True)
+        font.setPointSize(font.pointSize() + 2)
+        title_l.setFont(font)
+        header.addWidget(title_l)
+        header.addStretch()
+        layout.addLayout(header)
+
+        description_l = QLabel(cal.description)
+        description_l.setWordWrap(True)
+        layout.addWidget(description_l)
+
+        also = [get_cal(n).title for n in cal_run_names(name)[1:]]
+        if also:
+            also_l = QLabel("Also runs: %s (required)" % ", ".join(also))
+            also_l.setWordWrap(True)
+            layout.addWidget(also_l)
 
         row = QHBoxLayout()
         row.addWidget(QLabel("Quality"))
@@ -112,6 +143,8 @@ class CalibrationWizard(QDialog):
         self.preflight_te = QTextEdit()
         self.preflight_te.setReadOnly(True)
         self.preflight_te.setMaximumHeight(120)
+        self.preflight_te.setPlaceholderText(
+            "Check preflight to see what must be set up before running")
         layout.addWidget(self.preflight_te)
 
         self.progress = QProgressBar()
@@ -121,7 +154,7 @@ class CalibrationWizard(QDialog):
 
         self.log_te = QTextEdit()
         self.log_te.setReadOnly(True)
-        layout.addWidget(self.log_te)
+        layout.addWidget(self.log_te, 1)
 
         btns = QHBoxLayout()
         self.check_pb = QPushButton("Check preflight")
@@ -129,47 +162,45 @@ class CalibrationWizard(QDialog):
         self.run_pb = QPushButton("Collect + analyze")
         self.run_pb.clicked.connect(self._run)
         self.stop_pb = QPushButton("Stop")
-        self.stop_pb.setEnabled(False)
         self.stop_pb.clicked.connect(self._stop)
         self.apply_pb = QPushButton("Apply results")
-        self.apply_pb.setEnabled(False)
         self.apply_pb.clicked.connect(self._apply)
         self.report_pb = QPushButton("Open report")
-        self.report_pb.setEnabled(False)
         self.report_pb.clicked.connect(self._open_report)
         for w in (self.check_pb, self.run_pb, self.stop_pb, self.apply_pb,
                   self.report_pb):
             btns.addWidget(w)
+        btns.addStretch()
         layout.addLayout(btns)
-
-        close = QDialogButtonBox(QDialogButtonBox.Close)
-        close.rejected.connect(self.reject)
-        layout.addWidget(close)
         self.setLayout(layout)
+        self.update_buttons()
 
-    def _selected(self):
-        names = [n for n, cb in self.checks.items() if cb.isChecked()]
-        # Auto-include hard requires
-        added = True
-        while added:
-            added = False
-            for n in list(names):
-                for req in get_cal(n).requires:
-                    if req not in names:
-                        names.append(req)
-                        self.checks[req].setChecked(True)
-                        added = True
-        return names
+    def names(self):
+        return cal_run_names(self.name)
+
+    def running(self):
+        return self.tab.running_page is self
+
+    def update_buttons(self):
+        other = self.tab.running_page
+        mine = other is self
+        self.back_pb.setEnabled(not mine)
+        self.run_pb.setEnabled(other is None)
+        if other is None:
+            self.run_pb.setToolTip("")
+        elif not mine:
+            self.run_pb.setToolTip("%s is running" % get_cal(other.name).title)
+        self.stop_pb.setEnabled(mine)
+        have_results = (not mine and self.plugin is not None
+                        and self.plugin.cal_session is not None)
+        self.apply_pb.setEnabled(have_results)
+        self.report_pb.setEnabled(have_results)
 
     def _preflight(self):
-        names = self._selected()
-        if not names:
-            self.preflight_te.setText("No calibrations selected.")
-            return
         lines = []
         from uscope.cal.context import CalContext
         ctx = CalContext(plugin=None, microscope=self.ac.microscope)
-        for name in names:
+        for name in self.names():
             lines.append(get_cal(name).title)
             try:
                 for c in get_cal(name).preflight(ctx):
@@ -180,22 +211,16 @@ class CalibrationWizard(QDialog):
         self.preflight_te.setText("\n".join(lines))
 
     def _run(self):
-        names = self._selected()
-        if not names:
-            QMessageBox.information(self, "Calibration",
-                                    "Select at least one calibration.")
-            return
-        if self.plugin is not None:
+        if self.tab.running_page is not None:
             return
         quality = self.quality_cb.currentText()
         self.plugin = CalibrationRunPlugin(self.ac,
-                                           names,
+                                           self.names(),
                                            quality=quality,
                                            host=self.host)
-        self.run_pb.setEnabled(False)
-        self.stop_pb.setEnabled(True)
-        self.apply_pb.setEnabled(False)
+        self.progress.setValue(0)
         self.status.setText("Running…")
+        self.tab.set_running(self)
         self.plugin.reset()
         self.plugin.start()
 
@@ -214,17 +239,14 @@ class CalibrationWizard(QDialog):
         exec_prompt(self, title, text, buttons, box_ev)
 
     def _done(self, _plugin=None):
-        self.stop_pb.setEnabled(False)
-        self.run_pb.setEnabled(True)
         ok = self.plugin and self.plugin.succeeded()
         self.status.setText("Finished" if ok else "Stopped / failed")
         if self.plugin and self.plugin.cal_session:
-            self.apply_pb.setEnabled(True)
-            self.report_pb.setEnabled(True)
             for name, result in self.plugin.cal_session.results.items():
                 self._log("%s: %s" %
                           (name, "PASS" if result.ok else "FAIL") +
                           (("  " + result.message) if result.message else ""))
+        self.tab.set_running(None)
 
     def _apply(self):
         if not self.plugin or not self.plugin.cal_session:
@@ -248,8 +270,9 @@ class CalibrationWizard(QDialog):
                 traceback.print_exc()
                 QMessageBox.warning(self, "Apply failed", str(e))
         self._log("Applied: %s" % (", ".join(applied) or "(none)"))
-        if hasattr(self.parent(), "reload_table"):
-            self.parent().reload_table()
+        calibration_tab = getattr(self.ac.mw, "calibrationTab", None)
+        if calibration_tab is not None:
+            calibration_tab.reload_table()
 
     def _open_report(self):
         if not self.plugin or not self.plugin.cal_session:
@@ -259,6 +282,74 @@ class CalibrationWizard(QDialog):
             os.system("xdg-open %s &" % fn)
         else:
             QMessageBox.information(self, "Report", "No PDF yet.")
+
+
+class CalibrateTab(ArgusTab):
+    """
+    Expert view: menu of calibrations, each opening a CalRunWidget page
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.running_page = None
+        self.pages = {}
+
+    def _initUI(self):
+        self.stack = QStackedWidget()
+        self.stack.addWidget(self._menu_widget())
+        for name in all_cals():
+            page = CalRunWidget(self.ac, name, tab=self)
+            self.pages[name] = page
+            self.stack.addWidget(page)
+        layout = QVBoxLayout()
+        layout.addWidget(self.stack)
+        self.setLayout(layout)
+
+    def _menu_widget(self):
+        layout = QGridLayout()
+        intro = QLabel(
+            "Select a calibration. Each page checks its prerequisites, "
+            "collects and analyzes data, then lets you review and apply the "
+            "results to the calibration store (Settings => Calibration).")
+        intro.setWordWrap(True)
+        layout.addWidget(intro, 0, 0, 1, 2)
+        for row, (name, cal) in enumerate(all_cals().items(), start=1):
+            pb = QPushButton(cal.title)
+            pb.setToolTip(cal.description)
+            pb.clicked.connect(
+                lambda _checked, name=name: self.show_page(name))
+            layout.addWidget(pb, row, 0)
+            description = cal.description
+            also = [get_cal(n).title for n in cal_run_names(name)[1:]]
+            if also:
+                description += " Also runs: %s." % ", ".join(also)
+            description_l = QLabel(description)
+            description_l.setWordWrap(True)
+            layout.addWidget(description_l, row, 1)
+        layout.setColumnStretch(1, 1)
+        layout.setRowStretch(len(all_cals()) + 1, 1)
+        menu = QWidget()
+        menu.setLayout(layout)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(menu)
+        return scroll
+
+    def show_menu(self):
+        self.stack.setCurrentIndex(0)
+
+    def show_page(self, name):
+        page = self.pages[name]
+        page.update_buttons()
+        self.stack.setCurrentWidget(page)
+
+    def set_running(self, page):
+        self.running_page = page
+        for other in self.pages.values():
+            other.update_buttons()
+
+    def _shutdown_request(self, phase):
+        if phase == ShutdownPhase.INITIAL and self.running_page is not None:
+            self.running_page.plugin.shutdown()
 
 
 def _status_brush(status):
@@ -370,7 +461,8 @@ class CalibrationTab(ArgusTab):
 
         buttons = QHBoxLayout()
         self.run_pb = QPushButton("Run calibration…")
-        self.run_pb.clicked.connect(self._run_wizard)
+        self.run_pb.setToolTip("Go to the Calibrate tab (expert view)")
+        self.run_pb.clicked.connect(lambda: self.ac.mw.show_calibrate_tab())
         self.reload_pb = QPushButton("Reload")
         self.reload_pb.setToolTip("Reload calibration files from disk")
         self.reload_pb.clicked.connect(self._reload_files)
@@ -844,11 +936,6 @@ class CalibrationTab(ArgusTab):
     """
     Files
     """
-
-    def _run_wizard(self):
-        dlg = CalibrationWizard(self.ac, parent=self)
-        dlg.exec_()
-        self.reload_table()
 
     def _reload_files(self):
         store = self._store()

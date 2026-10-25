@@ -278,6 +278,11 @@
       with nominal / calibrated / effective values and typed editors
     * Argus: File => Advanced options => Optics holds the global magnification
       scalar (moved from the Main tab) and per objective um/pixel, FOV, settle
+    * Argus: Calibrate tab (expert view), one page per calibration
+    * Fiducial check: verifies the dot target (contrast vs threshold, size,
+      centering, focus, jitter) with suggested fixes, optional auto exposure
+      and autofocus. Recommended before scale, XY backlash, XY repeatability
+      (scripting: fiducial_check())
   * Capture pixel format: 8 bit RGB, 16 bit RGB, 8 / 16 bit sensor raw
     * Negotiated with the camera through gstreamer caps
     * Config: imager.format sets the default

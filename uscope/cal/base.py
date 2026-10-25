@@ -25,6 +25,15 @@ class Check:
         return "Check(%s, ok=%s)" % (self.name, self.ok)
 
 
+class CalOption:
+    """A user selectable boolean for a calibration (shown as a checkbox)"""
+    def __init__(self, key, label, default=False, tooltip=""):
+        self.key = key
+        self.label = label
+        self.default = default
+        self.tooltip = tooltip
+
+
 class Result:
     def __init__(self,
                  name,
@@ -61,8 +70,12 @@ class Calibration:
     title = "Unnamed"
     description = ""
     scope_kind = ScopeKind.UNIT
+    # Must run first (auto-included)
     requires = ()
+    # Recommended to run first (setup / verification), not auto-included
     soft_requires = ()
+    # CalOption list
+    options = ()
     needs_z = False
     needs_fiducial = False
     needs_dark = False
@@ -70,6 +83,15 @@ class Calibration:
 
     def preflight(self, ctx):
         return []
+
+    def option(self, ctx, key):
+        for opt in self.options:
+            if opt.key == key:
+                return ctx.option(self.name, key, opt.default)
+        raise KeyError("%s: unknown option %s" % (self.name, key))
+
+    def option_values(self, ctx):
+        return {opt.key: self.option(ctx, opt.key) for opt in self.options}
 
     def estimate_seconds(self, ctx, quality=Quality.FULL):
         return 60.0

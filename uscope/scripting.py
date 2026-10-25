@@ -832,6 +832,37 @@ class ScriptingPlugin:
             cal_session.apply_one(name)
         return result.entries[0].value["gains"]
 
+    def fiducial_check(self,
+                       auto_exposure=False,
+                       autofocus=False,
+                       quality="quick"):
+        """
+        Check the fiducial dot (white dot on black) used by the imager scale
+        and XY backlash / repeatability calibrations
+        auto_exposure: set exposure so the dot is saturated, background dark
+        autofocus: autofocus on the dot first
+        Returns the Result: .ok, .message, .values (levels, contrast, ...),
+        .extra["issues"] (problems with suggested fixes)
+        """
+        from uscope.cal.context import CalContext
+        from uscope.cal.session import CalSession
+
+        name = "fiducial"
+        ctx = CalContext(plugin=self,
+                         quality=quality,
+                         prompt_fn=self.prompt,
+                         options={
+                             name: {
+                                 "auto_exposure": auto_exposure,
+                                 "autofocus": autofocus,
+                             }
+                         })
+        cal_session = CalSession(self.session.microscope, [name],
+                                 quality=quality)
+        result = cal_session.run_collect_analyze(ctx)[name]
+        self.log("Fiducial check: " + result.message)
+        return result
+
     def white_balance_gains(self):
         """
         Active software white balance gains [r, g, b] or None

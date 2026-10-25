@@ -10,8 +10,11 @@ class CalContext:
                  log=None,
                  quality="full",
                  prompt_fn=None,
-                 progress_fn=None):
+                 progress_fn=None,
+                 options=None):
         self.plugin = plugin
+        # {calibration name: {option key: value}}
+        self.options = options or {}
         if microscope is None and plugin is not None:
             microscope = plugin.session.microscope
         self.microscope = microscope
@@ -20,6 +23,12 @@ class CalContext:
         self.prompt_fn = prompt_fn
         self.progress_fn = progress_fn
         self.origin = None
+
+    def option(self, cal_name, key, default=None):
+        return self.options.get(cal_name, {}).get(key, default)
+
+    def can_image(self):
+        return self.plugin is not None
 
     def check_running(self):
         if self.plugin is not None:
@@ -151,6 +160,33 @@ class CalContext:
                 return self.plugin.imager().get_exposure_cache()
             except Exception:
                 return None
+
+    def exposure(self):
+        """Current exposure setting (camera units, typically us) or None"""
+        try:
+            return self.plugin.imager_get_exposure()
+        except Exception:
+            return None
+
+    def exposure_range(self):
+        """(min, max) exposure setting or None if unknown"""
+        try:
+            props = self.plugin.session.imager_properties
+            pconfig = props.get_property_config(
+                props.get_exposure_disp_property())
+            return pconfig["min"], pconfig["max"]
+        except Exception:
+            return None
+
+    def get_auto_exposure(self):
+        """True / False or None if not supported"""
+        try:
+            return self.plugin.imager_get_auto_exposure()
+        except Exception:
+            return None
+
+    def set_auto_exposure(self, enabled):
+        self.plugin.imager_set_auto_exposure(enabled)
 
     def set_disp_property(self, name, value):
         self.plugin.imager_set_disp_property(name, value)

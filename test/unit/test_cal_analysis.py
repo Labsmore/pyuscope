@@ -19,6 +19,8 @@ from uscope.cal.analysis.illumination import (
     usable_rect,
 )
 from uscope.cal.analysis.linearity import fit_response, invert_response
+from uscope.cal.analysis import fiducial
+from uscope.cal.calibrations.fiducial import FiducialCal
 from uscope.cal.calibrations.repeat_xy import RepeatXYCal
 from uscope.cal.dataset import Dataset
 
@@ -157,6 +159,47 @@ class TestRepeatYStatsNotX(unittest.TestCase):
         result = RepeatXYCal().analyze(ds)
         self.assertTrue(result.ok)
         self.assertLess(result.values["x_std_um"], result.values["y_std_um"])
+
+
+def _fiducial(dot=255, bg=15, frac=0.22, cx=0.5, w=400, h=300):
+    arr = np.full((h, w), bg, dtype=np.uint8)
+    yy, xx = np.ogrid[:h, :w]
+    r = frac * w / 2
+    arr[(xx - cx * w)**2 + (yy - h / 2)**2 <= r * r] = dot
+    return arr
+
+
+class TestFiducial(unittest.TestCase):
+    def _fatal(self, arr):
+        m = fiducial.analyze_image(arr)
+        return m["ok"], {i.name for i in m["issues"] if i.fatal}
+
+    def test_good(self):
+        ok, fatal = self._fatal(_fiducial())
+        self.assertTrue(ok, fatal)
+
+    def test_problems(self):
+        self.assertIn("dot_level", self._fatal(_fiducial(dot=150))[1])
+        self.assertIn("bg_level", self._fatal(_fiducial(bg=110))[1])
+        self.assertIn("centered", self._fatal(_fiducial(cx=0.75))[1])
+        self.assertIn("dot_found", self._fatal(_fiducial(dot=60))[1])
+        arr = _fiducial()
+        arr[10:40, 10:40] = 255
+        self.assertIn("single_dot", self._fatal(arr)[1])
+
+    def test_analyze_dataset(self):
+        d = tempfile.mkdtemp()
+        ds = Dataset.create(d, "fiducial", meta={})
+        for i in range(3):
+            fn = "fiducial_%03u.tif" % i
+            Image.fromarray(_fiducial()).save(ds.capture_path(fn))
+            ds.manifest["captures"].append({"fn": "images/%s" % fn, "i": i})
+        ds.save_manifest()
+        result = FiducialCal().analyze(ds)
+        self.assertTrue(result.ok, result.message)
+        self.assertLess(result.values["centroid_jitter_px"], 0.1)
+        self.assertTrue(os.path.exists(os.path.join(ds.path,
+                                                    "fiducial.png")))
 
 
 if __name__ == "__main__":

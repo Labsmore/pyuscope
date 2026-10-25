@@ -4,6 +4,7 @@ _REGISTRY = None
 
 
 def _build():
+    from uscope.cal.calibrations.fiducial import FiducialCal
     from uscope.cal.calibrations.scale import ScaleCal
     from uscope.cal.calibrations.backlash_xy import BacklashXYCal
     from uscope.cal.calibrations.repeat_xy import RepeatXYCal
@@ -17,6 +18,7 @@ def _build():
     from uscope.cal.calibrations.white_balance import WhiteBalanceCal
 
     cals = [
+        FiducialCal(),
         ScaleCal(),
         BacklashXYCal(),
         RepeatXYCal(),

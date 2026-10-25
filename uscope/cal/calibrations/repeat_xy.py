@@ -1,11 +1,17 @@
-"""XY return-to-origin repeatability."""
+"""
+XY return-to-origin repeatability
+
+Run the Fiducial check first: centroid jitter from a poor dot shows up as
+(false) stage non-repeatability
+"""
 
 import os
 import random
 
 import numpy as np
 
-from uscope.cal.analysis.centroid import find_centroid, find_centroid_fn
+from uscope.cal.analysis.centroid import find_centroid_fn
+from uscope.cal.calibrations.fiducial import fiducial_preflight
 from uscope.cal.analysis.fitting import distance
 from uscope.cal.base import Calibration, Check, Quality, Result, ScopeKind
 
@@ -16,25 +22,19 @@ class RepeatXYCal(Calibration):
     description = "How tightly the stage returns to a fiducial after random moves."
     scope_kind = ScopeKind.UNIT
     requires = ("scale", )
+    soft_requires = ("fiducial", )
     needs_fiducial = True
 
     def estimate_seconds(self, ctx, quality=Quality.FULL):
         return 60 if quality == Quality.QUICK else 400
 
     def preflight(self, ctx):
-        checks = []
         obj = ctx.objective_config()
-        checks.append(
+        return [
             Check("Objective selected", bool(obj),
-                  obj.get("name") if obj else "Select an objective"))
-        try:
-            x, y = find_centroid(ctx.image())
-            checks.append(
-                Check("Fiducial visible", True,
-                      "Centroid at %0.1f, %0.1f" % (x, y)))
-        except Exception as e:
-            checks.append(Check("Fiducial visible", False, str(e)))
-        return checks
+                  obj.get("name") if obj else "Select an objective"),
+            fiducial_preflight(ctx),
+        ]
 
     def collect(self, ctx, ds, quality=Quality.FULL):
         n = 10 if quality == Quality.QUICK else 100

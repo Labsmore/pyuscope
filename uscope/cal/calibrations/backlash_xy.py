@@ -1,10 +1,16 @@
-"""XY backlash from a fiducial, compensation disabled."""
+"""
+XY backlash from a fiducial, compensation disabled
+
+Run the Fiducial check first: backlash is a few um, so centroid noise from a
+low contrast or out of focus dot dominates the result
+"""
 
 import os
 
 import numpy as np
 
-from uscope.cal.analysis.centroid import find_centroid, find_centroid_fn
+from uscope.cal.analysis.centroid import find_centroid_fn
+from uscope.cal.calibrations.fiducial import fiducial_preflight
 from uscope.cal.analysis.fitting import distance, invert_linear, linear_fit
 from uscope.cal.base import Calibration, Check, Quality, Result, ScopeKind
 from uscope.cal.store import CalEntry
@@ -16,25 +22,19 @@ class BacklashXYCal(Calibration):
     description = "Measure XY backlash using a fiducial with compensation off."
     scope_kind = ScopeKind.UNIT
     requires = ("scale", )
+    soft_requires = ("fiducial", )
     needs_fiducial = True
 
     def estimate_seconds(self, ctx, quality=Quality.FULL):
         return 90 if quality == Quality.QUICK else 400
 
     def preflight(self, ctx):
-        checks = []
         obj = ctx.objective_config()
-        checks.append(
+        return [
             Check("Objective selected", bool(obj),
-                  obj.get("name") if obj else "Select an objective"))
-        try:
-            x, y = find_centroid(ctx.image())
-            checks.append(
-                Check("Fiducial visible", True,
-                      "Centroid at %0.1f, %0.1f" % (x, y)))
-        except Exception as e:
-            checks.append(Check("Fiducial visible", False, str(e)))
-        return checks
+                  obj.get("name") if obj else "Select an objective"),
+            fiducial_preflight(ctx),
+        ]
 
     def collect(self, ctx, ds, quality=Quality.FULL):
         eps = ctx.motion_epsilon()

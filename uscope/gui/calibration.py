@@ -6,7 +6,7 @@ import subprocess
 import traceback
 
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QBrush, QColor, QFont
+from PyQt5.QtGui import QBrush, QColor, QFont, QImage, QPixmap
 from PyQt5.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -54,10 +54,16 @@ class CalScriptHost(QtScriptHost):
 
 
 class CalibrationRunPlugin(ScriptingPlugin):
-    def __init__(self, session, names, quality=Quality.FULL, host=None):
+    def __init__(self,
+                 session,
+                 names,
+                 quality=Quality.FULL,
+                 host=None,
+                 options=None):
         super().__init__(session, host=host)
         self._names = names
         self._quality = quality
+        self._options = options
         self.cal_session = None
 
     def show_run_button(self):
@@ -70,7 +76,8 @@ class CalibrationRunPlugin(ScriptingPlugin):
         ctx = CalContext(plugin=self,
                          quality=self._quality,
                          prompt_fn=self.prompt,
-                         progress_fn=self.host.progress)
+                         progress_fn=self.host.progress,
+                         options=self._options)
         self.cal_session = CalSession(self.session.microscope,
                                       self._names,
                                       quality=self._quality)
@@ -86,6 +93,11 @@ def cal_run_names(name):
             if req not in names:
                 names.append(req)
     return names
+
+
+def cal_run_first_titles(name):
+    """Titles of recommended setup steps (soft requires) for name"""
+    return [get_cal(n).title for n in get_cal(name).soft_requires]
 
 
 class CalRunWidget(QWidget):
@@ -104,6 +116,7 @@ class CalRunWidget(QWidget):
         self.host.progress_sig.connect(self._on_progress)
         self.host.prompt_sig.connect(self._on_prompt)
         self.host.done_sig.connect(self._done)
+        self.host.show_image_sig.connect(self._show_image)
         cal = get_cal(name)
         layout = QVBoxLayout()
 
@@ -131,12 +144,27 @@ class CalRunWidget(QWidget):
             also_l.setWordWrap(True)
             layout.addWidget(also_l)
 
+        first = cal_run_first_titles(name)
+        if first:
+            first_l = QLabel(
+                "<b>Run first:</b> %s. Use it to set up and verify the "
+                "target before collecting data here." % ", ".join(first))
+            first_l.setWordWrap(True)
+            layout.addWidget(first_l)
+
         row = QHBoxLayout()
         row.addWidget(QLabel("Quality"))
         self.quality_cb = QComboBox()
         self.quality_cb.addItems([Quality.QUICK, Quality.FULL])
         self.quality_cb.setCurrentText(Quality.FULL)
         row.addWidget(self.quality_cb)
+        self.option_cbs = {}
+        for opt in cal.options:
+            cb = QCheckBox(opt.label)
+            cb.setChecked(opt.default)
+            cb.setToolTip(opt.tooltip)
+            self.option_cbs[opt.key] = cb
+            row.addWidget(cb)
         row.addStretch()
         layout.addLayout(row)
 
@@ -154,7 +182,13 @@ class CalRunWidget(QWidget):
 
         self.log_te = QTextEdit()
         self.log_te.setReadOnly(True)
-        layout.addWidget(self.log_te, 1)
+        self.image_l = QLabel()
+        self.image_l.setAlignment(Qt.AlignCenter)
+        self.image_l.setVisible(False)
+        output = QHBoxLayout()
+        output.addWidget(self.log_te, 1)
+        output.addWidget(self.image_l)
+        layout.addLayout(output, 1)
 
         btns = QHBoxLayout()
         self.check_pb = QPushButton("Check preflight")
@@ -178,6 +212,13 @@ class CalRunWidget(QWidget):
     def names(self):
         return cal_run_names(self.name)
 
+    def options(self):
+        return {
+            self.name:
+            {k: cb.isChecked()
+             for k, cb in self.option_cbs.items()}
+        }
+
     def running(self):
         return self.tab.running_page is self
 
@@ -185,6 +226,8 @@ class CalRunWidget(QWidget):
         other = self.tab.running_page
         mine = other is self
         self.back_pb.setEnabled(not mine)
+        for cb in self.option_cbs.values():
+            cb.setEnabled(not mine)
         self.run_pb.setEnabled(other is None)
         if other is None:
             self.run_pb.setToolTip("")
@@ -199,12 +242,17 @@ class CalRunWidget(QWidget):
     def _preflight(self):
         lines = []
         from uscope.cal.context import CalContext
-        ctx = CalContext(plugin=None, microscope=self.ac.microscope)
+        ctx = CalContext(plugin=None,
+                         microscope=self.ac.microscope,
+                         options=self.options())
         for name in self.names():
             lines.append(get_cal(name).title)
             try:
                 for c in get_cal(name).preflight(ctx):
-                    mark = "OK" if c.ok else "WAIT"
+                    if c.ok:
+                        mark = "OK"
+                    else:
+                        mark = "WAIT" if c.blocking else "NOTE"
                     lines.append("  [%s] %s %s" % (mark, c.name, c.hint or ""))
             except Exception as e:
                 lines.append("  preflight error: %s" % e)
@@ -217,7 +265,8 @@ class CalRunWidget(QWidget):
         self.plugin = CalibrationRunPlugin(self.ac,
                                            self.names(),
                                            quality=quality,
-                                           host=self.host)
+                                           host=self.host,
+                                           options=self.options())
         self.progress.setValue(0)
         self.status.setText("Running…")
         self.tab.set_running(self)
@@ -237,6 +286,17 @@ class CalRunWidget(QWidget):
 
     def _on_prompt(self, title, text, buttons, box_ev):
         exec_prompt(self, title, text, buttons, box_ev)
+
+    def _show_image(self, im, title):
+        im = im.convert("RGB")
+        qim = QImage(im.tobytes(), im.width, im.height, 3 * im.width,
+                     QImage.Format_RGB888)
+        pix = QPixmap.fromImage(qim.copy()).scaled(360, 360,
+                                                  Qt.KeepAspectRatio,
+                                                  Qt.SmoothTransformation)
+        self.image_l.setPixmap(pix)
+        self.image_l.setToolTip(title)
+        self.image_l.setVisible(True)
 
     def _done(self, _plugin=None):
         ok = self.plugin and self.plugin.succeeded()
@@ -322,6 +382,9 @@ class CalibrateTab(ArgusTab):
             also = [get_cal(n).title for n in cal_run_names(name)[1:]]
             if also:
                 description += " Also runs: %s." % ", ".join(also)
+            first = cal_run_first_titles(name)
+            if first:
+                description += " Run first: %s." % ", ".join(first)
             description_l = QLabel(description)
             description_l.setWordWrap(True)
             layout.addWidget(description_l, row, 1)

@@ -1,4 +1,9 @@
-"""Imager scale: um per pixel from a known stage move of a fiducial."""
+"""
+Imager scale: um per pixel from a known stage move of a fiducial
+
+Run the Fiducial check first: the dot must be high contrast and centered
+enough to stay in frame during the +/- 15% field of view moves
+"""
 
 import os
 
@@ -19,32 +24,18 @@ class ScaleCal(Calibration):
     title = "Imager scale"
     description = "Measure um/pixel by moving a fiducial a known stage distance."
     scope_kind = ScopeKind.UNIT
+    soft_requires = ("fiducial", )
     needs_fiducial = True
 
     def estimate_seconds(self, ctx, quality=Quality.FULL):
         return 40 if quality == Quality.QUICK else 180
 
     def preflight(self, ctx):
-        checks = []
-        obj = ctx.objective_config()
-        checks.append(
-            type(self)._check_obj(obj))
-        try:
-            im = ctx.image()
-            from uscope.cal.analysis.centroid import find_centroid
-            x, y = find_centroid(im)
-            checks.append(
-                self._ok("Fiducial visible", True, "Centroid at %0.1f, %0.1f" %
-                         (x, y)))
-        except Exception as e:
-            checks.append(
-                self._ok("Fiducial visible", False, str(e)))
-        return checks
-
-    @staticmethod
-    def _ok(name, ok, hint=""):
-        from uscope.cal.base import Check
-        return Check(name, ok, hint)
+        from uscope.cal.calibrations.fiducial import fiducial_preflight
+        return [
+            self._check_obj(ctx.objective_config()),
+            fiducial_preflight(ctx)
+        ]
 
     @staticmethod
     def _check_obj(obj):

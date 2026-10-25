@@ -119,15 +119,30 @@ class TestImagerJ(unittest.TestCase):
         self.assertEqual(j["source_properties"], {"esize": 1})
 
     def test_apply_config_native(self):
-        # Configured width/height keep defining native (calibration basis)
+        # Native is the camera max. Configured size is kept as config_wh
         j = {"width": 2736, "height": 1824}
         tres.apply_to_imagerj(j, R2, max_r=R0)
-        self.assertEqual((j["native_width"], j["native_height"]), (2736, 1824))
+        self.assertEqual((j["native_width"], j["native_height"]), (5440, 3648))
         self.assertEqual((j["width"], j["height"]), (1824, 1216))
+        self.assertEqual(j["config_wh"], [2736, 1824])
+        # Runtime switch keeps the original config_wh
+        tres.apply_to_imagerj(j, R0, max_r=R0)
+        self.assertEqual(j["config_wh"], [2736, 1824])
+        self.assertEqual((j["width"], j["height"]), (5440, 3648))
 
+        # Probed max beats configured native
         j = {"native_width": 100, "native_height": 50}
         tres.apply_to_imagerj(j, R2, max_r=R0)
+        self.assertEqual((j["native_width"], j["native_height"]), (5440, 3648))
+        self.assertIsNone(j["config_wh"])
+
+        # Not probed: configured native, else configured width / height
+        j = {"native_width": 100, "native_height": 50}
+        tres.apply_to_imagerj(j, R2)
         self.assertEqual((j["native_width"], j["native_height"]), (100, 50))
+        j = {"width": 2736, "height": 1824}
+        tres.apply_to_imagerj(j, R2)
+        self.assertEqual((j["native_width"], j["native_height"]), (2736, 1824))
 
     def test_apply_unknown_esize(self):
         j = {"width": 5440, "height": 3648}
@@ -208,7 +223,7 @@ class TestSelector(unittest.TestCase):
         self.assertIsNone(sel.override)
         self.assertEqual((j["width"], j["height"]), (5440, 3648))
         self.assertTrue(sel.can_select())
-        self.assertFalse(sel.restart_required())
+        self.assertIsNone(sel.unavailable_reason())
 
     def test_saved(self):
         self.write_cache((2736, 1824))
@@ -220,9 +235,11 @@ class TestSelector(unittest.TestCase):
         self.assertEqual((j["width"], j["height"]), (2736, 1824))
         self.assertEqual(j["source_properties"]["esize"], 1)
         # Restoring the default goes back to microscope.j5
-        sel.set_override(None)
+        applied = []
+        sel.set_override(None, apply=applied.append)
+        self.assertEqual(applied, [R0])
         self.assertEqual(sel.selected_wh(), (5440, 3648))
-        self.assertTrue(sel.restart_required())
+        self.assertEqual(sel.how, "config")
         cachej_sn = {"imager": {"format": "RGB"}}
         sel.cache_sn_save(cachej_sn)
         self.assertEqual(cachej_sn, {"imager": {"format": "RGB"}})
@@ -233,6 +250,7 @@ class TestSelector(unittest.TestCase):
         self.assertEqual(sel.active, R0)
 
     def test_saved_pixel_crop(self):
+        # Pixel crops are converted to fractions: resolution stays selectable
         self.write_cache((2736, 1824))
         j = {
             "width": 5440,
@@ -243,11 +261,11 @@ class TestSelector(unittest.TestCase):
             }
         }
         sel = self.selector(j)
+        self.assertEqual(sel.active, R1)
+        self.assertEqual(sel.how, "user")
+        self.assertTrue(sel.can_select())
+        sel.set_override((5440, 3648))
         self.assertEqual(sel.active, R0)
-        self.assertEqual(sel.how, "config")
-        self.assertFalse(sel.can_select())
-        with self.assertRaises(ValueError):
-            sel.set_override((2736, 1824))
 
     def test_saved_unsettable(self):
         # Saved resolution the plugin can no longer select
@@ -258,11 +276,15 @@ class TestSelector(unittest.TestCase):
 
     def test_set_override(self):
         sel = self.selector({})
+        applied = []
         with self.assertRaises(ValueError):
-            sel.set_override((1, 1))
-        sel.set_override([1824, 1216])
+            sel.set_override((1, 1), apply=applied.append)
+        self.assertEqual(applied, [])
+        sel.set_override([1824, 1216], apply=applied.append)
+        self.assertEqual(applied, [R2])
         self.assertEqual(sel.override, (1824, 1216))
-        self.assertTrue(sel.restart_required())
+        self.assertEqual(sel.active, R2)
+        self.assertEqual(sel.selected_wh(), (1824, 1216))
         cachej_sn = {}
         sel.cache_sn_save(cachej_sn)
         self.assertEqual(cachej_sn["imager"]["resolution"], {
@@ -270,14 +292,31 @@ class TestSelector(unittest.TestCase):
             "height": 1216,
             "camera_sn": SN
         })
-        sel.set_override((5440, 3648))
-        self.assertFalse(sel.restart_required())
+        # Already running at it: nothing to apply
+        sel.set_override((1824, 1216), apply=applied.append)
+        self.assertEqual(applied, [R2])
+
+    def test_set_override_apply_fails(self):
+        sel = self.selector({})
+
+        def apply(r):
+            raise RuntimeError("camera didn't come back")
+
+        with self.assertRaises(RuntimeError):
+            sel.set_override((2736, 1824), apply=apply)
+        # Selection unchanged
+        self.assertEqual(sel.active, R0)
+        self.assertIsNone(sel.override)
+        cachej_sn = {}
+        sel.cache_sn_save(cachej_sn)
+        self.assertNotIn("resolution", cachej_sn["imager"])
 
     def test_no_camera(self):
         j = {"width": 5440, "height": 3648, "source_properties": {"esize": 0}}
         sel = self.selector(j, probe_info=None)
         self.assertEqual(sel.how, "config")
         self.assertFalse(sel.can_select())
+        self.assertIn("Couldn't query", sel.unavailable_reason())
         self.assertEqual((j["width"], j["height"]), (5440, 3648))
         # Previous selection is kept
         cachej_sn = {"imager": {"resolution": {"width": 1, "height": 1}}}

@@ -8,14 +8,22 @@ from PIL import Image
 from uscope.cal.analysis.illumination import IlluminationTables, usable_rect
 from uscope.cal.base import Calibration, Check, Quality, Result, ScopeKind
 from uscope.cal.store import CalEntry
+from uscope.imager.crop import pixels_to_fractions
 
 
 class UsableAreaCal(Calibration):
     name = "usable_area"
     title = "Usable sensor area"
     description = "Suggest a crop from the flat-field image circle."
-    scope_kind = ScopeKind.OBJECTIVE
+    scope_kind = ScopeKind.UNIT
     soft_requires = ("flat_field", )
+
+    def __init__(self, per_objective=False):
+        """
+        per_objective: save the crop for the active objective only
+            instead of as the default for all objectives
+        """
+        self.per_objective = per_objective
 
     def estimate_seconds(self, ctx, quality=Quality.FULL):
         return 15
@@ -31,12 +39,15 @@ class UsableAreaCal(Calibration):
         # Prefer reusing a sibling flat_field dataset
         sibling = os.path.join(os.path.dirname(ds.path), "flat_field")
         if os.path.exists(os.path.join(sibling, "ff.npz")):
-            ds.manifest["params"] = {"from": sibling}
+            ds.manifest["params"] = {
+                "from": sibling,
+                "per_objective": self.per_objective
+            }
             ds.save_manifest()
             return
         obj = ctx.objective_config()
         ds.manifest["objective"] = obj
-        ds.manifest["params"] = {"n": 3}
+        ds.manifest["params"] = {"n": 3, "per_objective": self.per_objective}
         ds.save_manifest()
         for i in range(3):
             ctx.check_running()
@@ -88,18 +99,30 @@ class UsableAreaCal(Calibration):
             im.save(os.path.join(ds.path, "usable_area.png"))
         except Exception:
             pass
+        # Frames were captured after any crop already in use
+        imagerj = ds.manifest.get("imager") or {}
+        prev = imagerj.get("crop") or {}
+        raw_wh = (imagerj.get("width"), imagerj.get("height"))
+        if prev and raw_wh[0] and raw_wh[1] and (w, h) == (
+                raw_wh[0] - prev["left"] - prev["right"],
+                raw_wh[1] - prev["top"] - prev["bottom"]):
+            crop = {k: crop[k] + prev[k] for k in crop}
+            w, h = raw_wh
+        fractions = pixels_to_fractions(crop, (w, h))
         scope = {}
+        params = ds.manifest.get("params") or {}
         obj = (ds.manifest.get("objective") or {}).get("name")
-        if obj:
+        if params.get("per_objective", self.per_objective) and obj:
             scope["objective"] = obj
-        entry = CalEntry(key="imager.crop_pixels",
-                         value=crop,
+        entry = CalEntry(key="imager.crop_fractions",
+                         value=fractions,
                          scope=scope,
-                         needs_restart=True)
+                         notes="%s pixels at %ux%u" % (crop, w, h))
         ok = frac > 0.4
         return Result(self.name,
                       values={
                           "crop": crop,
+                          "crop_fractions": fractions,
                           "kept_frac": frac
                       },
                       ok=ok,

@@ -502,6 +502,7 @@ class CalibrationTab(ArgusTab):
         self._store().subscribe(lambda _store, _keys: self.storeChanged.emit())
         # Effective values depend on objectives (names, scalars, settle)
         self.ac.objectiveChanged.connect(lambda _config: self.reload_table())
+        self.ac.imageGeometryChanged.connect(self.reload_table)
         self.reload_table()
 
     def _store(self):
@@ -652,7 +653,14 @@ class CalibrationTab(ArgusTab):
         self.scope_l.setText(row.scope_label())
         self.status_l.setText(row.status())
         self.nominal_l.setText(param.format_unit(row.nominal()) or "none")
-        self.effective_l.setText(param.format_unit(row.effective()) or "none")
+        effective = row.effective()
+        effective_s = param.format_unit(effective) or "none"
+        describe = row.describe(effective)
+        if describe:
+            effective_s += "\n" + describe
+        if row.inherits():
+            effective_s += "\n(from the default)"
+        self.effective_l.setText(effective_s)
 
         if entry is None:
             self.stats_l.setText("")
@@ -719,7 +727,7 @@ class CalibrationTab(ArgusTab):
         value = row.calibrated()
         # Nothing stored yet: start from what is in use
         if value is None and param.editable:
-            value = row.nominal()
+            value = row.effective() if row.inherits() else row.nominal()
         self.editor.set_value(value)
         self.editor.edited.connect(self._value_edited)
         self.editor_holder.addWidget(self.editor)
@@ -814,7 +822,13 @@ class CalibrationTab(ArgusTab):
         row = self.row
         if row is None or row.user_entry is None:
             return
-        fallback = "factory value" if row.factory_entry else "nominal value"
+        if row.factory_entry:
+            fallback = "factory value"
+        elif (row.scope and row.param.inherits_default and self._store().get(
+                row.key, {}) is not None):
+            fallback = "default (%s)" % row.param.unscoped_label
+        else:
+            fallback = "nominal value"
         ans = QMessageBox.question(
             self, "Remove calibration",
             "Remove the calibrated %s (%s)?\n\nThe %s will be used instead." %
@@ -839,6 +853,7 @@ class CalibrationTab(ArgusTab):
     def _reload_files(self):
         store = self._store()
         store.load()
+        store.migrate_crop_pixels()
         store._notify([e.key for e in store.entries()])
 
     def _open_folder(self):
@@ -950,6 +965,7 @@ class OpticsTab(ArgusTab):
         self.ac.microscope.cal_store.subscribe(
             lambda _store, _keys: self.storeChanged.emit())
         self.ac.objectiveChanged.connect(lambda _config: self.refresh())
+        self.ac.imageGeometryChanged.connect(self.refresh)
         self.refresh()
 
     def _state(self):
@@ -983,14 +999,22 @@ class OpticsTab(ArgusTab):
             v = state.global_scalar
             self.global_scalar_le.setText("" if v is None else "%g" % v)
 
-        um_raw = usc.optics.um_per_pixel_raw_1x()
+        try:
+            um_raw = usc.optics.um_per_pixel_raw_1x()
+        except Exception:
+            um_raw = None
         if store.get("optics.um_per_pixel_raw_1x") is not None:
             where = "calibrated"
         else:
             where = "nominal, microscope.j5"
-        self.um_raw_l.setText(
-            "%s um/pix (%s)" % (_format_number(um_raw), where) if um_raw else
-            "unknown: objectives must specify x_view")
+        if um_raw:
+            raw_w, raw_h = usc.imager.raw_wh()
+            self.um_raw_l.setText(
+                "%s um/pix at %ux%u (%s um/pix native, %s)" %
+                (_format_number(um_raw), raw_w, raw_h,
+                 _format_number(usc.optics.um_per_pixel_native_1x()), where))
+        else:
+            self.um_raw_l.setText("unknown: objectives must specify x_view")
         self.image_scalar_l.setText("%g" % usc.imager.scalar())
         try:
             w, h = usc.imager.final_wh()

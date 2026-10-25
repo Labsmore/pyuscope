@@ -105,6 +105,9 @@ class USCImager:
         self.microscope = microscope
         #if not "width" in j or not "height" in j:
         #    raise ValueError("width/height required")
+        # Set by the video pipeline (Argus can override imager.format)
+        self.active_capture_format = None
+        self._crop_pixels_hinted = False
         self.cache_constants()
 
     def cache_constants(self):
@@ -138,15 +141,31 @@ class USCImager:
     def native_wh(self):
         """
         The largest possible sensor resolution
+        Camera max if probed (see gst_toupcamsrc resolution), else
+        microscope.j5 native_width/height, else width/height
         Following are not applied yet: crop, scaling
         """
         valw = self.j.get("native_width", self.j.get("width"))
         valh = self.j.get("native_height", self.j.get("height"))
         if valw is None or valh is None:
             raise Exception(
-                "can't compute um_per_pixel_raw_1x: not specified and missing native_width/height"
+                "imager native size unknown: missing native_width/height and width/height"
             )
         return int(valw), int(valh)
+
+    def authored_wh(self):
+        """
+        Resolution microscope.j5 pixel values (ex: crop_pixels, um_per_pixel_raw_1x)
+        and calibrations predating runtime resolution selection were made at:
+        width/height as written in microscope.j5, else native
+        """
+        if "config_wh" in self.j:
+            wh = self.j["config_wh"]
+        else:
+            wh = (self.j.get("width"), self.j.get("height"))
+        if not wh or wh[0] is None or wh[1] is None:
+            return self.native_wh()
+        return int(wh[0]), int(wh[1])
 
     def raw_wh(self):
         """
@@ -182,14 +201,44 @@ class USCImager:
 
     def crop_tblr(self, nominal=False):
         """
-        Crop properties
+        Crop properties in pixels at the current raw resolution
         Intended for gstreamer "videocrop"
         top/bottom/left/right
         nominal: ignore the calibration store (microscope.j5 value only)
 
-        Returns either None or a dict with 4 keys
+        Returns either None (no crop) or a dict with 4 keys
+        """
+        from uscope.imager import crop
+        fractions = self.crop_fractions(nominal=nominal)
+        if fractions is None:
+            return None
+        ret = crop.fractions_to_pixels(fractions,
+                                       self.raw_wh(),
+                                       even=self.crop_even())
+        if crop.is_zero(ret):
+            return None
+        return ret
+
+    def crop_even(self):
+        """
+        Raw (bayer) captures are cropped by an even number of pixels per side
+        so that the bayer pattern doesn't change with the crop
+        """
+        from uscope.imager import pixel_format
+        fmt = self.active_capture_format or self.capture_format()
+        return pixel_format.is_raw(fmt)
+
+    def crop_fractions(self, nominal=False):
+        """
+        Crop as fractions of the raw image: {"top", "bottom", "left", "right"} or None
+        Precedence:
+        -Calibration store imager.crop_fractions scoped to the active objective
+        -Calibration store imager.crop_fractions without scope (default)
+        -microscope.j5 crop_fractions (or legacy crop_pixels)
+        nominal: ignore the calibration store (microscope.j5 value only)
         """
         from uscope.cal.store import _cal_store
+        from uscope.imager import crop
         store = _cal_store(self.microscope)
         if store and not nominal:
             scope = {}
@@ -199,40 +248,25 @@ class USCImager:
                     scope["objective"] = obj
             except Exception:
                 pass
-            entry = store.get("imager.crop_pixels", scope)
-            if entry is not None and isinstance(entry.value, dict):
-                return {
-                    "top": int(entry.value.get("top", 0)),
-                    "bottom": int(entry.value.get("bottom", 0)),
-                    "left": int(entry.value.get("left", 0)),
-                    "right": int(entry.value.get("right", 0)),
-                }
+            entry = store.get("imager.crop_fractions", scope)
+            if entry is not None:
+                return crop.validate_fractions(entry.value)
         assert not "crop" in self.j, "Obsolete crop in config. Please update to crop_fractions"
-        # Explicit config by pixels
-        ret = {
-            "top": 0,
-            "bottom": 0,
-            "left": 0,
-            "right": 0,
-        }
-        tmp = self.j.get("crop_pixels", {})
+        tmp = self.j.get("crop_fractions")
         if tmp:
-            for k in list(tmp.keys()):
-                if k not in ("top", "bottom", "left", "right"):
-                    raise ValueError("Unexpected key: %s" % (k, ))
-                ret[k] = int(tmp.get(k, 0))
-            return ret
-        # Convert config based on fraction of sensor size
-        tmp = self.j.get("crop_fractions", {})
+            if self.j.get("crop_pixels"):
+                raise ValueError(
+                    "imager: specify crop_fractions or crop_pixels, not both")
+            return crop.validate_fractions(tmp)
+        tmp = self.j.get("crop_pixels")
         if tmp:
-            w, h = self.raw_wh()
-            for k in list(ret.keys()):
-                if k in ("top", "bottom"):
-                    ret[k] = int(tmp.get(k, 0.0) * h)
-                elif k in ("left", "right"):
-                    ret[k] = int(tmp.get(k, 0.0) * w)
-                else:
-                    raise ValueError("Unexpected key: %s" % (k, ))
+            wh = self.authored_wh()
+            ret = crop.pixels_to_fractions(tmp, wh)
+            if not self._crop_pixels_hinted:
+                self._crop_pixels_hinted = True
+                print(
+                    "NOTE: microscope.j5 imager.crop_pixels is deprecated. Use crop_fractions: %s (%ux%u)"
+                    % (ret, wh[0], wh[1]))
             return ret
         return None
 
@@ -495,6 +529,12 @@ class USCImager:
         native_w_pix, _native_h_pix = self.native_wh()
         this_w_pix, _this_h_pix = self.raw_wh()
         return this_w_pix / native_w_pix
+
+    def authored_to_native_scalar(self):
+        """
+        Multiply a um / pixel value at authored_wh() to get native um / pixel
+        """
+        return self.authored_wh()[0] / self.native_wh()[0]
 
 
 class USCMotion:
@@ -807,6 +847,13 @@ class USCKinematics:
     def tsettle_autofocus(self):
         return float(self.j.get("tsettle_autofocus", 0.1))
 
+    def tsettle_video_pipeline(self):
+        """
+        Time to wait after the video pipeline (re)starts before imaging
+        Lets auto exposure etc settle
+        """
+        return float(self.j.get("tsettle_video_pipeline", 3.0))
+
     def tsettle_motion_base(self):
         """
         How much *minimum* time to wait after moving to take an image
@@ -877,25 +924,68 @@ class USCOptics:
         raw => non-scaled image at selected resolution
         Relay, barlow, etc lens may significantly alter this from actual pixel size
         """
-        from uscope.cal.store import _cal_store
-        store = _cal_store(self.microscope)
-        if store:
-            v = store.get_value("optics.um_per_pixel_raw_1x")
-            if v is not None:
-                return v
-        return self.um_per_pixel_raw_1x_nominal()
+        return self.um_per_pixel_native_1x(
+        ) / self.microscope.usc.imager.hardware_resolution_scalar()
 
     def um_per_pixel_raw_1x_nominal(self):
         """um_per_pixel_raw_1x from microscope.j5, ignoring the calibration store"""
+        return self.um_per_pixel_native_1x_nominal(
+        ) / self.microscope.usc.imager.hardware_resolution_scalar()
+
+    def um_per_pixel_native_1x(self):
+        """
+        um_per_pixel_raw_1x at native (full sensor) resolution
+        Calibration store optics.um_per_pixel_raw_1x, else microscope.j5
+        """
+        from uscope.cal.store import _cal_store
+        store = _cal_store(self.microscope)
+        if store:
+            entry = store.get("optics.um_per_pixel_raw_1x")
+            if entry is not None:
+                return self.cal_entry_um_per_pixel_native(entry)
+        return self.um_per_pixel_native_1x_nominal()
+
+    def um_per_pixel_native_1x_nominal(self):
+        imager = self.microscope.usc.imager
         # Directly specified?
         ret = self.j.get("um_per_pixel_raw_1x", None)
         if ret is not None:
-            return ret
+            return ret * imager.authored_to_native_scalar()
         # Fallback to calculating based on resolution
-        this_w_pix, _this_h_pix = self.microscope.usc.imager.raw_wh()
+        native_w_pix, _native_h_pix = imager.native_wh()
         w_mm, _h_mm = self.image_wh_raw_1x_mm()
         w_um = w_mm * 1000
-        return w_um / this_w_pix
+        return w_um / native_w_pix
+
+    def cal_entry_um_per_pixel_native(self, entry):
+        """
+        Calibration store optics.um_per_pixel_raw_1x entries record the native
+        resolution they were normalized to (native_wh)
+        Older entries were measured at authored_wh()
+        """
+        imager = self.microscope.usc.imager
+        native_wh = entry.extra.get("native_wh")
+        if native_wh:
+            return float(entry.value) * native_wh[0] / imager.native_wh()[0]
+        return float(entry.value) * imager.authored_to_native_scalar()
+
+    def um_per_pixel_cal_entry_kwargs(self, um_per_pixel_raw_1x, raw_wh=None):
+        """
+        CalEntry kwargs to store um_per_pixel_raw_1x measured at raw_wh
+        (default: current resolution) normalized to native resolution
+        """
+        imager = self.microscope.usc.imager
+        native_wh = imager.native_wh()
+        if raw_wh is None:
+            raw_wh = imager.raw_wh()
+        return {
+            "key": "optics.um_per_pixel_raw_1x",
+            "value": float(um_per_pixel_raw_1x) * raw_wh[0] / native_wh[0],
+            "unit": "um",
+            "extra": {
+                "native_wh": list(native_wh)
+            },
+        }
 
     def diffusion(self):
         """

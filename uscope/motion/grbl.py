@@ -940,6 +940,14 @@ class GRBLSer:
 Emulate a GRBL serial port for testng on the go
 """
 
+# Scales the emulated serial / reset latency
+# Unit tests set PYUSCOPE_MOCK_LATENCY=0 to run fast
+MOCK_LATENCY = float(os.getenv("PYUSCOPE_MOCK_LATENCY", "1.0"))
+
+
+def mock_sleep(t):
+    time.sleep(t * MOCK_LATENCY)
+
 
 class MockGRBLSer(GRBLSer):
     STATE_RESET = None
@@ -967,7 +975,7 @@ class MockGRBLSer(GRBLSer):
 
     def reset_recover(self):
         if self.state == self.STATE_RESET:
-            time.sleep(1.4)
+            mock_sleep(1.4)
             self.state = self.STATE_IDLE
         elif self.state != self.STATE_IDLE:
             assert 0
@@ -988,7 +996,7 @@ class MockGRBLSer(GRBLSer):
         Idle|MPos:8.000,0.000,0.000|FS:0,0
         """
         assert self.state
-        time.sleep(0.05)
+        mock_sleep(0.05)
         return "%s|MPos:%0.3f,%0.3f,%0.3f|FS:0,0" % (
             self.state, self.mpos["x"], self.mpos["y"], self.mpos["z"])
 
@@ -1017,7 +1025,7 @@ class MockGRBLSer(GRBLSer):
                 self.mpos[k] += v
         else:
             raise ValueError(command)
-        time.sleep(0.05)
+        mock_sleep(0.05)
 
     def reset(self):
         self.mpos = {
@@ -1026,17 +1034,17 @@ class MockGRBLSer(GRBLSer):
             "z": 0.0,
         }
         self.state = self.STATE_RESET
-        time.sleep(0.05)
+        mock_sleep(0.05)
 
     def jog_cancel(self):
         self.state = self.STATE_IDLE
-        time.sleep(0.05)
+        mock_sleep(0.05)
 
     def tilda(self):
-        time.sleep(0.05)
+        mock_sleep(0.05)
 
     def flush(self):
-        time.sleep(0.05)
+        mock_sleep(0.05)
 
     def txrxs(self, out, nl=True, trim_data=True, timeout=None):
         self.verbose and print("MOCK: txrxs", out)

@@ -14,6 +14,7 @@ from uscope.microscope import Microscope
 from uscope.motion.thread import SimpleMotionThread
 from uscope.imagep.thread import SimpleImageProcessingThreadBase
 from uscope.imager.imager import MockImager
+from uscope.imager.geometry import SessionGeometry
 from uscope.imager.properties import MockImagerProperties
 from uscope.imager.thread import SimpleImagerControlThread
 from uscope.scan_runner import ScanRunner
@@ -47,7 +48,7 @@ class SessionSubsystem(Subsystem):
             and self.session.image_processing_thread.autofocus_running)
 
 
-class HeadlessSession:
+class HeadlessSession(SessionGeometry):
     # How often to poll imager properties (ex: exposure under auto exposure)
     IMAGER_POLL_PERIOD = 0.5
 
@@ -95,6 +96,9 @@ class HeadlessSession:
         self.objective_state.reload()
         if argus_state:
             self.load_argus_state()
+        # Crop may be per objective / changed by calibration
+        self.objective_state.add_listener(lambda _config: self.apply_crop())
+        self.apply_crop()
         self.microscope.image_save_extension = self.image_save_extension
         self.microscope.add_subsystem(SessionSubsystem(self))
 
@@ -208,12 +212,15 @@ class HeadlessSession:
         """
         while not self._imager_poll_stop.wait(self.IMAGER_POLL_PERIOD):
             try:
-                if not self.vidpip.ok:
-                    self.log(
-                        "WARNING: video pipeline crashed. Attempting restart")
-                    self.recover_video_crash()
-                else:
-                    self.imager_properties.update_by_reading()
+                # Not while the source is being replaced (reconfigure_geometry())
+                with self.vidpip.restart_lock:
+                    if not self.vidpip.ok:
+                        self.log(
+                            "WARNING: video pipeline crashed. Attempting restart"
+                        )
+                        self.recover_video_crash()
+                    else:
+                        self.imager_properties.update_by_reading()
             except Exception as e:
                 self.log(f"WARNING: imager poll failed: {e}")
                 traceback.print_exc()
@@ -288,7 +295,8 @@ class HeadlessSession:
         self.imager.set_capture_format(fmt)
 
     def capture_format_changed(self, fmt):
-        pass
+        # Raw formats round the crop to even pixels
+        self.apply_crop()
 
     def scan_dir(self):
         return self.bc.get_scan_dir()

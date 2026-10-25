@@ -11,6 +11,7 @@ from uscope.kinematics import Kinematics
 from uscope.motion.hal import HomingAborted
 from uscope.motion.grbl import LimitSwitchActive, Estop
 from uscope.imager.camera_check import CameraNotFound
+from uscope.imager.geometry import SessionGeometry
 from uscope.subsystem import Subsystem
 from uscope import util
 
@@ -245,7 +246,7 @@ def camera_not_found_dialog(e):
                          QMessageBox.Ok)
 
 
-class ArgusCommon(QObject):
+class ArgusCommon(QObject, SessionGeometry):
     log_msg = pyqtSignal(str)
     takeSnapshot = pyqtSignal()
     setJogSlider = pyqtSignal(float)
@@ -260,6 +261,11 @@ class ArgusCommon(QObject):
     May be emitted from a non-GUI thread (ex: scripting)
     """
     captureFormatChanged = pyqtSignal(str)
+    """
+    Camera resolution and / or crop changed at runtime (see SessionGeometry)
+    Emitted in the GUI thread after everything depending on it was refreshed
+    """
+    imageGeometryChanged = pyqtSignal()
     # list of scan hconfigs, see ScriptingPlugin.run_planner_hconfig()
     runPlannerHConfigs = pyqtSignal(object)
     # dict, see ScriptingPlugin.planner_set_xy3p_corners()
@@ -487,6 +493,24 @@ class ArgusCommon(QObject):
 
         if self.microscope.bc.stress_test():
             self.log("WARNING: stress test enabled")
+
+        # Crop can be per objective and its rounding depends on the capture format
+        # captureFormatChanged may be emitted from other threads: queued to us
+        self.objectiveChanged.connect(self.crop_maybe_changed)
+        self.captureFormatChanged.connect(self.crop_maybe_changed)
+
+    def crop_maybe_changed(self, *_args):
+        self.apply_crop()
+
+    def geometry_changed(self):
+        super().geometry_changed()
+        self.imageGeometryChanged.emit()
+
+    def camera_resolution_saved(self):
+        self.mw.cache_save()
+
+    def is_taking_snapshot(self):
+        return self.mw.mainTab.imaging_widget.taking_snapshot
 
     def shutdown_request(self, phase):
         if self.motion_thread:

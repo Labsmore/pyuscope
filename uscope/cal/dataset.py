@@ -158,10 +158,13 @@ def microscope_meta(microscope, plugin=None):
         try:
             imager = microscope.usc.imager
             wh = imager.raw_wh()
+            native_wh = imager.native_wh()
             meta["imager"] = {
                 "source": imager.source(),
                 "width": wh[0],
                 "height": wh[1],
+                "native_width": native_wh[0],
+                "native_height": native_wh[1],
                 "crop": imager.crop_tblr(),
             }
         except Exception:

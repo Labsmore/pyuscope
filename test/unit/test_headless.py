@@ -38,6 +38,9 @@ from uscope.config import get_bc
 from uscope.planner.planner_util import microscope_to_planner_config
 from uscope.scan_runner import ScanRunnerListener
 from uscope.session import HeadlessSession
+from uscope.cal.store import CalEntry
+from uscope.imager.camera_check import CameraNotFound
+from uscope.imager.geometry import GeometryBusy
 
 REPO_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -263,6 +266,134 @@ class TestGstImager(HeadlessTestCase):
         self.assertTrue(plugin.succeeded(), plugin.result_message)
 
 
+class TestGeometry(HeadlessTestCase):
+    """
+    Runtime resolution / crop changes on the videotestsrc pipeline
+    """
+    FULL = {"esize": None, "width": 800, "height": 750}
+    HALF = {"esize": None, "width": 400, "height": 375}
+
+    @classmethod
+    def setUpClass(cls):
+        # usc is cached by microscope name: an earlier session's microscope
+        # (and its calibration store) would otherwise be used
+        uconfig.usc = None
+        super().setUpClass()
+
+    def tearDown(self):
+        # usc is shared with later sessions
+        store = self.session.microscope.cal_store
+        for e in list(store.entries(include_factory=False)):
+            if e.key == "imager.crop_fractions":
+                store.delete(e.key, e.scope)
+        self.session.reconfigure_geometry(resolution=self.FULL)
+        self.assertEqual(self.session.usc.imager.raw_wh(), (800, 750))
+
+    def pipeline_wh(self):
+        vidpip = self.session.vidpip
+        s = vidpip.raw_capsfilter.props.caps.get_structure(0)
+        return {
+            "caps": (s.get_value("width"), s.get_value("height")),
+            "crop": vidpip.videocrop_tblr(),
+            "sink": (vidpip.capture_sink.width, vidpip.capture_sink.height),
+            "incoming": (vidpip.incoming_w, vidpip.incoming_h),
+        }
+
+    def image_size(self):
+        return self.session.imager.get().image.size
+
+    def test_resolution(self):
+        session = self.session
+        before = dict(session.objective_config())
+        self.assertTrue(session.reconfigure_geometry(resolution=self.HALF))
+        self.assertEqual(
+            self.pipeline_wh(), {
+                "caps": (400, 375),
+                "crop": None,
+                "sink": (400, 375),
+                "incoming": (400, 375),
+            })
+        self.assertEqual(self.image_size(), (400, 375))
+        self.assertEqual(session.imager.wh(), session.usc.imager.final_wh())
+        self.assertEqual(session.usc.imager.native_wh(), (800, 750))
+        after = session.objective_config()
+        self.assertAlmostEqual(after["um_per_pixel"],
+                               before["um_per_pixel"] * 2)
+        self.assertAlmostEqual(after["x_view"], before["x_view"])
+        # Already there
+        self.assertFalse(session.reconfigure_geometry(resolution=self.HALF))
+
+    def test_crop_live(self):
+        session = self.session
+        store = session.microscope.cal_store
+        store.set(
+            CalEntry(key="imager.crop_fractions",
+                     value={
+                         "left": 0.25,
+                         "right": 0.25
+                     }))
+        self.assertEqual(self.pipeline_wh()["crop"], {
+            "top": 0,
+            "bottom": 0,
+            "left": 200,
+            "right": 200
+        })
+        self.assertEqual(self.image_size(), (400, 750))
+        # Crop follows the resolution
+        session.reconfigure_geometry(resolution=self.HALF)
+        self.assertEqual(self.pipeline_wh()["crop"]["left"], 100)
+        self.assertEqual(self.image_size(), (200, 375))
+        # Objective override
+        name = session.get_active_objective()
+        store.set(
+            CalEntry(key="imager.crop_fractions",
+                     value={"top": 0.2},
+                     scope={"objective": name}))
+        self.assertEqual(self.pipeline_wh()["crop"], {
+            "top": 75,
+            "bottom": 0,
+            "left": 0,
+            "right": 0
+        })
+        self.assertEqual(self.image_size(), (400, 300))
+        store.delete("imager.crop_fractions", {"objective": name})
+        self.assertEqual(self.image_size(), (200, 375))
+
+    def test_busy(self):
+        session = self.session
+        session.is_planner_running = lambda: True
+        try:
+            with self.assertRaises(GeometryBusy):
+                session.reconfigure_geometry(resolution=self.HALF)
+        finally:
+            del session.is_planner_running
+        self.assertEqual(session.usc.imager.raw_wh(), (800, 750))
+        self.assertEqual(self.pipeline_wh()["caps"], (800, 750))
+
+    def test_revert(self):
+        session = self.session
+        vidpip = session.vidpip
+        check_camera = vidpip.check_camera
+        calls = []
+
+        def failing_check_camera(state_ret=None):
+            calls.append(state_ret)
+            if len(calls) == 1:
+                raise CameraNotFound("camera didn't come back")
+            return check_camera(state_ret)
+
+        vidpip.check_camera = failing_check_camera
+        try:
+            with self.assertRaises(CameraNotFound):
+                session.reconfigure_geometry(resolution=self.HALF)
+        finally:
+            del vidpip.check_camera
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(session.usc.imager.raw_wh(), (800, 750))
+        self.assertEqual(self.pipeline_wh()["caps"], (800, 750))
+        self.assertEqual(self.image_size(), (800, 750))
+
+
 class TestSoftwareColor(HeadlessTestCase):
     @classmethod
     def setUpClass(cls):
@@ -383,7 +514,7 @@ class TestArgusState(unittest.TestCase):
         session = self.session()
         self.assertEqual(session.get_active_objective(), "20X")
         self.assertEqual(session.objective_state.global_scalar, 2.0)
-        self.assertEqual(session.objective_state.um_per_pixel_raw_1x, 7.5)
+        self.assertEqual(session.objective_state.um_per_pixel_native_1x, 7.5)
         session.objective_state.select("5X")
         session.shutdown()
         with open(self.fn) as f:

@@ -146,11 +146,12 @@ A minimal configuration to do basic testing
         //400 looked ok
         //0 shows corners (cemented field stop...)
         //200 might be good estimate
-        "crop_pixels": {
-            "top": 200,
-            "bottom": 200,
-            "left": 1096,
-            "right": 1096,
+        //Was crop_pixels T/B 200, L/R 1096 @ 5440x3648
+        "crop_fractions": {
+            "top": 0.0548246,
+            "bottom": 0.0548246,
+            "left": 0.201471,
+            "right": 0.201471,
         },
     },
 

@@ -87,11 +87,12 @@ relay lens: RU100A?
             },
         },
 
-        "crop_pixels": {
-            "top": 0,
-            "bottom": 0,
-            "left": 896,
-            "right": 896,
+        //Was crop_pixels T/B 0, L/R 896 @ 5440x3648
+        "crop_fractions": {
+            "top": 0.0,
+            "bottom": 0.0,
+            "left": 0.164706,
+            "right": 0.164706,
         },
 
     },

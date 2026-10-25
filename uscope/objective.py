@@ -42,7 +42,8 @@ class MicroscopeObjectives:
         self.magnification = 1.0
         # override value or can be None
         # If none objectives must all be fully specified individually
-        self.um_per_pixel_raw_1x = self.microscope.usc.optics.um_per_pixel_raw_1x(
+        # At native resolution: scaled to the selected resolution when used
+        self.um_per_pixel_native_1x = self.microscope.usc.optics.um_per_pixel_native_1x(
         )
         # Why the user lineup isn't in use (None if it is or there is none)
         self.lineup_error = None
@@ -79,31 +80,42 @@ class MicroscopeObjectives:
             self._uses_lineup = False
             self.recalculate_db()
 
+    def scale_objectives_resolution(self):
+        """
+        Explicit objective um_per_pixel values are for the resolution
+        microscope.j5 was written for
+        """
+        imager = self.microscope.usc.imager
+        scalar = imager.authored_wh()[0] / imager.raw_wh()[0]
+        for objective in self.objectives.values():
+            if "um_per_pixel" in objective:
+                objective["um_per_pixel"] *= scalar
+
     def scale_objectives_1x(self):
         # In raw sensor pixels before scaling
         # That way can adjust scaling w/o adjusting
         # This is the now preferred way to set configuration
-        if not self.um_per_pixel_raw_1x:
+        if not self.um_per_pixel_native_1x:
             return
+        imager = self.microscope.usc.imager
+        um_per_pixel_raw_1x = self.um_per_pixel_native_1x / imager.hardware_resolution_scalar(
+        )
 
         # crop_w, _crop_h = self.imager.cropped_wh()
-        final_w, final_h = self.microscope.usc.imager.final_wh()
+        final_w, final_h = imager.final_wh()
         # Objectives must support magnification to scale
         for objective in self.objectives.values():
             if "um_per_pixel" not in objective:
-                objective[
-                    "um_per_pixel"] = self.um_per_pixel_raw_1x / objective[
-                        "magnification"] / self.microscope.usc.imager.scalar()
+                objective["um_per_pixel"] = um_per_pixel_raw_1x / objective[
+                    "magnification"] / imager.scalar()
             if "x_view" not in objective:
                 # um to mm
-                objective[
-                    "x_view"] = final_w * self.um_per_pixel_raw_1x / self.microscope.usc.imager.scalar(
-                    ) / objective["magnification"] / 1000
+                objective["x_view"] = final_w * um_per_pixel_raw_1x / imager.scalar(
+                ) / objective["magnification"] / 1000
             if "y_view" not in objective:
                 # um to mm
-                objective[
-                    "y_view"] = final_h * self.um_per_pixel_raw_1x / self.microscope.usc.imager.scalar(
-                    ) / objective["magnification"] / 1000
+                objective["y_view"] = final_h * um_per_pixel_raw_1x / imager.scalar(
+                ) / objective["magnification"] / 1000
 
     def apply_objective_tsettle(self):
         reference_tsettle_motion = self.microscope.usc.kinematics.tsettle_motion_na1(
@@ -212,6 +224,7 @@ class MicroscopeObjectives:
             self.objectives[name] = objective
 
         # Now apply system specific sizing / calibration
+        self.scale_objectives_resolution()
         self.scale_objectives_1x()
         # Derive kinematics parameters
         # (ie slower settling at higher mag)
@@ -237,11 +250,12 @@ class MicroscopeObjectives:
         if recalculate:
             self.recalculate_db()
 
-    def set_um_per_pixel_raw_1x(self, value, recalculate=True):
+    def set_um_per_pixel_native_1x(self, value, recalculate=True):
         """
         Set the base calibration value used to rescale the system
+        value: at native resolution (see USCOptics.um_per_pixel_native_1x())
         """
-        self.um_per_pixel_raw_1x = value
+        self.um_per_pixel_native_1x = value
         if recalculate:
             self.recalculate_db()
 
@@ -257,7 +271,10 @@ class ObjectiveState:
     """
 
     # Calibration keys that change the computed objective DB
-    CAL_KEYS = {"optics.um_per_pixel_raw_1x", "kinematics.tsettle_motion"}
+    CAL_KEYS = {
+        "optics.um_per_pixel_raw_1x", "kinematics.tsettle_motion",
+        "imager.crop_fractions"
+    }
 
     def __init__(self, microscope, log=None):
         self.microscope = microscope
@@ -268,7 +285,8 @@ class ObjectiveState:
         # User magnification correction (ex: barlow). None => 1.0
         self.global_scalar = None
         # Overrides microscope / calibration value. None => no override
-        self.um_per_pixel_raw_1x = None
+        # At native resolution
+        self.um_per_pixel_native_1x = None
         self.listeners = []
         store = getattr(self.microscope, "cal_store", None)
         if store is not None:
@@ -291,7 +309,7 @@ class ObjectiveState:
         if "optics.um_per_pixel_raw_1x" in (keys or []):
             # Store (else microscope.j5) is now the source of truth
             with self.lock:
-                self.um_per_pixel_raw_1x = None
+                self.um_per_pixel_native_1x = None
         # Microscope already applied these to its objectives
         if self.objectives is not None and set(keys or []) & self.CAL_KEYS:
             self._notify(self.config())
@@ -312,9 +330,9 @@ class ObjectiveState:
                 self.objectives.reload_inputs()
             self.objectives.set_global_scalar(self.global_scalar or 1.0,
                                               recalculate=False)
-            self.objectives.set_um_per_pixel_raw_1x(
-                self.um_per_pixel_raw_1x
-                or self.microscope.usc.optics.um_per_pixel_raw_1x(),
+            self.objectives.set_um_per_pixel_native_1x(
+                self.um_per_pixel_native_1x
+                or self.microscope.usc.optics.um_per_pixel_native_1x(),
                 recalculate=False)
             self.objectives.recalculate_db()
             if self.selected_name not in self.objectives.names():
@@ -419,8 +437,13 @@ class ObjectiveState:
         self.reload()
 
     def set_um_per_pixel_raw_1x(self, val):
+        """
+        val: at the current camera resolution. None => no override
+        """
+        if val is not None:
+            val = val * self.microscope.usc.imager.hardware_resolution_scalar()
         with self.lock:
-            self.um_per_pixel_raw_1x = val
+            self.um_per_pixel_native_1x = val
         self.reload()
 
     """
@@ -429,11 +452,16 @@ class ObjectiveState:
 
     def cache_sn_save(self, cachej):
         with self.lock:
+            um_per_pixel_raw_1x = self.um_per_pixel_native_1x
+            if um_per_pixel_raw_1x is not None:
+                # Same basis as older caches: see USCImager.authored_wh()
+                um_per_pixel_raw_1x /= self.microscope.usc.imager.authored_to_native_scalar(
+                )
             cachej["objective"] = {
                 "name": self.selected_name,
                 "global_scalar":
                 "" if self.global_scalar is None else str(self.global_scalar),
-                "um_per_pixel_raw_1x": self.um_per_pixel_raw_1x,
+                "um_per_pixel_raw_1x": um_per_pixel_raw_1x,
             }
 
     def cache_sn_load(self, cachej, migrate=True):
@@ -449,16 +477,21 @@ class ObjectiveState:
             except ValueError:
                 self.log("Failed to parse global image scalar")
         um_per_pixel_raw_1x = j.get("um_per_pixel_raw_1x", None)
+        um_per_pixel_native_1x = None
+        if um_per_pixel_raw_1x:
+            um_per_pixel_native_1x = um_per_pixel_raw_1x * self.microscope.usc.imager.authored_to_native_scalar(
+            )
         store = getattr(self.microscope, "cal_store", None)
         if store is not None:
             if um_per_pixel_raw_1x and migrate:
                 store.migrate_um_per_pixel(um_per_pixel_raw_1x)
-            v = store.get_value("optics.um_per_pixel_raw_1x")
-            if v is not None:
-                um_per_pixel_raw_1x = v
+            entry = store.get("optics.um_per_pixel_raw_1x")
+            if entry is not None:
+                um_per_pixel_native_1x = self.microscope.usc.optics.cal_entry_um_per_pixel_native(
+                    entry)
         with self.lock:
             self.global_scalar = global_scalar
-            self.um_per_pixel_raw_1x = um_per_pixel_raw_1x
+            self.um_per_pixel_native_1x = um_per_pixel_native_1x
             name = j.get("name", None)
             if name:
                 self.selected_name = name

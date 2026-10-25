@@ -29,6 +29,10 @@ class CalParam:
     needs_restart = False
     # (extra key, label, [(value, label), ...]) stored in CalEntry.extra
     extras = ()
+    # "Applies to" for the unscoped row
+    unscoped_label = "all"
+    # Scoped rows without an entry use the unscoped entry
+    inherits_default = False
 
     def __init__(self, key=None):
         if key is not None:
@@ -57,6 +61,18 @@ class CalParam:
         if entry is not None:
             return entry.value
         return self.nominal(microscope, scope)
+
+    def entry_value(self, microscope, entry):
+        """Stored entry value as shown / edited"""
+        return entry.value
+
+    def entry_extra(self, microscope):
+        """CalEntry.extra to store along with a hand edited value"""
+        return {}
+
+    def describe(self, microscope, value):
+        """Optional extra text explaining value (ex: in other units)"""
+        return None
 
     def format(self, value):
         if value is None:
@@ -134,22 +150,37 @@ Optics
 class UmPerPixelParam(FloatParam):
     key = "optics.um_per_pixel_raw_1x"
     group = "Optics"
-    title = "Scale at 1x (raw pixel)"
+    title = "Scale at 1x (native pixel)"
     unit = "um/pix"
-    help = ("Size of one raw (unscaled, uncropped) sensor pixel referenced to "
-            "a 1x objective. Each objective's um/pixel and field of view are "
+    help = ("Size of one sensor pixel at the camera's native (full) "
+            "resolution referenced to a 1x objective. Scaled to the selected "
+            "camera resolution. Each objective's um/pixel and field of view are "
             "derived from this, the objective magnification and the global "
             "magnification scalar. Measured by Imager scale.")
     minimum = 1e-9
 
     def nominal(self, microscope, scope):
         try:
-            return microscope.usc.optics.um_per_pixel_raw_1x_nominal()
+            return microscope.usc.optics.um_per_pixel_native_1x_nominal()
         except Exception:
             return None
 
     def effective(self, microscope, scope):
-        return microscope.usc.optics.um_per_pixel_raw_1x()
+        return microscope.usc.optics.um_per_pixel_native_1x()
+
+    def entry_value(self, microscope, entry):
+        return microscope.usc.optics.cal_entry_um_per_pixel_native(entry)
+
+    def entry_extra(self, microscope):
+        return {"native_wh": list(microscope.usc.imager.native_wh())}
+
+    def describe(self, microscope, value):
+        if value is None:
+            return None
+        imager = microscope.usc.imager
+        raw_w, raw_h = imager.raw_wh()
+        return "%0.6g um/pix at the current %ux%u" % (
+            value / imager.hardware_resolution_scalar(), raw_w, raw_h)
 
 
 class ZOffsetParam(FloatParam):
@@ -239,30 +270,46 @@ Imager
 
 
 class CropParam(FieldsParam):
-    key = "imager.crop_pixels"
+    key = "imager.crop_fractions"
     group = "Imager"
     title = "Crop (usable sensor area)"
-    unit = "pix"
-    help = ("Pixels removed from each edge of the raw image (ex: dark corners "
-            "outside the image circle). Takes effect after restarting. "
-            "Measured by Usable sensor area.")
-    needs_restart = True
-    fields = (("top", "T", int), ("bottom", "B", int), ("left", "L", int),
-              ("right", "R", int))
+    help = ("Fraction of the raw image removed from each edge (ex: dark "
+            "corners outside the image circle), the same at every camera "
+            "resolution. The default applies to all objectives; an objective "
+            "entry replaces it for that objective (remove it to use the "
+            "default again). Applied immediately. Measured by Usable sensor "
+            "area.")
+    scope_field = "objective"
+    unscoped_label = "default (all objectives)"
+    inherits_default = True
+    fields = (("top", "T", float), ("bottom", "B", float),
+              ("left", "L", float), ("right", "R", float))
+
+    def scopes(self, microscope):
+        return [{}] + super().scopes(microscope)
 
     def nominal(self, microscope, scope):
-        return microscope.usc.imager.crop_tblr(nominal=True) or {
-            "top": 0,
-            "bottom": 0,
-            "left": 0,
-            "right": 0
+        return microscope.usc.imager.crop_fractions(nominal=True) or {
+            "top": 0.0,
+            "bottom": 0.0,
+            "left": 0.0,
+            "right": 0.0
         }
 
     def set_fields(self, value, fields):
-        for name, _label, _type in self.fields:
-            if int(fields[name]) < 0:
-                raise ValueError("Crop can't be negative")
-        return super().set_fields(value, fields)
+        from uscope.imager.crop import validate_fractions
+        return validate_fractions(super().set_fields(value, fields))
+
+    def describe(self, microscope, value):
+        from uscope.imager.crop import fractions_to_pixels
+        if not value:
+            return None
+        imager = microscope.usc.imager
+        w, h = imager.raw_wh()
+        pixels = fractions_to_pixels(value, (w, h), even=imager.crop_even())
+        return "T %u, B %u, L %u, R %u pixels at the current %ux%u" % (
+            pixels["top"], pixels["bottom"], pixels["left"], pixels["right"],
+            w, h)
 
 
 class WhiteBalanceParam(FieldsParam):
@@ -399,9 +446,17 @@ class CalRow:
         """Entry stored at exactly this scope (user beats factory) or None"""
         return self.user_entry or self.factory_entry
 
+    def inherits(self):
+        """Scoped row using the unscoped (default) entry"""
+        return (self.entry is None and bool(self.scope)
+                and self.param.inherits_default
+                and self.microscope.cal_store.get(self.key, {}) is not None)
+
     def status(self):
         entry = self.entry
         if entry is None:
+            if self.inherits():
+                return "default"
             return "nominal"
         where = "user" if self.user_entry is not None else "factory"
         if not entry.enabled:
@@ -423,7 +478,15 @@ class CalRow:
             return False
 
     def calibrated(self):
-        return None if self.entry is None else self.entry.value
+        if self.entry is None:
+            return None
+        return self.param.entry_value(self.microscope, self.entry)
+
+    def describe(self, value):
+        try:
+            return self.param.describe(self.microscope, value)
+        except Exception:
+            return None
 
     def nominal(self):
         try:
@@ -449,6 +512,8 @@ class CalRow:
             return None
 
     def scope_label(self):
+        if not self.scope:
+            return self.param.unscoped_label
         return scope_label(self.scope)
 
 
@@ -507,13 +572,15 @@ def set_value(store, row, value=None, extras=None, notes=None):
                          value=row.nominal() if value is None else value,
                          scope=row.scope,
                          unit=row.param.unit,
-                         source="manual")
+                         source="manual",
+                         extra=row.param.entry_extra(row.microscope))
         changed = True
     else:
         entry = CalEntry.from_j(entry.to_j())
         changed = False
-    if value is not None and value != entry.value:
+    if value is not None and value != row.calibrated():
         entry.value = value
+        entry.extra.update(row.param.entry_extra(row.microscope))
         changed = True
     for k, v in (extras or {}).items():
         if entry.extra.get(k) != v:

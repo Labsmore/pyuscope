@@ -6,9 +6,11 @@ toupcamsrc only exposes the selected resolution via the "esize" property
 Available resolutions are listed by GST_TOUPCAMSRC_INFO=Y (stdout dump)
 
 Priority:
--User choice (Video => Resolution), persisted per microscope S/N + camera S/N
+-User choice (Main tab camera resolution), persisted per microscope S/N + camera S/N
 -microscope.j5 imager width/height and/or source_properties.esize
 -Camera max resolution
+
+Changing it at runtime restarts the camera (see GstImagerPipeline.reconfigure_geometry())
 """
 
 import json5
@@ -208,17 +210,24 @@ def apply_to_imagerj(imagerj, r, max_r=None):
     """
     Make microscope.j5 imager (in memory) reflect the selected resolution
     so that raw_wh() etc and prepareSource() pick it up
+    May be called again at runtime to switch resolution
 
-    native_width/height (basis of hardware_resolution_scalar()) keeps its
-    old meaning: configured width/height if any, otherwise the camera max
+    native_width/height (basis of hardware_resolution_scalar()):
+    camera max if probed, else configured native_width/height, else
+    configured width/height
+    config_wh: width/height as written in microscope.j5 (see USCImager.authored_wh())
     """
-    if imagerj.get("native_width") is None or imagerj.get(
-            "native_height") is None:
+    if "config_wh" not in imagerj:
         config_wh, _config_esize = config_resolution(imagerj)
+        imagerj["config_wh"] = list(config_wh) if config_wh else None
+    config_wh = imagerj["config_wh"]
+    if max_r:
+        imagerj["native_width"] = max_r["width"]
+        imagerj["native_height"] = max_r["height"]
+    elif imagerj.get("native_width") is None or imagerj.get(
+            "native_height") is None:
         if config_wh:
             native = config_wh
-        elif max_r:
-            native = max_r["width"], max_r["height"]
         else:
             native = r["width"], r["height"]
         imagerj["native_width"], imagerj["native_height"] = native
@@ -276,27 +285,10 @@ def load_cachej_sn(fn, model_serial_string):
     return cachej.get("microscopes", {}).get(model_serial_string, {})
 
 
-def pixel_crop_configured(usc_imager):
-    """
-    Crop specified in pixels is only valid for the resolution it was set up for
-    (crop_fractions scale)
-    """
-    if "crop_pixels" in usc_imager.j:
-        return True
-    store = getattr(usc_imager.microscope, "cal_store", None)
-    if store is None:
-        return False
-    try:
-        return any(e.key == "imager.crop_pixels"
-                   for e in store.entries(include_disabled=False))
-    except Exception:
-        return False
-
-
 class ResolutionSelector:
     """
     Selects the camera resolution before the pipeline is built and tracks
-    the user override (applied on next start)
+    the user override
     """
 
     def __init__(self, usc_imager, cache_fn, model_serial_string, log=None):
@@ -308,12 +300,11 @@ class ResolutionSelector:
         # Settable resolutions. Empty if the camera couldn't be probed
         self.resolutions = []
         self.camera_max = None
-        # Resolution the camera is opened at
+        # Resolution the camera is running at
         self.active = None
         self.how = None
-        # User selection (wh), takes effect on next start
+        # User selection (wh)
         self.override = None
-        self.pixel_crop = False
         # microscope.j5 values (imager j is updated with the selection)
         self.config_wh = None
         self.config_esize = None
@@ -322,7 +313,6 @@ class ResolutionSelector:
         imagerj = self.usc_imager.j
         config_wh, config_esize = config_resolution(imagerj)
         self.config_wh, self.config_esize = config_wh, config_esize
-        self.pixel_crop = pixel_crop_configured(self.usc_imager)
         try:
             info = probe_func()
         except CameraNotFound as e:
@@ -342,11 +332,6 @@ class ResolutionSelector:
         user_wh = saved_resolution(
             load_cachej_sn(self.cache_fn, self.model_serial_string),
             self.camera_sn)
-        if user_wh and self.pixel_crop:
-            self.log(
-                "WARNING: ignoring saved resolution %ux%u: crop_pixels configured"
-                % user_wh)
-            user_wh = None
         if user_wh and not find_wh(self.resolutions, user_wh):
             self.log(
                 "WARNING: ignoring saved resolution %ux%u: not supported by camera"
@@ -369,49 +354,49 @@ class ResolutionSelector:
 
     def selected_wh(self):
         """
-        What the camera will be opened at next start (w, h)
+        What the camera is running at (w, h)
         """
-        if self.override is not None:
-            return self.override
-        if self.how == "user":
-            try:
-                r, _how = select(self.resolutions,
-                                 config_wh=self.config_wh,
-                                 config_esize=self.config_esize)
-                return r["width"], r["height"]
-            except Exception:
-                return None
         return self.active["width"], self.active["height"]
 
     def can_select(self):
-        return len(self.resolutions) > 1 and not self.pixel_crop
+        return len(self.resolutions) > 1
 
-    def set_override(self, wh):
+    def unavailable_reason(self):
+        """
+        Why can_select() is False (None if it isn't)
+        """
+        if not self.resolutions:
+            return "Couldn't query the camera's resolutions (using microscope.j5 width / height)"
+        if len(self.resolutions) == 1:
+            return "The camera has a single selectable resolution"
+        return None
+
+    def apply(self, imagerj, r):
+        apply_to_imagerj(imagerj, r, max_r=self.camera_max)
+
+    def set_override(self, wh, apply=None):
         """
         wh: (w, h) or None to restore the default (microscope.j5 or camera max)
-        Takes effect on next start
+        apply(r): switch the running camera to resolution r
+            (ex: GstImagerPipeline.reconfigure_geometry). Raises on failure
+        Persisted by cache_sn_save()
         """
-        if wh is not None:
-            if self.pixel_crop:
-                raise ValueError(
-                    "Can't change resolution: microscope crop is specified in pixels"
-                )
-            if not find_wh(self.resolutions, wh):
+        if wh is None:
+            r, how = select(self.resolutions,
+                            config_wh=self.config_wh,
+                            config_esize=self.config_esize)
+        else:
+            r = find_wh(self.resolutions, wh)
+            if not r:
                 raise ValueError("Resolution %ux%u not supported by camera" %
                                  tuple(wh))
             wh = (int(wh[0]), int(wh[1]))
+            how = "user"
+        if apply is not None and r != self.active:
+            apply(r)
+        self.active = r
+        self.how = how
         self.override = wh
-
-    def restart_required(self):
-        """
-        Does the selection differ from what the camera is running at?
-        """
-        if self.active is None:
-            return False
-        want = self.selected_wh()
-        if want is None:
-            return True
-        return tuple(want) != (self.active["width"], self.active["height"])
 
     def cache_sn_save(self, cachej_sn):
         # Camera wasn't queried: keep whatever was saved before

@@ -392,12 +392,14 @@ class Microscope:
         keys = set(keys or [])
         if "optics.um_per_pixel_raw_1x" in keys and self.objectives:
             # Falls back to nominal if the entry was removed / disabled
-            self.objectives.set_um_per_pixel_raw_1x(
-                self.usc.optics.um_per_pixel_raw_1x())
+            self.objectives.set_um_per_pixel_native_1x(
+                self.usc.optics.um_per_pixel_native_1x())
         if "motion.backlash" in keys and self.motion is not None:
             if hasattr(self.motion, "reconfigure_backlash"):
                 self.motion.reconfigure_backlash()
-        if "kinematics.tsettle_motion" in keys and self.objectives:
+        # Crop changes the field of view
+        if keys & {"kinematics.tsettle_motion", "imager.crop_fractions"
+                   } and self.objectives:
             self.objectives.recalculate_db()
         if keys & {"imager.illumination", "imager.dark"}:
             from uscope.cal.analysis.illumination import IlluminationTables

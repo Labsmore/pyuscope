@@ -139,11 +139,12 @@ A minimal configuration to do basic testing
         //200: not aggressive enough
         //300: slight artifacts at edges
         //400: looks ok. Final: 1424 x 1424
-        "crop_pixels": {
-            "top": 400,
-            "bottom": 400,
-            "left": 1296,
-            "right": 1296,
+        //Was crop_pixels T/B 400, L/R 1296 @ 5440x3648
+        "crop_fractions": {
+            "top": 0.109649,
+            "bottom": 0.109649,
+            "left": 0.238235,
+            "right": 0.238235,
         },
     },
     "optics": {

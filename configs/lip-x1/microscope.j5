@@ -163,11 +163,12 @@ A minimal configuration to do basic testing
         //2778 - 393 * 2 = 1992
         //3704 - 856 * 2 = 1992
         //3968064 / 10289712 = 38% sensor usage in this config
-        "crop_pixels": {
-            "top": 393,
-            "bottom": 393,
-            "left": 856,
-            "right": 856,
+        //Was crop_pixels T/B 393, L/R 856 @ 3704x2778
+        "crop_fractions": {
+            "top": 0.141469,
+            "bottom": 0.141469,
+            "left": 0.231102,
+            "right": 0.231102,
         },
         "source_properties_mod": {
             //In us. Can go up to 15 sec which is impractical for typical usage

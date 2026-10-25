@@ -1,7 +1,7 @@
 """
 Qt free gstreamer camera pipeline
 
-source ! capsfilter (resolution, pixel format) [! videocrop] [! videoflip] ! tee
+source ! capsfilter (resolution, pixel format) ! videocrop [! videoflip] ! tee
     tee ! queue ! capturesink
     tee ! queue ! videoconvert ! tee (display consumers, ex: Argus widgets)
 
@@ -13,8 +13,12 @@ from uscope.gst_util import Gst, CaptureSink
 from uscope.imager.gst_recorder import GstVideoRecorder
 from uscope.imager import pixel_format
 from uscope.imager.plugins.aplugins import get_imager_aplugin
+from uscope.imager.plugins.gst_toupcamsrc import resolution as toupcam_resolution
 from uscope.imager import camera_check
+from uscope.imager.crop import SIDES as CROP_SIDES
+from uscope.imager.geometry import GeometryBusy
 
+import copy
 import gi
 import os
 import threading
@@ -33,6 +37,7 @@ class GstImagerPipeline:
         self.source = None
         self.videoflip = None
         self.videocrop = None
+        self.videocrop_linked = False
         self.videoconvert = None
         self.raw_capsfilter = None
         self.raw_element = None
@@ -50,6 +55,8 @@ class GstImagerPipeline:
         self._bus_thread = None
         self._bus_running = threading.Event()
         self.recorder = None
+        # Serializes source restarts (crash recovery, geometry changes)
+        self.restart_lock = threading.RLock()
 
         self.player = Gst.Pipeline.new("player")
         source = self.usc.imager.source()
@@ -62,6 +69,10 @@ class GstImagerPipeline:
                                                  source_name=self.source_name)
         # Sizes below depend on the selected resolution
         self.imager_aplugin.configure_resolution(log=self.log)
+        # Pixel crops that couldn't be converted before the camera was probed
+        store = getattr(self.microscope, "cal_store", None)
+        if store is not None:
+            store.migrate_crop_pixels()
         self.incoming_w, self.incoming_h = self.usc.imager.cropped_wh()
         self.capture_sink = CaptureSink(session=session,
                                         width=self.incoming_w,
@@ -133,6 +144,8 @@ class GstImagerPipeline:
         self.verbose and print("vidpip: capture format %s => %s" %
                                (self.capture_format, fmt))
         self.capture_format = fmt
+        # May change crop rounding: session follows up with reconfigure_geometry()
+        self.usc.imager.active_capture_format = fmt
         if self.raw_capsfilter is not None:
             self.raw_capsfilter.props.caps = self.raw_caps()
 
@@ -241,18 +254,23 @@ class GstImagerPipeline:
                     f" (supports {supported}). Using {pixel_format.DEFAULT_FORMAT}"
                 )
                 self.capture_format = pixel_format.DEFAULT_FORMAT
+            self.usc.imager.active_capture_format = self.capture_format
         self.raw_capsfilter.props.caps = self.raw_caps()
         self.link_next_raw_element(self.raw_capsfilter)
 
-        # Hack to use a larger than needed camera sensor
-        # Crop out the unused sensor area
+        # Crop out the unused sensor area (ex: outside the image circle)
+        # Only linked in while cropping: videocrop can't negotiate some formats (ARGB64)
+        # Kept in the pipeline so the crop can change at runtime
+        self.videocrop = Gst.ElementFactory.make("videocrop")
+        assert self.videocrop
         crop = self.usc.imager.crop_tblr()
+        self.set_videocrop(crop)
         if crop:
-            self.videocrop = Gst.ElementFactory.make("videocrop")
-            assert self.videocrop
-            for k in ("top", "bottom", "left", "right"):
-                self.videocrop.set_property(k, crop[k])
             self.link_next_raw_element(self.videocrop)
+            self.videocrop_linked = True
+        else:
+            self.player.add(self.videocrop)
+            self.videocrop_linked = False
 
         # Use hardware acceleration if present
         # Otherwise can soft flip feeds when / if needed
@@ -417,10 +435,29 @@ class GstImagerPipeline:
         -Start pipeline
         Caller restores properties (exposure, etc)
         """
+        with self.restart_lock:
+            self._recover_video_crash()
+
+    def _recover_video_crash(self):
         # Stop pipeline and remove the bad element
         self.ok = False
         self.stop_recording()
         self.player.set_state(Gst.State.NULL)
+        self.replace_source()
+        # Go go go!
+        # Hopefully we'll come back up
+        # If not we'll crash in short order
+        self.player.set_state(Gst.State.PLAYING)
+        imager = self.microscope.imager
+        if imager:
+            imager.device_restarted()
+        self.ok = True
+
+    def replace_source(self):
+        """
+        Pipeline must be stopped (NULL)
+        New source picks up source_properties (ex: toupcamsrc esize)
+        """
         self.source.unlink(self.raw_capsfilter)
         self.player.remove(self.source)
         self.source = None
@@ -431,11 +468,159 @@ class GstImagerPipeline:
         # Now insert it back into the pipeline
         if not self.source.link(self.raw_capsfilter):
             raise RuntimeError("Couldn't set capabilities on the source")
-        # Go go go!
-        # Hopefully we'll come back up
-        # If not we'll crash in short order
-        self.player.set_state(Gst.State.PLAYING)
+
+    """
+    Image geometry (resolution, crop)
+    """
+
+    def set_videocrop(self, crop):
+        crop = crop or {}
+        for k in CROP_SIDES:
+            self.videocrop.set_property(k, crop.get(k, 0))
+
+    def link_videocrop(self, linked):
+        """
+        Insert / remove videocrop between the capsfilter and the next element
+        Pipeline must be stopped (NULL)
+        """
+        if linked == self.videocrop_linked:
+            return
+        next_element = self.videoflip or self.tee_raw
+        if linked:
+            self.raw_capsfilter.unlink(next_element)
+            assert self.raw_capsfilter.link(self.videocrop)
+            assert self.videocrop.link(next_element)
+        else:
+            self.raw_capsfilter.unlink(self.videocrop)
+            self.videocrop.unlink(next_element)
+            assert self.raw_capsfilter.link(next_element)
+        self.videocrop_linked = linked
+
+    def videocrop_tblr(self):
+        """
+        Crop currently applied (None if none)
+        """
+        if not self.videocrop_linked:
+            return None
+        ret = {k: self.videocrop.get_property(k) for k in CROP_SIDES}
+        if not any(ret.values()):
+            return None
+        return ret
+
+    def geometry_busy(self):
+        """
+        Why the image geometry can't be changed right now, or None
+        """
+        if self.recorder is not None and self.recorder.is_recording():
+            return "video recording"
+        session = self.session
+        if session.is_planner_running():
+            return "scan"
+        thread = getattr(session, "image_processing_thread", None)
+        if thread is not None and thread.autofocus_running:
+            return "autofocus"
+        taking_snapshot = getattr(session, "is_taking_snapshot", None)
+        if taking_snapshot is not None and taking_snapshot():
+            return "snapshot"
+        return None
+
+    def reconfigure_geometry(self, resolution=None):
+        """
+        Apply a new camera resolution and / or the current crop (crop_tblr())
+        to the running pipeline
+        resolution: {"width", "height", "esize"} (see ResolutionSelector), None => keep
+
+        Returns True if anything changed
+        Raises GeometryBusy if a scan, snapshot, recording or autofocus is active
+        If the camera doesn't come back the previous geometry is restored
+        and the error is re-raised
+        Call from the thread that runs the pipeline / video widgets (Argus: GUI thread)
+        """
+        with self.restart_lock:
+            return self._reconfigure_geometry(resolution)
+
+    def _reconfigure_geometry(self, resolution):
+        busy = self.geometry_busy()
+        if busy:
+            raise GeometryBusy(f"Can't change image geometry during {busy}")
+        imagerj = self.usc.imager.j
+        old_imagerj = copy.deepcopy(imagerj)
+        old_raw_wh = self.usc.imager.raw_wh()
+        new_source = False
+        if resolution is not None:
+            new_wh = (resolution["width"], resolution["height"])
+            old_esize = imagerj.get("source_properties", {}).get("esize")
+            new_source = new_wh != old_raw_wh or (
+                resolution.get("esize") is not None
+                and resolution["esize"] != old_esize)
+        if new_source:
+            self.apply_resolution(resolution)
+        try:
+            crop = self.usc.imager.crop_tblr()
+            self.usc.imager.cropped_wh()
+        except Exception:
+            imagerj.clear()
+            imagerj.update(old_imagerj)
+            raise
+        if not new_source and crop == self.videocrop_tblr():
+            return False
+
+        properties = getattr(self.session, "imager_properties", None)
+        prop_cache = properties.get_prop_cache() if properties else None
+        try:
+            self._restart_geometry(new_source)
+        except Exception as e:
+            raw_w, raw_h = self.usc.imager.raw_wh()
+            self.log(
+                f"ERROR: camera failed at {raw_w}x{raw_h}: {e}. Reverting to {old_raw_wh[0]}x{old_raw_wh[1]}"
+            )
+            imagerj.clear()
+            imagerj.update(old_imagerj)
+            self._restart_geometry(new_source)
+            if properties:
+                properties.recover_video_crash(prop_cache)
+            raise
+        if properties:
+            properties.recover_video_crash(prop_cache)
+        return True
+
+    def apply_resolution(self, resolution):
+        """
+        Update the imager config (width / height / esize) for the next source start
+        """
+        selector = self.imager_aplugin.resolution_selector()
+        if selector is not None:
+            selector.apply(self.usc.imager.j, resolution)
+        else:
+            toupcam_resolution.apply_to_imagerj(self.usc.imager.j, resolution)
+
+    def _restart_geometry(self, new_source):
+        self.stop_recording()
+        self.player.set_state(Gst.State.NULL)
+        if new_source:
+            self.replace_source()
+        self.raw_capsfilter.props.caps = self.raw_caps()
+        crop = self.usc.imager.crop_tblr()
+        self.set_videocrop(crop)
+        self.link_videocrop(bool(crop))
+        self.incoming_w, self.incoming_h = self.usc.imager.cropped_wh()
+        self.capture_sink.width = self.incoming_w
+        self.capture_sink.height = self.incoming_h
+        if self.recorder is not None:
+            self.recorder.wh = (self.incoming_w, self.incoming_h)
+        self.geometry_applied()
+        ret = self.player.set_state(Gst.State.PLAYING)
+        if ret == Gst.StateChangeReturn.FAILURE:
+            raise RuntimeError("video pipeline failed to start")
+        self.check_camera(ret)
+        self.wait_playing(timeout=10.0)
         imager = self.microscope.imager
         if imager:
             imager.device_restarted()
-        self.ok = True
+
+    def geometry_applied(self):
+        """
+        Pipeline is stopped and the new geometry (incoming_w / incoming_h) is set
+        Front ends update their display elements here
+        """
+        pass

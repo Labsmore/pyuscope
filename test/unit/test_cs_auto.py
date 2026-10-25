@@ -13,6 +13,8 @@ import shutil
 import subprocess
 
 
+@unittest.skipUnless(os.path.isdir("test/stitch"),
+                     "test/stitch data not present (run from repo root)")
 class TestCommon(unittest.TestCase):
     def setUp(self):
         """Call before every test case."""

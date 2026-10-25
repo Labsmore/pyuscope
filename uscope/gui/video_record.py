@@ -16,6 +16,8 @@ class VideoRecordWidget(AWidget):
     """
     # filename, error (None on success)
     recordDone = pyqtSignal(str, object)
+    # True when a recording starts, False once it is finalized
+    recordingChanged = pyqtSignal(bool)
 
     def __init__(self, ac, filename_base, aname=None, parent=None):
         """
@@ -94,6 +96,7 @@ class VideoRecordWidget(AWidget):
         self.audio_cb.setEnabled(False)
         self.update_record_pb()
         self.elapsed_timer.start()
+        self.recordingChanged.emit(True)
 
     def stop_recording(self):
         if self.recorder is None or not self.recorder.is_recording():
@@ -111,6 +114,7 @@ class VideoRecordWidget(AWidget):
         self.record_pb.setEnabled(True)
         self.audio_cb.setEnabled(True)
         self.update_record_pb()
+        self.recordingChanged.emit(False)
         if error and os.path.exists(filename):
             self.ac.log(f"Recording: {filename} may be incomplete")
 

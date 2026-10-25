@@ -696,6 +696,7 @@ class ScriptingPlugin:
     def set_um_per_pixel_raw_1x(self, val):
         """
         Set calibration info
+        val: um / pixel at 1x at the current camera resolution
         """
         self.session.set_um_per_pixel_raw_1x(val)
 

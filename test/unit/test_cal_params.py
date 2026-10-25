@@ -105,14 +105,64 @@ class TestCalParams(unittest.TestCase):
         self.assertEqual(value, {"gains": [1.5, 1.0, 0.8], "n": 3})
         with self.assertRaises(ValueError):
             wb.set_fields(None, {"r": 0, "g": 1, "b": 1})
-        crop = params.get_param("imager.crop_pixels")
-        with self.assertRaises(ValueError):
+        crop = params.get_param("imager.crop_fractions")
+        self.assertEqual(
             crop.set_fields(None, {
-                "top": -1,
+                "top": 0.1,
+                "bottom": 0.1,
+                "left": 0.25,
+                "right": 0.25
+            }), {
+                "top": 0.1,
+                "bottom": 0.1,
+                "left": 0.25,
+                "right": 0.25
+            })
+        for bad in ({
+                "top": -0.1,
                 "bottom": 0,
                 "left": 0,
                 "right": 0
-            })
+        }, {
+                "top": 0,
+                "bottom": 0,
+                "left": 0.5,
+                "right": 0.5
+        }):
+            with self.assertRaises(ValueError):
+                crop.set_fields(None, bad)
+
+    def test_crop_default_and_override(self):
+        store = self.m.cal_store
+        names = self.m.objective_state.names()
+        default = {"top": 0.1, "bottom": 0.1, "left": 0.2, "right": 0.2}
+        override = {"top": 0.0, "bottom": 0.0, "left": 0.3, "right": 0.3}
+        params.set_value(store, self.row("imager.crop_fractions"), default)
+        row = self.row("imager.crop_fractions", {"objective": names[0]})
+        self.assertEqual(row.status(), "default")
+        self.assertTrue(row.inherits())
+        self.assertEqual(row.effective(), default)
+        self.assertEqual(self.row("imager.crop_fractions").scope_label(),
+                         "default (all objectives)")
+        params.set_value(store, row, override)
+        row = self.row("imager.crop_fractions", {"objective": names[0]})
+        self.assertEqual(row.status(), "calibrated (user)")
+        self.assertEqual(row.effective(), override)
+        # Pixels at the current (mock 800x750) resolution
+        self.assertEqual(row.describe(override),
+                         "T 0, B 0, L 240, R 240 pixels at the current 800x750")
+        # Clearing the override goes back to the default
+        params.remove_user(store, row)
+        row = self.row("imager.crop_fractions", {"objective": names[0]})
+        self.assertEqual(row.effective(), default)
+        self.assertFalse(row.param.needs_restart)
+
+    def test_um_per_pixel_native_basis(self):
+        store = self.m.cal_store
+        params.set_value(store, self.row("optics.um_per_pixel_raw_1x"), 0.25)
+        entry = self.row("optics.um_per_pixel_raw_1x").user_entry
+        self.assertEqual(entry.extra["native_wh"],
+                         list(self.m.usc.imager.native_wh()))
 
     def test_factory_shadowed(self):
         store = self.m.cal_store

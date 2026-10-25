@@ -110,8 +110,14 @@ def analyze(in_dir=None,
         microscope = get_virtual_microscope(mconfig=get_mconfig(
             name=j["microscope_model"], serial=j["microscope_serial"]))
         # < 1 if using a smaller resolution than full
-        hardware_resolution_scalar = microscope.usc.imager.hardware_resolution_scalar(
-        )
+        imagerj = j.get("imager")
+        if imagerj:
+            # Resolution the images were taken at
+            hardware_resolution_scalar = imagerj["raw_wh"][0] / imagerj[
+                "native_wh"][0]
+        else:
+            hardware_resolution_scalar = microscope.usc.imager.hardware_resolution_scalar(
+            )
         # < 1 if downscaling to final image
         soft_image_scalar = microscope.usc.imager.scalar()
         native_pixel_size = microscope.usc.imager.native_pixel_pitch_um()
@@ -121,7 +127,8 @@ def analyze(in_dir=None,
         calc_mag_x = ideal_sel_pixel_size_1x / pj["axes"]["x"]["um_per_pix_new"]
         calc_mag_y = ideal_sel_pixel_size_1x / pj["axes"]["y"]["um_per_pix_new"]
 
-        old_um_per_pixel_raw_1x = microscope.usc.optics.um_per_pixel_raw_1x()
+        old_um_per_pixel_raw_1x = microscope.usc.optics.um_per_pixel_native_1x(
+        ) / hardware_resolution_scalar
         obj_um_per_pixel_new = (pj["axes"]["x"]["um_per_pix_new"] +
                                 pj["axes"]["y"]["um_per_pix_new"]) / 2
         new_um_per_pixel_1x = obj_um_per_pixel_new * j["objective"][
@@ -279,6 +286,11 @@ class Plugin(ScriptingPlugin):
             "n_moves": moves,
             "origin": self.origin,
             "objective": objective_config,
+            "imager": {
+                "raw_wh": list(self.session.microscope.usc.imager.raw_wh()),
+                "native_wh":
+                list(self.session.microscope.usc.imager.native_wh()),
+            },
             "plus_minus_mm": plus_minus,
             "delta_mm": plus_minus * 2,
             "axes": {},
@@ -367,7 +379,10 @@ class Plugin(ScriptingPlugin):
                          quick=True)
         elif task == "analyze":
             pj = analyze(in_dir=vals.get("Output directory", ""), log=self.log)
-            self.set_um_per_pixel_raw_1x(pj["new_um_per_pixel_raw_1x"])
+            # Resolution may have changed since the images were taken
+            self.set_um_per_pixel_raw_1x(
+                pj["new_um_per_pixel_native_1x"] /
+                self.session.microscope.usc.imager.hardware_resolution_scalar())
         else:
             assert 0, task
 

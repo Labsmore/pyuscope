@@ -105,8 +105,7 @@ class SinkxZoomableWidget(ArgusVideoWidget):
         self.screen_h = None
 
         # Input image may be cropped, don't use the raw w/h for anything
-        # Fixed across a microscope run, not currently configurable after startup
-        # XXX: would be nice if we could detect these
+        # Changes with the camera resolution / crop (see set_incoming_wh())
         self.incoming_w, self.incoming_h = incoming_wh
 
         self.zoom = 1.0
@@ -312,6 +311,14 @@ class SinkxZoomableWidget(ArgusVideoWidget):
         assert zoom >= 1.0
         self.zoom = zoom
         self.update_crop_scale()
+
+    def set_incoming_wh(self, incoming_wh):
+        """
+        Stream size changed (camera resolution / crop). Keeps the zoom level
+        """
+        self.incoming_w, self.incoming_h = incoming_wh
+        if self.videocrop is not None:
+            self.update_crop_scale()
 
     def create_elements(self, player, src_tee):
         self.videocrop = Gst.ElementFactory.make("videocrop")
@@ -600,6 +607,13 @@ class GstVideoPipeline(GstImagerPipeline):
         for widget in self.widgets.values():
             widget.create_elements(self.player, vc_tees)
 
+    def geometry_applied(self):
+        incoming_wh = (self.incoming_w, self.incoming_h)
+        for widget in self.widgets.values():
+            widget.set_incoming_wh(incoming_wh)
+        if self.rtsp_bin:
+            self.rtsp_bin.set_incoming_wh(incoming_wh)
+
     def link_vc_elements(self):
         for widget in self.widgets.values():
             widget.gst_link()
@@ -713,9 +727,12 @@ class RtspBin(Gst.Bin):
         self.udpsink = None
 
         # Input image may be cropped, don't use the raw w/h for anything
-        # Fixed across a microscope run, not currently configurable after startup
-        # XXX: would be nice if we could detect these
         self.incoming_w, self.incoming_h = incoming_wh
+
+    def set_incoming_wh(self, incoming_wh):
+        # Elements negotiate the new size when the pipeline restarts
+        self.incoming_w, self.incoming_h = incoming_wh
+        self.update_crop_scale()
 
     def update_crop_scale(self):
         """

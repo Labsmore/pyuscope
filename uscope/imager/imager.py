@@ -23,6 +23,12 @@ class Imager:
         """
         self._t_last_restart = time.time()
 
+    def geometry_changed(self):
+        """
+        Camera resolution / crop changed at runtime (see USCImager.final_wh())
+        """
+        pass
+
     def since_last_restart(self):
         if self._t_last_restart is None:
             return None

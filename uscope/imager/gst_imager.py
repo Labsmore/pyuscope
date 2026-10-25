@@ -41,6 +41,9 @@ class SessionImager(Imager):
         self.factor = self.usc.imager.scalar()
         self.videoflip_method = self.usc.imager.videoflip_method()
 
+    def geometry_changed(self):
+        self.width, self.height = self.usc.imager.final_wh()
+
     def properties(self):
         return self.session.imager_properties
 
@@ -265,6 +268,8 @@ class GstImager(SessionImager):
         # Format we expect frames to arrive in
         # None if the source doesn't negotiate formats (legacy sources)
         want_format = self.get_capture_format()
+        vidpip = self.session.vidpip
+        want_wh = (vidpip.incoming_w, vidpip.incoming_h)
         tstart = time.time()
         while True:
             got.pop("image_id", None)
@@ -276,13 +281,18 @@ class GstImager(SessionImager):
                     "Failed to get raw image within timeout %0.1f sec" %
                     (timeout, ))
             image_id = got["image_id"]
-            if want_format is None:
-                break
-            # After a capture format switch frames already in the pipeline
-            # (queues between the source and us) are still in the old format
-            # Discard them until the camera restarts in the new format
-            got_format = capture_sink.get_image(image_id).get("format")
-            if got_format is None or got_format == want_format:
+            # After a capture format / geometry switch frames already in the
+            # pipeline (queues between the source and us) may still be in the
+            # old format / size
+            # Discard them until the camera restarts with the new settings
+            image_dict = capture_sink.get_image(image_id)
+            got_format = image_dict.get("format")
+            format_ok = (want_format is None or got_format is None
+                         or got_format == want_format)
+            # videoflip may transpose
+            wh_ok = (image_dict["width"], image_dict["height"]) in (
+                want_wh, want_wh[::-1])
+            if format_ok and wh_ok:
                 break
             capture_sink.del_image(image_id)
         capim = capture_sink.pop_captured_image(image_id)

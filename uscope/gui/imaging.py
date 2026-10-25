@@ -447,6 +447,94 @@ class ObjectiveWidget(AWidget):
         self.obj_cb.currentIndexChanged.connect(self.obj_cb_changed)
 
 
+class CameraResolutionWidget(AWidget):
+    """
+    Camera resolution, applied immediately (see SessionGeometry)
+    Shows the resulting image size after crop / scalar
+    """
+    def __init__(self, ac, aname=None, parent=None):
+        super().__init__(ac=ac, aname=aname, parent=parent)
+        # Reasons the selection is temporarily disabled (ex: "scan")
+        self.busy = set()
+        self.selectable = False
+
+    def _initUI(self):
+        layout = QGridLayout()
+        layout.addWidget(QLabel("Camera resolution"), 0, 0)
+        self.resolution_cb = QComboBox()
+        layout.addWidget(self.resolution_cb, 0, 1)
+        self.size_l = QLabel("")
+        layout.addWidget(self.size_l, 0, 2)
+        self.setLayout(layout)
+
+    def _post_ui_init(self):
+        self.resolution_cb.activated.connect(self.resolution_activated)
+        self.ac.imageGeometryChanged.connect(self.refresh)
+        self.refresh()
+
+    def refresh(self):
+        selector = self.ac.resolution_selector()
+        usc_imager = self.ac.usc.imager
+        self.resolution_cb.blockSignals(True)
+        try:
+            self.resolution_cb.clear()
+            if selector is not None and selector.can_select():
+                self.selectable = True
+                active = selector.selected_wh()
+                for r in selector.resolutions:
+                    wh = (r["width"], r["height"])
+                    self.resolution_cb.addItem(selector.label(r), wh)
+                    if wh == tuple(active):
+                        self.resolution_cb.setCurrentIndex(
+                            self.resolution_cb.count() - 1)
+                self.resolution_cb.setToolTip(
+                    "Applied immediately. Saved per microscope and camera")
+            else:
+                self.selectable = False
+                self.resolution_cb.addItem("%u x %u" % usc_imager.raw_wh())
+                if selector is None:
+                    why = "Camera source %s can't select resolution" % (
+                        usc_imager.source(), )
+                else:
+                    why = selector.unavailable_reason()
+                self.resolution_cb.setToolTip(why)
+        finally:
+            self.resolution_cb.blockSignals(False)
+        self.update_enabled()
+
+        crop_w, crop_h = usc_imager.cropped_wh()
+        final_w, final_h = usc_imager.final_wh()
+        if (crop_w, crop_h) == (final_w, final_h):
+            self.size_l.setText("Image %u x %u" % (final_w, final_h))
+        else:
+            self.size_l.setText("Cropped %u x %u, final %u x %u" %
+                                (crop_w, crop_h, final_w, final_h))
+        self.size_l.setToolTip("After crop (%s) and image scalar (%g)" %
+                               (usc_imager.crop_tblr() or "none",
+                                usc_imager.scalar()))
+
+    def update_enabled(self):
+        self.resolution_cb.setEnabled(self.selectable and not self.busy)
+
+    def set_busy(self, reason, busy):
+        if busy:
+            self.busy.add(reason)
+        else:
+            self.busy.discard(reason)
+        self.update_enabled()
+
+    def resolution_activated(self, index):
+        wh = self.resolution_cb.itemData(index)
+        if wh is None:
+            return
+        try:
+            self.ac.set_camera_resolution(tuple(wh))
+        except Exception as e:
+            self.ac.log(f"Failed to set camera resolution: {e}")
+        # Also snaps back on failure
+        self.refresh()
+
+
 """
 Provides camera overview and ROI side by side
 """
@@ -1612,6 +1700,8 @@ class MainTab(ArgusTab):
         self.objective_widget = ObjectiveWidget(ac=self.ac,
                                                 aname="objective",
                                                 parent=self)
+        self.camera_resolution_widget = CameraResolutionWidget(
+            ac=self.ac, aname="camera_resolution", parent=self)
         self.imaging_widget = ImagingTaskWidget(
             ac=self.ac,
             go_current_pconfig=lambda **kwargs: self.ac.panoramaTab.
@@ -1642,6 +1732,7 @@ class MainTab(ArgusTab):
         def left_layout():
             layout = QVBoxLayout()
             layout.addWidget(self.objective_widget)
+            layout.addWidget(self.camera_resolution_widget)
             layout.addWidget(get_axes_gb())
             layout.addWidget(self.imaging_widget)
             layout.addWidget(self.log_widget, 1)
@@ -1681,8 +1772,14 @@ class MainTab(ArgusTab):
     def clear_log(self):
         self.log_widget.clear()
 
+    def _post_ui_init(self):
+        self.imaging_widget.video_record_widget.recordingChanged.connect(
+            lambda recording: self.camera_resolution_widget.set_busy(
+                "recording", recording))
+
     def setControlsEnabled(self, yes):
         self.imaging_widget.snapshot_pb.setEnabled(yes)
+        self.camera_resolution_widget.set_busy("scan", not yes)
 
     def _update_pconfig(self, pconfig):
         self.imaging_widget.update_pconfig(pconfig)

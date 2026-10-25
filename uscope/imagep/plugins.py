@@ -444,6 +444,13 @@ class CorrectFF1Plugin(IPPlugin):
         image_in = data_in["image"]
         im = image_in.to_mutable_im()
 
+        # Tables are per resolution: camera resolution / crop may have changed
+        if self.tables is not None and im.size != self.tables.size:
+            try:
+                self.tables = self.usc.imager.illumination_tables(
+                ) or self.tables
+            except Exception:
+                pass
         if self.tables is not None:
             if im.size != self.tables.size:
                 raise Exception(

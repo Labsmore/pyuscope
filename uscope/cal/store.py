@@ -10,6 +10,7 @@ An empty or missing store is valid: the system runs on nominals.
 """
 
 import copy
+import json
 import os
 import threading
 
@@ -190,6 +191,7 @@ class CalStore:
         store = cls(user_fn, factory_path=factory_fn, microscope=microscope)
         store.load()
         store.migrate_legacy()
+        store.migrate_crop_pixels()
         return store
 
     def subscribe(self, callback):
@@ -419,6 +421,90 @@ class CalStore:
         ),
                  save=True,
                  notify=False)
+
+    def _measured_wh(self, entry):
+        """
+        Raw resolution a calibration entry was measured at
+        From the entry itself or its dataset manifest (source), None if unknown
+        """
+        wh = entry.scope.get("wh")
+        if wh:
+            return int(wh[0]), int(wh[1])
+        if not entry.source:
+            return None
+        path = entry.source
+        if not os.path.isabs(path):
+            if not self.dir:
+                return None
+            path = os.path.join(self.dir, path)
+        fn = os.path.join(path, "manifest.json")
+        if not os.path.exists(fn):
+            return None
+        try:
+            imagerj = readj(fn).get("imager") or {}
+            return int(imagerj["width"]), int(imagerj["height"])
+        except Exception:
+            return None
+
+    def migrate_crop_pixels(self, default_wh=None):
+        """
+        Replace imager.crop_pixels entries with imager.crop_fractions (same scope)
+        Pixels are converted at the resolution they were measured at if known,
+        else default_wh (default: native resolution)
+        The old entry is kept but disabled. Factory entries are converted in memory
+        Returns the number of entries migrated
+        """
+        from uscope.imager import crop
+        if default_wh is None and self.microscope is not None:
+            try:
+                default_wh = self.microscope.usc.imager.native_wh()
+            except Exception:
+                default_wh = None
+        migrated = []
+        with self._lock:
+            for pool in (self._user, self._factory):
+                for e in list(pool):
+                    if e.key != "imager.crop_pixels" or not e.enabled:
+                        continue
+                    scope = {
+                        k: v
+                        for k, v in e.scope.items() if k == "objective"
+                    }
+                    ident = ("imager.crop_fractions", _scope_tuple(scope))
+                    if any(x.identity() == ident for x in pool):
+                        e.enabled = False
+                        migrated.append(e)
+                        continue
+                    wh = self._measured_wh(e) or default_wh
+                    if wh is None:
+                        print(
+                            "WARNING: can't migrate imager.crop_pixels yet: resolution unknown"
+                        )
+                        continue
+                    try:
+                        value = crop.pixels_to_fractions(e.value, wh)
+                    except Exception as ex:
+                        print("WARNING: can't migrate imager.crop_pixels %s: %s" %
+                              (e.value, ex))
+                        continue
+                    pool.append(
+                        CalEntry(key="imager.crop_fractions",
+                                 value=value,
+                                 scope=scope,
+                                 measured_at=e.measured_at,
+                                 pyuscope_version=e.pyuscope_version,
+                                 source=e.source,
+                                 notes="Converted from crop_pixels %s at %ux%u"
+                                 % (json.dumps(e.value, sort_keys=True), wh[0],
+                                    wh[1])))
+                    e.enabled = False
+                    migrated.append(e)
+            user_changed = any(e in self._user for e in migrated)
+        if user_changed:
+            self.save()
+        if migrated:
+            self._notify(["imager.crop_fractions"])
+        return len(migrated)
 
     def migrate_um_per_pixel(self, value, source="legacy:argus.j5"):
         """One-time import of GUI-cache um_per_pixel_raw_1x."""

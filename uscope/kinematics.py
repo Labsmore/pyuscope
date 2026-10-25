@@ -42,7 +42,8 @@ class Kinematics:
         self.should_frame_sync = self.microscope.usc.kinematics.frame_sync()
         self.frame_sync_frames_hdr = self.microscope.usc.kinematics.frame_sync_frames_hdr(
         )
-        self.tsettle_video_pipeline = 3.0
+        self.tsettle_video_pipeline = self.microscope.usc.kinematics.tsettle_video_pipeline(
+        )
 
         # self.diagnostic_info()
 

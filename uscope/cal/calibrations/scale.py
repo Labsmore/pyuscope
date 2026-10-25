@@ -154,10 +154,20 @@ class ScaleCal(Calibration):
         except Exception:
             pass
         new_um_raw_1x = new_um_1x * soft
+        # Stored at native resolution (see USCOptics.cal_entry_um_per_pixel_native())
+        # Older datasets don't record it: stored as measured
+        imagerj = j.get("imager") or {}
+        native_scalar = 1.0
+        native_wh = None
+        if imagerj.get("native_width") and imagerj.get("width"):
+            native_wh = [imagerj["native_width"], imagerj["native_height"]]
+            native_scalar = imagerj["width"] / imagerj["native_width"]
+        new_um_native_1x = new_um_raw_1x * native_scalar
 
         values = {
             "um_per_pixel": obj_um,
             "um_per_pixel_raw_1x": new_um_raw_1x,
+            "um_per_pixel_native_1x": new_um_native_1x,
             "um_per_pixel_x": axes["x"]["um_per_pix"],
             "um_per_pixel_y": axes["y"]["um_per_pix"],
             "um_per_pixel_old": um_per_pix_old,
@@ -168,12 +178,14 @@ class ScaleCal(Calibration):
             ok = False
         entry = CalEntry(
             key="optics.um_per_pixel_raw_1x",
-            value=float(new_um_raw_1x),
+            value=float(new_um_native_1x),
             unit="um",
             std=float(std),
             n=int(axes["x"]["n"] + axes["y"]["n"]),
+            extra={"native_wh": native_wh} if native_wh else None,
         )
-        msg = "um/pixel %0.4f (raw 1x %0.4f)" % (obj_um, new_um_raw_1x)
+        msg = "um/pixel %0.4f (raw 1x %0.4f, native 1x %0.4f)" % (
+            obj_um, new_um_raw_1x, new_um_native_1x)
         self._plot(ds, axes, um_per_pix_old)
         return Result(self.name,
                       values=values,

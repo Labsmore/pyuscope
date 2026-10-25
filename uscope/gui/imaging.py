@@ -140,13 +140,20 @@ class MotionWidget(AWidget):
 
         layout.addLayout(measure())
 
-        self.show_advanced_movement(config.bc.dev_mode())
+        gb = QGroupBox("Motion")
+        gb.setLayout(layout)
+        outer_layout = QVBoxLayout()
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.addWidget(gb)
+        self.setLayout(outer_layout)
 
-        self.setLayout(layout)
+        self.show_advanced_movement(config.bc.dev_mode())
 
     def show_advanced_movement(self, visible):
         for widget in self.advanced_movement_widgets:
             widget.setVisible(visible)
+        # Hide the whole box when there is nothing to show
+        self.setVisible(visible or self.mdi_le is not None)
 
     def move_abs_le_process(self):
         s = str(self.move_abs_le.text())
@@ -1722,18 +1729,11 @@ class MainTab(ArgusTab):
                                           parent=self)
 
     def _initUI(self):
-        def get_axes_gb():
-            layout = QVBoxLayout()
-            layout.addWidget(self.motion_widget)
-            gb = QGroupBox("Motion")
-            gb.setLayout(layout)
-            return gb
-
         def left_layout():
             layout = QVBoxLayout()
             layout.addWidget(self.objective_widget)
             layout.addWidget(self.camera_resolution_widget)
-            layout.addWidget(get_axes_gb())
+            layout.addWidget(self.motion_widget)
             layout.addWidget(self.imaging_widget)
             layout.addWidget(self.log_widget, 1)
 

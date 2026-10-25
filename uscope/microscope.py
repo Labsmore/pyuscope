@@ -4,6 +4,7 @@ from uscope.kinematics import Kinematics
 from uscope.objective import MicroscopeObjectives, ObjectiveState
 from uscope.imager import gst
 from uscope.motion.grbl import grbl_mconfig
+from uscope.subsystem import NoSuchFunction
 import threading
 import os
 """
@@ -85,7 +86,6 @@ class Microscope:
         self._kinematics_ts = None
         self.hardware = hardware
         self._last_cachej = None
-        #self.instruments = {}
         self.subsystems = {}
         # General purpose data that is passed to Planner and other things
         self.calibration = {}
@@ -392,26 +392,6 @@ class Microscope:
             from uscope.cal.analysis.illumination import IlluminationTables
             IlluminationTables.invalidate()
 
-    '''
-    def get_instrument(self, name):
-        return self.instruments[name]
-
-    def get_instrument_default(self, name, default=None):
-        return self.instruments.get(name, default)
-
-    def add_instrument(self, instrument, name=None):
-        if not name:
-            name = instrument.name()
-        assert name not in self.instruments
-        self.instruments[name] = instrument
-
-        # Load configuration
-        assert self._last_cachej is not None
-        instrumentsj = self._last_cachej.get("instruments", {})
-        instancesj = instrumentsj.get("instances", {})
-        instrument.cache_load(instancesj.get(name, {}))
-    '''
-
     def get_subsystem(self, name):
         return self.subsystems[name]
 
@@ -431,6 +411,9 @@ class Microscope:
             subsystemsj = self._last_cachej.get("subsystems", {})
             subsystem.cache_load(self._last_cachej, subsystemsj.get(name, {}))
 
+    def remove_subsystem(self, name):
+        return self.subsystems.pop(name, None)
+
     def subsystem_functions(self):
         ret = {}
         for name, subsystem in self.subsystems.items():
@@ -444,20 +427,17 @@ class Microscope:
         return ret
 
     def subsystem_function_ts(self, subsystem, function, kwargs):
-        self.subsystems[subsystem].function_ts(function, kwargs)
+        # Instruments can be removed at runtime
+        subsystem_ = self.subsystems.get(subsystem)
+        if subsystem_ is None:
+            raise NoSuchFunction(f"No such subsystem: {subsystem}")
+        subsystem_.function_ts(function, kwargs)
 
     def cache_save(self, cachej):
         """
         Argus hook to save configuration cache
         In the future we might reverse such that we call argu
         """
-        '''
-        instrumentsj = cachej.setdefault("instruments", {})
-        # TODO: might have other config here (ex: paths)
-        instancesj = instrumentsj.setdefault("instances", {})
-        for name, instrument in self.instruments.items():
-            instancesj[name] = instrument.cache_save()
-        '''
         subsystemsj = cachej.setdefault("subsystems", {})
         for name, subsystem in self.subsystems.items():
             subj = subsystemsj.get(name, {})
@@ -483,13 +463,6 @@ class Microscope:
         In the future we might reverse such that we call argu
         """
         self._last_cachej = cachej
-        '''
-        instrumentsj = cachej.get("instruments", {})
-        # TODO: might have other config here (ex: paths)
-        instancesj = instrumentsj.get("instances", {})
-        for name, instrument in self.instruments.items():
-            instrument.cache_load(instancesj.get(name, {}))
-        '''
         subsystemsj = cachej.setdefault("subsystems", {})
         for name, subsystem in self.subsystems.items():
             subsystem.cache_load(cachej, subsystemsj.get(name, {}))
@@ -499,13 +472,6 @@ class Microscope:
         Argus hook to save configuration cache
         In the future we might reverse such that we call argu
         """
-        '''
-        instrumentsj = cachej.setdefault("instruments", {})
-        # TODO: might have other config here (ex: paths)
-        instancesj = instrumentsj.setdefault("instances", {})
-        for name, instrument in self.instruments.items():
-            instancesj[name] = instrument.cache_sn_save()
-        '''
         subsystemsj = cachej.setdefault("subsystems", {})
         for name, subsystem in self.subsystems.items():
             subj = subsystemsj.get(name, {})
@@ -523,13 +489,6 @@ class Microscope:
             self.calibration = self.cal_store.as_dict()
         else:
             self.calibration = cachej.get("calibration", {})
-        '''
-        instrumentsj = cachej.get("instruments", {})
-        # TODO: might have other config here (ex: paths)
-        instancesj = instrumentsj.get("instances", {})
-        for name, instrument in self.instruments.items():
-            instrument.cache_sn_load(instancesj.get(name, {}))
-        '''
         subsystemsj = cachej.setdefault("subsystems", {})
         for name, subsystem in self.subsystems.items():
             subsystem.cache_sn_load(cachej, subsystemsj.get(name, {}))
@@ -544,13 +503,6 @@ class Microscope:
             self.imager.system_status_ts(ret, ret.setdefault("imager", {}))
         if self.motion is not None:
             self.motion.system_status_ts(ret, ret.setdefault("motion", {}))
-
-        # maybe instruments as subsystem would make more sense?
-        '''
-        instruments_j = ret.setdefault("instruments")
-        for instrument in self.instruments.values():
-            instrument.system_status_ts(instruments_j).setdefault(instrument.name(), {}))
-        '''
 
         # Notably argus subsystem
         subsystemsj = ret.setdefault("subsystems", {})

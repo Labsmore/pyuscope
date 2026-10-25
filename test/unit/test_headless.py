@@ -586,5 +586,83 @@ class TestNoQt(unittest.TestCase):
         self.assertIn("NOQT_OK", out.stdout, out.stdout + out.stderr)
 
 
+class TestInstruments(HeadlessTestCase):
+    FN = os.path.join(SCRIPT_DIR, "test", "instrument_function.py")
+
+    def make_runner(self, name):
+        return ScriptRunner(session=self.session,
+                            host=self.host,
+                            instrument_config={
+                                "name": name,
+                                "parameters": {}
+                            })
+
+    def test_attach_detach(self):
+        subsystems = self.session.microscope.subsystems
+        runner = self.make_runner("itest_attach")
+        plugin = runner.load(self.FN)
+        self.assertIs(subsystems["itest_attach"].plugin, plugin)
+        self.assertIs(plugin.subsystem, subsystems["itest_attach"])
+        runner.unload()
+        self.assertNotIn("itest_attach", subsystems)
+
+    def test_reload_and_call(self):
+        # Reload used to leave the subsystem pointing at the old plugin
+        microscope = self.session.microscope
+        runner = self.make_runner("itest_reload")
+        runner.load(self.FN)
+        plugin = runner.load(self.FN)
+        self.assertIs(microscope.subsystems["itest_reload"].plugin, plugin)
+        self.host.done_event.clear()
+        runner.run({"init": True})
+        try:
+            microscope.subsystem_function_ts("itest_reload", "shout", {"n": 1})
+            for _ in range(100):
+                if "yipeeee!" in self.logs:
+                    break
+                threading.Event().wait(0.05)
+            self.assertIn("yipeeee!", self.logs)
+        finally:
+            runner.stop()
+            self.assertTrue(self.host.done_event.wait(10))
+            runner.unload()
+
+    def test_multiple_instances(self):
+        subsystems = self.session.microscope.subsystems
+        runner1 = self.make_runner("itest_multi")
+        runner2 = self.make_runner("itest_multi_2")
+        plugin1 = runner1.load(self.FN)
+        plugin2 = runner2.load(self.FN)
+        self.assertIsNot(plugin1, plugin2)
+        self.assertIs(subsystems["itest_multi"].plugin, plugin1)
+        self.assertIs(subsystems["itest_multi_2"].plugin, plugin2)
+        runner1.unload()
+        self.assertIn("itest_multi_2", subsystems)
+        runner2.unload()
+
+    def test_removed_subsystem(self):
+        from uscope.subsystem import NoSuchFunction
+        runner = self.make_runner("itest_removed")
+        runner.load(self.FN)
+        runner.unload()
+        with self.assertRaises(NoSuchFunction):
+            self.session.microscope.subsystem_function_ts(
+                "itest_removed", "shout", {"n": 1})
+
+    def test_not_instrument(self):
+        runner = self.make_runner("itest_not")
+        with self.assertRaises(TypeError):
+            runner.load(os.path.join(SCRIPT_DIR, "hello.py"))
+        self.assertIsNone(runner.plugin)
+        self.assertNotIn("itest_not", self.session.microscope.subsystems)
+
+    def test_get_cal(self):
+        from uscope.calibration import get_cal
+        cal = get_cal(self.session.microscope)
+        self.assertIsNotNone(cal.pos_fid70)
+        self.assertIsNotNone(cal.pos_fid150)
+        self.assertIs(get_cal(self.session.microscope), cal)
+
+
 if __name__ == "__main__":
     unittest.main()

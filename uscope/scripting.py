@@ -983,11 +983,15 @@ class ScriptRunner:
     Load / run / stop a script file
     Shared by the Argus scripting tab and the headless runner
     """
-    def __init__(self, session, host):
+
+    def __init__(self, session, host, instrument_config=None):
         self.session = session
         self.host = host
+        # If set, the loaded plugin is registered as a microscope subsystem
+        self.instrument_config = instrument_config
         self.plugin = None
         self.filename = None
+        self.subsystem = None
 
     def load(self, filename):
         """
@@ -999,9 +1003,16 @@ class ScriptRunner:
         self.plugin = plugin_module.Plugin(session=self.session,
                                            host=self.host)
         self.filename = filename
+        if self.instrument_config is not None:
+            try:
+                self.attach_instrument(self.instrument_config)
+            except Exception:
+                self.unload()
+                raise
         return self.plugin
 
     def unload(self):
+        self.detach_instrument()
         self.plugin = None
         self.filename = None
 
@@ -1040,12 +1051,28 @@ class ScriptRunner:
         """
         Register the loaded InstrumentScriptPlugin as a microscope subsystem
         """
+        if not isinstance(self.plugin, InstrumentScriptPlugin):
+            raise TypeError("Plugin must subclass InstrumentScriptPlugin")
         subsystem = InstrumentScriptSS(session=self.session,
                                        plugin=self.plugin,
                                        configj=configj)
         self.session.microscope.add_subsystem(subsystem)
         self.plugin.set_subsystem(subsystem)
+        self.subsystem = subsystem
         return subsystem
+
+    def detach_instrument(self):
+        """
+        Undo attach_instrument()
+        A still running plugin keeps its subsystem object but is no longer reachable
+        """
+        if self.subsystem is None:
+            return
+        subsystems = self.session.microscope.subsystems
+        name = self.subsystem.name()
+        if subsystems.get(name) is self.subsystem:
+            self.session.microscope.remove_subsystem(name)
+        self.subsystem = None
 
 
 """

@@ -3,27 +3,14 @@ VM1 cal plate
 Must be used at 20x
 """
 
-from uscope.instrument import Instrument
 from uscope.motion.motion_util import parse_move
 
 
-class LIACal2(Instrument):
+class LIACal2:
     def __init__(self, microscope):
-        super().__init__(microscope=microscope)
-        self.pos_fid70 = None
-        self.pos_fid150 = None
-
-    def name(self):
-        return "LIA-CAL2"
-
-    def cache_load(self, j):
-        self.pos_fid70 = parse_move(
-            j.get("pos_fid70", "X29.120 Y124.925 Z-28.426"))
-        self.pos_fid150 = parse_move(
-            j.get("pos_fid150", "X29.181 Y140.909 Z-28.526"))
-
-    def cache_save(self):
-        return {}
+        self.microscope = microscope
+        self.pos_fid70 = parse_move("X29.120 Y124.925 Z-28.426")
+        self.pos_fid150 = parse_move("X29.181 Y140.909 Z-28.526")
 
     def assert_offsets(self):
         obj = self.microscope.get_active_objective()
@@ -47,11 +34,10 @@ class LIACal2(Instrument):
 
 
 def get_cal(microscope):
-    ret = microscope.get_instrument_default("LIA-CAL2")
-    if ret is not None:
-        return ret
-    ret = LIACal2(microscope)
-    microscope.add_instrument(ret)
+    ret = getattr(microscope, "_lia_cal2", None)
+    if ret is None:
+        ret = LIACal2(microscope)
+        microscope._lia_cal2 = ret
     return ret
 
 

@@ -1856,9 +1856,6 @@ class BaseConfig:
     def qr_regex(self):
         return self.j.get("qr_regex", None)
 
-    def instruments(self):
-        return self.j.get("instruments", {})
-
 
 def get_bcj():
     try:

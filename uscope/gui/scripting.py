@@ -74,12 +74,18 @@ def exec_prompt(parent, title, text, buttons, box_ev):
 
 
 class ScriptingTab(ArgusTab):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, instrument_config=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.instrument_config = None
+        self.instrument_config = instrument_config
+        # Called once from plugin_done(), ex: to remove an instrument after stopping
+        self._after_done = None
 
-        fn = os.path.join(self.ac.microscope.usc.bc.get_data_dir(),
-                          "script_log.txt")
+        # Each tab truncates its log at startup => one file per tab
+        if instrument_config is None:
+            log_name = "script_log.txt"
+        else:
+            log_name = "script_log_%s.txt" % instrument_config["name"]
+        fn = os.path.join(self.ac.microscope.usc.bc.get_data_dir(), log_name)
         existed = os.path.exists(fn)
         self.log_all_fd = open(fn, "w+")
         if existed:
@@ -91,7 +97,9 @@ class ScriptingTab(ArgusTab):
         self.host.show_image_sig.connect(self.show_plugin_image)
         self.host.prompt_sig.connect(self.show_prompt)
         self.host.done_sig.connect(self.plugin_done)
-        self.runner = ScriptRunner(session=self.ac, host=self.host)
+        self.runner = ScriptRunner(session=self.ac,
+                                   host=self.host,
+                                   instrument_config=instrument_config)
         self.running = False
 
     @property
@@ -101,9 +109,6 @@ class ScriptingTab(ArgusTab):
     @property
     def filename(self):
         return self.runner.filename
-
-    def set_instrument_config(self, config):
-        self.instrument_config = config
 
     def _initUI(self):
         layout = QGridLayout()
@@ -265,6 +270,8 @@ class ScriptingTab(ArgusTab):
 
     def reload_pb_clicked(self):
         self.select_script(str(self.fn_le.text()))
+        if self.instrument_config:
+            self.instrument_start()
 
     def run_pb_clicked(self, _checked=None, input_val=None):
         if self.running:
@@ -390,16 +397,29 @@ class ScriptingTab(ArgusTab):
         for pb in self.select_pbs.values():
             pb.setEnabled(True)
         self.running = False
+        after_done, self._after_done = self._after_done, None
+        if after_done:
+            after_done()
 
     def _post_ui_init(self):
         # Automatically start instruments at load time
         if self.instrument_config:
             self.select_script(self.instrument_config["plugin_path"])
-            if self.plugin is None:
-                self.log_local("Plugin failed to load :(")
-                return
-            self.runner.attach_instrument(self.instrument_config)
-            self.run_pb_clicked(input_val={"init": True})
+            self.instrument_start()
+
+    def instrument_start(self):
+        if self.plugin is None:
+            self.log_local("Plugin failed to load :(")
+            return
+        self.run_pb_clicked(input_val={"init": True})
+
+    def teardown(self):
+        """
+        Release resources when the tab is removed at runtime
+        The plugin should already be stopped
+        """
+        self.runner.unload()
+        self.log_all_fd.close()
 
     def _shutdown_request(self, phase):
         # Shutdown plugin before anything else
@@ -418,8 +438,10 @@ class ScriptingTab(ArgusTab):
         c.insertText(s)
         self.log_widget.setTextCursor(c)
 
-        self.log_all_fd.write(s)
-        self.log_all_fd.flush()
+        # Late log signals can arrive after teardown()
+        if not self.log_all_fd.closed:
+            self.log_all_fd.write(s)
+            self.log_all_fd.flush()
 
     def _cache_save(self, cachej):
         if self.instrument_config is None:

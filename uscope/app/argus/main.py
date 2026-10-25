@@ -27,6 +27,8 @@ from uscope.gui.common import ArgusCommon, error
 from uscope.gui.widgets import TopWidget, BatchImageTab, StitchingTab, MeasureTab
 from uscope.gui.imaging import MainTab, PanoramaTab, ImagerTab
 from uscope.gui.scripting import ScriptingTab
+from uscope.gui.instruments import InstrumentsTab
+from uscope.instrument_db import InstrumentDB
 from uscope.gui.calibration import CalibrationTab, OpticsTab
 from uscope.gui.objectives import ObjectivesTab
 from uscope.gui.minimap import MinimapTab
@@ -115,6 +117,7 @@ class ArgusOptionsWindow(QWidget):
         self.tabs.addTab(self.mw.objectivesTab, "Objectives")
         self.tabs.addTab(self.mw.opticsTab, "Optics")
         self.tabs.addTab(self.mw.calibrationTab, "Calibration")
+        self.tabs.addTab(self.mw.instrumentsTab, "Instruments")
         top = QVBoxLayout()
         top.addWidget(self.tabs)
         self.setLayout(top)
@@ -298,14 +301,6 @@ class MainWindow(AMainWindow):
         self.snapshotsTab = self.add_tab(SnapshotViewerTab, "Snapshots")
         self.batchTab = self.add_tab(BatchImageTab, "Batch")
         self.scriptingTab = self.add_tab(ScriptingTab, "Scripting")
-        self.instrumentTabs = {}
-        for name, configj in self.ac.bc.instruments().items():
-            configj.setdefault("name", name)
-            tab_name = configj.get("tab_name", f"Instrument: {name}")
-            tab = self.add_tab(ScriptingTab, tab_name)
-            tab.set_instrument_config(configj)
-            tab.setVisible(configj.get("visible", True))
-            self.instrumentTabs[name] = tab
         self.stitchingTab = self.add_tab(StitchingTab, "CloudStitch")
 
         # Display order (independent of construction order above)
@@ -316,7 +311,6 @@ class MainWindow(AMainWindow):
             self.minimapTab,
             self.panoramaTab,
             self.imagerTab,
-            *self.instrumentTabs.values(),
             self.batchTab,
             self.scriptingTab,
             self.stitchingTab,
@@ -329,6 +323,13 @@ class MainWindow(AMainWindow):
         self.ac.stitchingTab = self.stitchingTab
         self.ac.batchTab = self.batchTab
 
+        # Instrument name => ScriptingTab
+        self.instrumentTabs = {}
+        self.instrument_db = InstrumentDB.for_microscope(self.ac.microscope)
+        for entry in self.instrument_db.instances.values():
+            if entry["enabled"]:
+                self.instrument_tab_add(entry)
+
         # Shown in File => Advanced options, not as main tabs
         self.objectivesTab = ObjectivesTab(ac=self.ac,
                                            aname="objectives",
@@ -337,7 +338,65 @@ class MainWindow(AMainWindow):
         self.calibrationTab = CalibrationTab(ac=self.ac,
                                              aname="calibration",
                                              parent=self)
+        self.instrumentsTab = InstrumentsTab(ac=self.ac,
+                                             aname="instruments",
+                                             parent=self)
         self.argus_options_window = ArgusOptionsWindow(self)
+
+    def builtin_tab_names(self):
+        instrument_tabs = list(self.instrumentTabs.values())
+        return [
+            name for name, tab in self.ac.tabs.items()
+            if tab not in instrument_tabs
+        ]
+
+    def instrument_tab_add(self, entry, live=False):
+        """
+        Create an instrument tab from an InstrumentDB entry
+        live: the GUI is already running (otherwise startup does the init)
+        """
+        config = dict(entry)
+        config["plugin_path"] = self.instrument_db.resolve_path(entry) or ""
+        tab = ScriptingTab(ac=self.ac,
+                           aname="instrument:" + entry["name"],
+                           parent=self,
+                           instrument_config=config)
+        self.instrumentTabs[entry["name"]] = tab
+        if not entry["visible"]:
+            # Not in a layout => must hide or it draws over the main window
+            tab.hide()
+        else:
+            # Insert after any other instrument tabs, before Batch
+            tabs = list(self.ac.tabs.items())
+            index = [t for _name, t in tabs].index(self.batchTab)
+            tabs.insert(index, (entry["tab_name"], tab))
+            self.ac.tabs = dict(tabs)
+        if live:
+            # Not initUI(): that also re-runs ArgusCommon.initUI()
+            tab._initUI()
+            if entry["visible"]:
+                insert_at = 0
+                for _name, other in self.ac.tabs.items():
+                    if other is tab:
+                        break
+                    if self.tab_widget.indexOf(other) >= 0:
+                        insert_at += 1
+                self.tab_widget.insertTab(insert_at, tab, entry["tab_name"])
+            tab._post_ui_init()
+        return tab
+
+    def instrument_tab_remove(self, name):
+        """
+        Plugin should already be stopped
+        """
+        tab = self.instrumentTabs.pop(name)
+        tab.teardown()
+        index = self.tab_widget.indexOf(tab)
+        if index >= 0:
+            self.tab_widget.removeTab(index)
+        self.ac.tabs = {k: v for k, v in self.ac.tabs.items() if v is not tab}
+        del self.awidgets["instrument:" + name]
+        tab.deleteLater()
 
     def createMenuBar(self):
         self.exitAction = QAction("Exit", self)

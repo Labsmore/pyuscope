@@ -1,20 +1,22 @@
 """
 Uses GRBL specific functionality
 
-In your .pyuscope:
-"instruments": {
-    "pwm": {
-        "tab_name": "PWM",
-        "visible": true,
-        "plugin_path": "/home/labsmore/pyuscope/uscope/script/instrument/grbl_pwm.py",
-        "parameters": {
-            "startup_onoff": true,
-            "shutdown_onoff": false,
-        }
-    },
-},
+Add via Argus File => Advanced options => Instruments
 """
 from uscope.scripting import InstrumentScriptPlugin
+
+INSTRUMENT = {
+    "title":
+    "GRBL PWM",
+    "description":
+    "GRBL spindle PWM output (M3 / M5), ex: to switch a light "
+    "or laser. startup_onoff / shutdown_onoff: true (on), false (off) or "
+    "null (leave as is) when Argus starts / exits",
+    "parameters": {
+        "startup_onoff": None,
+        "shutdown_onoff": None,
+    },
+}
 
 
 class Plugin(InstrumentScriptPlugin):

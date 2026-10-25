@@ -7,6 +7,7 @@ Click on the map to move the stage there
 from uscope.gui.widgets import ArgusTab
 from uscope.minimap import MapCoords, MinimapStack, nice_mm_per_pix, DEFAULT_MAX_BYTES
 from uscope.threads import ShutdownPhase
+from uscope.scan_runner import ScanRunnerListener
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -34,8 +35,11 @@ RESOLUTIONS = [
     ("100 um/pix", 0.100),
 ]
 # Re-capture an already painted position this often to pick up changes
-# (ex: focus, lighting)
-REFRESH_PERIOD = 5.0
+# (ex: lighting, sample moved by hand)
+# Focus and imager property changes re-capture as soon as they settle
+REFRESH_PERIOD = 1.0
+# Minimum time stopped before capturing (kinematics tsettle_motion if larger)
+TSETTLE_MIN = 0.1
 # Mouse movement in view pixels below which a press / release is a click
 CLICK_SLOP = 4
 
@@ -160,6 +164,31 @@ class MinimapView(QGraphicsView):
         self.clicked.emit(p.x(), p.y())
 
 
+class MinimapScanListener(QObject, ScanRunnerListener):
+    """
+    Forwards images the scan took to the GUI thread
+    The scan owns the camera so the minimap can't grab its own frames
+    """
+    scanImage = pyqtSignal(dict)
+
+    def __init__(self, ac):
+        super().__init__()
+        self.ac = ac
+
+    def scan_progress(self, state):
+        # Scan thread: keep it cheap, downscaling happens elsewhere
+        if state.get("type") != "image":
+            return
+        capim = state.get("captured_image")
+        if capim is None or capim.image is None:
+            return
+        # Planner just finished this tile and hasn't moved on yet
+        pos = self.ac.motion_thread.get_pos_cache()
+        if not pos or "x" not in pos or "y" not in pos:
+            return
+        self.scanImage.emit({"image": capim.image, "pos": dict(pos)})
+
+
 class MinimapTab(ArgusTab):
     # dict from capture thread
     frameReady = pyqtSignal(dict)
@@ -167,6 +196,11 @@ class MinimapTab(ArgusTab):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.stack = None
+        # Latest scan image waiting for the capture thread
+        self.scan_pending = None
+        self.scan_listener = MinimapScanListener(self.ac)
+        self.scan_listener.scanImage.connect(self.scan_image)
+        self.ac.scan_runner.add_listener(self.scan_listener)
         # Stage mm <=> scene
         self.coords = None
         # Bumped when the map is reset so in flight captures are dropped
@@ -174,8 +208,9 @@ class MinimapTab(ArgusTab):
         self.capture_thread = None
         # Last pos seen and when it last changed
         self.last_pos = None
+        self.last_z = None
         self.tpos_changed = 0.0
-        # (xy, mm_per_pix) / when we last successfully pasted
+        # (xy, z, mm_per_pix) / when we last successfully pasted
         self.pasted_pos = None
         self.tpasted = 0.0
         self.last_fov = None
@@ -196,6 +231,11 @@ class MinimapTab(ArgusTab):
         self.follow_cb.setToolTip("Keep the current position in view")
         self.follow_cb.setChecked(True)
         hl.addWidget(self.follow_cb)
+        self.while_moving_cb = QCheckBox("While moving")
+        self.while_moving_cb.setToolTip(
+            "Also paste frames while the stage is moving. Tiles may be blurred / slightly misplaced until the stage stops"
+        )
+        hl.addWidget(self.while_moving_cb)
         hl.addWidget(QLabel("Resolution"))
         self.resolution_cb = QComboBox()
         for label, _mm_per_pix in RESOLUTIONS:
@@ -237,11 +277,13 @@ class MinimapTab(ArgusTab):
     def _cache_save(self, cachej):
         cachej["minimap"] = {
             "enable": self.enable_cb.isChecked(),
+            "while_moving": self.while_moving_cb.isChecked(),
         }
 
     def _cache_load(self, cachej):
         j = cachej.get("minimap", {})
         self.enable_cb.setChecked(j.get("enable", True))
+        self.while_moving_cb.setChecked(j.get("while_moving", False))
 
     def enabled(self):
         return self.stack is not None
@@ -372,7 +414,15 @@ class MinimapTab(ArgusTab):
     def tsettle(self):
         kinematics = self.ac.microscope.kinematics
         tsettle = getattr(kinematics, "tsettle_motion", None) or 0.0
-        return max(0.3, tsettle)
+        return max(TSETTLE_MIN, tsettle)
+
+    def needs_capture(self, xy, z, mm_per_pix, now):
+        if (xy, z, mm_per_pix) != self.pasted_pos:
+            return True
+        if now - self.tpasted >= REFRESH_PERIOD:
+            return True
+        # ex: exposure changed since the frame on the map
+        return self.ac.imager.since_properties_change() < now - self.tpasted
 
     def _poll_misc(self):
         if not self.enabled():
@@ -404,31 +454,49 @@ class MinimapTab(ArgusTab):
                 self.view.center_on_rect(rect)
 
         now = time.time()
-        if xy != self.last_pos:
+        z = pos.get("z")
+        while_moving = self.while_moving_cb.isChecked()
+        if xy != self.last_pos or z != self.last_z:
             self.last_pos = xy
+            self.last_z = z
             self.tpos_changed = now
-            return
+            if not while_moving:
+                return
         if self.capture_thread is not None:
             return
-        if now - self.tpos_changed < self.tsettle():
+        if not while_moving and now - self.tpos_changed < self.tsettle():
             return
-        if (xy, mm_per_pix
-            ) == self.pasted_pos and now - self.tpasted < REFRESH_PERIOD:
+        if self.ac.imager is None:
+            return
+        if not self.needs_capture(xy, z, mm_per_pix, now):
             return
         # Don't compete with scans / snapshots for the camera
-        if not self.ac.motion_thread.idle.is_set():
+        if not while_moving and not self.ac.motion_thread.idle.is_set():
             return
         if self.ac.is_planner_running():
             return
         if self.ac.mainTab.imaging_widget.taking_snapshot:
             return
-        if self.ac.imager is None:
+        if self.ac.image_processing_thread.autofocus_running:
             return
-        self.start_capture(xy, mm_per_pix)
+        settled = self.ac.motion_thread.idle.is_set(
+        ) and now - self.tpos_changed >= self.tsettle()
+        self.start_capture(xy, z, mm_per_pix, while_moving, settled)
 
-    def start_capture(self, xy, mm_per_pix):
+    def start_capture(self,
+                      xy,
+                      z,
+                      mm_per_pix,
+                      while_moving=False,
+                      settled=True,
+                      image=None):
+        """image: already captured (ex: by a scan) instead of grabbing one"""
         args = {
             "xy": xy,
+            "z": z,
+            "while_moving": while_moving,
+            "settled": settled,
+            "image": image,
             "generation": self.generation,
             "minimap": self.stack.layer(mm_per_pix),
             "x_view": self.ac.objective_config()["x_view"],
@@ -439,11 +507,38 @@ class MinimapTab(ArgusTab):
                                                daemon=True)
         self.capture_thread.start()
 
+    def scan_image(self, j):
+        if not self.enabled():
+            return
+        self.scan_pending = j
+        self.start_scan_pending()
+
+    def start_scan_pending(self):
+        if self.scan_pending is None or self.capture_thread is not None:
+            return
+        j = self.scan_pending
+        self.scan_pending = None
+        try:
+            mm_per_pix = self.mm_per_pix()
+        except Exception:
+            return
+        pos = j["pos"]
+        # Scan already waited for the stage to settle
+        # It may have moved on by the time this is pasted
+        self.start_capture((pos["x"], pos["y"]),
+                           pos.get("z"),
+                           mm_per_pix,
+                           while_moving=True,
+                           settled=True,
+                           image=j["image"])
+
     def capture_run(self, args):
         """Capture thread: grab a frame and shrink it to map resolution"""
         try:
-            capim = self.ac.imager.get(recover_errors=False, timeout=5.0)
-            image = capim.image
+            image = args.pop("image")
+            if image is None:
+                capim = self.ac.imager.get(recover_errors=False, timeout=5.0)
+                image = capim.image
             w, h = image.size
             fov_w = args["x_view"]
             fov_h = fov_w * h / w
@@ -460,6 +555,12 @@ class MinimapTab(ArgusTab):
 
     def frame_ready(self, args):
         self.capture_thread = None
+        try:
+            self._frame_ready(args)
+        finally:
+            self.start_scan_pending()
+
+    def _frame_ready(self, args):
         if "exception" in args:
             # Don't hammer a broken camera
             self.tpos_changed = time.time() + 5.0
@@ -467,8 +568,12 @@ class MinimapTab(ArgusTab):
         if args["generation"] != self.generation or not self.enabled():
             return
         # Stage moved during capture: frame may be blurred / misplaced
+        # While moving: paste anyway, a settled frame replaces it once stopped
         pos = self.ac.motion_thread.get_pos_cache()
-        if not pos or (pos["x"], pos["y"]) != args["xy"]:
+        if not pos:
+            return
+        if not args["while_moving"] and (
+            (pos["x"], pos["y"]) != args["xy"] or pos.get("z") != args["z"]):
             return
         # Objective changed during capture: frame may not match x_view
         if self.ac.objective_config()["x_view"] != args["x_view"]:
@@ -480,7 +585,11 @@ class MinimapTab(ArgusTab):
         bounds = self.scene_bounds()
         if bounds:
             self.view.ensure_scene_rect(bounds)
-        self.pasted_pos = (args["xy"], layer.mm_per_pix)
+        # Unsettled frames don't count: re-capture once the stage settles
+        if args["settled"]:
+            self.pasted_pos = (args["xy"], args["z"], layer.mm_per_pix)
+        else:
+            self.pasted_pos = None
         self.tpasted = time.time()
         self.update_status()
 

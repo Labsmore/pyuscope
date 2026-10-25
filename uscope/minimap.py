@@ -96,12 +96,15 @@ class Minimap(MapCoords):
                  mm_per_pix,
                  origin="ll",
                  max_bytes=DEFAULT_MAX_BYTES,
-                 counter=None):
+                 counter=None,
+                 moving=False):
         """
         max_bytes: None => unlimited (ex: MinimapStack manages memory)
         counter: paste sequence numbers, shared to find the oldest tile across maps
+        moving: frames taken while the stage was moving (may be blurred / misplaced)
         """
         super().__init__(mm_per_pix, origin)
+        self.moving = moving
         if max_bytes is None:
             self.max_tiles = None
         else:
@@ -262,6 +265,8 @@ class MinimapStack:
     """
     One Minimap per resolution so that switching objectives keeps both
     the low magnification overview and high magnification detail
+    Each resolution has a still and a moving layer: still frames are shown
+    on top so moving frames only fill in where nothing still was taken
     Memory is shared: the least recently pasted tile of any layer is evicted first
     """
     def __init__(self, origin="ll", max_bytes=DEFAULT_MAX_BYTES):
@@ -269,18 +274,19 @@ class MinimapStack:
         self.origin = origin
         self.max_tiles = max(1, int(max_bytes // TILE_BYTES))
         self.counter = itertools.count()
-        # mm_per_pix => Minimap
+        # (mm_per_pix, moving) => Minimap
         self.layers = {}
 
-    def layer(self, mm_per_pix):
-        mm_per_pix = float(mm_per_pix)
-        ret = self.layers.get(mm_per_pix)
+    def layer(self, mm_per_pix, moving=False):
+        key = (float(mm_per_pix), bool(moving))
+        ret = self.layers.get(key)
         if ret is None:
-            ret = Minimap(mm_per_pix,
+            ret = Minimap(key[0],
                           origin=self.origin,
                           max_bytes=None,
-                          counter=self.counter)
-            self.layers[mm_per_pix] = ret
+                          counter=self.counter,
+                          moving=key[1])
+            self.layers[key] = ret
         return ret
 
     def paste(self, layer, small, x, y):

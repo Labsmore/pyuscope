@@ -182,6 +182,22 @@ class TestMinimapStack(unittest.TestCase):
         self.assertEqual(a.evictions, 1)
         self.assertEqual(s.memory_bytes(), 4 * TILE_BYTES)
 
+    def test_moving_layer(self):
+        s = MinimapStack()
+        still = s.layer(0.01)
+        moving = s.layer(0.01, moving=True)
+        self.assertIsNot(still, moving)
+        self.assertIs(s.layer(0.01, moving=True), moving)
+        self.assertFalse(still.moving)
+        self.assertTrue(moving.moving)
+        s.paste(moving, solid(8, 8, (1, 1, 1)), 0.5, -0.5)
+        # Separate canvases: still layer untouched
+        self.assertTrue(still.empty())
+        self.assertFalse(moving.empty())
+        self.assertIsNotNone(s.bounds_mm())
+        s.clear()
+        self.assertTrue(s.empty())
+
 
 if __name__ == "__main__":
     unittest.main()

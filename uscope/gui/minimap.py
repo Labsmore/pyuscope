@@ -40,6 +40,8 @@ RESOLUTIONS = [
 REFRESH_PERIOD = 1.0
 # Minimum time stopped before capturing (kinematics tsettle_motion if larger)
 TSETTLE_MIN = 0.1
+# Moving layer z offset: larger than the z spread of all resolutions
+MOVING_Z = 100.0
 # Mouse movement in view pixels below which a press / release is a click
 CLICK_SLOP = 4
 
@@ -80,7 +82,7 @@ class MinimapView(QGraphicsView):
     def update_tiles(self, minimap, dirty):
         scale = minimap.mm_per_pix / SCENE_MM_PER_UNIT
         for key, tile in dirty.items():
-            item_key = (minimap.mm_per_pix, ) + key
+            item_key = (minimap.mm_per_pix, minimap.moving) + key
             item = self.tile_items.get(item_key)
             if tile is None:
                 if item is not None:
@@ -100,7 +102,11 @@ class MinimapView(QGraphicsView):
                 item.setPos(u * scale, v * scale)
                 item.setScale(scale)
                 # Higher resolution (higher magnification) on top
-                item.setZValue(-math.log10(minimap.mm_per_pix))
+                # Still frames above all moving frames
+                z = -math.log10(minimap.mm_per_pix)
+                if minimap.moving:
+                    z -= MOVING_Z
+                item.setZValue(z)
                 self.tile_items[item_key] = item
             else:
                 item.setPixmap(pixmap)
@@ -210,6 +216,8 @@ class MinimapTab(ArgusTab):
         self.last_pos = None
         self.last_z = None
         self.tpos_changed = 0.0
+        # Capture failed: don't retry until then
+        self.tbackoff = 0.0
         # (xy, z, mm_per_pix) / when we last successfully pasted
         self.pasted_pos = None
         self.tpasted = 0.0
@@ -231,11 +239,6 @@ class MinimapTab(ArgusTab):
         self.follow_cb.setToolTip("Keep the current position in view")
         self.follow_cb.setChecked(True)
         hl.addWidget(self.follow_cb)
-        self.while_moving_cb = QCheckBox("While moving")
-        self.while_moving_cb.setToolTip(
-            "Also paste frames while the stage is moving. Tiles may be blurred / slightly misplaced until the stage stops"
-        )
-        hl.addWidget(self.while_moving_cb)
         hl.addWidget(QLabel("Resolution"))
         self.resolution_cb = QComboBox()
         for label, _mm_per_pix in RESOLUTIONS:
@@ -277,13 +280,11 @@ class MinimapTab(ArgusTab):
     def _cache_save(self, cachej):
         cachej["minimap"] = {
             "enable": self.enable_cb.isChecked(),
-            "while_moving": self.while_moving_cb.isChecked(),
         }
 
     def _cache_load(self, cachej):
         j = cachej.get("minimap", {})
         self.enable_cb.setChecked(j.get("enable", True))
-        self.while_moving_cb.setChecked(j.get("while_moving", False))
 
     def enabled(self):
         return self.stack is not None
@@ -354,7 +355,9 @@ class MinimapTab(ArgusTab):
             res = "%0.1f um/pix" % (self.mm_per_pix() * 1000, )
         except Exception:
             res = "? um/pix"
-        layers = len([l for l in self.stack.layers.values() if l.tiles])
+        # Resolutions in use (each has a still + moving layer)
+        layers = len(
+            set(l.mm_per_pix for l in self.stack.layers.values() if l.tiles))
         self.status_label.setText(
             "%s, %u layers, %u tiles, %0.1f / %0.0f MB" %
             (res, layers, self.stack.num_tiles(),
@@ -455,50 +458,51 @@ class MinimapTab(ArgusTab):
 
         now = time.time()
         z = pos.get("z")
-        while_moving = self.while_moving_cb.isChecked()
         if xy != self.last_pos or z != self.last_z:
             self.last_pos = xy
             self.last_z = z
             self.tpos_changed = now
-            if not while_moving:
-                return
         if self.capture_thread is not None:
             return
-        if not while_moving and now - self.tpos_changed < self.tsettle():
+        if now < self.tbackoff:
             return
         if self.ac.imager is None:
             return
-        if not self.needs_capture(xy, z, mm_per_pix, now):
+        # Moving frames go to a layer shown under the still frames
+        settled = self.ac.motion_thread.idle.is_set(
+        ) and now - self.tpos_changed >= self.tsettle()
+        if settled and not self.needs_capture(xy, z, mm_per_pix, now):
             return
         # Don't compete with scans / snapshots for the camera
-        if not while_moving and not self.ac.motion_thread.idle.is_set():
-            return
         if self.ac.is_planner_running():
             return
         if self.ac.mainTab.imaging_widget.taking_snapshot:
             return
         if self.ac.image_processing_thread.autofocus_running:
             return
-        settled = self.ac.motion_thread.idle.is_set(
-        ) and now - self.tpos_changed >= self.tsettle()
-        self.start_capture(xy, z, mm_per_pix, while_moving, settled)
+        self.start_capture(xy, z, mm_per_pix, settled)
 
     def start_capture(self,
                       xy,
                       z,
                       mm_per_pix,
-                      while_moving=False,
-                      settled=True,
-                      image=None):
-        """image: already captured (ex: by a scan) instead of grabbing one"""
+                      settled,
+                      image=None,
+                      check_pos=True):
+        """
+        image: already captured (ex: by a scan) instead of grabbing one
+        check_pos: demote a settled frame to moving if the stage moved during capture
+        """
         args = {
             "xy": xy,
             "z": z,
-            "while_moving": while_moving,
             "settled": settled,
+            "check_pos": check_pos,
             "image": image,
             "generation": self.generation,
-            "minimap": self.stack.layer(mm_per_pix),
+            "mm_per_pix": mm_per_pix,
+            # Downscaling only depends on resolution: either layer will do
+            "downscaler": self.stack.layer(mm_per_pix),
             "x_view": self.ac.objective_config()["x_view"],
         }
         self.capture_thread = threading.Thread(target=self.capture_run,
@@ -528,9 +532,9 @@ class MinimapTab(ArgusTab):
         self.start_capture((pos["x"], pos["y"]),
                            pos.get("z"),
                            mm_per_pix,
-                           while_moving=True,
                            settled=True,
-                           image=j["image"])
+                           image=j["image"],
+                           check_pos=False)
 
     def capture_run(self, args):
         """Capture thread: grab a frame and shrink it to map resolution"""
@@ -542,7 +546,7 @@ class MinimapTab(ArgusTab):
             w, h = image.size
             fov_w = args["x_view"]
             fov_h = fov_w * h / w
-            args["small"] = args["minimap"].downscale(image, fov_w, fov_h)
+            args["small"] = args["downscaler"].downscale(image, fov_w, fov_h)
         except Exception as e:
             print("minimap: capture failed")
             traceback.print_exc()
@@ -563,34 +567,31 @@ class MinimapTab(ArgusTab):
     def _frame_ready(self, args):
         if "exception" in args:
             # Don't hammer a broken camera
-            self.tpos_changed = time.time() + 5.0
+            self.tbackoff = time.time() + 5.0
             return
         if args["generation"] != self.generation or not self.enabled():
             return
-        # Stage moved during capture: frame may be blurred / misplaced
-        # While moving: paste anyway, a settled frame replaces it once stopped
         pos = self.ac.motion_thread.get_pos_cache()
         if not pos:
             return
-        if not args["while_moving"] and (
+        settled = args["settled"]
+        # Stage moved during capture: frame may be blurred / misplaced
+        if settled and args["check_pos"] and (
             (pos["x"], pos["y"]) != args["xy"] or pos.get("z") != args["z"]):
-            return
+            settled = False
         # Objective changed during capture: frame may not match x_view
         if self.ac.objective_config()["x_view"] != args["x_view"]:
             return
-        layer = args["minimap"]
+        layer = self.stack.layer(args["mm_per_pix"], moving=not settled)
         self.stack.paste(layer, args["small"], *args["xy"])
         # Eviction can hit any layer
         self.update_view_tiles()
         bounds = self.scene_bounds()
         if bounds:
             self.view.ensure_scene_rect(bounds)
-        # Unsettled frames don't count: re-capture once the stage settles
-        if args["settled"]:
+        if settled:
             self.pasted_pos = (args["xy"], args["z"], layer.mm_per_pix)
-        else:
-            self.pasted_pos = None
-        self.tpasted = time.time()
+            self.tpasted = time.time()
         self.update_status()
 
     def _shutdown_request(self, phase):

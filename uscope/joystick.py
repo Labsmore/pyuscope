@@ -53,6 +53,7 @@ See the docs in uscope/joystick.py for available functions
 # given close dependence between calibration and configure
 # moved here and making distinct object
 class JoystickConfig:
+
     def __init__(self, jbc={}):
         self.jbc = jbc
         # Early configurable not related to model or
@@ -257,6 +258,7 @@ def import_pygame():
 
 # FIXME: low level joystick object should not depend on Argus
 class Joystick:
+
     def __init__(self, microscope):
         import_pygame()
         self.microscope = microscope
@@ -325,8 +327,8 @@ class Joystick:
         for fn, fn_config in self.config._function_map.items():
             getattr(self, fn)(**fn_config["args"])
         # generic z control may be bound
-        self.microscope.motion.only_used_axes(self._jog_queue)
-        self.jog_controller.update(self._jog_queue)
+        jogs = self.microscope.motion.only_used_axes(self._jog_queue)
+        self.jog_controller.update(jogs)
         self._jog_queue = None
 
     def debug_dump(self):

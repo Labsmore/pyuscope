@@ -2,6 +2,7 @@ import os
 import threading
 import traceback
 from uscope.imager.image_sequence import CapturedImage
+from uscope import util
 
 import gi
 
@@ -247,8 +248,8 @@ class CaptureSink(CbSink):
                         "meta": meta,
                     }
                     served.append((cb, image_id))
-            self.verbose and print('Processing %u image request(s)' %
-                                   len(served))
+            self.verbose and print(
+                'Processing %u image request(s)' % len(served))
             # Callbacks outside the lock: they may call back into us
             for cb, image_id in served:
                 cb(image_id)
@@ -256,6 +257,8 @@ class CaptureSink(CbSink):
             # Exceptions here would otherwise be swallowed by gstreamer
             # and silently stall every capture
             traceback.print_exc()
+            # os._exit() skips atexit: cancel any jog in progress first
+            util.run_emergency_stops()
             os._exit(1)
 
 

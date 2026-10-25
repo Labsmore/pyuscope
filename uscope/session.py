@@ -31,6 +31,7 @@ class SessionSubsystem(Subsystem):
     """
     High level status as reported by Argus' ACSubsystem
     """
+
     def __init__(self, session):
         self.session = session
         super().__init__(session.microscope)
@@ -134,7 +135,8 @@ class HeadlessSession:
             self.vidpip.setupGst()
             self.vidpip.run()
             self._wait_vidpip_playing()
-            self.imager_properties = self.vidpip.imager_aplugin.get_properties()
+            self.imager_properties = self.vidpip.imager_aplugin.get_properties(
+            )
             return GstImager(self)
 
         if imager is None or imager == "mock":
@@ -162,6 +164,8 @@ class HeadlessSession:
         self.motion = self.motion_thread.motion
         self.microscope.set_motion(self.motion)
         self.microscope.motion_thread = self.motion_thread
+        self.microscope.stop_register(self.motion_thread,
+                                      self.motion_thread.stop_now)
 
         self.imager = self._init_imager(imager)
         self.imager.microscope = self.microscope
@@ -184,8 +188,7 @@ class HeadlessSession:
         self.image_processing_thread = SimpleImageProcessingThreadBase(
             self.microscope)
         self.image_processing_thread.start()
-        self.imager_control_thread = SimpleImagerControlThread(
-            self.microscope)
+        self.imager_control_thread = SimpleImagerControlThread(self.microscope)
         self.imager_control_thread.start()
 
         self.imager_properties.setup()
@@ -195,9 +198,7 @@ class HeadlessSession:
             self.imager_properties.update_by_reading()
             self.imager_properties.cal_load()
             self._imager_poll_thread = threading.Thread(
-                target=self._imager_poll_loop,
-                name="imager-poll",
-                daemon=True)
+                target=self._imager_poll_loop, name="imager-poll", daemon=True)
             self._imager_poll_thread.start()
 
     def _imager_poll_loop(self):
@@ -248,6 +249,8 @@ class HeadlessSession:
             for phase in (ShutdownPhase.INITIAL, ShutdownPhase.FINAL):
                 thread.shutdown_request(phase)
             thread.shutdown_join(timeout=3.0)
+        if self.motion_thread is not None and self.motion_thread in self.microscope.stops:
+            self.microscope.stop_unregister(self.motion_thread)
         if self.vidpip:
             self.vidpip.stop()
         if self.microscope.motion is not None:

@@ -58,6 +58,7 @@ class CSImageProcessorThread(threading.Thread):
     Workers pull from the shared CSImageProcessor queue so that a task always
     goes to the next free worker
     """
+
     def __init__(self, csip, name):
         super().__init__()
         self.csip = csip
@@ -88,6 +89,7 @@ class CSImageProcessorThread(threading.Thread):
                 self.log(traceback.format_exc())
 
     def run_task(self, ip_params):
+
         def finish_command(result, info):
             out = (ip_params, result, info)
             # User callback first: the barrier wakes the queuing thread
@@ -115,7 +117,8 @@ class CSImageProcessorThread(threading.Thread):
             finish_command("ok", ret)
         except Exception as e:
             self.log("")
-            self.log(f"WARNING: image processing task {ip_params.task_name} failed")
+            self.log(
+                f"WARNING: image processing task {ip_params.task_name} failed")
             self.log(traceback.format_exc())
             finish_command("exception", e)
 
@@ -126,17 +129,18 @@ Command passed to image processing thread
 
 
 class CSIPParams:
+
     def __init__(self,
                  task_name,
-                 data_in={},
-                 data_out={},
-                 options={},
+                 data_in=None,
+                 data_out=None,
+                 options=None,
                  callback=None,
                  tb=None):
         self.task_name = task_name
-        self.data_in = data_in
-        self.data_out = data_out
-        self.options = options
+        self.data_in = {} if data_in is None else data_in
+        self.data_out = {} if data_out is None else data_out
+        self.options = {} if options is None else options
         """
         User supplied callback on task completion
         on success
@@ -168,6 +172,7 @@ Probably would need to make this a thread to handle that
 
 
 class CSImageProcessor(threading.Thread):
+
     def __init__(self, nthreads=None, log=None, microscope=None):
         super().__init__()
         self.microscope = microscope
@@ -317,7 +322,8 @@ class CSImageProcessor(threading.Thread):
         return self.queue_1_to_1_plugin(plugin="correct-ff1", **kwargs)
 
     def queue_correct_illumination(self, **kwargs):
-        return self.queue_1_to_1_plugin(plugin="correct-illumination", **kwargs)
+        return self.queue_1_to_1_plugin(plugin="correct-illumination",
+                                        **kwargs)
 
     def queue_correct_sharp1(self, **kwargs):
         return self.queue_1_to_1_plugin(plugin="correct-sharp1", **kwargs)

@@ -102,11 +102,11 @@ class StitcherThread(CommandThreadBase, ArgusThread):
         self.log("Stitch CLI: finished job")
         print("Stitch CLI: finished job")
 
-    def imagep_add(self, directory, cs_info=None, ippj={}, block=False):
+    def imagep_add(self, directory, cs_info=None, ippj=None, block=False):
         j = {
             #"type": "imagep",
             "directory": directory,
-            "ipp": ippj,
+            "ipp": {} if ippj is None else ippj,
         }
         if cs_info is not None:
             j["cs_info"] = cs_info
@@ -294,6 +294,7 @@ TODO:
 
 
 class Profiler:
+
     def __init__(self, microscope=None):
         self.microscope = microscope
         self.time_last = None
@@ -308,6 +309,9 @@ class Profiler:
     def logj(self, j):
         self.f.write(json.dumps(j) + "\n")
         self.f.flush()
+
+    def close(self):
+        self.f.close()
 
     def host_virtual_memory(self):
         mem = psutil.virtual_memory()
@@ -430,6 +434,14 @@ class QTaskThread(CommandThreadBase, ArgusThread):
         self.rss_last = None
         if self.microscope.bc.profile():
             self.profiler = Profiler(self.microscope)
+
+    def run(self):
+        try:
+            CommandThreadBase.run(self)
+        finally:
+            # Closed here: loop_poll() writes to it from this thread
+            if self.profiler:
+                self.profiler.close()
 
     def offload(self, function, block=False, callback=None):
         self.command("offload", function, block=block, callback=callback)

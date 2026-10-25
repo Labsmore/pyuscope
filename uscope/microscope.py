@@ -28,6 +28,7 @@ class MicroscopeStop(Exception):
 
 
 class StopEvent:
+
     def __init__(self, microscope):
         self.event = threading.Event()
         self.microscope = microscope
@@ -45,6 +46,7 @@ class StopEvent:
 
 
 class MicroscopeStatistics:
+
     def __init__(self, microscope):
         self.microscope = microscope
         self.getjs = []
@@ -72,6 +74,7 @@ However, there are major thread safe subsystems by calling associated wrappers
 
 
 class Microscope:
+
     def __init__(self, log=None, configure=True, hardware=True, **kwargs):
         self.bc = None
         self.usc = None
@@ -92,6 +95,8 @@ class Microscope:
         # Registered stop handlers, see stop_register()
         # Must exist before init() in case something registers early
         self.stops = {}
+        # Threads (un)register while the GUI thread may be iterating
+        self.stops_lock = threading.Lock()
 
         if log is None:
             log = print
@@ -205,8 +210,8 @@ class Microscope:
         # TODO: put mock flag in config file
         is_mock = mconfig.get("name") in ("mock", "mock-grbl")
         # TODO: if we want to revive touptek s/n here we could
-        if (not mconfig.get("name") or not mconfig.get("serial")
-            ) and self.hardware and not is_mock:
+        if (not mconfig.get("name") or
+                not mconfig.get("serial")) and self.hardware and not is_mock:
             # Try to do aggressive GRBL auto-config
             had_name = bool(mconfig.get("name"))
             grbl_mconfig(mconfig, overwrite=overwrite)
@@ -285,28 +290,34 @@ class Microscope:
         -Stop running script
         -Stop movement
         """
-        for stop in self.stops.values():
+        # Snapshot: don't hold the lock while calling out
+        with self.stops_lock:
+            stops = list(self.stops.values())
+        for stop in stops:
             stop()
 
     def stop_register(self, hashable, function):
         """
         Stop functions must be thread safe: they can be called from any context
         """
-        assert hashable not in self.stops
-        self.stops[hashable] = function
+        with self.stops_lock:
+            assert hashable not in self.stops
+            self.stops[hashable] = function
 
     def stop_register_event(self, event):
         """
         Register a threading.Event() that will be set when requested
         Once the other side handles the stop it should unset the event
         """
+
         def stop():
             event.set()
 
         self.stop_register(event, stop)
 
     def stop_unregister(self, hashable):
-        del self.stops[hashable]
+        with self.stops_lock:
+            del self.stops[hashable]
 
     def get_objectives(self):
         if not self.objectives:

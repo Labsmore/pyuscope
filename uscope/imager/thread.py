@@ -124,18 +124,19 @@ class ImagerControlThreadBase:
     def run(self):
         tlast = time.time()
         while self.running.is_set():
-            tnow = time.time()
-            dt = tnow - tlast
+            dt = time.time() - tlast
             time.sleep(max(self.loop_time - dt, 0.0))
+            # Period is measured between loop() starts
+            tlast = time.time()
             try:
                 self.loop()
             except Exception as e:
                 self.log('WARNING: imager thread crashed: %s' % str(e))
                 traceback.print_exc()
-            tlast = tnow
 
 
 class SimpleImagerControlThread(ImagerControlThreadBase, SimpleThread):
+
     def __init__(self, microscope):
         SimpleThread.__init__(self)
         ImagerControlThreadBase.__init__(self, microscope)

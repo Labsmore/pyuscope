@@ -19,6 +19,7 @@ class EtherealImageR:
     User tells it what it wants it will munge it into place
     Read only
     """
+
     def __init__(self, im=None, fn=None, meta=None):
         self.im = im
         self.fn = fn
@@ -53,7 +54,7 @@ class EtherealImageR:
         """
         assert fn not in self.tmp_files
         if self.im:
-            self.im.write(fn)
+            self.im.save(fn)
         else:
             os.symlink(self.fn, fn)
         self.tmp_files.add(fn)
@@ -66,7 +67,7 @@ class EtherealImageR:
             subprocess.check_call(["convert", self.fn, fn])
             assert os.path.exists(fn)
         elif self.im:
-            self.im.write(fn)
+            self.im.save(fn)
         else:
             assert 0
 
@@ -185,6 +186,7 @@ class TaskBarrier:
     allocate_callback() is called from the queuing thread,
     callback() / add_exception() from worker threads
     """
+
     def __init__(self):
         self.ntasks_allocated = 0
         self.ntasks_completed = 0

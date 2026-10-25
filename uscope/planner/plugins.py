@@ -10,23 +10,24 @@ from enum import Enum
 
 
 class PlannerAxis:
+
     def __init__(
-        self,
-        name,
-        # Desired image overlap
-        # Actual may be greater if there is more area
-        # than minimum number of pictures would support
-        req_overlap,
-        # How much the imager can see (in mm)
-        view_mm,
-        # How much the imager can see (in pixels)
-        # After all scaling, cropping, etc applied
-        view_pix,
-        # start and actual_end absolute positions (in um)
-        # Inclusive such that 0:0 means image at position 0 only
-        start,
-        end,
-        log=None):
+            self,
+            name,
+            # Desired image overlap
+            # Actual may be greater if there is more area
+            # than minimum number of pictures would support
+            req_overlap,
+            # How much the imager can see (in mm)
+            view_mm,
+            # How much the imager can see (in pixels)
+            # After all scaling, cropping, etc applied
+            view_pix,
+            # start and actual_end absolute positions (in um)
+            # Inclusive such that 0:0 means image at position 0 only
+            start,
+            end,
+            log=None):
         if log is None:
 
             def log(s=''):
@@ -169,6 +170,7 @@ Sample class showing the basics of a point generator plugin
 
 
 class SamplePointGenerator(PlannerPlugin):
+
     def __init__(self, planner):
         super().__init__(planner=planner)
         self.rows = 2
@@ -233,9 +235,10 @@ def log_scan_xy_begin(self):
        mm: 112.200 x,  75.306 y => 8449.3 mm2
        pix: 2725 x,  1829 y => 5.0 MP
     """
-    complex_pano_size = (
-        self.x.requested_delta_pixels(), self.y.requested_delta_pixels()) != (
-            self.x.actual_delta_pixels(), self.y.actual_delta_pixels())
+    complex_pano_size = (self.x.requested_delta_pixels(),
+                         self.y.requested_delta_pixels()) != (
+                             self.x.actual_delta_pixels(),
+                             self.y.actual_delta_pixels())
     if complex_pano_size:
         self.log("  Pano requested size:")
     else:
@@ -301,6 +304,7 @@ def log_scan_xy_begin(self):
 
 
 class PointGenerator2P(PlannerPlugin):
+
     def __init__(self, planner):
         super().__init__(planner=planner)
         start, end = self.init_contour()
@@ -533,6 +537,7 @@ class XYPattern(Enum):
 
 
 class XYPosGenerator:
+
     def __init__(self, rows, cols, calc_pos, pc):
         assert pc.motion_origin() == "ll"
         self.rows = rows
@@ -572,6 +577,7 @@ class XYPosGenerator:
 
 
 class PointGenerator3P(PlannerPlugin):
+
     def __init__(self, planner):
         super().__init__(planner=planner)
         """
@@ -619,12 +625,28 @@ class PointGenerator3P(PlannerPlugin):
             self.planner.check_yield()
             af.coarse()
             self.planner.check_yield()
-            corners[corner] = self.planner.motion.pos()
+            pos = self.planner.motion.pos()
+            # Only z is refocused: keep the planned xy (and so rows / cols)
+            corners[corner] = dict(corners[corner])
+            if "z" in pos:
+                corners[corner]["z"] = pos["z"]
+
+    def scan_begin(self, state):
+        # Moves and autofocuses: must run inside Planner.run() (stop handling)
+        if self.pc.j["points-xy3p"].get("refocus", False):
+            self.refocus_corners(self.pc.j["points-xy3p"]["corners"])
+            self.setup_bounds()
+            self.calc_per_rc()
+
+    def plan_axes(self):
+        """Motion axes the corners define (z only when tracking z)"""
+        return [
+            axis for axis in self.motion.axes()
+            if axis in "xy" or axis == "z" and self.tracking_z
+        ]
 
     def setup_bounds(self):
         corners = self.pc.j["points-xy3p"]["corners"]
-        if self.pc.j["points-xy3p"].get("refocus", False):
-            self.refocus_corners(corners)
         assert len(corners) == 3
         #pos0 = self.planner.motion.pos()
         self.corners = {}
@@ -639,17 +661,18 @@ class PointGenerator3P(PlannerPlugin):
             # Its also accurate in the telemetry
             #if not self.tracking_z and "z" in pos0:
             #    corner["z"] = pos0["z"]
-            self.log("  %s x=%0.3f, y=%0.3f, z=%0.3f" %
-                     (cornerk, corner["x"], corner["y"], corner.get("z", 0)))
+            self.log(
+                "  %s x=%0.3f, y=%0.3f, z=%0.3f" %
+                (cornerk, corner["x"], corner["y"], corner.get("z") or 0.0))
             self.corners[cornerk] = corner
-            for ax in self.motion.axes():
+            for ax in self.plan_axes():
                 self.ax_min[ax] = min(self.ax_min.get(ax, +float('inf')),
                                       corner[ax])
                 self.ax_max[ax] = max(self.ax_max.get(ax, -float('inf')),
                                       corner[ax])
 
         self.log("Bounding box")
-        for axis in self.motion.axes():
+        for axis in self.plan_axes():
             self.log("  %c: %0.3f to %0.3f" %
                      (axis, self.ax_min[axis], self.ax_max[axis]))
 
@@ -724,7 +747,7 @@ class PointGenerator3P(PlannerPlugin):
         # Dependence of x on col
         self.per_col = {}
         self.per_row = {}
-        for axis in self.motion.axes():
+        for axis in self.plan_axes():
 
             def corner_trim(corner):
                 """
@@ -763,7 +786,7 @@ class PointGenerator3P(PlannerPlugin):
 
     def calc_pos(self, ll_col, ll_row):
         ret = {}
-        for axis in self.motion.axes():
+        for axis in self.plan_axes():
             # Project from corner
             # Adjust from center of imager
             offset = self.corners["ll"][axis]
@@ -857,6 +880,7 @@ Focus around Z axis
 
 # TODO: make more generic so can be used in CLI, etc outside of Planner
 class PlannerStacker(PlannerPlugin):
+
     def __init__(self, planner):
         super().__init__(planner=planner)
         # Most users will want to stack on z
@@ -868,10 +892,8 @@ class PlannerStacker(PlannerPlugin):
         self.mode = "center"
         self.total_number = int(config["number"])
         assert self.total_number >= 1
-        # How far a stack should be
-        # Will go self.start + self.distance
-        # To stack down make distance negative
-        # You probably want negative backlash compensation as well
+        # How far a stack should be (magnitude)
+        # Direction follows the axis backlash compensation (default: down)
         self.distance = float(config["distance"])
         assert self.distance > 0
 
@@ -898,10 +920,9 @@ class PlannerStacker(PlannerPlugin):
         return self.total_number
 
     def get_direction(self):
-        direction = -1
-        if "backlash" in self.motion.modifiers:
-            direction = self.motion.modifiers["backlash"].compensation.get(
-                self.axis, -1)
+        # Ask the HAL: the planner's motion may be a proxy (ex: motion thread)
+        # without its own modifiers
+        direction = self.motion.backlash_compensation().get(self.axis, -1)
         if direction == 0:
             direction = -1
         return direction
@@ -996,6 +1017,7 @@ Assumes small drift / serpentine pattern
 
 
 class StackerDrift(PlannerPlugin):
+
     def __init__(self, planner):
         super().__init__(planner=planner)
         # Fairly computationally expensive
@@ -1050,6 +1072,7 @@ class StackerDrift(PlannerPlugin):
 
 
 class PlannerHDR(PlannerPlugin):
+
     def __init__(self, planner):
         super().__init__(planner=planner)
         config = self.pc.j["imager"]["hdr"]
@@ -1114,6 +1137,7 @@ class PlannerHDR(PlannerPlugin):
 
 
 class PlannerImageStabilization(PlannerPlugin):
+
     def __init__(self, planner):
         super().__init__(planner=planner)
         # Most users will want to stack on z
@@ -1158,6 +1182,7 @@ class PlannerImageStabilization(PlannerPlugin):
 # FIXME: move kinematics to dedicated object
 # Argus would like to use this without planner overhead
 class PlannerKinematics(PlannerPlugin):
+
     def __init__(self, planner):
         super().__init__(planner=planner)
         assert self.microscope
@@ -1186,6 +1211,7 @@ class PlannerKinematics(PlannerPlugin):
 
 
 class PlannerCaptureImage(PlannerPlugin):
+
     def __init__(self, planner):
         super().__init__(planner=planner)
         self.images_captured = 0
@@ -1267,6 +1293,7 @@ Should be at the end of the pipeline
 
 
 class PlannerSaveImage(PlannerPlugin):
+
     def __init__(self, planner):
         super().__init__(planner=planner)
         self.images_saved = 0
@@ -1284,7 +1311,6 @@ class PlannerSaveImage(PlannerPlugin):
         if not self.planner.dry:
             assert capim is not None and capim.image is not None, "Asked to save image without image given"
 
-        self.images_saved += 1
         img_prefix = self.planner.filename_prefix(state)
         fn_full = img_prefix + self.extension
         if not self.planner.dry:
@@ -1292,8 +1318,19 @@ class PlannerSaveImage(PlannerPlugin):
             kwargs = {}
             if self.extension == ".jpg" or self.extension == ".jpeg":
                 kwargs["quality"] = self.quality
-            # Includes EXIF
-            capim.save(fn_full, **kwargs)
+            # Write then rename so a crash never leaves a truncated tile under
+            # its final name. Hidden (not matched by *.jpg etc globs) but keeps
+            # the extension so the writer picks the right format
+            fn_tmp = os.path.join(os.path.dirname(fn_full),
+                                  ".tmp_" + os.path.basename(fn_full))
+            try:
+                # Includes EXIF
+                capim.save(fn_tmp, **kwargs)
+                os.replace(fn_tmp, fn_full)
+            except BaseException:
+                if os.path.exists(fn_tmp):
+                    os.remove(fn_tmp)
+                raise
             meta = {
                 "position": self.motion.pos(),
             }
@@ -1308,6 +1345,7 @@ class PlannerSaveImage(PlannerPlugin):
             if "hdri" in state:
                 meta["hdri"] = state["hdri"]
             self.metadata[os.path.basename(fn_full)] = meta
+        self.images_saved += 1
 
         # yield {}, self.state_add_dict(state, "image", "filename_rel", fn_full)
         yield {}, {"image_filename_rel": fn_full}

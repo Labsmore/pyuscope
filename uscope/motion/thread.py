@@ -1,7 +1,9 @@
 from uscope.motion.plugins import get_motion_hal
 from uscope.motion.hal import AxisExceeded, MotionHAL, MotionCritical
 from uscope.threads import CommandThreadBase, CommandThreadDead, SimpleThread
+from uscope.microscope import MicroscopeStop
 
+import serial
 import threading
 import queue
 import time
@@ -24,6 +26,7 @@ class MotionThreadMotion(MotionHAL):
     The modifier pipeline (scaling, backlash, soft limits) is applied by the
     real HAL in the motion thread, so none is configured here
     """
+
     def __init__(self, mt):
         self.mt = mt
         MotionHAL.__init__(self,
@@ -50,6 +53,9 @@ class MotionThreadMotion(MotionHAL):
 
     def get_soft_limits(self):
         return self.mt.motion.get_soft_limits()
+
+    def backlash_compensation(self):
+        return self.mt.motion.backlash_compensation()
 
     def home(self, force=False):
         self.mt.home(block=True)
@@ -109,6 +115,7 @@ Standard period is 0.2 sec => update every 0.2 to 0.3 seconds
 
 
 class JogController:
+
     def __init__(self, motion_thread, period):
         self.motion_thread = motion_thread
         self.period = period
@@ -187,6 +194,7 @@ class JogController:
 
 
 class MotionThreadBase(CommandThreadBase):
+
     def __init__(self, microscope):
         super().__init__(microscope)
         if self.microscope.bc.check_threads():
@@ -260,6 +268,11 @@ class MotionThreadBase(CommandThreadBase):
     # need to rethink this a bit
     def jog_enable(self, val):
         self._jog_enabled = val
+        if not val:
+            # A jog may still be active (ex: user holding a key when a scan
+            # starts). Its release cancel may be dropped, so cancel here
+            # (queued ahead of whatever move comes next)
+            self.jog_cancel()
 
     def jog_fractioned(self, axes, period=1.0):
         """
@@ -303,6 +316,16 @@ class MotionThreadBase(CommandThreadBase):
         # self.command("stop")
         self._stop_requested = True
 
+    def stop_now(self):
+        """
+        Thread safe: also interrupt a move the thread is currently blocked on
+        Ex: user STOP button (see Microscope.stop())
+        """
+        motion = self.motion
+        if motion is not None:
+            motion.async_stop()
+        self.stop()
+
     def estop(self):
         # self.command("estop")
         self._estop = True
@@ -335,12 +358,20 @@ class MotionThreadBase(CommandThreadBase):
     def qsize(self):
         return self.queue.qsize()
 
-    def queue_clear(self):
+    def queue_clear(self, exception=None):
+        """
+        Discard queued commands
+        Their callers are failed with exception so blocking callers wake up
+        """
+        if exception is None:
+            exception = MicroscopeStop("Motion stopped")
         while True:
             try:
-                self.queue.get(block=False)
+                command, args, command_done = self.queue.get(block=False)
             except queue.Empty:
                 break
+            if command_done:
+                command_done(command, args, exception)
 
     def get_planner_motion(self):
         return MotionThreadMotion(self)
@@ -367,10 +398,9 @@ class MotionThreadBase(CommandThreadBase):
             self.log("WARNING: jog disabled, dropping jog")
 
     def _jog_cancel(self, *args, **kwargs):
-        if self._jog_enabled:
-            self.motion.jog_cancel()
-        else:
-            self.log("WARNING: jog disabled, dropping jog cancel")
+        # Always honored: dropping it would leave the HAL thinking it is
+        # jogging (and refusing moves)
+        self.motion.jog_cancel()
 
     def get_pos_cache(self):
         return self._pos_cache
@@ -505,7 +535,12 @@ class MotionThreadBase(CommandThreadBase):
                 # Always handed to command_done so blocking callers wake up
                 ret = None
                 try:
-                    ret = f(*args)
+                    try:
+                        ret = f(*args)
+                    # Lost the controller (ex: USB unplugged): won't recover
+                    except (serial.SerialException, OSError) as e:
+                        raise MotionCritical(
+                            f"Motion controller I/O error: {e}") from e
                 # Depending on the motion controller this may be a bad idea
                 # Only some of them retain the old coordinate system / may need re-home
                 except MotionCritical as e:
@@ -548,6 +583,7 @@ class MotionThreadBase(CommandThreadBase):
 
 
 class SimpleMotionThread(MotionThreadBase, SimpleThread):
+
     def __init__(self, microscope):
         SimpleThread.__init__(self)
         MotionThreadBase.__init__(self, microscope)

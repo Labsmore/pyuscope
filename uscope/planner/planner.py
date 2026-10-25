@@ -35,38 +35,39 @@ class Planner:
     """
     config: JSON like configuration settings
     """
-    def __init__(
-        self,
-        # JSON like configuration settings affecting produced data
-        # ex: verbosity, dry, objects are not included
-        pconfig=None,
-        pc=None,
-        # Movement HAL
-        motion=None,
 
-        # Image parameters
-        # Imaging HAL
-        # Takes pictures but doesn't know about physical world
-        imager=None,
-        # Supply one of the following
-        # Most users should supply mm_per_pix
-        # mm_per_pix=None,
-        # (w, h) in movement units
-        # image_wh_mm=None,
-        out_dir=None,
-        # No movement without setting true
-        dry=False,
-        meta_base=None,
-        # Log message callback
-        # Inteded for main GUI log window
-        # Defaults to printing to stdout
-        log=None,
-        # As objectives
-        pipeline=None,
-        # As plugin names
-        pipeline_names=None,
-        microscope=None,
-        verbosity=None):
+    def __init__(
+            self,
+            # JSON like configuration settings affecting produced data
+            # ex: verbosity, dry, objects are not included
+            pconfig=None,
+            pc=None,
+            # Movement HAL
+            motion=None,
+
+            # Image parameters
+            # Imaging HAL
+            # Takes pictures but doesn't know about physical world
+            imager=None,
+            # Supply one of the following
+            # Most users should supply mm_per_pix
+            # mm_per_pix=None,
+            # (w, h) in movement units
+            # image_wh_mm=None,
+            out_dir=None,
+            # No movement without setting true
+            dry=False,
+            meta_base=None,
+            # Log message callback
+            # Inteded for main GUI log window
+            # Defaults to printing to stdout
+            log=None,
+            # As objectives
+            pipeline=None,
+            # As plugin names
+            pipeline_names=None,
+            microscope=None,
+            verbosity=None):
         if verbosity is None:
             verbosity = 2
         if log is None:
@@ -98,6 +99,9 @@ class Planner:
 
         self.microscope = microscope
         self.se = None
+        self.full_start_time = None
+        self.scan_start_time = None
+        self.scan_end_time = None
 
         if not meta_base:
             self.meta_base = {}
@@ -177,7 +181,7 @@ class Planner:
     def shutdown_join(self):
         pass
 
-    def write_meta(self):
+    def write_meta(self, status="complete"):
         # Copy config for reference
         def dumpj(j, fn):
             if self.dry:
@@ -189,9 +193,23 @@ class Planner:
                                indent=4,
                                separators=(',', ': ')))
 
-        meta = self.gen_meta()
+        meta = self.gen_meta(status=status)
         dumpj(meta, 'uscan.json')
         return meta
+
+    def write_meta_aborted(self, e):
+        """
+        Best effort: keep tiles already on disk usable (positions, microscope)
+        Must not raise: the original exception is what the caller wants
+        """
+        if self.dry or not self.out_dir or not os.path.isdir(self.out_dir):
+            return
+        try:
+            meta = self.write_meta(status="aborted")
+            self.log(f"Wrote partial scan metadata ({type(e).__name__})")
+            return meta
+        except Exception as e2:
+            self.log(f"WARNING: failed to write partial scan metadata: {e2}")
 
     def img_fn_prefix(self):
         return "_".join(self.state.fn_prefixes)
@@ -327,6 +345,7 @@ class Planner:
                 self.scan_end()
             except BaseException as e:
                 self.scan_abort(e)
+                self.write_meta_aborted(e)
                 raise
             meta = self.write_meta()
             state = {
@@ -341,7 +360,7 @@ class Planner:
         for callback in self.progress_callbacks:
             callback(state)
 
-    def gen_meta(self):
+    def gen_meta(self, status="complete"):
         '''Can only be called after run'''
         """
         Bump patch when adding w/o breaking something
@@ -349,8 +368,10 @@ class Planner:
         Bump major when making a big breaking change
         """
 
-        ret = self.meta_base
-        ret["version"] = "2.0.0"
+        ret = dict(self.meta_base)
+        ret["version"] = "2.0.1"
+        # "complete" or "aborted" (stopped / error: some tiles may be missing)
+        ret["status"] = status
         # User scan parameters
         ret['pconfig'] = self.pc.j
         """
@@ -360,17 +381,30 @@ class Planner:
             axesj[axisc] = axis.meta()
         """
 
+        now = time.time()
         # In seconds
         # Running scan
-        ret['scan_time'] = self.scan_end_time - self.scan_start_time
+        if self.scan_start_time is not None:
+            scan_end_time = self.scan_end_time
+            if scan_end_time is None:
+                scan_end_time = now
+            ret['scan_time'] = scan_end_time - self.scan_start_time
         # Including setup / teardown
         ret["time_end"] = utcnow().isoformat()
 
-        for plugin in self.pipeline.values():
-            plugin.gen_meta(ret)
+        for name, plugin in self.pipeline.items():
+            if status == "complete":
+                plugin.gen_meta(ret)
+                continue
+            # Partial state: don't let one plugin lose the rest
+            try:
+                plugin.gen_meta(ret)
+            except Exception as e:
+                self.log(f"WARNING: {name} metadata failed: {e}")
 
-        self.full_end_time = time.time()
-        ret["full_time"] = self.full_end_time - self.full_start_time
+        self.full_end_time = now
+        if self.full_start_time is not None:
+            ret["full_time"] = self.full_end_time - self.full_start_time
         ret["pipeline"] = list(self.pipeline.keys())
         ret["microscope"] = {
             "name": self.microscope.name,
@@ -400,9 +434,6 @@ class Planner:
                 ret *= expected
         # print('ret', ret)
         return ret
-
-    def images_captured(self):
-        return self.pipeline["scraper"].images_captured
 
     def stacking(self):
         """Return true if focus stacking enabled"""

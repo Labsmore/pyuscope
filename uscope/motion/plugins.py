@@ -20,6 +20,7 @@ def get_lcnc_host(usc_motion):
 
 
 def register_plugins():
+
     def mock_hal(usc_motion, kwargs):
         return cnc_hal.MockHal(**kwargs)
 
@@ -36,10 +37,9 @@ def register_plugins():
         try:
             return lcnc_hal.LcncPyHal(
                 linuxcnc=LCNCRPC(host=get_lcnc_host(usc_motion)), **kwargs)
-        except socket.error:
-            raise
+        except socket.error as e:
             raise Exception("Failed to connect to LCNCRPC %s" %
-                            get_lcnc_host(usc_motion))
+                            get_lcnc_host(usc_motion)) from e
 
     register_plugin("lcnc-rpc", lcnc_rpc)
 

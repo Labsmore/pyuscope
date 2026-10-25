@@ -324,7 +324,8 @@ class USCImager:
         from uscope.cal.store import _cal_store
         store = _cal_store(self.microscope)
         if store:
-            if store.get("imager.illumination", self._illumination_scope()) is not None:
+            if store.get("imager.illumination",
+                         self._illumination_scope()) is not None:
                 return True
         return os.path.exists(self.ff_cal_fn())
 
@@ -348,7 +349,8 @@ class USCImager:
         from uscope.cal.store import _cal_store
         store = _cal_store(self.microscope)
         if store:
-            entry = store.get("imager.illumination", self._illumination_scope())
+            entry = store.get("imager.illumination",
+                              self._illumination_scope())
             if entry is not None:
                 path = store.illumination_abspath(entry)
                 if path and os.path.exists(path):
@@ -432,6 +434,7 @@ class USCImager:
                             "imager_calibration.j5")
 
     def cal_load(self, load_data_dir=True):
+
         def load_config(fn):
             try:
                 if not fn:
@@ -495,6 +498,7 @@ class USCImager:
 
 
 class USCMotion:
+
     def __init__(self, j=None, microscope=None):
         """
         j: usj["motion"]
@@ -677,7 +681,8 @@ class USCMotion:
         if store and not nominal:
             for axis in list(ret.keys()):
                 entry = store.get("motion.backlash", {"axis": axis})
-                if entry is not None and entry.extra.get("compensation") is not None:
+                if entry is not None and entry.extra.get(
+                        "compensation") is not None:
                     ret[axis] = int(entry.extra["compensation"])
         return ret
 
@@ -714,9 +719,8 @@ class USCMotion:
         for axis in self.axes_meta:
             axmin = raw.get(axis + "min")
             axmax = raw.get(axis + "max")
+            # An unconfigured side is None (unbounded)
             if axmin is not None or axmax is not None:
-                axmin = axmin if axmin else 0.0
-                axmax = axmax if axmax else 0.0
                 ret[axis] = (axmin, axmax)
         self.validate_axes_dict(ret)
         return ret
@@ -759,6 +763,7 @@ class USCMotion:
 
 
 class USCPlanner:
+
     def __init__(self, j={}, microscope=None):
         """
         j: usj["planner"]
@@ -781,6 +786,7 @@ class USCPlanner:
 
 
 class USCKinematics:
+
     def __init__(self, j={}, microscope=None):
         """
         j: usj["kinematics"]
@@ -851,6 +857,7 @@ class USCKinematics:
 
 
 class USCOptics:
+
     def __init__(self, j=None, microscope=None):
         self.j = j
         self.microscope = microscope
@@ -902,6 +909,7 @@ class USCOptics:
 
 
 class USCImageProcessingPipeline:
+
     def __init__(self, j={}, microscope=None):
         self.j = j
         self.microscope = microscope
@@ -1042,6 +1050,7 @@ class ObjectiveDB:
     with the same (vendor, model). user_fn also holds user selected objective
     lineups (by microscope name) that replace the microscope.j5 defaults
     """
+
     def __init__(self, fn=None, strict=None, user_fn=None):
         if fn is None:
             fn = os.path.join(get_configs_dir(), "objectives.j5")
@@ -1081,8 +1090,7 @@ class ObjectiveDB:
         if self.user_fn and os.path.exists(self.user_fn):
             try:
                 j = readj(self.user_fn)
-                if j.get("schema_version",
-                         1) > OBJECTIVES_USER_SCHEMA_VERSION:
+                if j.get("schema_version", 1) > OBJECTIVES_USER_SCHEMA_VERSION:
                     raise ValueError("written by a newer pyuscope")
                 for entry in j.get("objectives") or []:
                     try:
@@ -1218,7 +1226,8 @@ class ObjectiveDB:
                 msg = f"db_find {vendor} {model}: config has {v} but db has {db_has}"
                 # User library takes precedence over shipped configs
                 if self.is_user(vendor, model):
-                    print("WARNING: " + msg + " (using your objective library)")
+                    print("WARNING: " + msg +
+                          " (using your objective library)")
                     continue
                 raise ValueError(msg)
         for k, v in db_entry.items():
@@ -1318,6 +1327,7 @@ class USC:
         return self._microscope_dataname
 
     def init_dirs(self, mkdir=True):
+
         def get_microscope_dataname():
             # Add serial if possible
             # Otherwise calibration files for one unit may conflict with another
@@ -1473,6 +1483,7 @@ Planner configuration
 
 
 class PCImager:
+
     def __init__(self, j=None):
         self.j = j
 
@@ -1487,6 +1498,7 @@ class PCImager:
 
 
 class PCMotion:
+
     def __init__(self, j=None):
         self.j = j
         self.axes_meta = OrderedDict([("x", {}), ("y", {}), ("z", {})])
@@ -1509,6 +1521,7 @@ class PCMotion:
 
 
 class PCKinematics:
+
     def __init__(self, j=None):
         self.j = j
 
@@ -1525,6 +1538,7 @@ Planner configuration
 
 
 class PC:
+
     def __init__(self, j=None):
         self.j = j
         self.imager = PCImager(self.j.get("imager"))
@@ -1618,6 +1632,7 @@ class GUI:
 
 
 class BaseConfig:
+
     def __init__(self, j=None):
         self.j = j
         # self.joystick = JoystickConfig(jbc=self.j.get("joystick", {}))

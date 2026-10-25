@@ -13,6 +13,8 @@ from uscope.config import get_bc, get_configs_dir
 
 import termios
 import serial
+import json
+import re
 import time
 import os
 import threading
@@ -232,7 +234,31 @@ def status_is_alarm(status):
     return status == "Alarm" or status.startswith("Door")
 
 
+def parse_rc_rates(commands):
+    """
+    Max rate ($110-$112) / acceleration ($120-$122) set by rc commands
+    Returns (velocities, accelerations) dicts with only the axes set
+    """
+    reg2axis = {
+        "110": ("v", "x"),
+        "111": ("v", "y"),
+        "112": ("v", "z"),
+        "120": ("a", "x"),
+        "121": ("a", "y"),
+        "122": ("a", "z"),
+    }
+    ret = {"v": {}, "a": {}}
+    for command in commands:
+        m = re.match(r"\s*\$(\d+)\s*=\s*([-+0-9.eE]+)\s*$", command)
+        if not m or m.group(1) not in reg2axis:
+            continue
+        which, axis = reg2axis[m.group(1)]
+        ret[which][axis] = float(m.group(2))
+    return ret["v"], ret["a"]
+
+
 class GrblError(Exception):
+
     def __init__(self, msg):
         # error:9
         try:
@@ -277,14 +303,15 @@ def print_configs(l, log=print):
 
 
 class GRBLSer:
+
     def __init__(
-        self,
-        port=None,
-        # All commands I've seen so far complete responses in < 10 ms
-        # so this should be plenty of margin for now
-        ser_timeout=0.15,
-        flush=True,
-        verbose=None):
+            self,
+            port=None,
+            # All commands I've seen so far complete responses in < 10 ms
+            # so this should be plenty of margin for now
+            ser_timeout=0.15,
+            flush=True,
+            verbose=None):
         self.serial = None
         if port is None:
             port = default_port()
@@ -409,7 +436,9 @@ class GRBLSer:
             print("rx %u bytes in %0.3f sec" % (len(b), tend - tstart))
             if self.verbose >= 2:
                 util.hexdump(b)
-        return b.decode("ascii").strip()
+        # Reset / line noise can contain high bytes: let callers see garbage
+        # (and retry / recover) rather than raise from deep in the protocol
+        return b.decode("ascii", errors="replace").strip()
 
     def txrxs(self, out, nl=True, trim_data=True, timeout=None):
         """
@@ -544,12 +573,17 @@ class GRBLSer:
         <Idle|MPos:0.000,0.000,0.000|FS:0,0>
         """
         self.tx("?", nl=False)
+        tstart = time.time()
         while True:
             l = self.readline()
             self.verbose and print("rx '%s'" % (l, ))
-            l = trim_status_line(l)
-            if len(l):
-                return l
+            # Skip blank lines (ex: stray newline before the status report)
+            if l:
+                l = trim_status_line(l)
+                if l:
+                    return l
+            if time.time() - tstart > self.ser_timeout:
+                raise Timeout(f"No status report after {self.ser_timeout} sec")
 
     def c(self):
         """
@@ -679,12 +713,12 @@ class MockGRBLSer(GRBLSer):
     STATE_IDLE = "Idle"
 
     def __init__(
-        self,
-        port="/dev/ttyUSB0",
-        # some boards take more than 1 second to reset
-        ser_timeout=3.0,
-        flush=True,
-        verbose=None):
+            self,
+            port="/dev/ttyUSB0",
+            # some boards take more than 1 second to reset
+            ser_timeout=3.0,
+            flush=True,
+            verbose=None):
         print("GRBL mock")
         self.verbose = verbose if verbose is not None else bool(
             int(os.getenv("GRBLSER_VERBOSE", "0")))
@@ -840,6 +874,7 @@ class MockGRBLSer(GRBLSer):
 
 
 class GRBL:
+
     def __init__(self,
                  port=None,
                  flush=True,
@@ -1037,7 +1072,9 @@ class GRBL:
         # https://github.com/Labsmore/pyuscope/issues/297
         # Some X1s report Y some report Z but we don't know why
         # TODO: look into GRBL code to see if more info
-        return self.qstatus().get("Pn", "N") in ("Y", "Z")
+        # Several pins can be reported at once (ex: Pn:XY)
+        pins = self.qstatus().get("Pn", "")
+        return "Y" in pins or "Z" in pins
 
     def move_absolute(self, pos, f, blocking=True):
         tries = 3
@@ -1108,7 +1145,8 @@ class GRBL:
             if status == "Idle":
                 break
             if status_is_alarm(status):
-                raise GrblAlarm(f"Controller in {status} while waiting for idle")
+                raise GrblAlarm(
+                    f"Controller in {status} while waiting for idle")
             now = time.time()
             mpos = qstatus.get("MPos")
             if mpos != last_mpos:
@@ -1353,6 +1391,7 @@ However the pos command needs to be scaled to reflect that
 
 
 class GrblHal(MotionHAL):
+
     def __init__(self, verbose=None, port=None, grbl=None, **kwargs):
         self.grbl = None
         self.feedrate = None
@@ -1361,6 +1400,9 @@ class GrblHal(MotionHAL):
         self._max_acelerations = None
         self._wcs_offsets_cache = None
         self.last_qstatus = None
+        self._abs_max_velocities = None
+        self._abs_max_accelerations = None
+        self._nominal_rates_unsaved = False
 
         MotionHAL.__init__(self, verbose=verbose, **kwargs)
         self._axes = self.microscope.usc.motion.axes()
@@ -1417,9 +1459,9 @@ class GrblHal(MotionHAL):
         if rc is not None:
             self.rc_commands(rc)
 
-        # Cache so that damper can be adjusted later
-        self._abs_max_velocities = self._get_max_velocities()
-        self._abs_max_accelerations = self._get_max_accelerations()
+        # Undamped values the damper is computed from
+        # Can't just trust GRBL: damped values persist in its EEPROM
+        self._load_nominal_rates(options)
         """
         damper = self.microscope.usc.motion.damper()
         if damper is not None:
@@ -1493,7 +1535,7 @@ class GrblHal(MotionHAL):
         if "scalar" in self.modifiers:
             scalars = self.modifiers["scalar"].scalars
             for axis in self.axes():
-                steps_per_mm[axis] *= abs(scalars[axis])
+                steps_per_mm[axis] *= abs(scalars.get(axis, 1.0))
         return steps_per_mm
 
     def _get_machine_limits(self):
@@ -1522,6 +1564,68 @@ class GrblHal(MotionHAL):
     def _get_max_accelerations(self):
         # Current value. May have damper applied from base value
         return self.only_used_axes(self.grbl.axes_max_acceleration())
+
+    def _nominal_rates_fn(self):
+        return os.path.join(self.microscope.usc.get_microscope_data_dir(),
+                            "grbl_nominal_rates.json")
+
+    def _load_nominal_rates(self, options):
+        """
+        Per axis nominal (undamped) $110-$112 / $120-$122, in priority order:
+        -Microscope config rc_pre_home / rc_post_home commands
+        -Baseline persisted the first time the damper was used
+        -Current GRBL values (persisted on first damper use)
+        """
+        config_vel, config_acc = parse_rc_rates(
+            list(options.get("rc_pre_home") or []) +
+            list(options.get("rc_post_home") or []))
+        fn = self._nominal_rates_fn()
+        saved = None
+        if os.path.exists(fn):
+            try:
+                with open(fn) as f:
+                    saved = json.load(f)
+            except ValueError as e:
+                raise ValueError(f"Bad GRBL nominal rates file {fn}: {e}")
+        cur_vel = self._get_max_velocities()
+        cur_acc = self._get_max_accelerations()
+        self._nominal_rates_unsaved = False
+
+        def pick(config, saved_vals, current):
+            ret = {}
+            for axis in self.axes():
+                if axis in config:
+                    ret[axis] = config[axis]
+                elif saved_vals is not None and axis in saved_vals:
+                    ret[axis] = float(saved_vals[axis])
+                else:
+                    ret[axis] = current[axis]
+                    self._nominal_rates_unsaved = True
+            return ret
+
+        self._abs_max_velocities = pick(config_vel, saved
+                                        and saved.get("max_velocities"),
+                                        cur_vel)
+        self._abs_max_accelerations = pick(
+            config_acc, saved and saved.get("max_accelerations"), cur_acc)
+
+    def _save_nominal_rates(self):
+        fn = self._nominal_rates_fn()
+        j = {
+            "comment":
+            "Undamped GRBL $110-$112 (max_velocities) / $120-$122 (max_accelerations). "
+            "Motion damper is computed from these. Edit if incorrect",
+            "max_velocities":
+            self._abs_max_velocities,
+            "max_accelerations":
+            self._abs_max_accelerations,
+        }
+        tmp = fn + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(j, f, indent=4, sort_keys=True)
+        os.replace(tmp, fn)
+        print(f"Saved GRBL nominal rates to {fn}")
+        self._nominal_rates_unsaved = False
 
     def _get_abs_max_velocities(self):
         # No damper applied
@@ -1692,6 +1796,10 @@ class GrblHal(MotionHAL):
         except Exception as e:
             print(f"WARNING: GRBL emergency jog cancel failed: {e}")
 
+    def async_stop(self):
+        # Moves are issued as jogs ($J=) so the realtime jog cancel stops them
+        self.emergency_stop()
+
     def _jog_rel(self, pos, rate):
         self.grbl.jog_rel(pos, rate)
 
@@ -1705,13 +1813,24 @@ class GrblHal(MotionHAL):
         self.grbl.log_info(log=self.log)
 
     def _do_apply_damper(self, damper):
+        # Lock in the baseline before EEPROM holds damped values
+        if self._nominal_rates_unsaved:
+            self._save_nominal_rates()
         velocities = dict(self._get_abs_max_velocities())
         accelerations = dict(self._get_abs_max_accelerations())
         for axis in self.axes():
             velocities[axis] = velocities[axis] * damper
             accelerations[axis] = accelerations[axis] * damper
-        self.grbl.axes_set_max_rate(velocities)
-        self.grbl.axes_set_max_acceleration(accelerations)
+
+        # Settings are written to EEPROM: skip the ones already correct
+        def changed(want, current):
+            return dict([(axis, v) for axis, v in want.items()
+                         if round(v, 3) != round(current[axis], 3)])
+
+        self.grbl.axes_set_max_rate(
+            changed(velocities, self._get_max_velocities()))
+        self.grbl.axes_set_max_acceleration(
+            changed(accelerations, self._get_max_accelerations()))
 
     '''
     def apply_damper_early(self, damper):
@@ -1766,12 +1885,20 @@ class GrblHal(MotionHAL):
         """
         compile_options = self.grbl.i_parsed()["OPT"]["options"]
         # print("compile_options", compile_options)
+        status = self.grbl.qstatus()["status"]
+        # Still moving (ex: jog)? Decide once settled, not mid move
+        tstart = time.time()
+        while status in ("Run", "Jog") and time.time() - tstart < 10.0:
+            time.sleep(0.1)
+            status = self.grbl.qstatus()["status"]
+        # Ex: hard limit trip: position is lost regardless of other state
+        if status == "Alarm":
+            print("GRBL homing: controller in Alarm => not homed")
+            return False
         # The clean way: system is locked until homed
         if "HOMING_INIT_LOCK" in compile_options:
-            status = self.grbl.qstatus()["status"]
             print(f"GRBL homing w/ INIT_LOCK, main status: {status}")
             # Otherwise should be Alarm state
-            # FIXME: if we are jogging it might try to home here...
             return status == "Idle"
         # A BadThing TM: no way to natively know if homed
         else:

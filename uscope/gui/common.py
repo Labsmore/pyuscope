@@ -56,6 +56,7 @@ class GuiHomeProgress:
     Shows a progress bar while homing blocks the GUI thread (ex: at startup)
     Progress is relative to max_home_time, so it is a worst case estimate
     """
+
     def __init__(self, fallback):
         self.fallback = fallback
         self.dialog = None
@@ -99,6 +100,7 @@ class GuiHomeProgress:
 
 
 class USCArgus:
+
     def __init__(self, j=None, microscope=None):
         """
         j: usj["app"]["argus"]
@@ -215,6 +217,7 @@ class USCArgus:
 
 # GUI specific functionality
 class ACSubsystem(Subsystem):
+
     def __init__(self, ac):
         self.ac = ac
         super().__init__(self.ac.microscope)
@@ -323,11 +326,15 @@ class ArgusCommon(QObject):
             self.log("VIDSRC: Using Picamera2 source")
             from picamera2 import Picamera2
             self.capture_pc2 = Picamera2()
-            self.vidpip = PiCam2VideoPipeline(ac=self, zoomable=True, log=self.log)
+            self.vidpip = PiCam2VideoPipeline(ac=self,
+                                              zoomable=True,
+                                              log=self.log)
 
         else:
             self.log("VIDSRC: Using Gstreamer source")
-            self.vidpip = GstVideoPipeline(ac=self, zoomable=True, log=self.log)
+            self.vidpip = GstVideoPipeline(ac=self,
+                                           zoomable=True,
+                                           log=self.log)
             self.capture_sink = self.vidpip.capture_sink
             # v4l2 sources look up the configured camera by name here
             try:
@@ -380,6 +387,9 @@ class ArgusCommon(QObject):
         self.microscope.jog_fractioned_lazy = self.motion_thread.jog_fractioned_lazy
         self.microscope.jog_cancel = self.motion_thread.jog_cancel
         self.microscope.motion_stop = self.motion_thread.stop
+        # STOP button (microscope.stop()) must also halt the stage
+        self.microscope.stop_register(self.motion_thread,
+                                      self.motion_thread.stop_now)
         self.microscope.get_jog_controller = self.motion_thread.get_jog_controller
         self.microscope.image_save_extension = self.image_save_extension
         self.runPlannerHConfigs.connect(
@@ -413,8 +423,7 @@ class ArgusCommon(QObject):
         camera_mismatch = getattr(self.vidpip, "camera_mismatch", None)
         if camera_mismatch:
             QMessageBox.warning(
-                None, "Microscope config / camera mismatch",
-                camera_mismatch +
+                None, "Microscope config / camera mismatch", camera_mismatch +
                 "\n\nContinuing anyway: video and calibration may be wrong",
                 QMessageBox.Ok, QMessageBox.Ok)
         self.init_imager()

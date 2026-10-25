@@ -59,6 +59,7 @@ class MotionCritical(Exception):
 
 
 class MotionModifier:
+
     def __init__(self, motion):
         self.motion = motion
         self.log = self.motion.log
@@ -117,6 +118,7 @@ Do active backlash compensation on absolute and relative moves
 # TODO: consider simplifying options
 # ex: eliminated enabled if not actually being used
 class BacklashMM(MotionModifier):
+
     def __init__(self, motion, backlash, compensation):
         super().__init__(motion)
 
@@ -184,8 +186,8 @@ class BacklashMM(MotionModifier):
 
             # Already compensated and still moving in the same direction?
             # No compensation necessary
-            if self.compensated[axis] and (
-                    delta == 0.0 or sign(delta) == self.compensation[axis]):
+            if self.compensated[axis] and (delta == 0.0 or sign(delta)
+                                           == self.compensation[axis]):
                 continue
             # A correction is possibly needed then
             # Will the movement itself compensate?
@@ -254,12 +256,14 @@ class BacklashMM(MotionModifier):
         # Did we calculate any backlash moves?
         if len(corrections_abs):
             self.recursing = True
-            # https://github.com/Labsmore/pyuscope/issues/181
-            # without this movements can take a long time when mixing
-            # compensated and non-compensated movements
-            # self.motion.move_absolute(corrections_abs)
-            self.motion.move_absolute(all_abs)
-            self.recursing = False
+            try:
+                # https://github.com/Labsmore/pyuscope/issues/181
+                # without this movements can take a long time when mixing
+                # compensated and non-compensated movements
+                # self.motion.move_absolute(corrections_abs)
+                self.motion.move_absolute(all_abs)
+            finally:
+                self.recursing = False
             for axis in corrections_abs.keys():
                 self.compensated[axis] = True
 
@@ -365,6 +369,7 @@ Throw an exception if axis out of expected range
 
 
 class SoftLimitMM(MotionModifier):
+
     def __init__(self, motion, soft_limits):
         super().__init__(motion)
         self.soft_limits = soft_limits
@@ -379,12 +384,16 @@ class SoftLimitMM(MotionModifier):
             cur_pos = cur_pos_xyz[axis]
             # Reject if its out of bounds and making things worse
             # Otherwise user can't recover
-            if not self.motion.axis_pos_in_range(axis, axmin, axpos, axmax):
-                # But maybe its making it better?
-                if axpos < axmin and axpos < cur_pos or axpos > axmax and axpos > cur_pos:
-                    raise AxisExceeded(
-                        "axis %s: move violates %0.3f <= new pos %0.3f <= %0.3f"
-                        % (axis, axmin, axpos, axmax))
+            below = axmin is not None and axpos < axmin and not self.motion.equivalent_axis_pos(
+                axis, axmin, axpos)
+            above = axmax is not None and axpos > axmax and not self.motion.equivalent_axis_pos(
+                axis, axmax, axpos)
+            # But maybe its making it better?
+            if below and axpos < cur_pos or above and axpos > cur_pos:
+                raise AxisExceeded(
+                    "axis %s: move violates %s <= new pos %0.3f <= %s" %
+                    (axis, "-inf" if axmin is None else "%0.3f" % axmin, axpos,
+                     "+inf" if axmax is None else "%0.3f" % axmax))
 
     def move_relative_pre(self, pos, cur_pos=None, options={}):
         assert 0, "FIXME: unsupported"
@@ -502,6 +511,7 @@ Scale axes such as for a gearbox or to reverse direction
 
 
 class ScalarMM(MotionModifier):
+
     def __init__(self, motion, scalars=None):
         """
         scalar: dict of each axis scalar to convert from user to machine coordinate system
@@ -536,8 +546,7 @@ class ScalarMM(MotionModifier):
         """
         # pos_in = dict(pos)
         for k, v in dict(pos).items():
-            pos[k] = v * self.scalars.get(
-                k, 1.0) + self._machine_wcs_offsets.get(k, 0.0)
+            pos[k] = v * self.scalars.get(k, 1.0)
         # print(f"tmp scale_user2machine_abs {pos_in} => {pos}")
 
     def scale_machine2user_rel(self, pos):
@@ -619,6 +628,7 @@ class ScalarMM(MotionModifier):
 
 
 class MotionHAL:
+
     def __init__(self, log=None, verbose=None, microscope=None):
         # Per axis? Currently is global
         assert microscope
@@ -669,7 +679,13 @@ class MotionHAL:
             print(f"Motion {self} ({type(self)}): checking threads requested")
 
     def __del__(self):
-        self.close()
+        # Partially constructed (ex: __init__ raised)? Nothing to stop
+        if "stop_on_del" not in self.__dict__:
+            return
+        try:
+            self.close()
+        except Exception as e:
+            print(f"WARNING: motion close on delete failed: {e}")
 
     def update_check_thread(self):
         self.check_thread_id = threading.get_ident()
@@ -860,6 +876,7 @@ class MotionHAL:
                 axis, axis_max, value)
 
     def cache_constants(self):
+
         def calc_epsilon():
             # More precise but harder to use in most contexts
             self._steps_per_mm = self._get_steps_per_mm()
@@ -921,8 +938,10 @@ class MotionHAL:
             for axis in "xyz":
                 this = limits.get(axis, None)
                 if this is not None:
-                    mins[axis] = this[0]
-                    maxs[axis] = this[1]
+                    if this[0] is not None:
+                        mins[axis] = this[0]
+                    if this[1] is not None:
+                        maxs[axis] = this[1]
             self._pyuscope_soft_limits = {
                 "mins": mins,
                 "maxs": maxs,
@@ -982,6 +1001,16 @@ class MotionHAL:
         """
         self.enable_modifier("backlash", lazy=True)
 
+    def backlash_compensation(self):
+        """
+        Per axis backlash compensation direction (-1, 0, +1)
+        Empty if backlash compensation is not configured
+        """
+        modifier = (self.modifiers or {}).get("backlash")
+        if modifier is None:
+            return {}
+        return dict(modifier.compensation)
+
     def reconfigure_backlash(self):
         """Rebuild the backlash modifier from current usc / cal store."""
         if self.microscope is None:
@@ -991,8 +1020,9 @@ class MotionHAL:
         self.options["backlash"] = backlash
         self.options["backlash_compensation"] = compensation
         if backlash and any(v for v in backlash.values()):
-            self.modifiers["backlash"] = BacklashMM(
-                self, backlash=backlash, compensation=compensation)
+            self.modifiers["backlash"] = BacklashMM(self,
+                                                    backlash=backlash,
+                                                    compensation=compensation)
         elif "backlash" in self.modifiers:
             del self.modifiers["backlash"]
 
@@ -1365,11 +1395,11 @@ class MotionHAL:
 
     def idle(self):
         """
-        Return true of a jog or other movement has not yet completed
+        Return true if no jog is believed to be in progress
         XXX: currently JogController makes sure a cancel is sent
         But jog might actually finish before
         """
-        return self.last_jog_time is not None
+        return self.last_jog_time is None
 
     def on(self):
         '''Call at start of MDI phase, before planner starts'''
@@ -1408,6 +1438,13 @@ class MotionHAL:
             self._stop()
         except Exception as e:
             print(f"WARNING: emergency stop failed: {e}")
+
+    def async_stop(self):
+        """
+        Interrupt motion in progress from any thread (ex: STOP button)
+        Must not raise. Only HALs with an out of band stop implement this
+        """
+        pass
 
     def _estop(self):
         self.stop()
@@ -1457,6 +1494,7 @@ Has no actual hardware associated with it
 
 
 class MockHal(MotionHAL):
+
     def __init__(self, axes='xyz', **kwargs):
         self._axes = list(axes)
         MotionHAL.__init__(self, **kwargs)
@@ -1486,24 +1524,24 @@ class MockHal(MotionHAL):
         for axis, apos in pos.items():
             self._pos_cache[axis] = apos
         0 and self._log('absolute move to ' + pos_str(pos))
-        self.update_status({"pos": self._pos_cache})
+        self.update_status({"pos": dict(self._pos_cache)})
 
     def _move_relative(self, delta):
         for axis, adelta in delta.items():
             self._pos_cache[axis] += adelta
         0 and self._log('relative move to ' + pos_str(delta))
-        self.update_status({"pos": self._pos_cache})
+        self.update_status({"pos": dict(self._pos_cache)})
 
     def _jog_rel(self, axes, rate):
         # Jogs complete instantly
         for axis, adelta in axes.items():
             self._pos_cache[axis] += adelta
-        self.update_status({"pos": self._pos_cache})
+        self.update_status({"pos": dict(self._pos_cache)})
 
     def _jog_abs(self, axes, rate):
         for axis, apos in axes.items():
             self._pos_cache[axis] = apos
-        self.update_status({"pos": self._pos_cache})
+        self.update_status({"pos": dict(self._pos_cache)})
 
     def _jog_cancel(self):
         pass
@@ -1537,6 +1575,7 @@ Ex: inherits movement
 
 
 class DryHal(MotionHAL):
+
     def __init__(self, hal, log=None):
         self.hal = hal
 
@@ -1572,6 +1611,9 @@ class DryHal(MotionHAL):
     def _get_steps_per_mm(self):
         # Mirror the real HAL so that epsilon() etc agree
         return dict(self.hal._steps_per_mm)
+
+    def backlash_compensation(self):
+        return self.hal.backlash_compensation()
 
     def _move_absolute(self, pos):
         for axis, apos in pos.items():

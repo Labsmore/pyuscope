@@ -358,6 +358,37 @@ class CalStore:
             self._notify([key])
         return True
 
+    def objective_entries(self, name, include_factory=False):
+        """Entries scoped to objective name"""
+        return [
+            e for e in self.entries(include_factory=include_factory)
+            if e.scope.get("objective") == name
+        ]
+
+    def rename_objective(self, old, new, save=True, notify=True):
+        """
+        Move user entries scoped to objective old to objective new
+        Entries already stored for new are replaced. Returns the number moved
+        """
+        with self._lock:
+            moving = [
+                e for e in self._user if e.scope.get("objective") == old
+            ]
+            if not moving:
+                return 0
+            for e in moving:
+                e.scope = dict(e.scope, objective=new)
+            idents = {e.identity() for e in moving}
+            self._user = [
+                e for e in self._user
+                if e in moving or e.identity() not in idents
+            ]
+        if save:
+            self.save()
+        if notify:
+            self._notify(sorted({e.key for e in moving}))
+        return len(moving)
+
     def as_dict(self):
         """Planner / scan metadata view of currently enabled values."""
         ret = {"schema_version": SCHEMA_VERSION, "entries": []}

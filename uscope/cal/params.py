@@ -405,8 +405,22 @@ class CalRow:
             return "nominal"
         where = "user" if self.user_entry is not None else "factory"
         if not entry.enabled:
-            return "disabled (%s)" % where
-        return "calibrated (%s)" % where
+            ret = "disabled (%s)" % where
+        else:
+            ret = "calibrated (%s)" % where
+        if self.orphaned():
+            ret += ", objective not in lineup"
+        return ret
+
+    def orphaned(self):
+        """Scoped to an objective that isn't currently configured"""
+        name = self.scope.get("objective")
+        if not name:
+            return False
+        try:
+            return name not in self.microscope.objective_state.names()
+        except Exception:
+            return False
 
     def calibrated(self):
         return None if self.entry is None else self.entry.value

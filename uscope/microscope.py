@@ -313,6 +313,10 @@ class Microscope:
             self.objectives = MicroscopeObjectives(self)
         return self.objectives
 
+    def reload_objectives(self):
+        """Apply objective library / lineup changes"""
+        self.objective_state.reload(reread=True)
+
     def model(self):
         """
         Return microscope model number

@@ -10,6 +10,23 @@ with StopEvent(microscope) as se:
 """
 
 
+def objective_name(objective, objectivei):
+    """
+    Display name of a (DB resolved) objective
+    Also its calibration key, so renaming orphans calibration entries
+    """
+    if "name" in objective:
+        return objective["name"]
+    if "magnification" in objective:
+        if "series" in objective:
+            return "%s %uX" % (objective["series"],
+                               objective["magnification"])
+        else:
+            return "%uX" % objective["magnification"]
+    else:
+        return "Objective %u" % objectivei
+
+
 class MicroscopeObjectives:
     def __init__(self, microscope):
         self.microscope = microscope
@@ -22,17 +39,45 @@ class MicroscopeObjectives:
         magnification: optional
         na: optional
         """
-        # Copy so we can start filling in data
-        objectives = copy.deepcopy(
-            self.microscope.usc.get_uncalibrated_objectives(
-                microscope=self.microscope))
-        self.objectives_in = copy.deepcopy(objectives)
         self.magnification = 1.0
         # override value or can be None
         # If none objectives must all be fully specified individually
         self.um_per_pixel_raw_1x = self.microscope.usc.optics.um_per_pixel_raw_1x(
         )
-        self.recalculate_db()
+        # Why the user lineup isn't in use (None if it is or there is none)
+        self.lineup_error = None
+        self.reload_inputs()
+
+    def uses_lineup(self):
+        """True if objectives come from the user lineup, not microscope.j5"""
+        return self._uses_lineup
+
+    def reload_inputs(self):
+        """
+        Re-read the objective configuration (ex: user lineup changed)
+        Updates in place so existing references stay valid
+        A broken user lineup falls back to the microscope defaults
+        """
+        usc = self.microscope.usc
+        self.lineup_error = None
+        lineup = bool(usc.objective_lineup())
+        # Copy so we can start filling in data
+        self.objectives_in = copy.deepcopy(
+            usc.get_uncalibrated_objectives(microscope=self.microscope))
+        self._uses_lineup = lineup
+        if not lineup:
+            self.recalculate_db()
+            return
+        try:
+            self.recalculate_db()
+        except Exception as e:
+            self.lineup_error = str(e)
+            print("WARNING: objectives: your lineup is unusable (%s), using microscope defaults" % (e, ))
+            self.objectives_in = copy.deepcopy(
+                usc.get_uncalibrated_objectives(microscope=self.microscope,
+                                                lineup=False))
+            self._uses_lineup = False
+            self.recalculate_db()
 
     def scale_objectives_1x(self):
         # In raw sensor pixels before scaling
@@ -150,16 +195,7 @@ class MicroscopeObjectives:
             objective["y_view"] /= self.magnification
 
     def name_objective(self, objective, objectivei):
-        if "name" in objective:
-            return objective["name"]
-        if "magnification" in objective:
-            if "series" in objective:
-                return "%s %uX" % (objective["series"],
-                                   objective["magnification"])
-            else:
-                return "%uX" % objective["magnification"]
-        else:
-            return "Objective %u" % objectivei
+        return objective_name(objective, objectivei)
 
     def recalculate_db(self):
         objectives_list = copy.deepcopy(self.objectives_in)
@@ -264,13 +300,16 @@ class ObjectiveState:
     Objective DB
     """
 
-    def reload(self):
+    def reload(self, reread=False):
         """
         Recompute the objective DB with current scalars
+        reread: also re-read the objective list (ex: user lineup changed)
         Keeps the selected objective if it still exists
         """
         with self.lock:
             self.objectives = self.microscope.get_objectives()
+            if reread:
+                self.objectives.reload_inputs()
             self.objectives.set_global_scalar(self.global_scalar or 1.0,
                                               recalculate=False)
             self.objectives.set_um_per_pixel_raw_1x(

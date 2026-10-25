@@ -1,4 +1,6 @@
 #!/usr/bin/env -S uv run
+import copy
+import json
 import json5
 import os
 from collections import OrderedDict
@@ -922,31 +924,270 @@ class USCImageProcessingPipeline:
         return self.j.get("plugins", {}).get(name, {})
 
 
+OBJECTIVES_USER_SCHEMA_VERSION = 1
+# objectives.j5 entry fields in display / export order
+OBJECTIVE_FIELDS = ("vendor", "model", "series", "magnification", "na", "wd",
+                    "fl", "thread", "infinity_tube_length", "notes")
+OBJECTIVE_NA_MAX = 1.6
+
+
+def objective_key(vendor, model):
+    return (vendor.strip().upper(), model.strip().upper())
+
+
+def objective_db_find(entry):
+    """objectives.j5 entry => microscope.j5 objectives_db string"""
+    return "vendor: %s, model: %s" % (entry["vendor"], entry["model"])
+
+
+def parse_db_find(s):
+    """
+    "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.28" => dict
+    vendor and model are required
+    """
+    fields = OrderedDict()
+    for part in s.split(","):
+        parts = part.split(":")
+        if len(parts) != 2:
+            raise ValueError(f"db_find fields must be key: value pairs: {s}")
+        k, v = parts[0].strip(), parts[1].strip()
+        if k in ("magnification", "na"):
+            v = float(v)
+        fields[k] = v
+    if not fields.get("vendor") or not fields.get("model"):
+        raise ValueError(f"db_find requires vendor and model: {s}")
+    return fields
+
+
+def _positive_float(entry, k, required=False):
+    v = entry.get(k)
+    if v is None or v == "":
+        if required:
+            raise ValueError(f"{k} is required")
+        return None
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        raise ValueError(f"{k} must be a number")
+    if v <= 0:
+        raise ValueError(f"{k} must be greater than 0")
+    if v == int(v) and k != "na":
+        return int(v)
+    return v
+
+
+def validate_objective_entry(entry, catalog=True):
+    """
+    Normalize a user objective, raising ValueError if invalid
+    catalog: objectives.j5 style entry (vendor and model required)
+    Otherwise an inline microscope.j5 objective (vendor / model optional)
+    """
+    ret = OrderedDict()
+    for k in ("vendor", "model", "series", "thread", "notes", "name"):
+        v = entry.get(k)
+        if v is None:
+            continue
+        v = str(v).strip()
+        if v:
+            ret[k] = v
+    if catalog:
+        if "name" in ret:
+            raise ValueError("Library objectives are named by the lineup")
+        if not ret.get("vendor") or not ret.get("model"):
+            raise ValueError("Vendor and model are required")
+    elif bool(ret.get("vendor")) != bool(ret.get("model")):
+        raise ValueError("Give both vendor and model, or neither")
+    for k in ("vendor", "model"):
+        if "," in ret.get(k, "") or ":" in ret.get(k, ""):
+            raise ValueError(f"{k} may not contain ',' or ':'")
+    ret["magnification"] = _positive_float(entry, "magnification", True)
+    na = _positive_float(entry, "na", True)
+    if na > OBJECTIVE_NA_MAX:
+        raise ValueError(f"na must be at most {OBJECTIVE_NA_MAX}")
+    ret["na"] = na
+    for k in ("wd", "fl", "infinity_tube_length"):
+        v = _positive_float(entry, k)
+        if v is not None:
+            ret[k] = v
+    # Keep fields we don't know about
+    for k, v in entry.items():
+        if k not in ret and k not in OBJECTIVE_FIELDS and k != "name":
+            ret[k] = v
+    return ret
+
+
+def ordered_objective_entry(entry):
+    ret = OrderedDict()
+    for k in OBJECTIVE_FIELDS:
+        if entry.get(k) is not None:
+            ret[k] = entry[k]
+    for k, v in entry.items():
+        if k not in ret:
+            ret[k] = v
+    return ret
+
+
+def objectives_export_json(entries):
+    """objectives.j5 formatted text for the given entries"""
+    j = {"objectives": [ordered_objective_entry(e) for e in entries]}
+    return json.dumps(j, indent=4, separators=(",", ": ")) + "\n"
+
+
 class ObjectiveDB:
-    def __init__(self, fn=None, strict=None):
+    """
+    Objective library
+
+    Shipped entries come from configs/objectives.j5
+    User entries come from user_fn (per install) and replace shipped entries
+    with the same (vendor, model). user_fn also holds user selected objective
+    lineups (by microscope name) that replace the microscope.j5 defaults
+    """
+    def __init__(self, fn=None, strict=None, user_fn=None):
         if fn is None:
             fn = os.path.join(get_configs_dir(), "objectives.j5")
         with open(fn) as f:
             self.j = json5.load(f, object_pairs_hook=OrderedDict)
         # Index by (vendor, model)
-        self.db = OrderedDict()
+        self.shipped = OrderedDict()
         for entry in self.j["objectives"]:
             assert entry["vendor"]
             assert entry["model"]
             # na, magnification is highly encouraged but not required?
-            k = (entry["vendor"].upper(), entry["model"].upper())
-            self.db[k] = entry
+            self.shipped[objective_key(entry["vendor"],
+                                       entry["model"])] = entry
+        self.user_fn = user_fn
+        self.user = OrderedDict()
+        self.lineups = OrderedDict()
+        # Problems found loading the user file
+        self.user_problems = []
+        self.load_user()
         # hack in case needed to bypass short term
         if strict is None:
             strict = os.getenv("PYUSCOPE_STRICT_OBJECTIVEDB", "Y") == "Y"
         self.strict = strict
 
+    """
+    User layer
+    """
+
+    def _rebuild(self):
+        self.db = OrderedDict(self.shipped)
+        self.db.update(self.user)
+
+    def load_user(self):
+        self.user = OrderedDict()
+        self.lineups = OrderedDict()
+        self.user_problems = []
+        if self.user_fn and os.path.exists(self.user_fn):
+            try:
+                j = readj(self.user_fn)
+                if j.get("schema_version",
+                         1) > OBJECTIVES_USER_SCHEMA_VERSION:
+                    raise ValueError("written by a newer pyuscope")
+                for entry in j.get("objectives") or []:
+                    try:
+                        entry = validate_objective_entry(entry)
+                    except ValueError as e:
+                        self._user_problem("skipped objective %s: %s" %
+                                           (dict(entry), e))
+                        continue
+                    self.user[objective_key(entry["vendor"],
+                                            entry["model"])] = entry
+                for name, items in (j.get("lineups") or {}).items():
+                    if items:
+                        self.lineups[name] = list(items)
+            except Exception as e:
+                self._user_problem("failed to load: %s" % (e, ))
+        self._rebuild()
+
+    def _user_problem(self, msg):
+        msg = "%s: %s" % (self.user_fn, msg)
+        print("WARNING: objectives: " + msg)
+        self.user_problems.append(msg)
+
+    def save_user(self):
+        if not self.user_fn:
+            raise ValueError("No user objectives file")
+        j = OrderedDict()
+        j["schema_version"] = OBJECTIVES_USER_SCHEMA_VERSION
+        j["objectives"] = [
+            ordered_objective_entry(e) for e in self.user.values()
+        ]
+        j["lineups"] = self.lineups
+        parent = os.path.dirname(self.user_fn)
+        if parent and not os.path.exists(parent):
+            os.makedirs(parent)
+        tmp = self.user_fn + ".tmp"
+        with open(tmp, "w") as f:
+            f.write(json.dumps(j, indent=4, separators=(",", ": ")) + "\n")
+        os.replace(tmp, self.user_fn)
+
+    def is_user(self, vendor, model):
+        return objective_key(vendor, model) in self.user
+
+    def is_shipped(self, vendor, model):
+        return objective_key(vendor, model) in self.shipped
+
+    def shipped_entry(self, vendor, model):
+        return self.shipped.get(objective_key(vendor, model))
+
+    def set_user_entry(self, entry, save=True):
+        """Add or replace a user library entry. Returns the normalized entry"""
+        entry = validate_objective_entry(entry)
+        self.user[objective_key(entry["vendor"], entry["model"])] = entry
+        self._rebuild()
+        if save:
+            self.save_user()
+        return entry
+
+    def remove_user_entry(self, vendor, model, save=True):
+        k = objective_key(vendor, model)
+        if k not in self.user:
+            return False
+        del self.user[k]
+        self._rebuild()
+        if save:
+            self.save_user()
+        return True
+
+    def get_lineup(self, name):
+        """User objective lineup for microscope name (list) or None"""
+        items = self.lineups.get(name)
+        return copy.deepcopy(items) if items else None
+
+    def set_lineup(self, name, items, save=True):
+        if not items:
+            raise ValueError("Lineup needs at least one objective")
+        self.lineups[name] = copy.deepcopy(list(items))
+        if save:
+            self.save_user()
+
+    def clear_lineup(self, name, save=True):
+        if self.lineups.pop(name, None) is None:
+            return False
+        if save:
+            self.save_user()
+        return True
+
+    """
+    Lookup
+    """
+
     def get(self, vendor, model):
-        return self.db[(vendor.upper(), model.upper())]
+        return self.db[objective_key(vendor, model)]
+
+    def find(self, vendor, model):
+        return self.db.get(objective_key(vendor, model))
 
     def set_defaults_list(self, objectivejs):
         for objectivej in objectivejs:
             self.set_default(objectivej)
+
+    def resolve(self, objectivej):
+        """Copy of objectivej with DB defaults filled in. Raises if not found"""
+        ret = copy.deepcopy(objectivej)
+        self.set_default(ret)
+        return ret
 
     def set_default(self, objectivej):
         """
@@ -962,37 +1203,24 @@ class ObjectiveDB:
         """
         "db_find": "vendor: Mitutoyo, model: 46-145, magnification: 20, na: 0.28",
         """
-        fields = {}
-        for entry in objectivej["db_find"].split(","):
-            try:
-                parts = entry.split(":")
-                if len(parts) != 2:
-                    raise Exception(
-                        f"Fields must have key:value pairs: {entry}")
-                k, v = parts
-                k = k.strip()
-                v = v.strip()
-                if k == "magnification":
-                    v = int(v)
-                if k == "na":
-                    v = float(v)
-                fields[k] = v
-            except:
-                print(f"Failed to parse field: {entry}")
-                raise
-        # Required
+        fields = parse_db_find(objectivej["db_find"])
         vendor = fields["vendor"]
         model = fields["model"]
-        db_entry = self.db.get((vendor.upper(), model.upper()))
+        db_entry = self.find(vendor, model)
         if not db_entry:
             raise ValueError(f"Objective {vendor} {model} not found in db")
         # Validate consistency on optional keys
         for k, v in fields.items():
-            db_has = db_entry[k]
+            db_has = db_entry.get(k)
+            if k in ("vendor", "model"):
+                continue
             if db_has != v:
-                raise ValueError(
-                    f"db_find {vendor} {model}: config has {v} but db has {db_has}"
-                )
+                msg = f"db_find {vendor} {model}: config has {v} but db has {db_has}"
+                # User library takes precedence over shipped configs
+                if self.is_user(vendor, model):
+                    print("WARNING: " + msg + " (using your objective library)")
+                    continue
+                raise ValueError(msg)
         for k, v in db_entry.items():
             # Anything user has already set
             if k not in objectivej:
@@ -1147,10 +1375,45 @@ class USC:
         )
         """
 
-    def get_uncalibrated_objectives(self, microscope=None):
+    def objective_lineup_name(self):
+        """Key of this microscope's lineup in the user objectives file"""
+        if self.microscope is None:
+            return None
+        return self.microscope.name
+
+    def objective_lineup(self):
+        """User selected objectives (list) for this microscope or None"""
+        name = self.objective_lineup_name()
+        if not name:
+            return None
+        return self.bc.objective_db.get_lineup(name)
+
+    def get_uncalibrated_objectives(self, microscope=None, lineup=True):
         """
         Get baseline objective configuration without system specific scaling applied
+        lineup: use the user selected objectives (if any) over microscope.j5
+        Unusable user objectives are skipped with a warning
         """
+        if microscope:
+            self.microscope = microscope
+        items = self.objective_lineup() if lineup else None
+        if items:
+            ret = []
+            for item in items:
+                try:
+                    self.bc.objective_db.resolve(item)
+                    ret.append(item)
+                except Exception as e:
+                    print("WARNING: objectives: skipping %s: %s" % (item, e))
+            if ret:
+                return ret
+            print(
+                "WARNING: objectives: no usable objectives in your lineup, using microscope defaults"
+            )
+        return self.default_objectives(microscope)
+
+    def default_objectives(self, microscope=None):
+        """microscope.j5 objectives for this system"""
         system = self.find_system(microscope)
         # Shorthand notation?
 
@@ -1357,7 +1620,6 @@ class GUI:
 class BaseConfig:
     def __init__(self, j=None):
         self.j = j
-        self.objective_db = ObjectiveDB()
         # self.joystick = JoystickConfig(jbc=self.j.get("joystick", {}))
 
         # self._enblend_cli = None
@@ -1365,6 +1627,7 @@ class BaseConfig:
         self._align_image_stack_cli = None
 
         self.init_dirs()
+        self.objective_db = ObjectiveDB(user_fn=self.user_objectives_fn())
         self.cache_constants()
 
     def init_dirs(self):
@@ -1410,6 +1673,10 @@ class BaseConfig:
 
     def get_data_dir(self):
         return self._data_dir
+
+    def user_objectives_fn(self):
+        """User objective library and lineups (per install)"""
+        return os.path.join(self._data_dir, "objectives.j5")
 
     def argus_cache_fn(self):
         """Argus' persistent GUI state (objective, imaging options, ...)"""

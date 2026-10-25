@@ -28,6 +28,7 @@ from uscope.gui.widgets import TopWidget, BatchImageTab, StitchingTab, MeasureTa
 from uscope.gui.imaging import MainTab, PanoramaTab, ImagerTab
 from uscope.gui.scripting import ScriptingTab
 from uscope.gui.calibration import CalibrationTab, OpticsTab
+from uscope.gui.objectives import ObjectivesTab
 from uscope.gui.minimap import MinimapTab
 from uscope.gui.snapshot_viewer import SnapshotViewerTab
 
@@ -111,6 +112,7 @@ class ArgusOptionsWindow(QWidget):
 
         self.tabs = QTabWidget()
         self.tabs.addTab(general, "General")
+        self.tabs.addTab(self.mw.objectivesTab, "Objectives")
         self.tabs.addTab(self.mw.opticsTab, "Optics")
         self.tabs.addTab(self.mw.calibrationTab, "Calibration")
         top = QVBoxLayout()
@@ -328,6 +330,9 @@ class MainWindow(AMainWindow):
         self.ac.batchTab = self.batchTab
 
         # Shown in File => Advanced options, not as main tabs
+        self.objectivesTab = ObjectivesTab(ac=self.ac,
+                                           aname="objectives",
+                                           parent=self)
         self.opticsTab = OpticsTab(ac=self.ac, aname="optics", parent=self)
         self.calibrationTab = CalibrationTab(ac=self.ac,
                                              aname="calibration",
@@ -383,6 +388,9 @@ class MainWindow(AMainWindow):
         videoMenu.addAction(self.displayAdvancedObjective)
         self.displayAdvancedObjective.triggered.connect(
             self.displayAdvancedObjectiveTriggered)
+        self.manageObjectives = QAction("Manage objectives…", self)
+        videoMenu.addAction(self.manageObjectives)
+        self.manageObjectives.triggered.connect(self.manageObjectivesTriggered)
         self.enableRtspServer = QAction("RTSP Server", self, checkable=True)
         if config.bc.dev_mode():
             videoMenu.addAction(self.enableRtspServer)
@@ -724,6 +732,12 @@ class MainWindow(AMainWindow):
 
     def displayArgusOptionsTriggered(self):
         self.argus_options_window.show()
+
+    def manageObjectivesTriggered(self):
+        window = self.argus_options_window
+        window.tabs.setCurrentWidget(self.objectivesTab)
+        window.show()
+        window.raise_()
 
     def enableRtspServerTriggered(self):
         self.ac.vidpip.enable_rtsp_server(

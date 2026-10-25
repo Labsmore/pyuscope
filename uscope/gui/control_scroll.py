@@ -4,6 +4,8 @@ Imager controls (exposure, white balance, etc)
 A Qt view over the imager property model (see uscope/imager/properties.py)
 """
 
+import math
+
 from PyQt5 import Qt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -79,18 +81,27 @@ class BoolDisplayer(ICSDisplayer):
 class IntDisplayer(ICSDisplayer):
     def slider_changed(self):
         val = int(self.slider.value())
-        self.value_label.setText(str(val))
+        self.value_label.setText(self.value_text(val))
         self.gui_changed(val)
+
+    def value_text(self, val):
+        return str(val)
+
+    def make_slider(self):
+        slider = QSlider(Qt.Horizontal)
+        slider.setMinimum(self.config["min"])
+        slider.setMaximum(self.config["max"])
+        return slider
 
     def assemble(self, layoutg, row):
         self.label = QLabel(self.config["disp_name"])
         layoutg.addWidget(self.label, row, 0)
-        self.value_label = QLabel(str(self.config["default"]))
+        self.value_label = QLabel()
+        if self.config["default"] is not None:
+            self.value_label.setText(self.value_text(self.config["default"]))
         layoutg.addWidget(self.value_label, row, 1)
         row += 1
-        self.slider = QSlider(Qt.Horizontal)
-        self.slider.setMinimum(self.config["min"])
-        self.slider.setMaximum(self.config["max"])
+        self.slider = self.make_slider()
         if self.config["default"] is not None:
             self.slider.setValue(self.config["default"])
         self.slider.valueChanged.connect(self.slider_changed)
@@ -100,7 +111,7 @@ class IntDisplayer(ICSDisplayer):
 
     def disp_property_set_widgets(self, val):
         self.slider.setValue(int(val))
-        self.value_label.setText(str(val))
+        self.value_label.setText(self.value_text(val))
 
     def setEnabled(self, enabled):
         self.slider.setEnabled(enabled)
@@ -111,10 +122,161 @@ class IntDisplayer(ICSDisplayer):
         self.slider.setVisible(val)
 
 
+def format_us(us):
+    if us >= 1000000:
+        return f"{us / 1000000:g} s"
+    if us >= 1000:
+        return f"{us / 1000:g} ms"
+    return f"{us:g} us"
+
+
+def format_gain_percent(val):
+    return f"{val / 100:g}x"
+
+
+UNIT_FORMATTERS = {
+    "us": format_us,
+    "gain_percent": format_gain_percent,
+}
+
+
+def log_ticks(lo, hi):
+    """
+    Round values to label across [lo, hi]
+    Decades only if the range is wide, otherwise 1-2-5
+    """
+    mults = (1, ) if math.log10(hi / lo) >= 3 else (1, 2, 5)
+    ret = []
+    for exp in range(math.floor(math.log10(lo)), math.ceil(math.log10(hi)) + 1):
+        for mult in mults:
+            val = mult * 10**exp
+            if lo <= val <= hi:
+                ret.append(val)
+    if len(ret) < 2:
+        ret = [lo, hi]
+    return ret
+
+
+class LogScaleLabels(QWidget):
+    """
+    Tick marks + labels drawn under a LogSlider, aligned to the handle center
+    """
+    TICK_LEN = 4
+
+    def __init__(self, log_slider, formatter, parent=None):
+        super().__init__(parent=parent)
+        self.log_slider = log_slider
+        self.formatter = formatter
+        self.ticks = log_ticks(log_slider.lo, log_slider.hi)
+        self.setMinimumHeight(self.fontMetrics().height() + self.TICK_LEN + 2)
+
+    def tick_x(self, val):
+        slider = self.log_slider.slider
+        opt = QStyleOptionSlider()
+        slider.initStyleOption(opt)
+        style = slider.style()
+        groove = style.subControlRect(QStyle.CC_Slider, opt,
+                                      QStyle.SC_SliderGroove, slider)
+        handle = style.subControlRect(QStyle.CC_Slider, opt,
+                                      QStyle.SC_SliderHandle, slider)
+        span = groove.width() - handle.width()
+        x = groove.x() + handle.width() // 2 + QStyle.sliderPositionFromValue(
+            slider.minimum(), slider.maximum(),
+            self.log_slider.val2pos(val), span)
+        return self.mapFromGlobal(slider.mapToGlobal(QPoint(x, 0))).x()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setPen(self.palette().color(QPalette.WindowText))
+        fm = self.fontMetrics()
+        last_right = None
+        for val in self.ticks:
+            x = self.tick_x(val)
+            text = self.formatter(val)
+            w = fm.horizontalAdvance(text)
+            left = max(0, min(self.width() - w, x - w // 2))
+            # Drop labels that would collide when the pane is narrow
+            if last_right is not None and left < last_right + fm.averageCharWidth():
+                continue
+            last_right = left + w
+            painter.drawLine(x, 0, x, self.TICK_LEN)
+            painter.drawText(left, self.TICK_LEN + 1 + fm.ascent(), text)
+
+
+class LogSlider(QWidget):
+    """
+    Slider over [vmin, vmax] with log spacing
+    API mirrors the subset of QSlider used by IntDisplayer
+    """
+    valueChanged = pyqtSignal(int)
+    STEPS = 1000
+
+    def __init__(self, vmin, vmax, formatter, log_min=1, parent=None):
+        super().__init__(parent=parent)
+        self.lo = max(vmin, log_min, 1)
+        self.hi = max(vmax, self.lo + 1)
+
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setMinimum(0)
+        self.slider.setMaximum(self.STEPS)
+        self.slider.setPageStep(self.STEPS // 20)
+        self.slider.valueChanged.connect(
+            lambda pos: self.valueChanged.emit(self.pos2val(pos)))
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.slider)
+        layout.addWidget(LogScaleLabels(self, formatter))
+        self.setLayout(layout)
+
+    def pos2val(self, pos):
+        return int(
+            round(self.lo * (self.hi / self.lo)**(pos / self.STEPS)))
+
+    def val2pos(self, val):
+        if val <= self.lo:
+            return 0
+        if val >= self.hi:
+            return self.STEPS
+        return int(
+            round(self.STEPS * math.log(val / self.lo) /
+                  math.log(self.hi / self.lo)))
+
+    def value(self):
+        return self.pos2val(self.slider.value())
+
+    def setValue(self, val):
+        self.slider.setValue(self.val2pos(val))
+
+
+class LogIntDisplayer(IntDisplayer):
+    def formatter(self):
+        return UNIT_FORMATTERS.get(self.config.get("units"), str)
+
+    def value_text(self, val):
+        units = self.config.get("units")
+        if units not in UNIT_FORMATTERS:
+            return str(val)
+        return f"{val} ({UNIT_FORMATTERS[units](val)})"
+
+    def make_slider(self):
+        return LogSlider(self.config["min"],
+                         self.config["max"],
+                         self.formatter(),
+                         log_min=self.config.get("log_min", 1))
+
+
 DISPLAYERS = {
     "int": IntDisplayer,
     "bool": BoolDisplayer,
 }
+
+
+def displayer_class(prop):
+    if prop["type"] == "int" and prop.get("scale") == "log":
+        return LogIntDisplayer
+    return DISPLAYERS[prop["type"]]
 
 
 class ImagerControlScroll(QScrollArea):
@@ -221,7 +383,7 @@ class ImagerControlScroll(QScrollArea):
             groupbox.setLayout(layoutg)
 
             for prop in props.values():
-                element = DISPLAYERS[prop["type"]](prop, cs=self)
+                element = displayer_class(prop)(prop, cs=self)
                 row = element.assemble(layoutg, row)
                 element.setEnabled(prop["gui_driven"])
                 # Normal users don't need to change these

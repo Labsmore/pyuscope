@@ -20,10 +20,16 @@ groups_gst = OrderedDict([
         {
             "prop_name": PROP_DISP_EXPOSURE_TIME,
             "disp_name": "expotime",
+            "scale": "log",
+            # Reported min is 0 which can't be log scaled
+            "log_min": 10,
+            "units": "us",
         },
         {
             "prop_name": PROP_DISP_EXPOSURE_GAIN,
             "disp_name": "expoagain",
+            "scale": "log",
+            "units": "gain_percent",
         },
     ]),
     ("Misc", [

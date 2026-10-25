@@ -25,11 +25,12 @@ It captures a few frames the same way they do and reports:
 Each problem comes with a suggested fix. The preview shows the detected dot
 (green = ready, red = not ready) and the region it must stay inside (blue)
 
-Options:
-  * Auto exposure: turns off camera auto exposure (it targets average
+Evaluate checks the current setup without changing anything
+Evaluate + tune first runs the selected tuning steps:
+  * Exposure: turns off camera auto exposure (it targets average
     brightness, which blows out a small bright dot) and adjusts exposure
     until the dot just saturates while the background stays dark
-  * Autofocus: focuses on the dot first (needs Z). The new focus is kept
+  * Focus: autofocuses on the dot (needs Z). The new focus is kept
 
 Re-run it after changing objective, illumination or target
 Scripting: fiducial_check(auto_exposure=True, autofocus=True)

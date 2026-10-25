@@ -153,12 +153,18 @@ class CalRunWidget(QWidget):
             layout.addWidget(first_l)
 
         row = QHBoxLayout()
-        row.addWidget(QLabel("Quality"))
         self.quality_cb = QComboBox()
         self.quality_cb.addItems([Quality.QUICK, Quality.FULL])
-        self.quality_cb.setCurrentText(Quality.FULL)
-        row.addWidget(self.quality_cb)
+        if cal.evaluate_only:
+            # Setup steps are run repeatedly while adjusting: keep them fast
+            self.quality_cb.setCurrentText(Quality.QUICK)
+        else:
+            self.quality_cb.setCurrentText(Quality.FULL)
+            row.addWidget(QLabel("Quality"))
+            row.addWidget(self.quality_cb)
         self.option_cbs = {}
+        if cal.evaluate_only and cal.options:
+            row.addWidget(QLabel("Tune:"))
         for opt in cal.options:
             cb = QCheckBox(opt.label)
             cb.setChecked(opt.default)
@@ -168,12 +174,38 @@ class CalRunWidget(QWidget):
         row.addStretch()
         layout.addLayout(row)
 
-        self.preflight_te = QTextEdit()
-        self.preflight_te.setReadOnly(True)
-        self.preflight_te.setMaximumHeight(120)
-        self.preflight_te.setPlaceholderText(
-            "Check preflight to see what must be set up before running")
-        layout.addWidget(self.preflight_te)
+        btns = QHBoxLayout()
+        self.check_pb = None
+        self.apply_pb = None
+        self.stop_pb = QPushButton("Stop")
+        self.stop_pb.clicked.connect(self._stop)
+        self.report_pb = QPushButton("Open report")
+        self.report_pb.clicked.connect(self._open_report)
+        if cal.evaluate_only:
+            evaluate_pb = QPushButton("Evaluate")
+            evaluate_pb.setToolTip("Check the current setup without changing it")
+            evaluate_pb.clicked.connect(lambda: self._run(tune=False))
+            tune_pb = QPushButton("Evaluate + tune")
+            tune_pb.setToolTip("Apply the selected tuning steps, then check")
+            tune_pb.clicked.connect(lambda: self._run(tune=True))
+            self.run_pbs = [evaluate_pb, tune_pb]
+            widgets = self.run_pbs + [self.stop_pb, self.report_pb]
+        else:
+            self.check_pb = QPushButton("Check preflight")
+            self.check_pb.clicked.connect(self._preflight)
+            run_pb = QPushButton("Collect + analyze")
+            run_pb.clicked.connect(lambda: self._run())
+            self.run_pbs = [run_pb]
+            self.apply_pb = QPushButton("Apply results")
+            self.apply_pb.clicked.connect(self._apply)
+            widgets = [
+                self.check_pb, run_pb, self.stop_pb, self.apply_pb,
+                self.report_pb
+            ]
+        for w in widgets:
+            btns.addWidget(w)
+        btns.addStretch()
+        layout.addLayout(btns)
 
         self.progress = QProgressBar()
         layout.addWidget(self.progress)
@@ -182,41 +214,23 @@ class CalRunWidget(QWidget):
 
         self.log_te = QTextEdit()
         self.log_te.setReadOnly(True)
+        layout.addWidget(self.log_te, 1)
         self.image_l = QLabel()
         self.image_l.setAlignment(Qt.AlignCenter)
         self.image_l.setVisible(False)
-        output = QHBoxLayout()
-        output.addWidget(self.log_te, 1)
-        output.addWidget(self.image_l)
-        layout.addLayout(output, 1)
-
-        btns = QHBoxLayout()
-        self.check_pb = QPushButton("Check preflight")
-        self.check_pb.clicked.connect(self._preflight)
-        self.run_pb = QPushButton("Collect + analyze")
-        self.run_pb.clicked.connect(self._run)
-        self.stop_pb = QPushButton("Stop")
-        self.stop_pb.clicked.connect(self._stop)
-        self.apply_pb = QPushButton("Apply results")
-        self.apply_pb.clicked.connect(self._apply)
-        self.report_pb = QPushButton("Open report")
-        self.report_pb.clicked.connect(self._open_report)
-        for w in (self.check_pb, self.run_pb, self.stop_pb, self.apply_pb,
-                  self.report_pb):
-            btns.addWidget(w)
-        btns.addStretch()
-        layout.addLayout(btns)
+        layout.addWidget(self.image_l)
         self.setLayout(layout)
         self.update_buttons()
 
     def names(self):
         return cal_run_names(self.name)
 
-    def options(self):
+    def options(self, tune=True):
         return {
-            self.name:
-            {k: cb.isChecked()
-             for k, cb in self.option_cbs.items()}
+            self.name: {
+                k: tune and cb.isChecked()
+                for k, cb in self.option_cbs.items()
+            }
         }
 
     def running(self):
@@ -228,15 +242,17 @@ class CalRunWidget(QWidget):
         self.back_pb.setEnabled(not mine)
         for cb in self.option_cbs.values():
             cb.setEnabled(not mine)
-        self.run_pb.setEnabled(other is None)
-        if other is None:
-            self.run_pb.setToolTip("")
-        elif not mine:
-            self.run_pb.setToolTip("%s is running" % get_cal(other.name).title)
+        for pb in self.run_pbs:
+            pb.setEnabled(other is None)
+        if other is not None and not mine:
+            self.status.setText("%s is running" % get_cal(other.name).title)
+        elif other is None and self.status.text().endswith(" is running"):
+            self.status.setText("Idle")
         self.stop_pb.setEnabled(mine)
         have_results = (not mine and self.plugin is not None
                         and self.plugin.cal_session is not None)
-        self.apply_pb.setEnabled(have_results)
+        if self.apply_pb is not None:
+            self.apply_pb.setEnabled(have_results)
         self.report_pb.setEnabled(have_results)
 
     def _preflight(self):
@@ -256,9 +272,9 @@ class CalRunWidget(QWidget):
                     lines.append("  [%s] %s %s" % (mark, c.name, c.hint or ""))
             except Exception as e:
                 lines.append("  preflight error: %s" % e)
-        self.preflight_te.setText("\n".join(lines))
+        self._log("Preflight:\n" + "\n".join(lines))
 
-    def _run(self):
+    def _run(self, tune=True):
         if self.tab.running_page is not None:
             return
         quality = self.quality_cb.currentText()
@@ -266,7 +282,7 @@ class CalRunWidget(QWidget):
                                            self.names(),
                                            quality=quality,
                                            host=self.host,
-                                           options=self.options())
+                                           options=self.options(tune=tune))
         self.progress.setValue(0)
         self.status.setText("Running…")
         self.tab.set_running(self)

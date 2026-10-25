@@ -57,13 +57,14 @@ class FiducialCal(Calibration):
                    "focus.")
     scope_kind = ScopeKind.UNIT
     needs_fiducial = True
+    evaluate_only = True
     options = (
         CalOption(
-            "auto_exposure", "Auto exposure", False,
+            "auto_exposure", "Exposure", True,
             "Set exposure so the dot is (just) saturated and the background "
             "stays dark. Turns off the camera's auto exposure, which targets "
             "average brightness and would blow out the dot"),
-        CalOption("autofocus", "Autofocus", False,
+        CalOption("autofocus", "Focus", True,
                   "Autofocus on the dot before checking (needs Z)"),
     )
 

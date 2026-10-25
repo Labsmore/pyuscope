@@ -76,6 +76,9 @@ class Calibration:
     soft_requires = ()
     # CalOption list
     options = ()
+    # Setup / verification step: nothing to apply. GUI offers Evaluate
+    # (options off) and Evaluate + tune (selected options on)
+    evaluate_only = False
     needs_z = False
     needs_fiducial = False
     needs_dark = False

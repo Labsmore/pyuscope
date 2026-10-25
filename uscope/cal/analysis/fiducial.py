@@ -189,7 +189,7 @@ def analyze_image(im, threshold=THRESHOLD, move_fraction=MOVE_FRACTION):
             Issue(
                 "dot_level", True,
                 "Dot too dim (level %0.0f, want >= %u)" % (dot, DOT_MIN),
-                "Increase exposure / illumination (Auto exposure option)"))
+                "Increase exposure / illumination (Evaluate + tune)"))
     if bg > BG_MAX:
         issues.append(
             Issue(
@@ -272,7 +272,7 @@ def analyze_image(im, threshold=THRESHOLD, move_fraction=MOVE_FRACTION):
         issues.append(
             Issue("focus", False,
                   "Dot edge looks soft (~%0.0f px)" % edge,
-                  "Focus on the dot (Autofocus option)"))
+                  "Focus on the dot (Evaluate + tune)"))
     ret["ok"] = not any(i.fatal for i in issues)
     return ret
 

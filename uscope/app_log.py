@@ -1,6 +1,10 @@
 """
-Application log file (ex: data/log.txt) shared by the GUI log window and
-stderr
+Application log file shared by the GUI log window and stderr
+
+One file per launch: data/log/<launch time>[_<microscope>][_<tag>].txt
+ex: data/log/2026-08-19T01-18-16_lip-m2.txt
+The microscope name isn't known until the config is resolved (possibly via
+GRBL auto config), so the file is opened without it and renamed once known
 
 The GUI log window intentionally doesn't show tracebacks
 However they are critical for debugging, so stderr is tee'd into the log file
@@ -19,6 +23,37 @@ import threading
 
 # The AppLog installed by install(), if any
 _app_log = None
+# Shared by all log files from this process so they can be matched up
+_launch_ts = None
+
+
+def launch_ts():
+    global _launch_ts
+
+    if _launch_ts is None:
+        _launch_ts = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    return _launch_ts
+
+
+def log_dir(data_dir, mkdir=True):
+    ret = os.path.join(data_dir, "log")
+    if mkdir:
+        os.makedirs(ret, exist_ok=True)
+    return ret
+
+
+def log_fn(data_dir, microscope=None, tag=None, mkdir=True):
+    """
+    ex: log_fn("data", "lip-m2", "script")
+    => data/log/2026-08-19T01-18-16_lip-m2_script.txt
+    """
+    parts = [launch_ts()]
+    if microscope:
+        parts.append(microscope.replace(os.sep, "-"))
+    if tag:
+        parts.append(tag)
+    return os.path.join(log_dir(data_dir, mkdir=mkdir),
+                        "_".join(parts) + ".txt")
 
 
 class AppLog:
@@ -28,6 +63,18 @@ class AppLog:
         self.lock = threading.Lock()
         # Is the file at the start of a line?
         self.nl = True
+        # Set by install() so the file can be renamed once the microscope is known
+        self.data_dir = None
+        self.tag = None
+        self.microscope = None
+
+    def rename(self, fn):
+        """Move the (open) log file. Writes continue to the same file"""
+        with self.lock:
+            if os.path.exists(fn):
+                raise FileExistsError(fn)
+            os.replace(self.fn, fn)
+            self.fn = fn
 
     def _write(self, s):
         if s:
@@ -99,29 +146,25 @@ def get():
     return _app_log
 
 
-def rotate(fn, keep=3):
+def install(data_dir, tag=None, stdout=False):
     """
-    Shift fn => fn.1 => fn.2 ... so a restart after a crash keeps the crash log
-    """
-    for i in range(keep - 1, 0, -1):
-        src = "%s.%u" % (fn, i)
-        if os.path.exists(src):
-            os.replace(src, "%s.%u" % (fn, i + 1))
-    if os.path.exists(fn):
-        os.replace(fn, fn + ".1")
-
-
-def install(fn, stdout=False, mode="w"):
-    """
-    Open the log file and tee stderr (and optionally stdout) into it
+    Open a new log file in data_dir/log and tee stderr (and optionally stdout)
+    into it
+    tag: distinguishes apps that may run at the same time (ex: "headless")
     Returns the AppLog
     """
     global _app_log
 
     assert _app_log is None, "app log already installed"
-    if mode == "w":
-        rotate(fn)
-    _app_log = AppLog(fn, mode=mode)
+    try:
+        log = AppLog(log_fn(data_dir, tag=tag), mode="x")
+    except FileExistsError:
+        # Another launch of the same app in the same second
+        tag = "_".join(filter(None, (tag, "pid%u" % os.getpid())))
+        log = AppLog(log_fn(data_dir, tag=tag), mode="x")
+    log.data_dir = data_dir
+    log.tag = tag
+    _app_log = log
     if sys.stderr is not None:
         sys.stderr = StreamTee(sys.stderr, _app_log, "stderr")
     if stdout and sys.stdout is not None:
@@ -140,6 +183,23 @@ def uninstall():
             setattr(sys, name, stream.stream)
     _app_log.close()
     _app_log = None
+
+
+def set_microscope_name(name):
+    """
+    Add the microscope name to the installed log's file name
+    Only the first call renames: later microscopes in the same process are ignored
+    """
+    log = _app_log
+    if log is None or log.data_dir is None or log.microscope or not name:
+        return
+    log.microscope = name
+    fn = log_fn(log.data_dir, microscope=name, tag=log.tag)
+    try:
+        log.rename(fn)
+    except Exception as e:
+        print("WARNING: failed to rename log %s => %s: %s" % (log.fn, fn, e),
+              file=sys.stderr)
 
 
 def install_qt_message_handler():

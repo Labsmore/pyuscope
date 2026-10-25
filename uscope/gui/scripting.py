@@ -7,6 +7,7 @@ from uscope.gui.input_widget import InputWidget
 from uscope.scripting import ScriptHost, ScriptRunner
 from uscope.util import readj, writej
 from uscope.threads import ShutdownPhase
+from uscope import app_log
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -80,17 +81,15 @@ class ScriptingTab(ArgusTab):
         # Called once from plugin_done(), ex: to remove an instrument after stopping
         self._after_done = None
 
-        # Each tab truncates its log at startup => one file per tab
+        # One file per tab per launch
         if instrument_config is None:
-            log_name = "script_log.txt"
+            tag = "script"
         else:
-            log_name = "script_log_%s.txt" % instrument_config["name"]
-        fn = os.path.join(self.ac.microscope.usc.bc.get_data_dir(), log_name)
-        existed = os.path.exists(fn)
+            tag = "script_%s" % instrument_config["name"]
+        fn = app_log.log_fn(self.ac.microscope.usc.bc.get_data_dir(),
+                            self.ac.microscope.name,
+                            tag=tag)
         self.log_all_fd = open(fn, "w+")
-        if existed:
-            self.log_all_fd.write("\n\n\n")
-            self.log_all_fd.flush()
 
         self.host = QtScriptHost(parent=self)
         self.host.log_sig.connect(self.log_local)

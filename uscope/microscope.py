@@ -5,6 +5,7 @@ from uscope.objective import MicroscopeObjectives, ObjectiveState
 from uscope.imager import gst
 from uscope.motion.grbl import grbl_mconfig
 from uscope.subsystem import NoSuchFunction
+from uscope import app_log
 import threading
 import os
 """
@@ -151,6 +152,7 @@ class Microscope:
         if usc is None:
             usc = get_usc(microscope=self)
         self.usc = usc
+        app_log.set_microscope_name(self.name)
         print(f"Microscope config: {self.name}"
               f" (selected by: {self.config_reason}), S/N {self._serial}")
 

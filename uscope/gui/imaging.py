@@ -1693,8 +1693,8 @@ class MainTab(ArgusTab):
         self.app_log = app_log.get()
         if self.app_log is None:
             self.app_log = app_log.AppLog(
-                os.path.join(self.ac.microscope.usc.bc.get_data_dir(),
-                             "log.txt"))
+                app_log.log_fn(self.ac.microscope.usc.bc.get_data_dir(),
+                               self.ac.microscope.name))
         # must be created early to accept early logging
         # not displayed until later though
         self.log_widget = QTextEdit()

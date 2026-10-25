@@ -18,7 +18,6 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
 import copy
-import os
 import traceback
 import threading
 
@@ -779,8 +778,7 @@ def parse_args():
 
 def main():
     try:
-        app_log.install(os.path.join(config.get_bc().get_data_dir(),
-                                     "log.txt"))
+        app_log.install(config.get_bc().get_data_dir())
         app_log.install_qt_message_handler()
         gstwidget_main(MainWindow, parse_args=parse_args)
     except Exception as e:

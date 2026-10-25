@@ -3,6 +3,7 @@
 Log file plumbing: stderr / exceptions tee'd into the app log file
 """
 
+import glob
 import io
 import os
 import re
@@ -20,6 +21,8 @@ REPO_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", ".."))
 
 TS_RE = r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3}"
+# Log file name timestamp
+FN_TS_RE = r"\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d"
 
 
 class AppLogTestCase(unittest.TestCase):
@@ -31,7 +34,18 @@ class AppLogTestCase(unittest.TestCase):
         app_log.uninstall()
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def read(self):
+    def log_files(self, data_dir=None):
+        return sorted(
+            glob.glob(os.path.join(data_dir or self.tmp, "log", "*.txt")))
+
+    def read(self, data_dir=None):
+        """Read the one log file installed into data_dir"""
+        fns = self.log_files(data_dir)
+        self.assertEqual(len(fns), 1, fns)
+        with open(fns[0]) as f:
+            return f.read()
+
+    def read_fn(self):
         with open(self.fn) as f:
             return f.read()
 
@@ -43,7 +57,7 @@ class TestAppLog(AppLogTestCase):
         log.write_stream("b\nc\n", "stderr")
         log.write_stream("d\n", "stderr")
         log.close()
-        lines = self.read().split("\n")
+        lines = self.read_fn().split("\n")
         self.assertEqual(len(lines), 4)
         self.assertRegex(lines[0], "^" + TS_RE + " stderr: ab$")
         self.assertRegex(lines[1], "^" + TS_RE + " stderr: c$")
@@ -55,28 +69,89 @@ class TestAppLog(AppLogTestCase):
         log.write_stream("partial", "stderr")
         log.write_log("gui message\n")
         log.close()
-        self.assertRegex(self.read(),
+        self.assertRegex(self.read_fn(),
                          "^" + TS_RE + " stderr: partial\ngui message\n$")
 
-    def test_rotate(self):
-        for i in range(5):
-            with open(self.fn, "w") as f:
-                f.write("run %u" % i)
-            app_log.rotate(self.fn, keep=3)
-        self.assertFalse(os.path.exists(self.fn))
-        for i, run in ((1, 4), (2, 3), (3, 2)):
-            with open("%s.%u" % (self.fn, i)) as f:
-                self.assertEqual(f.read(), "run %u" % run)
-        self.assertFalse(os.path.exists(self.fn + ".4"))
+    def test_log_fn(self):
+        fn = app_log.log_fn(self.tmp, "lip-m2", "script")
+        self.assertEqual(os.path.dirname(fn), os.path.join(self.tmp, "log"))
+        self.assertTrue(os.path.isdir(os.path.dirname(fn)))
+        self.assertRegex(os.path.basename(fn),
+                         "^" + FN_TS_RE + "_lip-m2_script.txt$")
+        self.assertRegex(os.path.basename(app_log.log_fn(self.tmp)),
+                         "^" + FN_TS_RE + ".txt$")
+        # Same timestamp for all files from this process
+        self.assertEqual(
+            os.path.basename(app_log.log_fn(self.tmp))[:-4],
+            os.path.basename(fn).split("_")[0])
 
 
 class TestInstall(AppLogTestCase):
+    def test_file_name(self):
+        old_stderr = sys.stderr
+        sys.stderr = io.StringIO()
+        try:
+            log = app_log.install(self.tmp, tag="headless")
+            self.assertRegex(os.path.basename(log.fn),
+                             "^" + FN_TS_RE + "_headless.txt$")
+            sys.stderr.write("before\n")
+            app_log.set_microscope_name("lip-m2")
+            self.assertRegex(os.path.basename(log.fn),
+                             "^" + FN_TS_RE + "_lip-m2_headless.txt$")
+            # Only the first microscope renames
+            app_log.set_microscope_name("other")
+            self.assertIn("lip-m2", log.fn)
+            sys.stderr.write("after\n")
+            app_log.uninstall()
+        finally:
+            sys.stderr = old_stderr
+        self.assertEqual(self.log_files(), [log.fn])
+        content = self.read()
+        self.assertRegex(content, TS_RE + " stderr: before\n")
+        self.assertRegex(content, TS_RE + " stderr: after\n")
+
+    def test_no_clobber(self):
+        old_stderr = sys.stderr
+        sys.stderr = io.StringIO()
+        try:
+            first = app_log.install(self.tmp).fn
+            app_log.uninstall()
+            # Same second, same app
+            second = app_log.install(self.tmp).fn
+            app_log.uninstall()
+        finally:
+            sys.stderr = old_stderr
+        self.assertNotEqual(first, second)
+        self.assertEqual(self.log_files(), sorted([first, second]))
+
+    def test_rename_fail(self):
+        terminal = io.StringIO()
+        old_stderr = sys.stderr
+        sys.stderr = terminal
+        try:
+            log = app_log.install(self.tmp)
+            orig = log.fn
+            # Occupy the target name
+            with open(app_log.log_fn(self.tmp, "lip-m2"), "w") as f:
+                f.write("someone else")
+            app_log.set_microscope_name("lip-m2")
+            self.assertEqual(log.fn, orig)
+            sys.stderr.write("still logging\n")
+            app_log.uninstall()
+        finally:
+            sys.stderr = old_stderr
+        self.assertIn("WARNING: failed to rename log", terminal.getvalue())
+        with open(orig) as f:
+            content = f.read()
+        self.assertIn("WARNING: failed to rename log", content)
+        self.assertIn("still logging", content)
+
     def test_stderr_tee(self):
         terminal = io.StringIO()
         old_stderr = sys.stderr
         sys.stderr = terminal
         try:
-            log = app_log.install(self.fn)
+            log = app_log.install(self.tmp)
             self.assertIs(app_log.get(), log)
             log.write_log("gui only\n")
             try:
@@ -100,7 +175,7 @@ class TestInstall(AppLogTestCase):
         old_stderr = sys.stderr
         sys.stderr = io.StringIO()
         try:
-            app_log.install(self.fn)
+            app_log.install(self.tmp)
 
             def crash():
                 raise RuntimeError("thread crash")
@@ -116,16 +191,20 @@ class TestInstall(AppLogTestCase):
     def test_stdout_optional(self):
         old_stdout = sys.stdout
         sys.stdout = io.StringIO()
+        no_stdout_dir = os.path.join(self.tmp, "no_stdout")
+        stdout_dir = os.path.join(self.tmp, "stdout")
         try:
-            app_log.install(self.fn)
+            app_log.install(no_stdout_dir)
             print("not logged")
             app_log.uninstall()
-            app_log.install(self.fn, stdout=True)
+            app_log.install(stdout_dir, stdout=True)
             print("logged")
             app_log.uninstall()
         finally:
             sys.stdout = old_stdout
-        self.assertRegex(self.read(), "^" + TS_RE + " stdout: logged\n$")
+        self.assertEqual(self.read(no_stdout_dir), "")
+        self.assertRegex(self.read(stdout_dir),
+                         "^" + TS_RE + " stdout: logged\n$")
 
     def test_reentrant_write(self):
         """Something printing to stderr while logging must not recurse"""
@@ -139,7 +218,7 @@ class TestInstall(AppLogTestCase):
         old_stderr = sys.stderr
         sys.stderr = Chatty()
         try:
-            log = app_log.install(self.fn)
+            log = app_log.install(self.tmp)
             orig = log.write_stream
 
             # A write while the log is busy (ex: a signal handler)
@@ -162,7 +241,7 @@ class TestInstall(AppLogTestCase):
         old_stderr = sys.stderr
         sys.stderr = io.StringIO()
         try:
-            app_log.install(self.fn)
+            app_log.install(self.tmp)
             app_log.install_qt_message_handler()
             qWarning(b"qt says hi")
             app_log.uninstall()
@@ -195,7 +274,11 @@ class TestHeadless(unittest.TestCase):
             # Terminal output unchanged
             self.assertIn("Traceback", out.stderr)
             self.assertNotIn(" stderr: ", out.stderr)
-            with open(os.path.join(tmp, "data", "headless_log.txt")) as f:
+            fns = glob.glob(os.path.join(tmp, "data", "log", "*.txt"))
+            self.assertEqual(len(fns), 1, fns)
+            self.assertRegex(os.path.basename(fns[0]),
+                             "^" + FN_TS_RE + "_mock-grbl_headless.txt$")
+            with open(fns[0]) as f:
                 content = f.read()
             self.assertRegex(content, TS_RE + " stderr: Traceback")
             self.assertRegex(content, TS_RE + " stdout: Script completed")

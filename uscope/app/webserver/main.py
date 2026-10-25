@@ -107,10 +107,8 @@ def run(args):
 
 def main():
     args = parse_args()
-    # Separate from Argus' log.txt as both may run at once
-    app_log.install(os.path.join(get_bc().get_data_dir(),
-                                 "webserver_log.txt"),
-                    stdout=True)
+    # Tagged as Argus may be launched in the same second
+    app_log.install(get_bc().get_data_dir(), tag="webserver", stdout=True)
     try:
         sys.exit(run(args))
     except KeyboardInterrupt:

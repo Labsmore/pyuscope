@@ -303,6 +303,8 @@
       capture retry capped, auto exposure guards div by zero / runaway steps
     * Argus: clean exit with secondary windows open, SIGUSR1 dumps all thread
       stacks (debug hangs), best effort motion stop before hard exit
+    * Log files: one per launch in data/log/<time>_<microscope>[_<app>].txt
+      (Argus, headless, webserver, script tabs), stderr / tracebacks included
     * Misc crash fixes (subsystem cache store, config lookups, mock HAL jogging)
     * ruff lint config, test/unit/test_mock.py headless suite, hardware tests
       gated behind TEST_GRBL=Y

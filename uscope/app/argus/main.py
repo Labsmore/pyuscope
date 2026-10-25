@@ -26,6 +26,7 @@ from uscope.gui.common import ArgusCommon, error
 
 from uscope.gui.widgets import TopWidget, BatchImageTab, StitchingTab, MeasureTab
 from uscope.gui.imaging import MainTab, PanoramaTab, ImagerTab
+from uscope.gui.machine import MachineTab
 from uscope.gui.scripting import ScriptingTab
 from uscope.gui.instruments import InstrumentsTab
 from uscope.instrument_db import InstrumentDB
@@ -235,13 +236,16 @@ class MainWindow(AMainWindow):
 
     def expertViewTriggered(self):
         """
-        Show / hide tabs most users don't need
+        Show / hide tabs and options most users don't need
         (QTabWidget.setTabVisible() is Qt 5.15+ => remove / re-insert)
         """
         expert = self.expertView.isChecked()
+        self.enableRtspServer.setVisible(expert)
+        self.displayAdvancedMovement.setVisible(expert)
+        self.displayAdvancedMovementTriggered()
         all_tabs = list(self.ac.tabs.items())
         for name, tab in all_tabs:
-            if tab not in (self.batchTab, self.scriptingTab,
+            if tab not in (self.machineTab, self.batchTab, self.scriptingTab,
                            self.stitchingTab):
                 continue
             index = self.tab_widget.indexOf(tab)
@@ -296,6 +300,7 @@ class MainWindow(AMainWindow):
         self.ac.panoramaTab = self.panoramaTab
         self.imagerTab = self.add_tab(ImagerTab, "Imager")
         self.ac.imagerTab = self.imagerTab
+        self.machineTab = self.add_tab(MachineTab, "Machine")
         self.measureTab = self.add_tab(MeasureTab, "Measure")
         self.minimapTab = self.add_tab(MinimapTab, "Minimap")
         self.snapshotsTab = self.add_tab(SnapshotViewerTab, "Snapshots")
@@ -311,6 +316,7 @@ class MainWindow(AMainWindow):
             self.minimapTab,
             self.panoramaTab,
             self.imagerTab,
+            self.machineTab,
             self.batchTab,
             self.scriptingTab,
             self.stitchingTab,
@@ -413,11 +419,13 @@ class MainWindow(AMainWindow):
         fileMenu.addAction(self.clearLog)
         self.clearLog.triggered.connect(self.clearLogTriggered)
         self.expertView = QAction("Expert view", fileMenu, checkable=True)
-        self.expertView.setToolTip("Show Batch, Scripting and CloudStitch tabs")
+        self.expertView.setToolTip(
+            "Show Machine, Batch, Scripting and CloudStitch tabs, "
+            "RTSP server and advanced movement")
         fileMenu.addAction(self.expertView)
         self.expertView.setChecked(config.bc.dev_mode())
         self.expertView.triggered.connect(self.expertViewTriggered)
-        self.expertViewTriggered()
+        # Applied by _cache_load() once all widgets exist
         # Extended options
         self.displayArgusOptions = QAction("Advanced options", fileMenu)
         fileMenu.addAction(self.displayArgusOptions)
@@ -450,11 +458,10 @@ class MainWindow(AMainWindow):
         self.manageObjectives = QAction("Manage objectives…", self)
         videoMenu.addAction(self.manageObjectives)
         self.manageObjectives.triggered.connect(self.manageObjectivesTriggered)
+        # Expert view only
         self.enableRtspServer = QAction("RTSP Server", self, checkable=True)
-        if config.bc.dev_mode():
-            videoMenu.addAction(self.enableRtspServer)
-            self.enableRtspServer.triggered.connect(
-                self.enableRtspServerTriggered)
+        videoMenu.addAction(self.enableRtspServer)
+        self.enableRtspServer.triggered.connect(self.enableRtspServerTriggered)
         self.createCaptureFormatMenu(videoMenu)
         self.createResolutionMenu(videoMenu)
 
@@ -474,7 +481,7 @@ class MainWindow(AMainWindow):
         motionMenu.addAction(self.displayLimits)
         self.displayLimits.setChecked(config.bc.dev_mode())
         self.displayLimits.triggered.connect(self.displayLimitsTriggered)
-        # Advanced movement
+        # Advanced movement (expert view only)
         self.displayAdvancedMovement = QAction("Advanced movement",
                                                motionMenu,
                                                checkable=True)
@@ -787,7 +794,8 @@ class MainWindow(AMainWindow):
 
     def displayAdvancedMovementTriggered(self):
         self.ac.mainTab.motion_widget.show_advanced_movement(
-            bool(self.displayAdvancedMovement.isChecked()))
+            self.expertView.isChecked()
+            and bool(self.displayAdvancedMovement.isChecked()))
 
     def displayArgusOptionsTriggered(self):
         self.argus_options_window.show()

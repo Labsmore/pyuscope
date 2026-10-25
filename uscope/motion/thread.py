@@ -213,6 +213,10 @@ class MotionThreadBase(CommandThreadBase):
         # XXX: add config directive
         self.allow_motion_reboot = False
         self._jog_enabled = True
+        # Diagnostics (see diagnostics()). Written here, read from GUI
+        self._diag_lock = threading.Lock()
+        self._tstart = time.time()
+        self.diagnostics_reset(controller=False)
 
         # Seed state / refuse to start without motion
         self.init_motion()
@@ -292,6 +296,7 @@ class MotionThreadBase(CommandThreadBase):
             self.jog_fractioned(axes, period)
         else:
             print("WARNING: drop jog on backing up queue")
+            self._diag_inc("jogs_dropped_queue_full")
 
     def jog_rel(self, pos, rate):
         self.command("jog_rel", pos, rate)
@@ -355,6 +360,58 @@ class MotionThreadBase(CommandThreadBase):
     def apply_damper(self, damper, block=False, callback=None):
         self.command("apply_damper", damper, block=block, callback=callback)
 
+    def machine_state(self, callback=None):
+        """
+        Query controller settings / offsets in between other motion commands
+        callback(command, args, ret_or_exception) is called in the motion thread
+        """
+        self.command("machine_state", callback=callback)
+
+    def machine_state_cache(self):
+        """
+        Last known controller state (thread safe, no controller I/O)
+        None if not supported or the motion controller is dead
+        """
+        motion = self.motion
+        if motion is None:
+            return None
+        return motion.machine_state_cache()
+
+    def _diag_inc(self, k, n=1):
+        with self._diag_lock:
+            self._diag["counters"][k] = self._diag["counters"].get(k, 0) + n
+
+    def _diag_event(self, k, **kwargs):
+        with self._diag_lock:
+            kwargs["time"] = time.time()
+            self._diag["last"][k] = kwargs
+
+    def diagnostics(self):
+        """
+        Thread safe: motion thread counters + controller counters (or None)
+        """
+        with self._diag_lock:
+            ret = {
+                "tstart": self._tstart,
+                "treset": self._diag["treset"],
+                "counters": dict(self._diag["counters"]),
+                "last": dict(
+                    (k, dict(v)) for k, v in self._diag["last"].items()),
+            }
+        ret["queue_depth"] = self.qsize()
+        ret["idle"] = self.idle.is_set()
+        ret["dead"] = None if self.dead is None else str(self.dead)
+        motion = self.motion
+        ret["controller"] = None if motion is None else motion.diagnostics()
+        return ret
+
+    def diagnostics_reset(self, controller=True):
+        with self._diag_lock:
+            self._diag = {"treset": time.time(), "counters": {}, "last": {}}
+        motion = self.motion
+        if controller and motion is not None:
+            motion.diagnostics_reset()
+
     def qsize(self):
         return self.queue.qsize()
 
@@ -384,18 +441,21 @@ class MotionThreadBase(CommandThreadBase):
             self.motion.jog_rel(*args, **kwargs)
         else:
             self.log("WARNING: jog disabled, dropping jog")
+            self._diag_inc("jogs_dropped_disabled")
 
     def _jog_abs(self, *args, **kwargs):
         if self._jog_enabled:
             self.motion.jog_abs(*args, **kwargs)
         else:
             self.log("WARNING: jog disabled, dropping jog")
+            self._diag_inc("jogs_dropped_disabled")
 
     def _jog_fractioned(self, *args, **kwargs):
         if self._jog_enabled:
             self.motion.jog_fractioned(*args, **kwargs)
         else:
             self.log("WARNING: jog disabled, dropping jog")
+            self._diag_inc("jogs_dropped_disabled")
 
     def _jog_cancel(self, *args, **kwargs):
         # Always honored: dropping it would leave the HAL thinking it is
@@ -450,6 +510,7 @@ class MotionThreadBase(CommandThreadBase):
                             self.init_motion()
                             self.motion.on()
                             self.dead = None
+                            self._diag_inc("reconnects")
                         except Exception as e:
                             self.log(
                                 "Failed to reboot motion controller :( %s" %
@@ -458,12 +519,14 @@ class MotionThreadBase(CommandThreadBase):
                         continue
 
                 if self._estop:
+                    self._diag_inc("estops")
                     self.motion.estop()
                     self.queue_clear()
                     self._estop = False
                     continue
 
                 if self._stop_requested:
+                    self._diag_inc("stops")
                     self.motion.stop()
                     self.queue_clear()
                     self._stop_requested = False
@@ -529,6 +592,7 @@ class MotionThreadBase(CommandThreadBase):
                     'mdi': self.motion.command,
                     'log_info': self.motion.log_info,
                     'apply_damper': self.motion.apply_damper,
+                    'machine_state': self.motion.machine_state,
                 }.get(command, default)
                 tstart = time.time()
                 # Either the return value or the exception that was raised
@@ -544,6 +608,10 @@ class MotionThreadBase(CommandThreadBase):
                 # Depending on the motion controller this may be a bad idea
                 # Only some of them retain the old coordinate system / may need re-home
                 except MotionCritical as e:
+                    self._diag_inc("critical_errors")
+                    self._diag_event("critical_error",
+                                     command=command,
+                                     error=f"{type(e).__name__}: {e}")
                     # Mark dead before waking the caller so that it observes
                     # a consistent state
                     self._motion_died(e)
@@ -553,13 +621,32 @@ class MotionThreadBase(CommandThreadBase):
                 except AxisExceeded as e:
                     # Expected / routine: ex soft limit trimmed a jog
                     self.log(f"Motion command failed: {e}")
+                    self._diag_inc("axis_exceeded")
+                    self._diag_event("axis_exceeded",
+                                     command=command,
+                                     error=str(e))
                     ret = e
                 except Exception as e:
                     self.log(f"WARNING: motion thread crashed: {e}")
                     print("")
                     print("WARNING: motion thread crashed")
                     print(traceback.format_exc())
+                    self._diag_inc("exceptions")
+                    self._diag_event("exception",
+                                     command=command,
+                                     error=f"{type(e).__name__}: {e}")
                     ret = e
+                dt = time.time() - tstart
+                with self._diag_lock:
+                    counters = self._diag["counters"]
+                    counters["processed"] = counters.get("processed", 0) + 1
+                    self._diag["last"]["command"] = {
+                        "time": time.time(),
+                        "command": command,
+                        "duration": dt,
+                    }
+                    counters["max_command_ms"] = max(
+                        counters.get("max_command_ms", 0), int(dt * 1000))
                 # motion command update_pos_cache completed in 0.006439208984375
                 # motion command jog_fractioned completed in 0.021370649337768555
                 # motion command update_pos_cache completed in 0.21372413635253906

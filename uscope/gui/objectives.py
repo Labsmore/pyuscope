@@ -25,6 +25,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QSizePolicy,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
@@ -250,10 +251,14 @@ class ObjectivesTab(ArgusTab):
             self.lineup_table.verticalHeader().setVisible(False)
             self.lineup_table.horizontalHeader().setSectionResizeMode(
                 QHeaderView.ResizeToContents)
-            self.lineup_table.horizontalHeader().setStretchLastSection(True)
+            # Extra width goes to the name
+            self.lineup_table.horizontalHeader().setSectionResizeMode(
+                0, QHeaderView.Stretch)
+            self.lineup_table.setSizePolicy(QSizePolicy.Expanding,
+                                            QSizePolicy.Expanding)
             self.lineup_table.itemDoubleClicked.connect(
                 lambda _item: self.lineup_edit())
-            layout.addWidget(self.lineup_table)
+            layout.addWidget(self.lineup_table, 1)
 
             row = QHBoxLayout()
             for label, cb, tip in (
@@ -312,9 +317,14 @@ class ObjectivesTab(ArgusTab):
             self.library_tree.setHeaderLabels(self.LIBRARY_COLUMNS)
             self.library_tree.header().setSectionResizeMode(
                 QHeaderView.ResizeToContents)
+            self.library_tree.header().setSectionResizeMode(
+                0, QHeaderView.Stretch)
+            self.library_tree.header().setStretchLastSection(False)
+            self.library_tree.setSizePolicy(QSizePolicy.Expanding,
+                                            QSizePolicy.Expanding)
             self.library_tree.itemDoubleClicked.connect(
                 lambda item, _col: self.library_add_to_lineup())
-            layout.addWidget(self.library_tree)
+            layout.addWidget(self.library_tree, 1)
 
             row = QHBoxLayout()
             add_pb = QPushButton("Add to lineup")
@@ -350,13 +360,20 @@ class ObjectivesTab(ArgusTab):
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(lineup_gb())
         splitter.addWidget(library_gb())
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+        splitter.setChildrenCollapsible(False)
         splitter.setSizes([500, 550])
-        layout.addWidget(splitter)
+        splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Tables get all extra space, not the labels
+        layout.addWidget(splitter, 1)
         note = QLabel(
             "Your objectives and lineups are saved per install and take "
             "precedence over the shipped configuration. Calibration is "
             "stored by objective name.")
         note.setWordWrap(True)
+        for label in (self.status_l, note):
+            label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         layout.addWidget(note)
         self.setLayout(layout)
 

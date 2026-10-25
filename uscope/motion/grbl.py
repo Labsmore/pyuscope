@@ -188,6 +188,79 @@ config_i2s = {
     131: "Y Max travel, mm Only for Homing and Soft Limits",
     132: "Z Max travel, mm Only for Homing and Soft Limits",
 }
+
+# $# parameters
+offset_k2s = {
+    "G54": "Work coordinate system 1",
+    "G55": "Work coordinate system 2",
+    "G56": "Work coordinate system 3",
+    "G57": "Work coordinate system 4",
+    "G58": "Work coordinate system 5",
+    "G59": "Work coordinate system 6",
+    "G28": "Predefined position (G28)",
+    "G30": "Predefined position (G30)",
+    "G92": "Coordinate offset (G92)",
+    "TLO": "Tool length offset",
+    "PRB": "Last probe (position:success)",
+}
+
+# ? status report fields
+status_k2s = {
+    "MPos": "Machine position",
+    "WPos": "Work position",
+    "WCO": "Work coordinate offset",
+    "Bf": "Buffer (planner blocks, RX bytes free)",
+    "Ln": "Line number",
+    "F": "Feed rate",
+    "FS": "Feed rate, spindle speed",
+    "Pn": "Input pins active",
+    "Ov": "Overrides (feed, rapid, spindle %)",
+    "A": "Accessories",
+}
+
+# $G parser state words
+parser_c2s = {
+    "G0": "Rapid motion",
+    "G1": "Linear motion",
+    "G2": "Arc CW",
+    "G3": "Arc CCW",
+    "G38.2": "Probe",
+    "G38.3": "Probe",
+    "G38.4": "Probe",
+    "G38.5": "Probe",
+    "G80": "Motion cancel",
+    "G54": "Work coordinate system 1",
+    "G55": "Work coordinate system 2",
+    "G56": "Work coordinate system 3",
+    "G57": "Work coordinate system 4",
+    "G58": "Work coordinate system 5",
+    "G59": "Work coordinate system 6",
+    "G17": "XY plane",
+    "G18": "ZX plane",
+    "G19": "YZ plane",
+    "G20": "Units: inches",
+    "G21": "Units: mm",
+    "G90": "Absolute distance",
+    "G91": "Incremental distance",
+    "G91.1": "Incremental arc distance",
+    "G93": "Inverse time feed",
+    "G94": "Units per minute feed",
+    "G43.1": "Dynamic tool length offset",
+    "G49": "Tool length offset cancel",
+    "M0": "Program pause",
+    "M1": "Program optional pause",
+    "M2": "Program end",
+    "M30": "Program end",
+    "M3": "Spindle CW",
+    "M4": "Spindle CCW",
+    "M5": "Spindle off",
+    "M7": "Mist coolant",
+    "M8": "Flood coolant",
+    "M9": "Coolant off",
+    "T": "Tool (pyuscope may use as homed flag)",
+    "F": "Feed rate",
+    "S": "Spindle speed",
+}
 """
 Firmware configuration
 Cannot be changed after build w/o reflashing
@@ -234,6 +307,40 @@ def status_is_alarm(status):
     return status == "Alarm" or status.startswith("Door")
 
 
+def parse_dollar_settings(lines):
+    """
+    $$ lines => [("$0", "10", "Step pulse, microseconds"), ...]
+    Some controllers append a comment: $100=500.000 (x axis pulse:step/mm)
+    """
+    ret = []
+    for l in lines:
+        l = l.strip()
+        if not l.startswith("$") or "=" not in l:
+            continue
+        config, _paren, comment = l.partition("(")
+        comment = comment.replace(")", "").strip()
+        k, v = config.split("=", 1)
+        try:
+            description = config_i2s.get(int(k[1:]), "")
+        except ValueError:
+            description = ""
+        ret.append((k, v.strip(), description or comment or ""))
+    return ret
+
+
+def parse_hash(lines):
+    """
+    $# lines (brackets already trimmed) => [("G54", "0.000,0.000,0.000"), ...]
+    """
+    ret = []
+    for l in lines:
+        if ":" not in l:
+            continue
+        k, v = l.split(":", 1)
+        ret.append((k, v))
+    return ret
+
+
 def parse_rc_rates(commands):
     """
     Max rate ($110-$112) / acceleration ($120-$122) set by rc commands
@@ -271,6 +378,95 @@ class GrblError(Exception):
         except (ValueError, IndexError, KeyError):
             new_msg = f"unknown error {msg}"
         super().__init__(new_msg)
+
+
+def exc_str(e):
+    # Bare asserts have no message
+    return f"{type(e).__name__}: {e}"
+
+
+class GrblStats:
+    """
+    Communication counters / last events for diagnostics (Argus Machine tab)
+    Updated from the motion thread, read from the GUI => everything under lock
+    Observation only: must not change protocol behavior
+    """
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.tconnect = time.time()
+        # Not cleared by reset(): age of the link, not a counter
+        self.tlast_rx = None
+        self.reset()
+
+    def reset(self):
+        with self.lock:
+            self.treset = time.time()
+            self.counters = {}
+            self.error_codes = {}
+            self.alarm_codes = {}
+            # name => {"time": t, ...}
+            self.last = {}
+            # kind => [n, sum, max, last]
+            self.latencies = {}
+
+    def inc(self, k, n=1):
+        with self.lock:
+            self.counters[k] = self.counters.get(k, 0) + n
+
+    def event(self, k, **kwargs):
+        with self.lock:
+            kwargs["time"] = time.time()
+            self.last[k] = kwargs
+
+    def rx(self, kind, dt):
+        """Good response after dt seconds"""
+        with self.lock:
+            self.tlast_rx = time.time()
+            l = self.latencies.setdefault(kind, [0, 0.0, 0.0, 0.0])
+            l[0] += 1
+            l[1] += dt
+            l[2] = max(l[2], dt)
+            l[3] = dt
+
+    def error_line(self, line, command):
+        try:
+            code = int(line.split(":")[1])
+        except (ValueError, IndexError):
+            code = None
+        with self.lock:
+            self.counters["errors"] = self.counters.get("errors", 0) + 1
+            self.error_codes[code] = self.error_codes.get(code, 0) + 1
+            self.last["error"] = {
+                "time": time.time(),
+                "code": code,
+                "message": error_i2s.get(code, line),
+                "command": command,
+            }
+
+    def alarm(self, code, source):
+        """code: ALARM:N number, or None for Alarm state with no code seen"""
+        with self.lock:
+            self.counters["alarms"] = self.counters.get("alarms", 0) + 1
+            self.alarm_codes[code] = self.alarm_codes.get(code, 0) + 1
+            self.last["alarm"] = {
+                "time": time.time(),
+                "code": code,
+                "message": alarm_i2s.get(code, source),
+            }
+
+    def snapshot(self):
+        with self.lock:
+            return {
+                "tconnect": self.tconnect,
+                "treset": self.treset,
+                "tlast_rx": self.tlast_rx,
+                "counters": dict(self.counters),
+                "error_codes": dict(self.error_codes),
+                "alarm_codes": dict(self.alarm_codes),
+                "last": dict((k, dict(v)) for k, v in self.last.items()),
+                "latencies": dict(
+                    (k, list(v)) for k, v in self.latencies.items()),
+            }
 
 
 def reformat_config(s):
@@ -313,6 +509,7 @@ class GRBLSer:
             flush=True,
             verbose=None):
         self.serial = None
+        self.stats = GrblStats()
         if port is None:
             port = default_port()
         self.verbose = verbose if verbose is not None else bool(
@@ -380,6 +577,7 @@ class GRBLSer:
         NOTE: blue system
         flushing b'[MSG:Estop is activated!]\r\nok\r\n[MSG:Estop is activated!]\r\nok\r\n'
         """
+        self.stats.inc("flushes")
         self.serial.flushInput()
         self.serial.flushOutput()
         timeout = self.serial.timeout
@@ -387,6 +585,9 @@ class GRBLSer:
             self.serial.timeout = 0.1
             while True:
                 c = self.serial.read(1024)
+                if c:
+                    self.stats.inc("flushed_bytes", len(c))
+                    self.stats.event("flush_discard", data=repr(c[:80]))
                 if b"Estop is activated" in c:
                     raise Estop(
                         "Emergency stop is activated. Check estop button and/or power supply and then re-home"
@@ -446,21 +647,36 @@ class GRBLSer:
         """
         if timeout is None:
             timeout = self.ser_timeout
+        self.stats.inc("commands")
         self.tx(out, nl=nl)
         ret = []
         tstart = time.time()
         while True:
             if time.time() - tstart > timeout:
+                self.stats.inc("timeouts")
+                self.stats.event("timeout", command=out)
                 raise Timeout(f"Timed out after {timeout} sec")
             l = self.readline().strip()
             self.verbose and print("rx '%s'" % (l, ))
             if not l:
                 continue
             elif l == "ok":
+                self.stats.inc("oks")
+                self.stats.rx("command", time.time() - tstart)
                 return ret
             elif l.find("error") == 0:
+                self.stats.error_line(l, out)
                 raise GrblError(l)
             else:
+                if l.startswith("ALARM:"):
+                    try:
+                        self.stats.alarm(int(l.split(":")[1]), l)
+                    except ValueError:
+                        self.stats.alarm(None, l)
+                elif trim_data and not (l[0] == "[" and l[-1] == "]"):
+                    # trim_data asserts on these
+                    self.stats.inc("unexpected_lines")
+                    self.stats.event("unexpected_line", line=l, command=out)
                 if trim_data:
                     ret.append(trim_data_line(l))
                 else:
@@ -492,6 +708,8 @@ class GRBLSer:
         ^X
         Grbl 1.1f ['$' for help]
         """
+        self.stats.inc("resets")
+        self.stats.event("reset")
         self.tx("\x18", nl=False)
         # Leave recovery to higher level logic
         """
@@ -579,10 +797,22 @@ class GRBLSer:
             self.verbose and print("rx '%s'" % (l, ))
             # Skip blank lines (ex: stray newline before the status report)
             if l:
+                if not (l[0] == "<" and l[-1] == ">"):
+                    # trim_status_line rejects it below
+                    if l.startswith("ALARM:"):
+                        try:
+                            self.stats.alarm(int(l.split(":")[1]), l)
+                        except ValueError:
+                            self.stats.alarm(None, l)
+                    self.stats.inc("garbled_status_lines")
+                    self.stats.event("garbled_status_line", line=l)
                 l = trim_status_line(l)
                 if l:
+                    self.stats.rx("status", time.time() - tstart)
                     return l
             if time.time() - tstart > self.ser_timeout:
+                self.stats.inc("timeouts")
+                self.stats.event("timeout", command="?")
                 raise Timeout(f"No status report after {self.ser_timeout} sec")
 
     def c(self):
@@ -667,6 +897,7 @@ class GRBLSer:
         Immediately cancels the current jog state by a feed hold and
         automatically flushing any remaining jog commands in the buffer.
         """
+        self.stats.inc("jog_cancel_bytes")
         self.txb(b"\x85")
 
     def in_reset(self):
@@ -680,6 +911,8 @@ class GRBLSer:
         return True
 
     def reset_recover(self):
+        self.stats.inc("reset_recovers")
+        self.stats.event("reset_recover")
         # Prompt should come in about 1.5 seconds from start
         tbegin = time.time()
         while time.time() - tbegin < 2.0:
@@ -725,6 +958,7 @@ class MockGRBLSer(GRBLSer):
         self.verbose and print("MOCK: opening", port)
         self.ser_timeout = -1
         self.serial = None
+        self.stats = GrblStats()
         self.check_threads = get_bc().dev_mode()
         self.reset()
 
@@ -907,6 +1141,11 @@ class GRBL:
                 self.port = port
         assert gs
         self.gs = gs
+        # Shared with gs so serial and protocol level events land together
+        self.stats = getattr(gs, "stats", None) or GrblStats()
+        gs.stats = self.stats
+        # To count Alarm state entries
+        self.last_status = None
         if flush:
             pass
         if probe:
@@ -993,6 +1232,8 @@ class GRBL:
         for tryi in range(tries):
             try:
                 self.verbose and print("Recovering")
+                self.stats.inc("recovers")
+                self.stats.event("recover", attempt=tryi + 1)
                 # might have been put into hold
                 self.gs.tilda()
                 # Clear any commands in progress
@@ -1005,6 +1246,8 @@ class GRBL:
                 if not retry:
                     raise
                 if tryi == tries - 1:
+                    self.stats.inc("recover_failures")
+                    self.stats.event("recover_failure", error=exc_str(e))
                     raise MotionCritical(
                         f"Unable to recover GRBL comms: {e}") from e
                 continue
@@ -1051,15 +1294,24 @@ class GRBL:
                         # v = True
                         pass
                     ret[k] = v
+                self.stats.inc("status_polls")
+                if status_is_alarm(ij) and not (
+                        self.last_status and status_is_alarm(self.last_status)):
+                    self.stats.inc("alarm_state_entries")
+                    self.stats.event("alarm_state", status=ij)
+                self.last_status = ij
                 if self.qstatus_updated_cb:
                     self.qstatus_updated_cb(ret)
                 return ret
-            except Exception:
+            except Exception as e:
+                self.stats.inc("status_failures")
+                self.stats.event("status_failure", error=exc_str(e))
                 if not retry:
                     raise
                 self.verbose and print("WARNING: bad qstatus")
                 if i == tries - 1:
                     raise
+                self.stats.inc("status_retries")
                 # Uses qstatus
                 self.general_recover(retry=False)
         assert 0
@@ -1092,10 +1344,12 @@ class GRBL:
             except GrblAlarm:
                 # Retrying won't help and recovery could mask the fault
                 raise
-            except Exception:
+            except Exception as e:
                 self.verbose and print("WARNING: bad absolute move")
+                self.stats.event("move_failure", error=exc_str(e))
                 if i == tries - 1:
                     raise
+                self.stats.inc("move_retries")
                 self.general_recover()
 
     def soft_move_relative(self, pos, f, blocking=True):
@@ -1153,6 +1407,8 @@ class GRBL:
                 last_mpos = mpos
                 tlast_change = now
             elif stall_timeout is not None and now - tlast_change > stall_timeout:
+                self.stats.inc("motion_stalls")
+                self.stats.event("motion_stall", status=status)
                 raise Timeout(
                     f"Motion stalled: status {status}, no position change in {stall_timeout} sec"
                 )
@@ -1183,6 +1439,7 @@ class GRBL:
         except Timeout:
             # Better to under jog than retry and over jog
             self.verbose and print("WARNING: dropping jog")
+            self.stats.inc("dropped_jogs")
             self.general_recover()
 
     def jog_abs(self, pos, rate):
@@ -1204,6 +1461,7 @@ class GRBL:
         except Timeout:
             # Better to under jog than retry and over jog
             self.verbose and print("WARNING: dropping jog")
+            self.stats.inc("dropped_jogs")
             self.general_recover()
 
     def do_jog_cancel(self):
@@ -1244,10 +1502,12 @@ class GRBL:
                         # print(f"cancel jog after {cancels} attempts, {dt} seconds")
                         return
                     self.verbose and print("cancel: not idle yet")
-            except Exception:
+            except Exception as e:
                 self.verbose and print("WARNING: bad cancel jog")
+                self.stats.event("jog_cancel_failure", error=exc_str(e))
                 if i == tries - 1:
                     raise
+                self.stats.inc("jog_cancel_retries")
                 self.general_recover()
 
     def jog_cancel(self):
@@ -1400,6 +1660,10 @@ class GrblHal(MotionHAL):
         self._max_acelerations = None
         self._wcs_offsets_cache = None
         self.last_qstatus = None
+        # Status report fields only sent periodically / on change (ex: WCO)
+        self.last_qstatus_sticky = {}
+        # See machine_state()
+        self.last_machine_state = None
         self._abs_max_velocities = None
         self._abs_max_accelerations = None
         self._nominal_rates_unsaved = False
@@ -1681,6 +1945,8 @@ class GrblHal(MotionHAL):
                 break
             except HomingFailed:
                 print("Homing timed out, nudging again")
+                self.grbl.stats.inc("homing_failures")
+                self.grbl.stats.event("homing_failure", attempt=homing_try + 1)
         else:
             raise HomingFailed("Failed to home despite several attempts :(")
         deltat = time.time() - tstart
@@ -1727,6 +1993,11 @@ class GrblHal(MotionHAL):
 
     def qstatus_updated(self, status):
         self.last_qstatus = dict(status)
+        sticky = dict(self.last_qstatus_sticky)
+        for k in ("WCO", "Ov"):
+            if k in status:
+                sticky[k] = status[k]
+        self.last_qstatus_sticky = sticky
         # careful this will get modified up the stack
         pos = dict(status["MPos"])
         self._mpos_adjust_wcs(pos)
@@ -1811,6 +2082,62 @@ class GrblHal(MotionHAL):
 
     def log_info(self):
         self.grbl.log_info(log=self.log)
+
+    def machine_state(self):
+        """
+        Query settings ($$), offsets ($#), parser state ($G) and build info ($I)
+        Motion thread only. Refuses unless Idle / Alarm: GRBL rejects $$ / $#
+        during a cycle and we don't want to stall a jog
+        Each section is queried independently: errors are reported per section
+        """
+        self.check_thread_safety()
+        ret = {"time": time.time(), "errors": {}}
+        status = self.grbl.qstatus()["status"]
+        if status != "Idle" and not status_is_alarm(status):
+            # Not cached: keep showing the last good values
+            msg = f"Controller busy ({status}), try again when idle"
+            ret["errors"]["busy"] = msg
+            self.grbl.stats.inc("rejected_queries")
+            self.grbl.stats.event("rejected_query", status=status)
+            return ret
+
+        def query(k, f):
+            try:
+                ret[k] = f()
+            except Exception as e:
+                ret["errors"][k] = str(e)
+                # Don't leave a partial response for the next command
+                try:
+                    self.grbl.gs.flush()
+                except Exception:
+                    pass
+
+        query("settings", lambda: parse_dollar_settings(self.grbl.gs.dollar()))
+        query("offsets", lambda: parse_hash(self.grbl.gs.hash()))
+        query("parser", lambda: self.grbl.gs.g().replace("GC:", "").split())
+        query("build", lambda: list(self.grbl.gs.i()))
+        # Fresh status report (also updates last_qstatus)
+        query("qstatus", self.grbl.qstatus)
+        self.last_machine_state = ret
+        return ret
+
+    def machine_state_cache(self):
+        """
+        Thread safe: last known values, doesn't talk to the controller
+        """
+        return {
+            "machine_state": self.last_machine_state,
+            "qstatus": self.last_qstatus,
+            "qstatus_sticky": self.last_qstatus_sticky,
+            "wcs_offsets": self._wcs_offsets_cache,
+        }
+
+    def diagnostics(self):
+        """Thread safe: communication counters (see GrblStats)"""
+        return self.grbl.stats.snapshot()
+
+    def diagnostics_reset(self):
+        self.grbl.stats.reset()
 
     def _do_apply_damper(self, damper):
         # Lock in the baseline before EEPROM holds damped values

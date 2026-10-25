@@ -1487,6 +1487,30 @@ class MotionHAL:
     def system_status_ts(self, root_status, status):
         pass
 
+    def machine_state(self):
+        """
+        Query controller specific settings / status for display
+        (ex: GRBL $$ / $#). Motion thread only
+        """
+        raise NotSupported("Not available for this motion controller")
+
+    def machine_state_cache(self):
+        """
+        Thread safe last known machine_state() and status
+        None if not supported
+        """
+        return None
+
+    def diagnostics(self):
+        """
+        Thread safe controller communication counters
+        None if not supported
+        """
+        return None
+
+    def diagnostics_reset(self):
+        pass
+
 
 '''
 Has no actual hardware associated with it
